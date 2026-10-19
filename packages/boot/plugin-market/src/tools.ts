@@ -1,14 +1,14 @@
-/** Agent-facing read-only listing of configured plugin market indexes. */
+/** 面向智能体、对当前已配置的插件市场索引的只读列举。 */
 import { assertNever } from '@deepseek-ai/dsh-util-values'
 import type { Context } from '@deepseek-ai/cordis'
 import type { LocalizedText } from '@deepseek-ai/dsh-package-manifest'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { MarketListingVersion } from './index.ts'
 
-/** Required services for the listing tool; `pluginMarket` is awaited inside `apply`. */
+/** 列举工具所需的服务；`pluginMarket` 在 `apply` 内部被等待。 */
 export const inject = ['tools']
 
-/** Settle with `promise`, or reject with the signal's reason once it aborts. */
+/** 随 `promise` 兑现，或在信号中止时以其理由拒绝。 */
 function untilAborted<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const abort = (): void => { reject(signal.reason instanceof Error ? signal.reason : new Error('Aborted')) }
@@ -17,16 +17,16 @@ function untilAborted<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
   })
 }
 
-/** Longest market-supplied title or description returned to the model, in UTF-16 code units. */
+/** 返回给模型的市场提供的标题或描述的最大长度，以 UTF-16 码元计。 */
 const MAX_TEXT = 300
 
-/** English text of a market field, truncated with an ellipsis so one entry cannot dominate the result. */
+/** 市场字段的英文文本，以省略号截断，以免单条目主导结果。 */
 function english(text: LocalizedText | undefined): string | undefined {
   const value = typeof text === 'object' ? text.en : text
   return value === undefined || value.length <= MAX_TEXT ? value : `${value.slice(0, MAX_TEXT)}…`
 }
 
-/** One version as the model sees it: when it was published, whether it runs here, and how to install it. */
+/** 模型视角下的一个版本：发布时间、是否可在此运行，以及安装方式。 */
 function versionResult(version: MarketListingVersion): Record<string, unknown> {
   return {
     version: version.version,
@@ -36,13 +36,13 @@ function versionResult(version: MarketListingVersion): Record<string, unknown> {
   }
 }
 
-/** A requested page of a list. */
+/** 列表的一页。 */
 interface Page {
   readonly offset: number
   readonly limit: number
 }
 
-/** Validate a page request against the tool's documented bounds. */
+/** 依据工具文档化的边界校验一次分页请求。 */
 function pageOf(offset: number | undefined, limit: number | undefined): Page {
   const page = { offset: offset ?? 0, limit: limit ?? 25 }
   if (!Number.isInteger(page.offset) || page.offset < 0 || !Number.isInteger(page.limit) || page.limit < 1 || page.limit > 100) {
@@ -51,7 +51,7 @@ function pageOf(offset: number | undefined, limit: number | undefined): Page {
   return page
 }
 
-/** One page of `items` with the offset of the next page, or null after the last. */
+/** `items` 的一页，以及下一页的偏移量；最后一页之后为 null。 */
 function paged<T>(items: readonly T[], page: Page): { readonly slice: T[]; readonly nextOffset: number | null } {
   const slice = items.slice(page.offset, page.offset + page.limit)
   const next = page.offset + slice.length
@@ -59,9 +59,9 @@ function paged<T>(items: readonly T[], page: Page): { readonly slice: T[]; reado
 }
 
 /**
- * Register the read-only `plugin_market` tool while the `pluginMarket` service is mounted. The service comes from the
- * optional custom plugin markets bundle, so a preset can keep this row without the tool appearing or the row waiting.
- * @param ctx - Agent-scoped tool registration context.
+ * 在 `pluginMarket` 服务挂载期间注册只读的 `plugin_market` 工具。该服务来自可选的
+ * 自定义插件市场 bundle，因此一个预设可以保留这一行，而不必让工具出现或让该行等待。
+ * @param ctx - 智能体作用域内的工具注册上下文。
  */
 export function apply(ctx: Context): void {
   ctx.inject(['pluginMarket'], (scope) => { registerTool(scope) })
@@ -97,7 +97,7 @@ function registerTool(ctx: Context): void {
           if (args.target === undefined) throw new Error('target index URL is required')
           const page = pageOf(args.offset, args.limit)
           const text = args.query ?? ''
-          // The read is shared with other callers, so cancelling this call stops waiting without aborting the fetch.
+          // 该读取与其它调用方共享，因此取消本次调用只会停止等待，而不会中止抓取。
           const result = await untilAborted(market.search(args.target, {
             text, sort: { kind: text.trim() === '' ? 'index' : 'relevance' }, offset: page.offset, limit: page.limit,
           }), exec.signal)

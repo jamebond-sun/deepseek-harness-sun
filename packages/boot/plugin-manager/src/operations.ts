@@ -1,4 +1,4 @@
-/** Shared profile package operations used by dsh plugin and the running manager. */
+/** dsh plugin 命令与运行中的管理器共享的 profile 包操作。 */
 import { once } from 'node:events'
 import { existsSync, readFileSync } from 'node:fs'
 import { mkdir, mkdtemp, open, rm } from 'node:fs/promises'
@@ -18,25 +18,25 @@ import { incompatiblePlugin } from './failure.ts'
 import type { IncompatiblePlugin, PackageResult, Registry } from './types.ts'
 export { setProfileVersionExemption, readProfileVersionExemptions } from '@deepseek-ai/dsh-app-boot'
 
-/** Profile and invocation locations supplied by the launcher. */
+/** 由启动器提供的 profile 与调用位置。 */
 export interface PackageOperationContext {
   profile: string
-  /** Explicit directory for an application-owned profile; named CLI profiles resolve under home. */
+  /** 一个应用所拥有的 profile 的显式目录；具名的 CLI profile 在 home 之下解析。 */
   dir?: string
   installAnchor: string
   cwd: string
   home?: string
 }
 
-/** Output and cancellation policy for one pnpm operation. */
+/** 一次 pnpm 操作的输出与取消策略。 */
 export interface PackageOperationOptions {
-  /** The pnpm executable name or path; resolved through `PATH` like the `dsh plugin` command. Defaults to `pnpm`. */
+  /** pnpm 可执行文件的名称或路径；像 `dsh plugin` 命令一样通过 `PATH` 解析。默认为 `pnpm`。 */
   command?: string
-  /** Prefix arguments for an application-owned executable. */
+  /** 一个应用所拥有可执行文件的前缀参数。 */
   args?: readonly string[]
-  /** Application runtime environment, applied only to this package operation. */
+  /** 应用运行时环境，仅应用于本次包操作。 */
   env?: Readonly<Record<string, string>>
-  /** CLI inherits authentication and terminal descriptors; service scrubs secrets and captures output. */
+  /** CLI 继承鉴权与终端描述符；service 清除密钥并捕获输出。 */
   execution: 'cli' | 'service'
   signal?: AbortSignal
   outputBytes: number
@@ -44,20 +44,19 @@ export interface PackageOperationOptions {
   activateNewBundles?: boolean
   lockWaitMs?: number
   /**
-   * Terminate the run once its captured output has been silent for this long, in
-   * milliseconds. A run stopped this way reports `timedOut`; without a bound, a
-   * child that stops progressing without exiting holds its caller forever. A run
-   * with inherited descriptors captures nothing and is never bound.
+   * 一旦被捕获的输出在此毫秒数内保持静默，就终止该运行。以这种方式停止的运行会报告
+   * `timedOut`；没有上限时，一个停止推进却未退出的子进程会永远占据其调用方。继承了
+   * 描述符的运行不捕获任何输出，也永远不会被设限。
    */
   idleTimeoutMs?: number
-  /** Bound on the pre-install registry lookup, in milliseconds; without one a fixed bound applies. */
+  /** 安装前注册表查找的上限（毫秒）；没有时采用一个固定的上限。 */
   lookupTimeoutMs?: number
 }
 
-/** Resolve relative package specs against the caller's directory.
- * @param argument One pnpm argument.
- * @param cwd Invocation directory, never the profile directory.
- * @returns Anchored argument.
+/** 相对于调用方的目录解析包 spec。
+ * @param argument 一个 pnpm 参数。
+ * @param cwd 调用目录，绝不会是 profile 目录。
+ * @returns 锚定后的参数。
  */
 export function anchorPathSpec(argument: string, cwd: string): string {
   const match = /^(?<prefix>(?:file|link):)?(?<path>\.{1,2}(?:[/\\].*)?)$/.exec(argument)
@@ -65,11 +64,11 @@ export function anchorPathSpec(argument: string, cwd: string): string {
   return `${match.groups.prefix ?? ''}${resolve(cwd, match.groups.path)}`
 }
 
-/** Read bundle metadata without loading its JavaScript.
- * @param name Installed dependency or installation-owned package name.
- * @param dir Profile directory.
- * @param anchor Installation manifest.
- * @returns Resolved metadata, or undefined for packages without bundle metadata.
+/** 在不加载其 JavaScript 的前提下读取 bundle 元数据。
+ * @param name 已安装的依赖或安装所拥有的包名。
+ * @param dir Profile 目录。
+ * @param anchor 安装清单。
+ * @returns 解析后的元数据；对于没有 bundle 元数据的包为 undefined。
  */
 export function bundleManifest(name: string, dir: string, anchor: string): ProfileManifest | undefined {
   const packageDir = resolveBundleDir('dsh', name, anchor, dir)
@@ -77,15 +76,15 @@ export function bundleManifest(name: string, dir: string, anchor: string): Profi
   return manifest.dsh?.bundle?.patch === undefined ? undefined : manifest
 }
 
-/** Atomically save a profile manifest while retaining unrelated fields.
- * @param dir Profile directory.
- * @param manifest Updated document.
+/** 在保留无关字段的前提下，原子地保存 profile 清单。
+ * @param dir Profile 目录。
+ * @param manifest 更新后的文档。
  */
 export async function saveManifest(dir: string, manifest: ProfileManifest): Promise<void> {
   await writeFileAtomic(join(dir, 'package.json'), JSON.stringify(manifest, undefined, 2) + '\n', { mode: 0o600 })
 }
 
-/** Reconcile package removals and newly installed bundles without re-enabling retained dependencies. */
+/** 在不重新启用被保留依赖的前提下，协调包的移除与新安装的 bundle。 */
 async function reconcile(before: ProfileManifest, dir: string, anchor: string, options: PackageOperationOptions): Promise<void> {
   const after = readProfileManifest('dsh', dir)
   const dependencies = Object.keys(after.dependencies ?? {})
@@ -113,16 +112,15 @@ async function reconcile(before: ProfileManifest, dir: string, anchor: string, o
 }
 
 /**
- * How long the pipes keep draining after their process exited, as a fixed part of
- * finishing a run rather than a deployment knob: a descendant that inherited them
- * holds them open, and the tail a failure classification reads is written by then.
+ * 管道在其进程退出之后继续排空的时长，作为完成一次运行的一个固定环节，而非一个部署
+ * 旋钮：一个继承了它们的后代进程会让它们保持打开，而失败分类所读取的尾部到那时已经写完。
  */
 const DRAIN_AFTER_EXIT_MS = 2_000
 
-/** Whether every collector finished within `ms`.
- * @param collectors The pipe readers racing the bound.
- * @param ms The longest wait, in milliseconds.
- * @returns True when all collectors settled in time.
+/** 每一个收集器是否在 `ms` 之内完成。
+ * @param collectors 与上限竞速的管道读取器。
+ * @param ms 最长等待时间，以毫秒计。
+ * @returns 当所有收集器都及时结算时为 true。
  */
 async function drainWithin(collectors: readonly Promise<void>[], ms: number): Promise<boolean> {
   if (collectors.length === 0) return true
@@ -139,13 +137,13 @@ async function drainWithin(collectors: readonly Promise<void>[], ms: number): Pr
   }
 }
 
-/** Install commands that take the packages to install as positionals. */
+/** 将待安装包作为位置参数的安装命令。 */
 const INSTALL_COMMANDS = new Set(['add', 'install', 'i'])
 
-/** Bound on a pre-install registry lookup when the caller names none. */
+/** 调用方未指定时的、安装前注册表查找的上限。 */
 const LOOKUP_TIMEOUT_MS = 20_000
 
-/** Package specs an install command names explicitly, in order. */
+/** 一个安装命令显式点名的包 spec，按顺序排列。 */
 function namedSpecs(args: readonly string[]): string[] {
   const index = args.findIndex(argument => !argument.startsWith('-'))
   const command = index < 0 ? undefined : args[index]
@@ -153,16 +151,16 @@ function namedSpecs(args: readonly string[]): string[] {
   return args.slice(index + 1).filter(argument => !argument.startsWith('-'))
 }
 
-/** The manifest a named spec would install, read without installing it.
- * A path spec is read from disk. A registry spec asks pnpm's own configuration for the version the
- * range selects and its dsh requirements (`engines` and peerDependencies). A git or tarball spec needs the fetch itself, so the
- * check after installation is what judges it.
- * @param dir Profile directory the lookup runs in.
- * @param spec Anchored install spec.
- * @param options Pnpm executable, prefix arguments, the caller's bound and signal.
- * @param environment Environment of the caller's pnpm invocations.
- * @param flags Flags of the run itself, so the lookup asks the registry that run will use.
- * @returns The package manifest, or undefined when reading it would need the installation itself.
+/** 一个具名 spec 将要安装的清单，在不安装它的情况下读取。
+ * 路径 spec 从磁盘读取。注册表 spec 向 pnpm 自身的配置询问该范围所选中的版本及其
+ * dsh 要求（`engines` 与 peerDependencies）。git 或 tarball spec 需要拉取本身，因此
+ * 安装之后的检查才是判定它的依据。
+ * @param dir 查找所运行的 profile 目录。
+ * @param spec 锚定后的安装 spec。
+ * @param options pnpm 可执行文件、前缀参数、调用方的上限与信号。
+ * @param environment 调用方 pnpm 调用的环境。
+ * @param flags 运行自身的标志，使查找去询问该运行将使用的注册表。
+ * @returns 包清单；当读取它本就需要安装本身时，为 undefined。
  */
 async function namedSpecManifest(
   dir: string, spec: string, options: PackageOperationOptions, environment: Readonly<Record<string, string | undefined>>,
@@ -187,7 +185,7 @@ async function namedSpecManifest(
   return (Array.isArray(value) ? value.at(-1) : value) as object
 }
 
-/** Missing installed packages are repairable; their absence is part of the before/after comparison. */
+/** 缺失的已安装包是可修复的；它们的缺失属于安装前后对比的一部分。 */
 function optionalFile(path: string): string | undefined {
   try { return readFileSync(path, 'utf8') } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined
@@ -195,24 +193,23 @@ function optionalFile(path: string): string | undefined {
   }
 }
 
-/** Where an operation records the pnpm run it started, for a successor when the operation's own process ends first. */
+/** 一次操作记录其所启动 pnpm 运行的位置，供在该操作自身进程先结束时接手它的后续操作使用。 */
 function runRecordPath(dir: string): string {
   return join(dir, '.plugin-manager', 'run.json')
 }
 
-/** Record a started run; a successor that takes over the profile lock from an exited process waits for it. */
+/** 记录一次已启动的运行；从已退出进程接手 profile 锁的后续操作会等待它。 */
 async function recordRun(dir: string, tree: RunTree): Promise<void> {
   if (tree.pid === undefined) return
   await writeFileAtomic(runRecordPath(dir), `${JSON.stringify(tree)}\n`, { mode: 0o600, dirMode: 0o700 })
 }
 
 /**
- * Why this operation must not run: a record left by an operation whose process
- * ended mid-run names a run that is still writing the profile. The profile
- * lock is taken over once its holder exits, but its pnpm tree can outlive it.
- * A recorded run that stopped, within a bounded wait, has its record removed.
- * @param dir Profile directory.
- * @returns The diagnostic, or undefined when no recorded run is active.
+ * 本操作为何不得运行：一条由某个在运行中途退出的操作留下的记录，点名了一个仍在写入
+ * profile 的运行。profile 锁在其持有者退出之后被接手，但它的 pnpm 进程树可能比它活得更久。
+ * 一条在受控等待内已停止的、被记录的运行，其记录会被移除。
+ * @param dir Profile 目录。
+ * @returns 诊断信息；当没有活动记录时，为 undefined。
  */
 async function activeRecordedRun(dir: string): Promise<string | undefined> {
   const path = runRecordPath(dir)
@@ -224,7 +221,7 @@ async function activeRecordedRun(dir: string): Promise<string | undefined> {
     const { pid, grouped } = (typeof value === 'object' && value !== null ? value : {}) as { pid?: unknown; grouped?: unknown }
     if (Number.isSafeInteger(pid) && (pid as number) > 0 && typeof grouped === 'boolean') tree = { pid: pid as number, grouped }
   } catch (error) {
-    // Records are replaced atomically, so an unparsable one was written by something else and is reported below.
+    // 记录是被原子替换的，因此一条无法解析的记录是由其它东西写入的，并在下文被报告。
     void error
   }
   if (tree === undefined) {
@@ -239,13 +236,13 @@ async function activeRecordedRun(dir: string): Promise<string | undefined> {
   return undefined
 }
 
-/** pnpm can install plugins through any direct-dependency field. */
+/** pnpm 可以通过任意直接依赖字段安装插件。 */
 function directDependencies(manifest: ProfileManifest): Record<string, string> {
   const extra = manifest as ProfileManifest & { devDependencies?: Record<string, string>; optionalDependencies?: Record<string, string> }
   return { ...extra.devDependencies, ...manifest.dependencies, ...extra.optionalDependencies }
 }
 
-/** Inspect only plugin rows contributed by the changed bundle, not its dependency closure. */
+/** 仅检视由被变更 bundle 贡献的插件行，而非其依赖闭包。 */
 function bundleComponentManifests(manifest: ProfileManifest, dir: string, anchor: string): ProfileManifest[] {
   const bundle = manifest.dsh?.bundle
   if (bundle === undefined) return []
@@ -271,22 +268,22 @@ function bundleComponentManifests(manifest: ProfileManifest, dir: string, anchor
   })
 }
 
-/** Execute pnpm inside a profile whose caller already holds the profile write lock.
- * Newly installed or updated direct dependencies are checked even when activation is disabled;
- * an untouched dependency never blocks an unrelated operation and stays denied at startup.
- * Compatibility denial restores the profile manifest and lockfile, but leaves downloaded modules on disk.
- * @param context Launcher-owned profile and resolution locations.
- * @param args Pnpm arguments, before relative path anchoring.
- * @param options Output, activation and cancellation policy.
- * @returns Exit status, whether the silence bound stopped the run, and the diagnostic path.
- * A compatibility denial returns exit code 1. Service output is bounded; CLI output uses inherited descriptors.
- * The diagnostic file is closed on return or rejection, including preparation and spawn failures.
+/** 在一个其调用方已持有 profile 写入锁的 profile 内执行 pnpm。
+ * 新安装或更新的直接依赖即使禁用激活也会被检查；一个未被触及的依赖永远不会阻碍无关
+ * 的操作，并在启动时仍被拒绝。兼容性拒绝会恢复 profile 清单与 lockfile，但会把已下载的
+ * 模块留在磁盘上。
+ * @param context 启动器拥有的 profile 与解析位置。
+ * @param args pnpm 参数，处于相对路径锚定之前。
+ * @param options 输出、激活与取消策略。
+ * @returns 退出状态、静默上限是否终止了运行，以及诊断文件路径。
+ * 兼容性拒绝返回退出码 1。service 输出受上限约束；CLI 输出使用继承来的描述符。
+ * 诊断文件在返回或拒绝时关闭，包括准备与 spawn 失败的情况。
  */
 export async function runProfilePnpm(
   context: PackageOperationContext, args: readonly string[], options: PackageOperationOptions,
 ): Promise<PackageResult> {
   const dir = context.dir ?? resolveProfileDir(context.profile, context.home)
-  // Before any profile file is read: a recorded run that is still active may be rewriting them.
+  // 在读取任何 profile 文件之前：一条仍处于活动状态的已记录运行可能正在重写它们。
   const active = await activeRecordedRun(dir)
   const logRoot = join(dir, '.plugin-manager', 'logs')
   await mkdir(logRoot, { recursive: true, mode: 0o700 })
@@ -320,7 +317,7 @@ export async function runProfilePnpm(
       else await writeFileAtomic(file.path, file.text, { mode: 0o600 })
     }
   }
-  /** Packages a compatibility check refused; callers render them for their own surface. */
+  /** 兼容性检查所拒绝的包；调用方在自己的界面上渲染它们。 */
   const incompatible: IncompatiblePlugin[] = []
   const rejected = async (warnings: readonly string[], restoration: string): Promise<PackageResult> => {
     const diagnostic = `\ndsh: installation rejected: ${warnings.join('\n')}\ndsh: ${restoration}.\n`
@@ -330,15 +327,15 @@ export async function runProfilePnpm(
     await log.close()
     return { exitCode: 1, output: output.toString('utf8'), truncated, logPath, incompatible }
   }
-  // An install command names the packages it adds, so their manifests are read and checked before
-  // pnpm runs: an incompatible version is never installed, and the one already in use keeps working.
+  // 安装命令点名它所添加的包，因此在 pnpm 运行之前读取并检查它们的清单：不兼容的版本
+  // 永远不会被安装，而正在使用的那个仍可继续工作。
   const preflight: string[] = []
   const exemptions = readProfileVersionExemptions(dir)
-  // The run's own registry flags, so the lookup asks the registry the installation will use.
+  // 运行自身的注册表标志，使查找去询问该安装将要使用的注册表。
   const registryFlags = args.filter(argument => argument.startsWith('--registry='))
   for (const raw of namedSpecs(args)) {
-    // A spec whose manifest cannot be read or validated is left to the run itself and to the check
-    // after installation, which reports what it could not validate.
+    // 清单无法被读取或校验的 spec 留给运行自身，以及安装之后的检查——后者会报告
+    // 它无法校验的内容。
     try {
       const manifest = await namedSpecManifest(dir, anchorPathSpec(raw, context.cwd), options, environment, registryFlags)
       if (manifest === undefined) continue
@@ -351,9 +348,8 @@ export async function runProfilePnpm(
   }
   if (preflight.length > 0) return await rejected(preflight, 'nothing was installed')
   const cancellation = new AbortController()
-  // A service run captures output, so execa terminates the tree it leads when the
-  // run is killed: a lifecycle script outlives the pnpm process that started it.
-  // The CLI keeps the caller's process group, so an interrupt still reaches it.
+  // 服务运行会捕获输出，因此当运行被 kill 时 execa 会终止它所带领的整棵进程树：一个
+  // 生命周期脚本会比启动它的 pnpm 进程活得更久。CLI 保留调用方的进程组，因此中断仍能抵达它。
   const grouped = leadsOwnGroup(options.execution)
   const child = execa(options.command ?? 'pnpm', [...options.args ?? [], ...args.map(arg => anchorPathSpec(arg, context.cwd))], {
     cwd: dir, env: environment, extendEnv: false, reject: false,
@@ -363,23 +359,23 @@ export async function runProfilePnpm(
     buffer: false, stdin: options.execution === 'cli' ? 'inherit' : 'ignore', cancelSignal: options.signal === undefined
       ? cancellation.signal : AbortSignal.any([cancellation.signal, options.signal]),
   })
-  // Listened for before the record is written, so an exit during that write is not missed.
+  // 在写入记录之前就开始监听，以免漏掉写入期间发生的退出。
   const exited = once(child.nodeChildProcess, 'exit').catch(() => undefined)
   let writes = Promise.resolve()
-  /** `settled` records that the process outcome is known; `stalled` that the silence bound stopped the run. */
+  /** `settled` 记录进程结果已知；`stalled` 记录静默上限终止了运行。 */
   const control = { settled: false, stalled: false }
-  /** Set once this call cuts the reading short itself, so the close it causes is not read as a run failure. */
+  /** 一旦本次调用自行提前结束读取，便置位，使其引发的关闭不会被读作运行失败。 */
   let cut = false
-  /** The first failure a reading hit before that cut, which the run still reports. */
+  /** 在那次提前结束之前、某次读取所遇到的第一个失败，运行仍会报告它。 */
   let failure: Error | undefined
   let idleTimer: NodeJS.Timeout | undefined
-  /** The silence bound: a captured run that stops printing without exiting is terminated, never awaited. */
+  /** 静默上限：一个停止打印却未退出的被捕获运行会被终止，而绝不会被等待。 */
   const armIdle = (): void => {
     if (control.settled || options.idleTimeoutMs === undefined) return
     clearTimeout(idleTimer)
     idleTimer = setTimeout(() => {
       control.stalled = true
-      // execa's kill reaches the whole tree of a service run, and escalates on its own.
+      // execa 的 kill 会抵达服务运行的整棵进程树，并自行升级。
       child.kill()
     }, options.idleTimeoutMs)
   }
@@ -394,8 +390,8 @@ export async function runProfilePnpm(
         append(bytes)
       }
     } catch (error) {
-      // A reading this call cut short is not a failure the run hit, and the run has
-      // already exited, so there is nothing left for the cancellation to stop.
+      // 本次调用提前结束的读取并非运行所遇到的失败，且运行已经退出，因此取消已无
+      // 可停止的内容。
       if (!cut) {
         failure ??= error instanceof Error ? error : new Error(String(error))
         cancellation.abort()
@@ -407,41 +403,39 @@ export async function runProfilePnpm(
     ...child.stdout === null ? [] : [collect(child.stdout, 'stdout')],
     ...child.stderr === null ? [] : [collect(child.stderr, 'stderr')],
   ]
-  // The drain decides whether a failure surfaces, so each reading is claimed now:
-  // an unclaimed rejection would be reported as unhandled while the pipes drain.
+  // 排空阶段决定一个失败是否会浮现，因此每路读取现在就要被认领：否则在管道排空
+  // 期间，一个未被认领的拒绝会被当作未处理而报告。
   for (const collector of collectors) void collector.catch(() => { /* reported through `failure` and the settled readings */ })
-  // Inherited descriptors hand pnpm the terminal, so there is no captured output
-  // for a silence bound to observe: it would fire on a healthy run.
+  // 继承来的描述符把终端交给了 pnpm，因此没有可供静默上限观测的捕获输出：它会在
+  // 一次健康的运行上误触发。
   if (collectors.length > 0) armIdle()
   let exitCode: number
   try {
     await recordRun(dir, { pid: child.pid, grouped })
-    // execa resolves its promise only once the piped stdio has ended, so the
-    // process's own exit — the run's completion — is read from the raw child. A
-    // spawn failure settles without one.
+    // execa 只有在管道化的 stdio 结束之后才会兑现其 promise，因此进程自身的退出——
+    // 即运行的完成——要从原始子进程读取。一次 spawn 失败在没有退出码的情况下结算。
     const settled = Promise.allSettled([child])
     await Promise.race([exited, settled])
     control.settled = true
     clearTimeout(idleTimer)
-    // A stalled run stops its whole tree first, so the caller's rollback and lock
-    // release happen only after the scripts it started stopped writing.
+    // 一个停滞的运行会先停止它的整棵进程树，因此调用方的回滚与锁释放只在该运行所
+    // 启动的脚本停止写入之后才发生。
     if (control.stalled) await awaitTreeGone({ pid: child.pid, grouped })
-    // A descendant that inherited the pipes can hold them open past the process;
-    // the tail drains under a bound instead of being awaited forever.
+    // 一个继承了管道的后代进程可能让管道在进程结束之后仍保持打开；尾部在受控的
+    // 上限下排空，而非被无限期等待。
     const drained = await drainWithin(collectors, DRAIN_AFTER_EXIT_MS)
     if (drained) {
       for (const stream of await Promise.allSettled(collectors)) if (stream.status === 'rejected') throw stream.reason
     } else {
-      // Cutting the tail short is this call's own end, not a failure the run hit;
-      // a failure from before the cut still surfaces, and the cut leaves a notice
-      // in the log because a classification may read an incomplete tail.
+      // 将尾部截断是本次调用自身的结束，而非运行所遇到的失败；截断之前的失败仍会浮现，
+      // 且截断会在日志中留下一条说明，因为分类可能读到一个不完整的尾部。
       cut = true
       child.stdout?.destroy()
       child.stderr?.destroy()
       const notice = 'dsh: pnpm output was cut short after its process exited\n'
       await log.write(notice)
-      // A failure from before the cut is the run's own and replaces the notice a
-      // caller would otherwise read; a rejection the cut itself causes is its end.
+      // 截断之前的失败是运行自身的，它会取代调用方原本会读到的那条说明；而截断自身
+      // 所引发的拒绝则是它的结束。
       if (failure !== undefined) throw failure
       options.onOutput?.(notice, 'stderr')
       append(Buffer.from(notice))
@@ -462,7 +456,7 @@ export async function runProfilePnpm(
       truncated = Buffer.byteLength(diagnostic) > options.outputBytes
       output = Buffer.from(diagnostic).subarray(0, options.outputBytes)
     }
-    // A terminated run's exit status says nothing about what it wrote, so it never reconciles the selection.
+    // 一个被终止运行的退出状态不说明它写入了什么，因此它永远不会协调选择。
     if (exitCode === 0 && !control.stalled) {
       const after = readProfileManifest('dsh', dir)
       const warnings: string[] = []
@@ -470,7 +464,7 @@ export async function runProfilePnpm(
         const packageDir = join(dir, 'node_modules', name)
         const installed = optionalFile(join(packageDir, 'package.json'))
         if (installed === undefined) continue
-        // A dependency this run did not touch never blocks an unrelated operation; profile startup denies it.
+        // 本次运行未触及的依赖绝不会阻碍一个无关的操作；profile 启动会拒绝它。
         const untouched = beforeDependencies[name] === spec && installedBefore.get(name) === installed
         const found: string[] = []
         const issues: IncompatiblePlugin[] = []
@@ -498,10 +492,10 @@ export async function runProfilePnpm(
         }
       }
       if (warnings.length > 0) {
-        // A bundle component's requirements need installed contents, so this rejection lands after pnpm
-        // replaced the tree: restore the files, then reinstall the restored lockfile so the version
-        // that worked before this run keeps loading. A profile that had no lockfile is reinstalled
-        // from its restored manifest without creating one, which removes what this run added.
+        // bundle 组件的要求需要已安装的内容，因此这一拒绝发生在 pnpm 替换了整棵树之后：
+        // 恢复文件，然后用恢复后的 lockfile 重新安装，使本次运行之前能工作的版本继续加载。
+        // 一个原本没有 lockfile 的 profile 会从恢复后的清单重新安装而不创建 lockfile，
+        // 从而移除本次运行所添加的内容。
         await restore()
         const hadLockfile = savedFiles.some(file => file.path.endsWith('pnpm-lock.yaml') && file.text !== undefined)
         const repair = ['install', hadLockfile ? '--frozen-lockfile' : '--config.lockfile=false']
@@ -526,7 +520,7 @@ export async function runProfilePnpm(
   } finally {
     control.settled = true
     clearTimeout(idleTimer)
-    // This process saw the run end, so no successor has to wait for it.
+    // 本进程已经看到运行结束，因此没有后续操作需要等待它。
     await rm(runRecordPath(dir), { force: true })
     await log.close()
   }

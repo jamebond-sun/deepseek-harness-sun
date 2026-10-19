@@ -9,9 +9,9 @@ function isBuildFailure(e: unknown): e is BuildFailure {
       && 'text' in error && typeof error.text === 'string')
 }
 
-/** Log HMR build failures with code frames when source locations are available.
- * @param ctx Context owning reload diagnostics.
- * @param e Failure from the module loader or compiler.
+/** 在源码位置可用时，附带代码框记录 HMR 构建失败。
+ * @param ctx 拥有重新加载诊断信息的上下文。
+ * @param e 来自模块加载器或编译器的失败。
  */
 export function handleError(ctx: Context, e: unknown): void {
   if (!isBuildFailure(e)) {

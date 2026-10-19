@@ -1,4 +1,4 @@
-/** Bounded GitHub repository checks using the installer's Git configuration and environment. */
+/** 使用安装器的 Git 配置与环境进行的、有边界的 GitHub 仓库检查。 */
 import { mkdir, mkdtemp, open } from 'node:fs/promises'
 import { join } from 'node:path'
 import { execa } from 'execa'
@@ -7,23 +7,24 @@ import { classifyInstallFailure } from './install-failure.ts'
 import type { ParsedInstallSpec } from './install-spec.ts'
 import type { PackageResult } from './types.ts'
 
-/** Deadline, diagnostics and cancellation for one read-only GitHub check. */
+/** 一次只读 GitHub 检查的截止时间、诊断与取消。 */
 export interface GithubConnectionOptions {
   timeoutMs: number
   outputBytes: number
   signal: AbortSignal
-  /** The application-owned package manager's environment, also used by its Git children. */
+  /** 应用所拥有的包管理器环境，其 Git 子进程也使用它。 */
   env?: Readonly<Record<string, string>>
 }
 
 /**
- * Check a GitHub repository before pnpm starts, without downloading or building its package.
- * Git reads the profile's Git and proxy configuration without invoking credential helpers or prompting.
- * Timeout and cancellation terminate its descendants too; pnpm owns authentication and transport fallback.
- * @param spec The parsed installation address; npm packages, local paths and other hosts are not checked.
- * @param dir The profile directory where installation runs.
- * @param options The connection deadline, output bound and operation cancellation.
- * @returns A failed check with bounded output and a complete log at logPath, or undefined for a reachable repository or an unhandled spec.
+ * 在 pnpm 启动之前检查一个 GitHub 仓库，但不下载或构建其包。
+ * Git 读取 profile 的 Git 与代理配置，而不调用凭据助手或进行交互提示。
+ * 超时与取消也会终止其后代进程；pnpm 负责鉴权与传输回退。
+ * @param spec 解析后的安装地址；npm 包、本地路径以及其它主机不会被检查。
+ * @param dir 安装运行的 profile 目录。
+ * @param options 连接截止时间、输出上限与操作取消。
+ * @returns 一次失败的检查（带有受限输出与位于 logPath 的完整日志）；对于可达的仓库或
+ *   无法处理的 spec，则为 undefined。
  */
 export async function checkGithubConnection(
   spec: ParsedInstallSpec, dir: string, options: GithubConnectionOptions,

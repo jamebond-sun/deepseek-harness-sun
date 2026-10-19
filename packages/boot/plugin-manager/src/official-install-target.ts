@@ -1,4 +1,4 @@
-/** Select Official bundle packages from the running installation without importing provider code. */
+/** 在不导入 provider 代码的前提下，从运行中的安装中选出 Official bundle 包。 */
 import { existsSync, globSync, readFileSync, realpathSync, statSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { bundlePatchPaths, type ProfileManifest } from '@deepseek-ai/dsh-app-boot'
@@ -12,14 +12,14 @@ function manifestAt(file: string): WorkspaceManifest {
 }
 
 /**
- * Offer a source checkout link or an exact published package version. Source installations are
- * identified by the real CLI manifest and its unpacked workspace dependencies, including Desktop's
- * development symlink. An incomplete checkout is an error, never a registry fallback.
- * @param name - Official catalog package name.
- * @param installAnchor - Running application's DSH package.json, possibly reached through a symlink.
- * @param version - Running DSH version used by its release family.
- * @returns An ordinary package-manager spec and its package version.
- * @throws when a source installation lacks its workspace package, bundle patch, or built runtime.
+ * 提供源码检出链接或精确的已发布包版本。源码安装由真实的 CLI 清单及其解包的 workspace
+ * 依赖（包括 Desktop 的开发符号链接）来识别。不完整的检出是一种错误，而绝不会回退到
+ * 注册表。
+ * @param name - Official 目录的包名。
+ * @param installAnchor - 运行中的应用所对应的 DSH package.json，可能经由符号链接抵达。
+ * @param version - 其发布系列所使用的运行中 DSH 版本。
+ * @returns 一个普通的包管理器 spec 及其包版本。
+ * @throws 当源码安装缺少其 workspace 包、bundle 补丁，或已构建的运行时时。
  */
 export function officialBundleInstallTarget(name: string, installAnchor: string, version: string): { spec: string; version: string } {
   const anchor = realpathSync(installAnchor)

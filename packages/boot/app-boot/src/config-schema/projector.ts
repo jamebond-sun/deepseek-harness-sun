@@ -1,18 +1,18 @@
-/** Project native Config input constraints without executing their validators or transform callbacks. */
+/** 投影原生 Config 输入约束，而不执行其校验器或 transform 回调。 */
 
 import type { ConfigJsonSchema, ConfigJsonSchemaObject, NativeConfigSchema } from './types.ts'
 import { isNativeConfigSchema } from './native.ts'
 import { createPatternCheck } from './pattern.ts'
 
-/** Definition that projected value positions reference as `#/$defs/loaderExpression`; an enclosing document must define it. */
+/** 投影值位置以 `#/$defs/loaderExpression` 引用的定义；外层文档必须定义它。 */
 export const LOADER_EXPRESSION_SCHEMA: ConfigJsonSchemaObject = {
   type: 'object', properties: { __jsExpr: { type: 'string' } }, required: ['__jsExpr'],
   description: 'Inert representation of a YAML !!js scalar from the Cordis entry-list parser. Its result is evaluated and validated only at runtime. Extra marker-object fields are ignored by interpolation.',
 }
 
-/** One Config projection; unknown omission behavior is explicit rather than an invented default. */
+/** 一个 Config 投影；未知的省略行为是显式的，而非虚构的默认值。 */
 export interface ConfigProjection {
-  /** Object-form root: value positions are wrapped in `anyOf` with the loader-expression reference. */
+  /** 对象形式根：值位置用 `anyOf` 包裹并附带 loader 表达式引用。 */
   schema: ConfigJsonSchemaObject
   definitions: Record<string, ConfigJsonSchema>
   acceptsMissing: boolean | 'unknown'
@@ -36,7 +36,7 @@ interface NodeProjection {
   acceptsMissing: boolean | 'unknown'
   exact: boolean
   recursive: boolean
-  /** Native adaptation, key normalization, or opaque code may affect surrounding validation. */
+  /** 原生适配、键规范化或不透明代码可能影响周边校验。 */
   effectful: boolean
   /** Native resolution may write adapted values or renamed keys into the input before a later union branch reads it. */
   mutating: boolean

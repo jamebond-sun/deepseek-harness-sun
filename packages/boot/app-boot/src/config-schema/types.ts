@@ -1,9 +1,9 @@
-/** JSON Schema output and native graph inputs for boot-free configuration inspection. */
+/** 免引导配置检查所用的 JSON Schema 输出与原生图输入。 */
 
-/** JSON Schema 2020-12, including annotations that standard validators may ignore. */
+/** JSON Schema 2020-12，包含标准校验器可能忽略的注解。 */
 export type ConfigJsonSchema = boolean | ConfigJsonSchemaObject
 
-/** Object-form JSON Schema; vocabulary extensions are annotations, not executable validators. */
+/** 对象形式的 JSON Schema；词汇扩展是注解，而非可执行的校验器。 */
 export interface ConfigJsonSchemaObject {
   [keyword: string]: unknown
   $schema?: string
@@ -25,33 +25,33 @@ export interface ConfigJsonSchemaObject {
   description?: string
 }
 
-/** A collection or projection diagnostic, without independently collected config values. */
+/** 收集或投影诊断，不含独立收集的 config 值。 */
 export interface ConfigSchemaDiagnostic {
   level: 'warning' | 'error'
-  /** Structural position in the discovered entry tree, when applicable. */
+  /** 适用时在发现的条目树中的结构位置。 */
   path?: string
   message: string
 }
 
-/** One declared entry and its generated Config reference; include paths describe discovery, not root JSON pointers. */
+/** 一条声明的条目及其生成的 Config 引用；include 路径描述发现过程，而非根 JSON 指针。 */
 export interface ConfigSchemaEntry {
   path: string
   id?: string
-  /** Omitted when a malformed row has no literal plugin name. */
+  /** 畸形行没有字面插件名时省略。 */
   name?: string
   status: 'schema' | 'partial' | 'absent' | 'unsupported' | 'error'
   configRef?: string
-  /** Native Loader carrier, whose config is not interpolated as an ordinary plugin config. */
+  /** 原生 Loader 载体，其 config 不会作为普通插件 config 进行插值。 */
   tree?: 'group' | 'include'
 }
 
-/** JSON Schema for a composed entry list; `$defs.patchList` describes profile overlays. */
+/** 组合后的条目列表的 JSON Schema；`$defs.patchList` 描述 profile 覆盖层。 */
 export interface ConfigSchemaDump extends ConfigJsonSchemaObject {
   $schema: 'https://json-schema.org/draft/2020-12/schema'
   $defs: Record<string, ConfigJsonSchema>
   'x-cordis': {
     profile: string
-    /** False for error diagnostics, partial/unsupported/error entries, or ambiguous plugin-name schemas; includes disabled declarations. */
+    /** 存在错误诊断、partial/unsupported/error 条目或插件名 schema 有歧义时为 false；包含已禁用的声明。 */
     complete: boolean
     entries: ConfigSchemaEntry[]
     diagnostics: ConfigSchemaDiagnostic[]
@@ -59,7 +59,7 @@ export interface ConfigSchemaDump extends ConfigJsonSchemaObject {
   }
 }
 
-/** Native Schemastery graph protocol after its identity marker has been checked. */
+/** 已检查身份标记后的原生 Schemastery 图协议。 */
 export interface NativeConfigSchema {
   type: string
   meta: {
@@ -89,7 +89,7 @@ export interface NativeConfigSchema {
   builder?: unknown
 }
 
-/** Collected declaration used only while constructing the JSON Schema document. */
+/** 仅在构建 JSON Schema 文档时使用的已收集声明。 */
 export interface CollectedConfigEntry extends ConfigSchemaEntry {
   native?: NativeConfigSchema
 }

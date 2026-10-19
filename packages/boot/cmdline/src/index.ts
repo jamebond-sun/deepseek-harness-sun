@@ -1,18 +1,16 @@
 /**
- * @deepseek-ai/dsh-cmdline — the command line a dsh launcher hands to the app
- * it boots.
+ * @deepseek-ai/dsh-cmdline —— dsh 启动器交给它所启动应用的命令行参数。
  *
- * The launcher parses only its own flags (`--profile`, `--patch`, the config
- * dumps) and hands everything after them to the tree verbatim through the
- * {@link CmdlineArgs} service, so an app owns its flag family, its `--help`
- * text, and its parse errors instead of the launcher knowing them.
+ * 启动器只解析自己的标志（`--profile`、`--patch`、各配置转储），然后把它们
+ * 之后的所有内容按原样、按 argv 顺序通过 {@link CmdlineArgs} 服务交给应用树，
+ * 因此某个应用拥有自己的标志族、自己的 `--help` 文本以及自己的解析错误，而
+ * 启动器无需了解它们。
  *
- * Any app plugin can inject `cmdlineArgs` and call {@link parseCmdline}. A
- * provider may publish the parsed values as its own service from its program's
- * commander action, and ordinary rows
- * can inject that service and read it from lazily resolved config —
- * `port: !!js ctx.webStartup.port ?? 3080` — so a flag beats the value written
- * beside it. No row has launcher-level command-line status.
+ * 任何应用插件都可以注入 `cmdlineArgs` 并调用 {@link parseCmdline}。某个 provider
+ * 可以在其程序的 commander action 中把解析后的值作为自己的服务发布，普通行则
+ * 可以注入该服务并从惰性解析的配置中读取它 —— 例如
+ * `port: !!js ctx.webStartup.port ?? 3080` —— 这样某个标志会胜过写在它旁边的
+ * 默认值。没有任何行拥有启动器级别的命令行状态。
  * @module @deepseek-ai/dsh-cmdline
  */
 
@@ -20,66 +18,63 @@ import type { Command } from 'commander'
 import type { Context } from '@deepseek-ai/cordis'
 
 /**
- * The invocation's inner arguments: everything after the launcher's own flags,
- * verbatim and in argv order. `dsh --profile tui --resume abc` yields
- * `['--resume', 'abc']`.
+ * 本次调用的内部参数：启动器自身标志之后的所有内容，按原样、按 argv 顺序排列。
+ * `dsh --profile tui --resume abc` 会得到 `['--resume', 'abc']`。
  */
 export interface CmdlineArgs {
   /**
-   * Read the inner arguments.
-   * @returns the arguments in argv order; empty when the invocation carried none.
+   * 读取内部参数。
+   * @returns 按 argv 顺序排列的参数；当本次调用没有任何参数时为空数组。
    */
   get(): readonly string[]
 }
 
-/** Request bounded process exit; the launcher wires it to its shutdown controller. */
+/** 请求有界进程退出；启动器会把它接到自己的关闭控制器上。 */
 export interface AppExit {
   /**
-   * Request exit once the tree has been disposed.
-   * @param code - the process exit code.
+   * 在应用树被释放后请求退出。
+   * @param code - 进程退出码。
    */
   (code: number): void
 }
 
-/** Successful application-startup signal owned by the launcher. */
+/** 由启动器拥有的、应用启动成功的信号。 */
 export interface AppReady {
   /**
-   * Run a listener once successful startup is committed. A failed or
-   * externally terminated startup never calls it.
-   * @param listener - work that may begin only after successful startup.
-   * @returns a disposer that cancels a pending listener.
+   * 在启动成功被提交后运行一次监听器。启动失败或被外部终止时永远不会调用它。
+   * @param listener - 只有在启动成功之后才能开始的工作。
+   * @returns 取消一个待运行监听器的释放函数。
    */
   onReady(listener: () => void): () => void
 }
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
-    /** The invocation's inner arguments; provided by a launcher before the tree mounts. */
+    /** 本次调用的内部参数；由启动器在应用树挂载之前提供。 */
     cmdlineArgs?: CmdlineArgs
-    /** Bounded process-exit request; provided by a launcher before the tree mounts. */
+    /** 有界的进程退出请求；由启动器在应用树挂载之前提供。 */
     appExit?: AppExit
-    /** Successful startup signal; provided by a launcher before the tree mounts. */
+    /** 启动成功信号；由启动器在应用树挂载之前提供。 */
     appReady?: AppReady
   }
 }
 
-/** The launcher facts an app needs. */
+/** 应用所需的启动器事实。 */
 export interface CmdlineHost {
-  /** The invocation's inner arguments, in argv order. */
+  /** 本次调用的内部参数，按 argv 顺序排列。 */
   args: readonly string[]
-  /** Bounded process-exit request. */
+  /** 有界的进程退出请求。 */
   exit: AppExit
-  /** Successful startup signal for lifecycle work that must not mask boot failure. */
+  /** 用于绝不能掩盖启动失败的生命周期工作的启动成功信号。 */
   ready?: AppReady
 }
 
 /**
- * Provide launcher facts on a host context before any tree entry mounts: the
- * command line, bounded exit request, and optional successful-startup signal.
- * An embedding host with no command line provides an empty argument list; a
- * host that mounts a stdio application also provides readiness.
- * @param ctx - the host context the tree will mount under.
- * @param host - the invocation's arguments, exit request, and optional readiness signal.
+ * 在任意应用树入口挂载之前，在宿主上下文上提供启动器事实：命令行、有界退出请求，
+ * 以及可选的启动成功信号。一个没有命令行的嵌入式宿主提供空的参数列表；一个挂载
+ * stdio 应用的宿主同时提供就绪信号。
+ * @param ctx - 应用树将挂载在其下的宿主上下文。
+ * @param host - 本次调用的参数、退出请求，以及可选的就绪信号。
  */
 export function provideCmdline(ctx: Context, host: CmdlineHost): void {
   const snapshot: readonly string[] = Object.freeze([...host.args])
@@ -88,17 +83,17 @@ export function provideCmdline(ctx: Context, host: CmdlineHost): void {
   if (host.ready !== undefined) ctx.provide('appReady', host.ready)
 }
 
-/** Process stdin operations used to bind a stdio application's lifetime. */
+/** 用于绑定 stdio 应用生命周期的进程 stdin 操作。 */
 export interface AppStdin {
-  /** Whether EOF arrived before the application bound its listener. */
+  /** EOF 是否在应用绑定其监听器之前就已经到达。 */
   readonly readableEnded: boolean
-  /** Subscribe once to stdin EOF. */
+  /** 订阅一次 stdin 的 EOF。 */
   once(event: 'end', listener: () => void): unknown
-  /** Remove a previously installed stdin EOF listener. */
+  /** 移除此前安装的 stdin EOF 监听器。 */
   off(event: 'end', listener: () => void): unknown
 }
 
-/** Process streams used by app command lines and stdio lifetime binding; tests substitute them. */
+/** 应用命令行与 stdio 生命周期绑定所用的进程流；测试会替换它们。 */
 export const internals: {
   stdin: AppStdin
   stdout: { write(chunk: string): unknown }
@@ -110,15 +105,13 @@ export const internals: {
 }
 
 /**
- * Make stdin EOF request the launcher's bounded successful shutdown after
- * {@link AppReady} commits. A startup rejection therefore remains the process
- * outcome when it races EOF. The caller invokes this only after its command
- * action accepts the invocation, so help and usage failures start no transport
- * lifecycle. This listener does not read or resume stdin: the protocol
- * transport owns input and receives bytes buffered before it mounts. Disposal
- * removes the EOF and readiness listeners.
- * @param ctx - app plugin context carrying the launcher's exit request.
- * @param label - effect label naming the owning application.
+ * 让 stdin 的 EOF 在 {@link AppReady} 提交之后请求启动器的有界成功关闭。因此当
+ * EOF 与启动拒绝竞速时，启动拒绝仍然是进程的结果。调用方只有在自己的命令行
+ * action 接受了本次调用之后才会调用它，所以 help 与 usage 失败不会启动任何
+ * 传输生命周期。该监听器不会读取或恢复 stdin：协议传输拥有输入，并接收在它挂载
+ * 之前被缓冲的字节。释放操作会移除 EOF 与就绪监听器。
+ * @param ctx - 携带启动器退出请求的应用插件上下文。
+ * @param label - 命名所属应用的 effect 标签。
  */
 export function exitOnStdinEnd(ctx: Context, label: string): void {
   const exit = ctx.get('appExit')
@@ -145,26 +138,22 @@ export function exitOnStdinEnd(ctx: Context, label: string): void {
 }
 
 /**
- * Parse the launcher's immutable argument snapshot with an app's commander
- * program. Commander runs the program's own synchronous action handler on a
- * successful parse; app code there publishes its service and rejects an
- * invalid invocation with `program.error(...)`. This helper has no Loader-row
- * or service ownership semantics.
+ * 用某个应用的 commander 程序解析启动器不可变的参数快照。commander 会在解析成功时
+ * 运行该程序自己的同步 action 处理器；其中的应用代码会发布自己的服务，并用
+ * `program.error(...)` 拒绝非法的调用。本辅助函数没有 Loader 行或服务的所有权语义。
  *
- * Help, version, and rejected arguments — from the grammar or from an action
- * — are terminal for the process: commander writes the text and the helper
- * requests `ctx.appExit`. The action never runs on help, version, or a
- * grammar rejection; an action must reject before it publishes, because
- * statements before its `program.error(...)` have already run.
- * @param ctx - plugin context carrying `cmdlineArgs` and `appExit`.
- * @param program - the app's commander program, with its flags, description,
- * actions, and any subcommands already declared.
- * @throws when the launcher did not provide the command line and exit request,
- * or when no command in the program declares an action.
+ * help、version，以及被拒绝的参数 —— 无论是来自文法还是来自某个 action —— 都会
+ * 终止进程：commander 写出文本，而本辅助函数请求 `ctx.appExit`。在 help、version
+ * 或文法拒绝时 action 永远不会运行；action 必须在发布之前就拒绝，因为它在
+ * `program.error(...)` 之前的语句已经运行过了。
+ * @param ctx - 携带 `cmdlineArgs` 与 `appExit` 的插件上下文。
+ * @param program - 应用的 commander 程序，其标志、描述、actions 以及任意子命令
+ * 都已声明完毕。
+ * @throws 当启动器没有提供命令行和退出请求，或程序中没有任何命令声明 action 时。
  */
 export function parseCmdline(ctx: Context, program: Command): void {
-  // Read through the global service store, not the property proxy: appExit is
-  // an optional host value and the plugin only needs to inject cmdlineArgs.
+  // 通过全局服务存储读取，而不是属性代理：appExit 是一个可选的宿主值，插件只需
+  // 注入 cmdlineArgs 即可。
   const args = ctx.get('cmdlineArgs')
   const exit = ctx.get('appExit')
   if (args === undefined || exit === undefined) {
@@ -177,24 +166,23 @@ export function parseCmdline(ctx: Context, program: Command): void {
   try {
     program.parse(args.get(), { from: 'user' })
   } catch (error) {
-    // exitOverride turns help, version, a parse error, and the action's own
-    // program.error() into a CommanderError; commander has already written the
-    // text through the output configured above.
+    // exitOverride 会把 help、version、解析错误，以及 action 自己的
+    // program.error() 变成一个 CommanderError；commander 已经通过上述配置的输出
+    // 写好了文本。
     if (!isCommanderError(error)) throw error
     exit(error.exitCode)
   }
 }
 
 /**
- * Whether any command in the tree declares an action handler.
+ * 命令树中是否任何命令声明了 action 处理器。
  *
- * The `Command` type cannot express the action precondition, so the handler is
- * read structurally (as {@link isCommanderError} reads commander's control-flow
- * errors): without this guard, a program that forgot its action would parse
- * successfully, publish nothing, and surface only as dependent rows pending on
- * the absent service.
- * @param command - the command whose tree is inspected.
- * @returns true when the command or any registered subcommand has an action.
+ * `Command` 类型无法表达 action 的前置条件，因此处理器是结构性读取的（就像
+ * {@link isCommanderError} 读取 commander 的控制流错误那样）：如果没有这道守卫，
+ * 一个忘记了自己 action 的程序会解析成功、什么都不发布，并且仅仅表现为依赖行
+ * 挂在缺失的服务上。
+ * @param command - 被检查其命令树的对象。
+ * @returns 当该命令或任意已注册子命令拥有 action 时返回 true。
  */
 function hasAction(command: Command): boolean {
   if (typeof (command as unknown as { _actionHandler?: unknown })._actionHandler === 'function') return true
@@ -202,13 +190,12 @@ function hasAction(command: Command): boolean {
 }
 
 /**
- * Route every command's exit and output through the launcher adapter.
+ * 把每个命令的退出与输出都经由启动器适配器路由。
  *
- * Commander copies `exitOverride` and output configuration into a subcommand
- * only at registration, so a root-only override would let an
- * already-registered subcommand's rejection write to the process streams and
- * call `process.exit` directly, bypassing `ctx.appExit`.
- * @param command - the root of the command tree to configure.
+ * commander 只在注册时把 `exitOverride` 与输出配置复制到子命令，因此仅作用于根
+ * 的覆盖会让一个已经注册过的子命令的拒绝直接写到进程流并调用 `process.exit`，
+ * 从而绕过 `ctx.appExit`。
+ * @param command - 要配置的命令树的根。
  */
 function configureExitAndOutput(command: Command): void {
   command
@@ -221,15 +208,14 @@ function configureExitAndOutput(command: Command): void {
 }
 
 /**
- * Whether a thrown value is commander's own control-flow error (help, version,
- * a parse error, or `program.error`).
+ * 一个被抛出的值是否为 commander 自己的控制流错误（help、version、解析错误，
+ * 或 `program.error`）。
  *
- * Detected structurally, not with `instanceof`: an out-of-tree plugin brings
- * its own commander copy, whose `CommanderError` class is a different identity
- * from this package's, and an identity check there would rethrow a printed
- * help as a fatal load failure.
- * @param error - the thrown value.
- * @returns true when the value carries commander's error code and exit code.
+ * 这是结构性检测的，而不是用 `instanceof`：一个树外的插件会带来它自己的 commander
+ * 副本，其 `CommanderError` 类的身份与本包的不同，而在那里做身份检查会把一个已经
+ * 打印出来的 help 当作致命的加载失败重新抛出。
+ * @param error - 被抛出的值。
+ * @returns 当该值携带 commander 的错误码与退出码时返回 true。
  */
 function isCommanderError(error: unknown): error is { code: string; exitCode: number } {
   if (typeof error !== 'object' || error === null) return false

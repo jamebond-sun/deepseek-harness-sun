@@ -1,16 +1,16 @@
-/** Localizable rejections shared by profile management operations. */
+/** profile 管理操作共享的可本地化拒绝。 */
 import type { PluginCompatibility } from '@deepseek-ai/dsh-app-boot'
 import type { IncompatiblePlugin, ManagementError } from './types.ts'
 
-/** Expected management rejection; presentation belongs to the caller's locale. */
+/** 预期的管理拒绝；展示由调用方的区域设置负责。 */
 export class ManagementFailure extends Error {
-  /** Code rendered by the caller's locale dictionary. */
+  /** 由调用方区域词典渲染的错误码。 */
   readonly code: ManagementError['code']
-  /** The packages an `incompatible-version` rejection names. */
+  /** 一个 `incompatible-version` 拒绝所点名的包。 */
   readonly incompatible: IncompatiblePlugin[] | undefined
   /**
-   * @param code Localizable management rejection.
-   * @param incompatible Packages the running DSH version rejects, for `incompatible-version`.
+   * @param code 可本地化的管理拒绝。
+   * @param incompatible 运行中的 DSH 版本拒绝的包，用于 `incompatible-version`。
    */
   constructor(code: ManagementError['code'], incompatible?: IncompatiblePlugin[]) {
     super(code)
@@ -20,9 +20,9 @@ export class ManagementFailure extends Error {
 }
 
 /**
- * Drop the exemption status from an unexempted compatibility result.
- * @param issue Result whose exemption is not active.
- * @returns The package, runtime, and unmet DSH requirements.
+ * 从一个未被豁免的兼容性结果中丢弃豁免状态。
+ * @param issue 其豁免未生效的结果。
+ * @returns 包、运行时，以及未被满足的 DSH 要求。
  */
 export function incompatiblePlugin(issue: PluginCompatibility): IncompatiblePlugin {
   return { name: issue.name, version: issue.version, runtimeVersion: issue.runtimeVersion, requirements: issue.requirements }

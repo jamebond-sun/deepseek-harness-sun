@@ -1,4 +1,4 @@
-/** Exact-path watching for live profile patch files outside Cordis module roots. */
+/** 对 Cordis 模块根之外的活动 profile 补丁文件进行精确路径监听。 */
 import { dirname, relative, resolve, sep } from 'node:path'
 import { realpath, stat } from 'node:fs/promises'
 import { watch, type ChokidarOptions } from 'chokidar'
@@ -25,15 +25,15 @@ async function findWatchRoot(filename: string): Promise<{ filename: string; root
 }
 
 /**
- * Watch one patch path and its parent chain without subscribing to sibling files or directories.
- * Missing parents are observed as they appear; refresh callbacks run serially.
- * @param ctx Context that owns watcher disposal and receives refresh failures.
- * @param filename Absolute patch-file path.
- * @param options Deployment watcher options; configuration watches enable write stabilization by default.
- * @param refresh Callback for additions, changes, and removals.
- * @param inTransaction Whether disposal is running inside the refresh being removed.
- * @returns A disposer that closes the watcher and drains its current refresh.
- * @throws When path resolution, watcher startup, or effect registration fails.
+ * 监听一个补丁路径及其父目录链，而不订阅兄弟文件或目录。
+ * 缺失的父目录在出现时被观测；刷新回调串行运行。
+ * @param ctx 拥有监听器释放职责并接收刷新失败的上下文。
+ * @param filename 补丁文件的绝对路径。
+ * @param options 部署监听器选项；配置监听默认启用写入稳定化。
+ * @param refresh 用于新增、变更与移除的回调。
+ * @param inTransaction 释放是否在正在被移除的刷新内部运行。
+ * @returns 一个释放器，关闭监听器并排空其当前正在进行的刷新。
+ * @throws 当路径解析、监听器启动或 effect 注册失败时。
  */
 export async function watchConfig(
   ctx: Context, filename: string, options: ChokidarOptions, refresh: () => Promise<void> | void,
@@ -45,7 +45,7 @@ export async function watchConfig(
   if (paths.has(target.filename)) throw new Error(`config path already registered: ${filename}`)
   const { cwd: _cwd, ignored: _ignored, ...watchOptions } = options
   const watcher = watch(target.root, {
-    // Stabilized events bypass Chokidar's lossy 50 ms change-event throttle.
+    // 稳定化事件绕过 Chokidar 有损的 50 ms 变更事件节流。
     awaitWriteFinish: true, ...watchOptions, depth: target.depth, ignoreInitial: false,
     ignored: (path) => {
       const remainder = relative(resolve(path), target.filename)
@@ -81,18 +81,18 @@ export async function watchConfig(
   let disposed = false
   watcher.once('ready', () => { pending = false; ready.resolve() })
   const onError = (error: unknown): void => {
-    // A watcher error after disposal is not actionable: this registration's
-    // path is gone and no refresh will run.
+    // 释放之后的监听器错误无法处理：该注册的
+    // 路径已消失，不会运行任何刷新。
     if (disposed) return
     if (pending) { pending = false; ready.reject(error) } else { ctx.logger.warn(error) }
   }
   watcher.on('error', onError)
   const dispose = async () => {
     disposed = true
-    // `close()` drops every listener but leaves a scheduled write-settle poll;
-    // its straggler stats a file this teardown is deleting, which Windows
-    // reports as EPERM, and an 'error' emission with no listener is rethrown
-    // as an uncaught exception. Re-attach across the close.
+    // `close()` 会移除所有监听器，但留下一个已排期的写入沉降轮询；
+    // 其滞后的轮询会对本次清理正在删除的文件执行 stat，Windows
+    // 将其报告为 EPERM，而没有监听器的 'error' 发射会被重新抛出为
+    // 未捕获异常。在关闭期间重新挂载。
     const closing = watcher.close()
     watcher.on('error', onError)
     await closing

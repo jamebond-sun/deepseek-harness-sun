@@ -1,4 +1,4 @@
-/** Profile-owned configuration edits, serialized with Loader hot reload. */
+/** 由 profile 拥有的配置编辑，随 Loader 热重载一起序列化。 */
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { isDeepStrictEqual } from 'node:util'
@@ -13,7 +13,7 @@ import { isMap, isSeq, parseDocument, Scalar, visit } from 'yaml'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
-    /** Persistent edits to the active profile's plugin configuration. */
+    /** 对当前 profile 插件配置的持久化编辑。 */
     configEditor: ConfigEditor
   }
 }
@@ -22,7 +22,7 @@ function flatten(rows: EntryOptions[]): EntryOptions[] {
   return rows.flatMap(row => [row, ...row.group && Array.isArray(row.config) ? flatten(row.config as EntryOptions[]) : []])
 }
 
-/** Persist complete raw configs and apply them through the normal Loader path. */
+/** 持久化完整的原始配置，并通过常规的 Loader 路径应用它们。 */
 export class ConfigEditor extends Service {
   static inject = ['loader', 'profileContext']
 
@@ -30,11 +30,11 @@ export class ConfigEditor extends Service {
     super(ownerContext, 'configEditor')
   }
 
-  /** The profile patch edited by this service. */
+  /** 本服务所编辑的 profile 补丁。 */
   get documentPath(): string { return this.ownerContext.profileContext.patchPath }
 
-  /** Addressable profile rows; nested Includes have independent configuration ownership.
-   * @returns Active entries with unique profile patch ids.
+  /** 可寻址的 profile 行；嵌套的 Include 拥有独立的配置所有权。
+   * @returns 带有唯一 profile 补丁 id 的活动条目。
    */
   entries(): Entry[] {
     const candidates = [...this.ownerContext.loader.entries()].filter(entry => entry.parent.tree.ctx.fiber.entry?.id === 'include')
@@ -43,14 +43,14 @@ export class ConfigEditor extends Service {
     return candidates.filter(entry => counts.get(entry.options.id) === 1)
   }
 
-  /** Read inherited and explicit profile values for the active entries.
-   * @returns Detached layer values alongside their Loader entries.
+  /** 读取当前条目的继承值与显式 profile 值。
+   * @returns 分离出来的层级值，以及对应的 Loader 条目。
    */
   configuration(): Array<{ entry: Entry; inherited: Record<string, unknown>; override: Record<string, unknown> }> {
     const profile = this.ownerContext.profileContext
     const loaded = loadProfileDirectory('dsh', profile.dir, profile.installAnchor)
     const entries = this.entries()
-    // An own config key can replace inherited config even when its value is undefined.
+    // 即使某个自有配置键的值为 undefined，它也可以替换继承来的配置。
     const overridden = new Set(loaded.patches.filter(patch => patch.insert === undefined && Object.hasOwn(patch, 'config')).map(patch => patch.id))
     const composed = new Map<string, EntryOptions>()
     if (entries.some(entry => !overridden.has(entry.options.id))) {
@@ -79,10 +79,10 @@ export class ConfigEditor extends Service {
     return structuredClone((row?.config ?? {}) as Record<string, unknown>)
   }
 
-  /** Validate, persist, and reconcile a plugin's next config; ordinary fields keep normal lifecycle rules.
-   * @param entry Current Loader entry, also used to detect replacement during the write.
-   * @param change Derive a raw config from the current entry and its inherited layer.
-   * @returns Fulfillment after Loader reconciliation completes.
+  /** 校验、持久化并协调某个插件的下一份配置；普通字段保持正常的生命周期规则。
+   * @param entry 当前的 Loader 条目，也用于在写入期间检测替换。
+   * @param change 从当前条目及其继承层级推导出一份原始配置。
+   * @returns Loader 协调完成后兑现。
    */
   async edit(
     entry: Entry,

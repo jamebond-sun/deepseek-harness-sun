@@ -1,4 +1,4 @@
-/** Serialized module and profile-configuration reloads. */
+/** 序列化后的模块与 profile 配置热重载。 */
 import assert from 'node:assert/strict'
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { watchConfig as watchExactConfig } from './watch-config.ts'
@@ -23,27 +23,27 @@ import z from '@deepseek-ai/schemastery'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
-    /** Serialized plugin-code and configuration reloads. */
+    /** 序列化后的插件代码与配置热重载。 */
     hmr: Hmr
   }
 
   interface Events {
-    /** A watched file has no module or configuration handler.
+    /** 被监听的文件既没有模块处理器也没有配置处理器。
      * @mode emit
-     * @param url Canonical file URL.
+     * @param url 规范化的文件 URL。
      */
     'hmr/change'(url: string): void
-    /** Module replacements have finished loading.
+    /** 模块替换已完成加载。
      * @mode emit
-     * @param reloads Replaced plugins and their module locations.
+     * @param reloads 被替换的插件及其模块位置。
      */
     'hmr/reload'(reloads: Map<Plugin, Reload>): void
   }
 }
 
 function canonicalPath(filename: string): string {
-  // Node's ESM resolver uses the JS realpath implementation; native realpath
-  // expands Windows short names differently and would miss its cache keys.
+  // Node 的 ESM 解析器使用 JS 版的 realpath 实现；原生 realpath 对 Windows 短名称
+  // 的展开方式不同，会错过它自己的缓存键。
   try { return realpathSync(filename) } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
     const parent = dirname(filename)
@@ -52,21 +52,21 @@ function canonicalPath(filename: string): string {
   }
 }
 
-/** Module roots and watcher timing, with Chokidar deployment options. */
+/** 模块根目录与监听器计时，附带 Chokidar 部署选项。 */
 export interface HmrConfig extends ChokidarOptions {
-  /** Directory resolved against the owning context's base URL. */
+  /** 相对于所属上下文 base URL 解析出的目录。 */
   base?: string
-  /** Module watch roots; an empty list leaves only explicit configuration watches. */
+  /** 模块监听根目录；空列表则仅保留显式的配置监听。 */
   root: string[]
-  /** Milliseconds for combining module changes. */
+  /** 合并模块变更的毫秒数。 */
   debounce: number
-  /** Glob patterns excluded from module watching. */
+  /** 被排除在模块监听之外的 glob 模式。 */
   ignored: string[]
 }
 
 /**
- * Recursively collect all module dependencies from a ModuleJob.
- * Skips node: builtins, and node_modules unless `includeNodeModules` is set, to focus on user code.
+ * 从 ModuleJob 递归收集所有模块依赖。
+ * 跳过 node: 内建模块与 node_modules，除非设置了 `includeNodeModules`，以便聚焦于用户代码。
  */
 async function loadDependencies(job: ModuleJob, ignored = new Set<string>(), includeNodeModules = false) {
   const dependencies = new Set<string>()
@@ -81,15 +81,15 @@ async function loadDependencies(job: ModuleJob, ignored = new Set<string>(), inc
   return dependencies
 }
 
-/** Module location and runtime retained during a replacement. */
+/** 替换期间保留的模块位置与运行时。 */
 export interface Reload {
   filename: string
-  /** Original namespaces and URLs of all entry modules participating in this runtime replacement. */
+  /** 参与本次运行时替换的所有入口模块的原始命名空间与 URL。 */
   modules: ReloadModules
   runtime?: Plugin.Runtime | undefined
 }
 
-/** Entry names with distinct namespaces; iteration falls back to undefined only for names without a loaded namespace. */
+/** 带有不同命名空间的入口名称；仅当某个名称没有已加载的命名空间时迭代才回退到 undefined。 */
 class EntryNamespaces {
   private readonly names = new Map<string, Set<unknown>>()
 
@@ -103,7 +103,7 @@ class EntryNamespaces {
       try {
         moduleUrls.set(job.module.getNamespace(), url)
       } catch (_error) {
-        // Node also caches unfinished jobs whose namespace is not available yet.
+        // Node 也会缓存尚未拿到命名空间的未完成 job。
       }
     }
     return moduleUrls
@@ -147,7 +147,7 @@ type ReloadFiber = {
 
 type ReloadModule = { filename: string; moduleNamespace: unknown; plugin: Plugin }
 
-/** Entry modules belonging to one runtime, keyed by their original namespaces across replacement. */
+/** 属于同一运行时的入口模块，以它们在替换过程中各自的原始命名空间为键。 */
 class ReloadModules {
   private readonly modules = new Map<unknown, ReloadModule>()
 
@@ -207,11 +207,11 @@ class ReloadModules {
   }
 }
 
-/** Hot reload service with Cordis-compatible module configuration and events. */
+/** 兼容 Cordis 的模块配置与事件的熱重载服务。 */
 @Inject('loader')
 @Inject('timer')
 class Hmr extends Service {
-  /** Cordis-compatible watcher defaults. */
+  /** 兼容 Cordis 的监听器默认值。 */
   static Config: z<HmrConfig> = z.object({
     base: z.string(),
     root: z.array(String).role('table').default(['.']),
@@ -224,7 +224,7 @@ class Hmr extends Service {
     debounce: z.natural().role('ms').default(100),
   })
 
-  /** Absolute base directory used to resolve module watch roots. */
+  /** 用于解析模块监听根目录的绝对基础目录。 */
   public baseDir: string
 
   private readonly ownerContext: Context
@@ -232,24 +232,24 @@ class Hmr extends Service {
   private watcher: FSWatcher | undefined
 
   /**
-   * Changes from externals will always trigger a full reload.
-   * Externals are the dependency tree of the CLI worker entry point.
+   * 来自外部依赖的变更永远会触发整进程重载。
+   * 外部依赖是 CLI worker 入口点的依赖树。
    */
   private externals!: Set<string>
 
   /**
-   * Files that should be reloaded (accepted changes).
-   * Includes all stashed files and their dependents.
+   * 应当重新加载的文件（已被接受的变更）。
+   * 包含所有暂存的文件以及它们的依赖方。
    */
   private accepted!: Set<string>
 
   /**
-   * Files that should NOT be reloaded.
-   * Includes externals and files whose dependents are all declined.
+   * 不应当重新加载的文件。
+   * 包含外部依赖，以及所有依赖方都被拒绝的文件。
    */
   private declined!: Set<string>
 
-  /** Stashed file changes waiting to be processed */
+  /** 等待处理的暂存文件变更 */
   private stashed = new Set<string>()
   private operations: Promise<unknown> = Promise.resolve()
   private readonly executing = new AsyncLocalStorage<boolean>()
@@ -258,12 +258,12 @@ class Hmr extends Service {
   private readonly configPaths = new Set<string>()
   private readonly manifests = new PackageManifests()
   private readonly files = new ModuleFiles()
-  /** Every module statically reachable from the process entry point, including those under node_modules; collected on first use. */
+  /** 从进程入口点静态可达的每个模块，包括 node_modules 下的模块；在首次使用时收集。 */
   private hostModules!: () => Promise<Set<string>>
 
-  /** Serialize a caller-owned mutation with all automatic reload paths.
-   * @param operation Work that must not overlap module or configuration replacement.
-   * @returns The operation result after its asynchronous work completes.
+  /** 把调用方拥有的变更与所有自动重载路径串行化。
+   * @param operation 不得与模块或配置替换重叠的工作。
+   * @returns 异步工作完成之后的操作结果。
    */
   runExclusive<T>(operation: () => Promise<T>): Promise<T> {
     if (this.executing.getStore()) return Promise.reject(new Error('HMR transactions cannot be nested'))
@@ -281,10 +281,10 @@ class Hmr extends Service {
     })
   }
 
-  /** Watch a configuration path through the same queue as module replacement.
-   * @param filename Absolute path, which may not exist yet.
-   * @param refresh Rebuilds configuration from its current files and awaits Loader completion.
-   * @returns Disposer closing this registration and waiting for its pending refresh.
+  /** 通过和模块替换相同的队列来监听某个配置路径。
+   * @param filename 绝对路径，可能尚不存在。
+   * @param refresh 从当前文件重建配置，并等待 Loader 完成。
+   * @returns 关闭本次注册并等待其待处理刷新的释放函数。
    */
   async watchConfig(filename: string, refresh: () => Promise<void>): Promise<() => Promise<void>> {
     const paths = [resolve(filename), canonicalPath(filename)]
@@ -315,40 +315,40 @@ class Hmr extends Service {
   }
 
   /**
-   * The cached ES module job for a URL. The packed worker loader exposes no Node module cache; native Node
-   * retains this cache even when asynchronous module hooks run in a separate thread.
+   * 某个 URL 对应的已缓存 ES module job。打包后的 worker 加载器不暴露 Node 模块缓存；
+   * 原生 Node 即使异步模块钩子运行在独立线程中，也会保留这一缓存。
    */
   private esmJob(url: string): ModuleJob | undefined {
     return this.hasEsmCache() ? this.internal.loadCache.get(url) : undefined
   }
 
-  /** Whether this thread keeps a Node ES module cache; the packed worker loader keeps none. */
+  /** 本线程是否保留了 Node 的 ES 模块缓存；打包后的 worker 加载器不保留任何缓存。 */
   private hasEsmCache(): boolean {
     const cache: unknown = Reflect.get(this.internal, 'loadCache')
     return cache !== undefined
   }
 
-  /** Whether the ES module cache holds a job for a URL; `false` when this thread keeps no ES module cache. */
+  /** ES 模块缓存是否为某个 URL 持有 job；当本线程不保留 ES 模块缓存时为 `false`。 */
   private esmHas(url: string, type?: string): boolean {
     return this.hasEsmCache() && (type === undefined ? this.internal.loadCache.has(url) : this.internal.loadCache.has(url, type))
   }
 
-  /** ES module cache keys, empty when this thread keeps no ES module cache. */
+  /** ES 模块缓存的键；当本线程不保留 ES 模块缓存时为空。 */
   private esmUrls(): string[] {
     return this.hasEsmCache() ? [...Map.prototype.keys.call(this.internal.loadCache) as Iterable<string>] : []
   }
 
-  /** ES module cache keys and CommonJS cache filenames as URLs. */
+  /** ES 模块缓存的键，以及作为 URL 的 CommonJS 缓存文件名。 */
   private* loadedUrls(): Generator<string> {
     yield* this.esmUrls()
     for (const filename of Object.keys(commonJsCache())) yield pathToFileURL(filename).href
   }
 
-  /** The module job of the process entry point, when the loader cached it under the entry's real path. */
+  /** 进程入口点对应的模块 job（当加载器把它缓存在入口的真实路径下时）。 */
   private mainJob(): ModuleJob | undefined {
     const entry = process.argv[1]
     if (entry === undefined) return undefined
-    // A package bin starts through a link, and Node caches the module under its target.
+    // 包的 bin 通过链接启动，Node 会把这个模块缓存在其目标路径下。
     return this.esmJob(pathToFileURL(canonicalPath(resolve(entry))).href)
   }
 
@@ -359,7 +359,7 @@ class Hmr extends Service {
     yield async () => {
       this.closing = true
       await this.watcher?.close()
-      // A configuration reload may remove its own HMR entry.
+      // 一次配置重载可能会移除它自己的 HMR 条目。
       if (!this.executing.getStore()) await this.operations
       this.manifests.dispose()
     }
@@ -371,11 +371,11 @@ class Hmr extends Service {
       const started = Promise.withResolvers<boolean>()
       this.applicationReady = started.promise
       const unsubscribe = ready.onReady(() => {
-        // Plugins started with the application are recorded; modules loaded later are compared by modification time.
+        // 随应用一起启动的插件会被记录；稍后加载的模块按修改时间比较。
         try {
           this.files.observe(this.profileModules(profileRoots(profile.dir)))
         } catch (error) {
-          // Without a first record, modules are compared by modification time against this HMR instance’s creation time.
+          // 若没有首次记录，模块会按修改时间与本 HMR 实例的创建时间比较。
           this.ctx.logger.warn(error)
         }
         started.resolve(true)
@@ -418,8 +418,8 @@ class Hmr extends Service {
     const match = picomatch(ignored)
     const watchBaseDir = realpathSync(this.baseDir)
 
-    // Collect externals before opening the watcher so every post-ready change
-    // is observed by listeners that already have their classification state.
+    // 在打开监听器之前收集外部依赖，这样每条就绪之后的变更都会被已经拥有
+    // 分类状态的监听器观测到。
     if (mainJob) {
       this.externals = await loadDependencies(mainJob)
     } else {
@@ -499,14 +499,14 @@ class Hmr extends Service {
     await ready.promise
   }
 
-  /** Omit internal HMR frames from module import diagnostics.
-   * @returns The preserved outer stack frames.
+  /** 从模块导入诊断中剔除 HMR 内部栈帧。
+   * @returns 被保留下来的外层栈帧。
    */
   getOuterStack: () => string[] = () => []
 
-  /** Read direct module dependency URLs from the active Node loader.
-   * @param url Module URL.
-   * @returns Linked module URLs, or an empty list for an uncached module.
+  /** 从当前 Node 加载器读取直接的模块依赖 URL。
+   * @param url 模块 URL。
+   * @returns 被链接的模块 URL，或对于一个未缓存模块的空列表。
    */
   async getLinked(url: string): Promise<string[]> {
     const job = this.esmJob(url)
@@ -516,11 +516,10 @@ class Hmr extends Service {
   }
 
   /**
-   * Classify changed files into accepted (should reload) and declined (should not).
+   * 把变更文件分类为已接受（应当重载）与被拒绝（不应当重载）。
    *
-   * A file is accepted if it's directly changed (stashed) or if any of its
-   * dependents are accepted. A file is declined if all its dependents are
-   * declined or if it's an external.
+   * 一个文件若被直接修改（已暂存），或其任一依赖方已被接受，则被接受。一个文件
+   * 若其所有依赖方都被拒绝，或它属于外部依赖，则被拒绝。
    */
   private async analyzeChanges() {
     const pending: string[] = []
@@ -584,8 +583,8 @@ class Hmr extends Service {
     const reloads = new Map<Plugin, Reload>()
     const moduleUrls = EntryNamespaces.getModuleUrls(this.internal)
 
-    // Build a map of plugin names per config tree URL.
-    // Plugin entry files are treated as atomic reload units.
+    // 为每个配置树 URL 构建插件名称映射。
+    // 插件入口文件被视为原子的重载单元。
     const nameMap = new Map<string, EntryNamespaces>()
     for (const entry of this.ctx.loader.entries()) {
       const baseUrl = entry.parent.tree.ctx.baseUrl
@@ -595,7 +594,7 @@ class Hmr extends Service {
       nameMap.set(baseUrl, names)
     }
 
-    // Find each plugin's loaded URL and check if it needs reload.
+    // 找出每个插件已加载的 URL，并检查它是否需要重载。
     for (const [baseUrl, names] of nameMap) {
       for (const [name, moduleNamespace] of names) {
         try {
@@ -612,7 +611,7 @@ class Hmr extends Service {
       }
     }
 
-    // Check each pending plugin's dependency tree for accepted files
+    // 检查每个待处理插件的依赖树中是否存在已被接受的文件。
     for (const [job, plugin] of pending) {
       this.declined.delete(job.url)
       const dependencies = [...await loadDependencies(job, this.declined)]
@@ -634,14 +633,14 @@ class Hmr extends Service {
       })
     }
 
-    // Re-export roots of a replaced runtime must not retain bindings to its old modules.
+    // 被替换运行时的再导出根目录不得保留对其旧模块的绑定。
     for (const [job, plugin] of pending) {
       if (ReloadModules.include(reloads, plugin, job, this.ctx.registry.get(plugin))) this.accepted.add(job.url)
     }
 
     const rollback = this.evict(this.accepted)
 
-    // Attempt to re-import all plugin entry files
+    // 尝试重新导入所有插件入口文件。
     const generations = [...reloads].map(([previous, info]) => ({
       ...info, previous,
       fibers: [...info.runtime?.fibers ?? []].map((fiber) => {
@@ -713,7 +712,7 @@ class Hmr extends Service {
         }
       }
     } catch (error) {
-      // Restore caches and re-register old plugins after a replacement failure.
+      // 在替换失败后恢复缓存并重新注册旧插件。
       rollback()
       for (const { previous: plugin, fibers, activated } of attempts) {
         if (!removed.has(plugin)) continue
@@ -722,7 +721,7 @@ class Hmr extends Service {
             if (runtime && this.ctx.registry.get(runtime.callback) === runtime) {
               const replacementFibers = [...runtime.fibers]
               this.ctx.registry.delete(runtime.callback)
-              // Failed startup errors remain on fibers after their teardown finishes.
+              // 启动失败的错误会在其拆解完成之后仍然保留在 fiber 上。
               await Promise.allSettled(replacementFibers.map(fiber => fiber.await()))
             }
           }
@@ -744,18 +743,19 @@ class Hmr extends Service {
   }
 
   /**
-   * Remove modules from the ES module and CommonJS caches so the next import evaluates their files again.
+   * 从 ES 模块与 CommonJS 缓存中移除模块，使下一次导入重新求值它们的文件。
    *
-   * CommonJS modules loaded through `import()` appear in both caches. Node's `LoadCache` maps each URL to per-type
-   * jobs, and its own `delete()` only clears one type slot, so whole entries are removed through `Map.prototype`.
-   * @returns Restores the removed cache entries.
+   * 通过 `import()` 加载的 CommonJS 模块会同时出现在两个缓存中。Node 的 `LoadCache`
+   * 把每个 URL 映射到按类型区分的 job，而它自身的 `delete()` 只清除一个类型槽，因此
+   * 整个条目要通过 `Map.prototype` 来移除。
+   * @returns 恢复被移除的缓存条目。
    */
   private evict(urls: Iterable<string>): () => void {
     const esmBackup = new Map<string, unknown>()
     const cjsBackup = new Map<string, NodeJS.Module>()
     const cache = commonJsCache()
     const list = [...urls]
-    // CommonJS-only files have no loadCache entry to restore.
+    // 仅 CommonJS 的文件没有可供恢复的 loadCache 条目。
     const cached = new Set(this.esmUrls())
     for (const url of list) {
       if (cached.has(url)) {
@@ -776,7 +776,7 @@ class Hmr extends Service {
     }
   }
 
-  /** Loaded `file:` modules below the given profile roots. */
+  /** 位于给定 profile 根目录之下的已加载 `file:` 模块。 */
   private profileModules(roots: readonly string[]): string[] {
     return [...this.loadedUrls()].filter((url) => {
       if (!url.startsWith('file:')) return false
@@ -785,7 +785,7 @@ class Hmr extends Service {
     })
   }
 
-  /** Static import edges between loaded modules, across ES module links and CommonJS `require` children. */
+  /** 已加载模块之间的静态导入边，跨越 ES 模块链接与 CommonJS 的 `require` 子模块。 */
   private async moduleGraph(): Promise<Map<string, Set<string>>> {
     const importers = new Map<string, Set<string>>()
     const add = (parent: string, child: string) => {
@@ -795,7 +795,7 @@ class Hmr extends Service {
       for (const child of await linkedJobs(job)) add(job.url, child.url)
     }))
     for (const [filename, module] of Object.entries(commonJsCache())) {
-      // Code that writes `require.cache` directly can store objects that are not Node modules.
+      // 直接写入 `require.cache` 的代码可能存入并非 Node 模块的对象。
       /* v8 ignore next -- Node stores no undefined values in require.cache; the index type admits them */
       const children: unknown = module === undefined ? undefined : Reflect.get(module, 'children')
       if (!Array.isArray(children)) continue
@@ -805,14 +805,14 @@ class Hmr extends Service {
   }
 
   /**
-   * Plan the replacement of changed modules without changing anything. A changed module whose importers reach the
-   * process entry point's static graph, or a plugin that no affected Loader entry starts, stays loaded with its
-   * importers and is pending. The other changed modules and every module importing them are evicted by
-   * {@link stopPlanned}, which also expires the manifests from each changed file up to its root and stops the Loader
-   * entries running affected plugins.
-   * @param stale Changed module URLs.
-   * @param roots Directories, with a trailing separator, that bound the expired manifests.
-   * @returns The pending modules and the replacement of the others.
+   * 规划变更模块的替换，而不做任何实际改动。一个变更模块，若其导入方触及进程入口点
+   * 的静态图，或一个没有任何受影响 Loader 入口会启动的插件，会与它的导入方一起保持
+   * 加载并处于 pending。其余变更模块，以及每一个导入它们的模块，会被 {@link stopPlanned}
+   * 驱逐；它还会让每个变更文件直到其根目录的清单过期，并停止运行受影响插件的
+   * Loader 入口。
+   * @param stale 发生变更的模块 URL。
+   * @param roots 带有末尾分隔符、界定过期清单范围的目录。
+   * @returns pending 的模块，以及其余模块的替换方案。
    */
   private async planReplacement(stale: ReadonlySet<string>, roots: readonly string[]): Promise<ReplacementPlan> {
     const importers = await this.moduleGraph()
@@ -827,7 +827,7 @@ class Hmr extends Service {
       const running = [...new Set([...affected].flatMap(module => this.pluginsOf(module)))]
         .flatMap(plugin => [...this.ctx.registry.get(plugin)?.fibers ?? []].map(fiber => ({ plugin, fiber })))
       const affectedFibers = new Set(running.map(({ fiber }) => fiber))
-      /** The Loader entry whose own fiber runs an affected plugin and starts this fiber directly or through its ancestors. */
+      /** 由其自身 fiber 运行某个受影响插件、并直接或通过其祖先启动本 fiber 的 Loader 入口。 */
       const owner = (fiber: Fiber): Entry | undefined => {
         for (let current = fiber; current.uid !== 0; current = current.parent.fiber) {
           const entry = current.entry
@@ -836,7 +836,7 @@ class Hmr extends Service {
         return undefined
       }
       const entries = running.flatMap(({ fiber }) => owner(fiber) ?? [])
-      // A plugin registered outside a Loader entry has no owner that can start its replacement.
+      // 在 Loader 入口之外注册的插件没有能够启动其替换体的拥有者。
       const reason = [...affected].some(module => host.has(module)) ? 'host-module'
         : entries.length < running.length ? 'unmanaged-plugin' : undefined
       if (reason !== undefined) {
@@ -854,10 +854,10 @@ class Hmr extends Service {
   }
 
   /**
-   * The plugins a loaded module exports, read from the ES module namespace and the CommonJS exports Node cached for it
-   * without evaluating anything.
-   * @param url Loaded module URL.
-   * @returns The exported plugins.
+   * 一个已加载模块导出的插件，从 ES 模块命名空间与 Node 为它缓存的 CommonJS 导出中
+   * 读取，且不进行任何求值。
+   * @param url 已加载的模块 URL。
+   * @returns 被导出的插件。
    */
   private pluginsOf(url: string): Plugin[] {
     const namespace = namespaceOf(this.esmJob(url))
@@ -867,25 +867,25 @@ class Hmr extends Service {
   }
 
   /**
-   * Carry out a planned replacement: expire its manifests, evict its modules without a backup, and stop its Loader
-   * entries, so applying the generation imports the current files when it starts them.
-   * @param plan The planned replacement.
+   * 执行一个已规划的替换：让其清单过期、无备份地驱逐其模块，并停止其 Loader 入口，
+   * 从而在应用该代时，会在启动它们时导入当前的文件。
+   * @param plan 已规划的替换方案。
    */
   private async stopPlanned(plan: ReplacementPlan): Promise<void> {
     for (const manifest of plan.manifests) this.manifests.invalidate(manifest)
     this.evict(plan.evicted)
-    // Deleting the runtime stops its fibers without the Loader recording the entries as disabled.
+    // 删除运行时会停止它的 fiber，而不会让 Loader 把那些入口记录为已禁用。
     for (const plugin of plan.plugins) this.ctx.registry.delete(plugin)
-    // Cordis contains disposal failures in the fiber, which logs them.
+    // Cordis 把处置失败包含在 fiber 中，由它记录日志。
     await Promise.allSettled([...plan.fibers].map(fiber => fiber.await()))
   }
 
   /**
-   * Evict the loaded modules below the directories of mappings a recomposition dropped and expire their package
-   * configuration, so a disabled or removed package that is installed or enabled again is imported afresh. Modules of
-   * DSH's own static graph, and those below a directory that is still mapped, stay loaded.
-   * @param dropped Real directories, with a trailing separator, of the dropped mappings.
-   * @param kept Real directories, with a trailing separator, of the mappings that stay.
+   * 驱逐位于某个重组所丢弃映射的目录之下的已加载模块，并让其包配置过期，使得一个被
+   * 禁用或移除、而后又被安装或启用的包会被重新导入。DSH 自身静态图中的模块，以及位于
+   * 仍被映射目录之下的模块，保持加载。
+   * @param dropped 被丢弃映射的真实目录，带有末尾分隔符。
+   * @param kept 仍保留映射的真实目录，带有末尾分隔符。
    */
   private async evictDropped(dropped: readonly string[], kept: ReadonlySet<string>): Promise<void> {
     if (dropped.length === 0) return
@@ -898,7 +898,7 @@ class Hmr extends Service {
     this.evict(urls)
   }
 
-  /** Report a failed replacement step and retain the caller’s fallback outcome. */
+  /** 报告一个失败的替换步骤，并保留调用方的回退结果。 */
   private async contained<T>(step: string, operation: () => T | Promise<T>, fallback: T): Promise<T> {
     try {
       return await operation()
@@ -910,25 +910,25 @@ class Hmr extends Service {
   }
 
   /**
-   * Recompose the profile from its manifest and patch files, replacing running plugins whose loaded files below the
-   * profile directory or its linked package targets changed on disk, and publishing its runtime resolution. Changed
-   * modules are evicted and the Loader entries running them stop; app-boot's {@link recomposeProfile} then publishes the
-   * resolution, applies the generation, starts the stopped entries with the current files and configuration,
-   * imports entries whose import failed again, and judges activation. Afterwards the modules below the mappings the
-   * recomposition dropped are evicted, so a removed or deselected package is imported afresh when it returns. Callers run
-   * inside {@link runExclusive}.
-   * @param requiredIds Entry ids whose inactive state is reported as a failure even when it predates this call.
-   * @returns Inactive-entry diagnostics, the changed modules that load after a restart, and a profile-wide restart reason.
-   * @throws The patch read, publication, preparation, apply, or activation failure of the recomposition, including a
-   * replacement plugin that fails to load or start, whose previous code no longer runs.
+   * 从 profile 的清单与补丁文件重组 profile，替换那些位于 profile 目录或其链接包目标
+   * 之下、且磁盘上发生变更的已加载文件所对应的运行中插件，并发布其运行时解析结果。
+   * 发生变更的模块会被驱逐，运行它们的 Loader 入口会停止；随后 app-boot 的
+   * {@link recomposeProfile} 发布该解析、应用该代、用当前文件与配置启动那些已停止的入口、
+   * 重新导入导入再次失败的入口，并判定激活。此后，本次重组所丢弃映射之下的模块会被
+   * 驱逐，因此一个被移除或取消选择的包在回归时会重新被导入。调用方运行在
+   * {@link runExclusive} 内部。
+   * @param requiredIds 即使其非活动状态早于本次调用、也要作为失败报告的入口 id。
+   * @returns 非活动入口的诊断信息、在重启之后才会加载的变更模块，以及整个 profile 的重启原因。
+   * @throws 重组在补丁读取、发布、准备、应用或激活上的失败，包括一个加载或启动失败、
+   * 其旧代码不再运行的替换插件。
    */
   async reconcileProfile(requiredIds: readonly string[] = []): Promise<ProfileReconciliation> {
     if (this.executing.getStore() !== true) throw new Error('HMR profile reconciliation must run inside runExclusive')
     const profile = this.ownerContext.get('profileContext')
     if (profile === undefined) throw new Error('HMR profile reconciliation requires profileContext')
-    // Entries this recomposition stops start again, and fail it when they cannot.
+    // 本次重组所停止的入口会再次启动；若无法启动则令重组失败。
     const running = [...this.ctx.loader.entries()].filter(entry => entry.fiber?.state === FiberState.ACTIVE)
-    // Read while the packages are still on disk, so a removed link's target is known in its real spellings.
+    // 在包仍位于磁盘上时读取，这样被移除链接的目标能以真实拼写被知晓。
     const mapped = mappedDirectories(this.ownerContext.get('pluginPackages')?.resolution)
     let comparison: ProfileComparison | undefined
     let comparedAt = 0
@@ -936,12 +936,12 @@ class Hmr extends Service {
     try {
       const patches = readProfilePatches('dsh', profile)
       comparedAt = this.files.now()
-      // A failed comparison keeps every record, so the next recomposition compares the same modules again.
+      // 一次失败的对比会保留每一条记录，因此下一次重组会再次比较相同的模块。
       comparison = await this.contained('comparing loaded modules with disk', () => {
         const roots = profileRoots(profile.dir)
         return Promise.resolve({ roots, ...this.files.compare(this.profileModules(roots)) })
       }, undefined)
-      // Changed modules stay stale until replaced, including when the generation cannot be applied.
+      // 变更模块在替换之前保持过期，包括当该代无法被应用时。
       pending = [...comparison?.stale ?? []].map(url => ({ url, reason: 'module-comparison' }))
       const compared = comparison
       const unavailable = !this.hasEsmCache()
@@ -952,15 +952,15 @@ class Hmr extends Service {
           return plan.pending
         }, pending)
       }
-      // Modules whose links or evaluation failed are evicted, so the recomposition retries failed imports against a
-      // corrected file or a dependency installed since.
+      // 链接或求值失败的模块会被驱逐，这样重组会针对已修正的文件或此后安装的依赖
+      // 重试失败的导入。
       await this.contained('expiring failed imports', () => {
-        // Without an ES module cache no failed module is known.
+        // 没有 ES 模块缓存时，无法得知任何失败的模块。
         if (unavailable) return
         const roots = compared?.roots ?? [realpathSync(profile.dir) + sep]
-        // A dependency installed since the failed import can sit in a directory Node recorded as having no manifest.
+        // 失败导入之后才安装的依赖，可能位于 Node 记录为“没有清单”的目录中。
         for (const root of roots) this.manifests.invalidate(join(root, 'package.json'))
-        // Node keeps a module whose links or evaluation failed.
+        // Node 会保留一个链接或求值失败的模块。
         this.evict(this.profileModules(roots).filter((url) => {
           const job = this.esmJob(url)
           return job !== undefined && namespaceOf(job) === undefined
@@ -977,7 +977,7 @@ class Hmr extends Service {
       }, undefined)
       await this.contained('recording loaded module files', () => {
         if (recorded === undefined) return
-        // Identities read before replacement keep writes made since then detectable.
+        // 替换之前读取到的身份，使此后发生的写入仍可被检测到。
         const urls = this.profileModules(recorded.roots)
         this.files.observe(urls, { seen: recorded.seen, retained: new Set(pending.map(({ url }) => url)), at: comparedAt })
       }, undefined)
@@ -985,14 +985,14 @@ class Hmr extends Service {
   }
 }
 
-/** Loaded profile modules compared with disk, with the roots that bound them. */
+/** 与磁盘比较过的已加载 profile 模块，以及界定它们的根目录。 */
 interface ProfileComparison {
   roots: string[]
   stale: Set<string>
   seen: Map<string, string | undefined>
 }
 
-/** The modules a replacement evicts, the manifests it expires, and the plugins it stops; pending modules stay loaded. */
+/** 一次替换所驱逐的模块、它令其过期的清单，以及它停止的插件；pending 模块保持加载。 */
 interface ReplacementPlan {
   pending: PendingModule[]
   evicted: Set<string>
@@ -1001,52 +1001,53 @@ interface ReplacementPlan {
   fibers: Set<Fiber>
 }
 
-/** Outcome of {@link Hmr.reconcileProfile}. */
+/** {@link Hmr.reconcileProfile} 的结果。 */
 export interface ProfileReconciliation {
-  /** Diagnostics for Loader entries left inactive. */
+  /** 遗留为非活动的 Loader 入口的诊断信息。 */
   warnings: string[]
-  /** Loaded modules whose files changed on disk and whose previous code keeps running until a restart. */
+  /** 文件在磁盘上变更、且其旧代码一直运行到重启为止的已加载模块。 */
   pending: PendingModule[]
   /**
-   * Why every change waits for a restart: `module-comparison` when module caches cannot be inspected or their files
-   * compared, even when no URLs are known; `package-moved` when the runtime resolution cannot publish a moved package.
+   * 为何所有变更都要等待重启：`module-comparison` 表示模块缓存无法被检查或文件无法
+   * 被比较，即使没有任何 URL 可知；`package-moved` 表示运行时解析无法发布一个被
+   * 移动的包。
    */
   restartReason?: 'module-comparison' | 'package-moved'
 }
 
-/** A changed module that loads only after a restart. */
+/** 一个仅在重启之后才会加载的变更模块。 */
 export interface PendingModule {
   url: string
   /**
-   * `host-module`: the process entry point's static graph imports it. `unmanaged-plugin`: it is imported by a plugin
-   * that runs outside a traversable Loader entry. `module-comparison`: loaded modules could not be compared with disk.
+   * `host-module`：进程入口点的静态图导入了它。`unmanaged-plugin`：它被一个运行在
+   * 可遍历 Loader 入口之外的插件导入。`module-comparison`：已加载模块无法与磁盘比较。
    */
   reason: 'host-module' | 'unmanaged-plugin' | 'module-comparison'
 }
 
-/** Node's `kErrored` module status, the same in every supported Node version. */
+/** Node 的 `kErrored` 模块状态，在所有受支持的 Node 版本中取值相同。 */
 const MODULE_ERRORED = 5
 
-/** The namespace of a cached module job, or `undefined` when it has none or its evaluation threw. */
+/** 一个已缓存模块 job 的命名空间；当它没有命名空间，或其求值抛错时为 `undefined`。 */
 function namespaceOf(job: ModuleJob | undefined): unknown {
   if (job?.module === undefined) return undefined
-  // A module whose evaluation threw keeps a namespace whose bindings were never initialized. `getStatus()` exists on
-  // ModuleWrap in every supported Node version, like the other loader internals HMR reads.
+  // 一个求值抛错的模块会保留一个绑定从未被初始化的命名空间。与 HMR 读取的其它加载器
+  // 内部接口一样，`getStatus()` 在每一个受支持的 Node 版本中都存在于 ModuleWrap 上。
   const status: unknown = Reflect.apply(Reflect.get(job.module, 'getStatus') as () => number, job.module, [])
   if (status === MODULE_ERRORED) return undefined
   try {
     return job.module.getNamespace()
   /* v8 ignore start -- a cached module still linking in a concurrent import has no namespace yet; tests cannot hold an import there */
   } catch (_error) {
-    // A module that has not been instantiated exports no running plugin.
+    // 尚未被实例化的模块不会导出任何运行中的插件。
     return undefined
   }
   /* v8 ignore stop */
 }
 
 /**
- * The jobs a module job links to. Node 24+ may expose them as an array; Node 22 keeps the job of a failed import
- * whose links reject, and such a job contributes no links.
+ * 一个模块 job 所链接到的 job。Node 24+ 可能把它们暴露为一个数组；Node 22 会保留一个
+ * 链接被拒绝的失败导入的 job，而这样的 job 不贡献任何链接。
  */
 async function linkedJobs(job: ModuleJob): Promise<ModuleJob[]> {
   /* v8 ignore next -- CI coverage runs Node 24+, which drops failed jobs from the cache */
@@ -1055,14 +1056,14 @@ async function linkedJobs(job: ModuleJob): Promise<ModuleJob[]> {
   return Array.from(linked)
 }
 
-/** The Node-compatible CommonJS cache; the packed worker implements require without exposing this cache. */
+/** 兼容 Node 的 CommonJS 缓存；打包后的 worker 实现 require 时不暴露这一缓存。 */
 function commonJsCache(): NodeJS.Dict<NodeJS.Module> {
-  // Node's type declares the cache present for every `require`.
+  // Node 的类型声明每个 `require` 都带有该缓存。
   const cache: unknown = Reflect.get(createRequire(import.meta.url), 'cache')
   return (cache ?? {}) as NodeJS.Dict<NodeJS.Module>
 }
 
-/** Every module job in the loader cache; Node's `LoadCache` maps each URL to per-type jobs. */
+/** 加载器缓存中的每一个模块 job；Node 的 `LoadCache` 把每个 URL 映射到按类型区分的 job。 */
 function* moduleJobs(internal: ModuleLoader): Generator<ModuleJob> {
   for (const value of Map.prototype.values.call(internal.loadCache) as Iterable<Partial<Record<string, ModuleJob>>>) {
     yield* Object.values(value).filter(job => job !== undefined)
@@ -1070,10 +1071,10 @@ function* moduleJobs(internal: ModuleLoader): Generator<ModuleJob> {
 }
 
 /**
- * The directories of a runtime resolution's profile mappings and linked roots, in every real spelling of those that
- * exist, each with a trailing separator.
- * @param resolution The published resolution, if any.
- * @returns The directories; none without a resolution.
+ * 一个运行时解析的 profile 映射与链接根目录所在的目录，以它们存在的每一种真实拼写
+ * 给出，每个都带有末尾分隔符。
+ * @param resolution 已发布的解析结果（若有）。
+ * @returns 这些目录；没有解析结果时为空。
  */
 function mappedDirectories(resolution: RuntimeResolution | undefined): Set<string> {
   const directories = new Set<string>()
@@ -1085,9 +1086,10 @@ function mappedDirectories(resolution: RuntimeResolution | undefined): Set<strin
 }
 
 /**
- * The JavaScript and native real paths of an existing path. A packed worker's file system has no native realpath.
- * @param path Existing path.
- * @returns The distinct spellings.
+ * 一个已存在路径的 JavaScript 与原生真实路径。打包后的 worker 文件系统没有原生的
+ * realpath。
+ * @param path 已存在的路径。
+ * @returns 这些不同的拼写。
  */
 function realSpellings(path: string): string[] {
   const native: unknown = Reflect.get(realpathSync, 'native')
@@ -1095,9 +1097,9 @@ function realSpellings(path: string): string[] {
 }
 
 /**
- * Real directories, with a trailing separator, of the profile and of the targets its linked packages point to. Each
- * appears in both real-path spellings: Node's module caches use the JavaScript one, the runtime resolution the native
- * one, and on Windows they differ for 8.3 short names.
+ * profile 及其链接包所指向目标的真实目录，每个都带有末尾分隔符。每一种都以两种
+ * 真实路径拼写出现：Node 的模块缓存使用 JavaScript 版本，运行时解析使用原生版本，
+ * 而在 Windows 上它们因 8.3 短名称而不同。
  */
 function profileRoots(dir: string): string[] {
   const real = realpathSync(dir)
@@ -1110,7 +1112,7 @@ function profileRoots(dir: string): string[] {
   return [...new Set([dir, ...linked].flatMap(path => realSpellings(path)).map(root => root + sep))]
 }
 
-/** Every `package.json` from a module file's directory up to the profile root or linked package target containing it. */
+/** 从模块文件所在目录一直到包含它的 profile 根目录或链接包目标的每一个 `package.json`。 */
 function packageManifests(url: string, roots: readonly string[]): string[] {
   const manifests: string[] = []
   const contains = (directory: string) => roots.some(root => (directory + sep).startsWith(root))
@@ -1122,7 +1124,7 @@ function packageManifests(url: string, roots: readonly string[]): string[] {
 }
 
 namespace Hmr {
-  /** Cordis-compatible configuration type. */
+  /** 兼容 Cordis 的配置类型。 */
   export type Config = HmrConfig
 
 

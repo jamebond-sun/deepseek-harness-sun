@@ -1,19 +1,19 @@
-/** Index source URL validation shared by `setIndexes` and the per-use check of configured sources. */
+/** 由 `setIndexes` 与对配置来源的逐项检查共享的索引源 URL 校验。 */
 import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
 
 /**
- * Validate and normalize one index source URL.
- * @param text - URL as configured or entered.
- * @returns the URL's serialization.
- * @throws {RemoteError} `plugin-market/invalid-index-url` for anything but an http(s) URL without credentials or
- * fragment.
+ * 校验并规范化一个索引源 URL。
+ * @param text - 按配置或输入给出的 URL。
+ * @returns 该 URL 的序列化形式。
+ * @throws {RemoteError} 对于非 http(s) URL、或带有凭据或片段的 URL，抛出
+ *   `plugin-market/invalid-index-url`。
  */
 export function normalizeIndexUrl(text: string): string {
   let url: URL
   try {
     url = new URL(text.trim())
   } catch {
-    // Unparseable text: report the rule instead of the parser message.
+    // 无法解析的文本：报告规则，而非解析器的报错信息。
     throw new RemoteError('plugin-market/invalid-index-url', `Not an absolute URL: ${text}`, { url: text, reason: 'not-absolute' })
   }
   if (url.protocol !== 'https:' && url.protocol !== 'http:') {

@@ -1,29 +1,29 @@
-/** Decoding, JSON parsing, and format validation of a fetched index body; the parse Worker runs it. */
+/** 对已抓取索引响应体的解码、JSON 解析与格式校验；解析 Worker 会运行它。 */
 import { MarketIndexError, parseMarketIndex, type MarketIndex } from '@deepseek-ai/dsh-plugin-market-index'
 
-/** A validated index, or the JSON path, rule, and diagnostic of the first violation; `$` covers UTF-8 and JSON errors. */
+/** 一个已校验的索引，或第一处违规的 JSON 路径、规则与诊断信息；`$` 涵盖 UTF-8 与 JSON 错误。 */
 export type IndexParseResult =
   | { readonly ok: true; readonly index: MarketIndex }
   | { readonly ok: false; readonly path: string; readonly reason: string; readonly message: string }
 
-/** The request a parse Worker receives as `workerData`. */
+/** 解析 Worker 作为 `workerData` 收到的请求。 */
 export interface IndexParseRequest {
   readonly body: Uint8Array
   readonly url: string
 }
 
 /**
- * Decode a body as strict UTF-8, parse it as JSON, and validate it as format 1.
- * @param body - the complete response body.
- * @param url - the index URL relative icon references resolve against.
- * @returns the validated index, or the first violation.
+ * 将响应体按严格 UTF-8 解码，按 JSON 解析，并校验为格式 1。
+ * @param body - 完整的响应体。
+ * @param url - 相对图标引用据以解析的索引 URL。
+ * @returns 已校验的索引，或第一处违规。
  */
 export function parseIndexBody(body: Uint8Array, url: string): IndexParseResult {
   let text: string
   try {
     text = new TextDecoder('utf-8', { fatal: true }).decode(body)
   } catch {
-    // A fatal TextDecoder throws only for malformed UTF-8.
+    // 致命的 TextDecoder 仅在 UTF-8 畸形时抛出。
     return { ok: false, path: '$', reason: 'must be UTF-8', message: 'must be UTF-8' }
   }
   let value: unknown

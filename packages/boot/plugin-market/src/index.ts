@@ -1,4 +1,4 @@
-/** Host reader of configured plugin market indexes for the Discover page and the `plugin_market` tool. */
+/** 为发现页与 `plugin_market` 工具读取已配置插件市场索引的宿主读取器。 */
 
 import type { Context, Volatile } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
@@ -11,7 +11,7 @@ import { Remote, RemoteError, TypertRemoteService } from '@deepseek-ai/dsh-typer
 import { normalizeIndexUrl } from './index-url.ts'
 import { parseIndexInWorker } from './parse-thread.ts'
 import { MarketSearch } from './search.ts'
-// Type-only: the `pluginManager` service, `settings.update`, and the Loader's `loader/volatile-update` event.
+// 仅类型：复用 `pluginManager` 服务、`settings.update`，以及 Loader 的 `loader/volatile-update` 事件。
 import type {} from '@deepseek-ai/dsh-plugin-manager'
 import type {} from '@deepseek-ai/dsh-settings'
 import type {} from '@deepseek-ai/cordis-plugin-loader'
@@ -23,45 +23,45 @@ export type * from './types.ts'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
-    /** Configured plugin market index sources and their validated listings. */
+    /** 已配置的插件市场索引源及其校验后的清单。 */
     pluginMarket: PluginMarket
   }
 }
 
-/** Index sources and fetch limits. */
+/** 索引源与抓取限制。 */
 export interface Config {
-  /** Index URLs in display order; Settings and `setIndexes` write this field without remounting the service. */
+  /** 按展示顺序排列的索引 URL；Settings 与 `setIndexes` 在不重新挂载本服务的情况下写入该字段。 */
   indexes: Volatile<string[]>
-  /** Deadline for one index fetch, including the body. */
+  /** 一次索引抓取（含响应体）的截止时间。 */
   fetchTimeoutMs: number
-  /** Largest accepted index body in bytes. */
+  /** 可接受的索引响应体最大字节数。 */
   maxBytes: number
-  /** Lifetime of a successfully read index document. */
+  /** 成功读取的索引文档的存活时长。 */
   cacheTtlMs: number
 }
 
-/** The exact diagnostic of a failure, including a non-Error rejection. */
+/** 失败的确切诊断信息，包括非 Error 的拒绝值。 */
 function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
-/** Causes followed below a rejection; a deeper or cyclic chain is cut there. */
+/** 在一次拒绝之下追溯的原因链；更深或成环的链在此处被截断。 */
 const MAX_CAUSES = 4
 
-/** A rejection with its cause chain: a Node `fetch` failure is a bare `fetch failed` whose reason is its cause. */
+/** 携带原因链的拒绝：Node 的 `fetch` 失败是一个裸露的 `fetch failed`，其 reason 即为其原因。 */
 function causeChainOf(error: unknown, depth = 0): string {
   return error instanceof Error && error.cause !== undefined && depth < MAX_CAUSES
     ? `${error.message}: ${causeChainOf(error.cause, depth + 1)}`
     : messageOf(error)
 }
 
-/** Largest page `search` returns. */
+/** `search` 返回的单页最大条数。 */
 const MAX_LIMIT = 100
 
-/** One fetched index document with its search state. */
+/** 一个已抓取的索引文档及其搜索状态。 */
 interface IndexDocument {
   readonly index: MarketIndex
-  /** Unix milliseconds. */
+  /** Unix 毫秒时间戳。 */
   readonly fetchedAt: number
   readonly search: MarketSearch
 }
@@ -71,7 +71,7 @@ interface CachedIndex {
   readonly expiresAt: number
 }
 
-/** Fetches, validates, and caches configured market indexes; annotates entries with the profile's installation facts. */
+/** 抓取、校验并缓存已配置的 market 索引；用 profile 的安装事实为条目做标注。 */
 export default class PluginMarket extends TypertRemoteService {
   static inject = ['pluginManager']
 
@@ -108,8 +108,8 @@ export default class PluginMarket extends TypertRemoteService {
   }
 
   /**
-   * List the configured index sources without fetching them.
-   * @returns every source in order, with the title of its last successful read and, when the last read failed, its error.
+   * 列出已配置的索引源，但不抓取它们。
+   * @returns 按顺序排列的每个源，以及其最后一次成功读取的标题；当最后一次读取失败时，附带其错误。
    */
   @Remote
   listIndexes(): MarketIndexSummary[] {
@@ -125,18 +125,18 @@ export default class PluginMarket extends TypertRemoteService {
   }
 
   /**
-   * Replace the configured index sources through Settings, without remounting this service.
-   * `plugin-market/changed` announces the committed list. A URL already configured is kept as written, so a client can
-   * add or remove sources beside one that `listIndexes` reports as unusable.
-   * @param urls - index URLs in display order.
-   * @throws {RemoteError} `plugin-market/invalid-index-url` for an invalid new URL or a repeated URL;
-   * `plugin-market/settings-unavailable` without Settings or a profile entry.
+   * 通过 Settings 替换已配置的索引源，而不重新挂载本服务。
+   * `plugin-market/changed` 会广播提交后的列表。已经配置过的 URL 保持原样写入，因此客户端可以在
+   * `listIndexes` 报告为不可用的源旁边增删其它源。
+   * @param urls - 按展示顺序排列的索引 URL。
+   * @throws {RemoteError} 对于无效的新 URL 或重复的 URL 抛出 `plugin-market/invalid-index-url`；
+   * 缺少 Settings 或 profile 入口时抛出 `plugin-market/settings-unavailable`。
    */
   @Remote
   async setIndexes(urls: string[]): Promise<void> {
     const configured = new Set(this.config.indexes.get())
     const normalized = urls.map(url => configured.has(url) ? url : normalizeIndexUrl(url))
-    // A kept URL compares by its canonical form when it has one, so a new spelling of it counts as a repeat.
+    // 一个被保留的 URL 在拥有规范形式时按其规范形式比较，因此对它的新写法也算作重复。
     const keys = normalized.map(url => URL.canParse(url) ? new URL(url).href : url)
     const repeated = normalized.find((_url, position) => keys.indexOf(keys[position] as string) !== position)
     if (repeated !== undefined) {
@@ -150,15 +150,15 @@ export default class PluginMarket extends TypertRemoteService {
   }
 
   /**
-   * Return one page of the plugins of a configured index that match a query. Concurrent reads of a URL share one
-   * fetch; a successful document is reused for `cacheTtlMs` unless `refresh` is set. Matching and ordering read only
-   * the document; installation status and compatibility are computed for the returned page on every call.
-   * @param url - a configured index URL.
-   * @param query - text, filters, order, page, and whether to bypass the cached document.
-   * @returns the index header, the page's plugins with each plugin's default version and installation status and each
-   *   version's compatibility and install arguments, the number of matches, and the next page's offset.
-   * @throws {RemoteError} `plugin-market/invalid-query`, `plugin-market/unknown-index`, `plugin-market/invalid-index-url`,
-   *   `plugin-market/fetch-failed`, or `plugin-market/invalid-index`.
+   * 返回某个已配置索引中匹配查询的插件的一页。对同一 URL 的并发读取会共享一次抓取；
+   * 除非设置了 `refresh`，成功获取的文档会在 `cacheTtlMs` 内被复用。匹配与排序只读取文档；
+   * 安装状态与兼容性在每次调用时为返回的页面计算。
+   * @param url - 一个已配置的索引 URL。
+   * @param query - 文本、过滤器、排序、分页，以及是否绕过缓存的文档。
+   * @returns 索引头部、本页插件（每个插件含默认版本、安装状态，以及每个版本的兼容性与
+   *   安装参数）、匹配数量，以及下一页的偏移量。
+   * @throws {RemoteError} `plugin-market/invalid-query`、`plugin-market/unknown-index`、
+   *   `plugin-market/invalid-index-url`、`plugin-market/fetch-failed`，或 `plugin-market/invalid-index`。
    */
   @Remote
   async search(url: string, query: MarketQuery): Promise<MarketSearchResult> {
@@ -187,13 +187,12 @@ export default class PluginMarket extends TypertRemoteService {
   }
 
   /**
-   * Read one plugin of a configured index, using the cached document as `search` does.
-   * @param url - a configured index URL.
-   * @param name - the plugin's package name.
-   * @returns the plugin with its default version, installation status, and annotated versions; undefined when the
-   *   index does not list it.
-   * @throws {RemoteError} `plugin-market/unknown-index`, `plugin-market/invalid-index-url`, `plugin-market/fetch-failed`,
-   *   or `plugin-market/invalid-index`.
+   * 读取某个已配置索引中的一个插件，与 `search` 一样使用缓存的文档。
+   * @param url - 一个已配置的索引 URL。
+   * @param name - 插件的包名。
+   * @returns 带有默认版本、安装状态与已标注版本的插件；当索引未列出该插件时为 undefined。
+   * @throws {RemoteError} `plugin-market/unknown-index`、`plugin-market/invalid-index-url`、
+   *   `plugin-market/fetch-failed`，或 `plugin-market/invalid-index`。
    */
   async entry(url: string, name: string): Promise<MarketListingEntry | undefined> {
     const plugin = (await this.document(url, false)).index.plugins.find(candidate => candidate.name === name)
@@ -211,7 +210,7 @@ export default class PluginMarket extends TypertRemoteService {
     return !refresh && usable ? cached.document : await this.fetchShared(url)
   }
 
-  /** Annotate plugins with the profile's bundles and exemptions as they are now. */
+  /** 用 profile 当前的 bundles 与豁免项为插件做标注。 */
   private async annotator(): Promise<(plugin: MarketPlugin) => MarketListingEntry> {
     const [bundles, { exemptions }] = [await this.ctx.pluginManager.listBundles(), this.ctx.pluginManager.listVersionExemptions()]
     const runtimeVersion = getDshRuntimeVersion()
@@ -219,9 +218,9 @@ export default class PluginMarket extends TypertRemoteService {
   }
 
   /**
-   * The configured sources as written, each with the refusal that makes it unusable. Settings and profile files can
-   * write any http(s) string, so every use validates instead of the schema; an unusable source is listed with its error
-   * and never fetched, and a repeated URL counts once.
+   * 按原样写出的已配置源，每个都附带使之不可用的拒绝原因。Settings 与 profile 文件可以
+   * 写入任意 http(s) 字符串，因此每次使用都做校验而非依赖 schema；不可用的源会附带其错误
+   * 被列出且永远不会被抓取，重复的 URL 只计数一次。
    */
   private sources(): { readonly url: string; readonly error?: string }[] {
     const seen = new Set<string>()
@@ -244,7 +243,7 @@ export default class PluginMarket extends TypertRemoteService {
     let pending = this.pending.get(url)
     if (pending === undefined) {
       pending = this.fetchIndex(url).then((index) => {
-        // Distinct per URL even when two fetches finish within one millisecond.
+        // 即使两次抓取在一毫秒内完成，也按 URL 各自独立。
         const fetchedAt = Math.max(Date.now(), (this.cache.get(url)?.document.fetchedAt ?? 0) + 1)
         const document = { index, fetchedAt, search: new MarketSearch(index) }
         if (this.configured(url)) {
@@ -283,7 +282,7 @@ export default class PluginMarket extends TypertRemoteService {
     throw new RemoteError('plugin-market/invalid-index', `${url}: ${result.message}`, { url, path: result.path, reason: result.reason })
   }
 
-  /** Read the whole body, refusing it as soon as it exceeds `maxBytes`. */
+  /** 读取整个响应体，一旦超过 `maxBytes` 就拒绝它。 */
   private async readBody(response: Response, failed: (reason: string, cause?: unknown) => RemoteError): Promise<Uint8Array> {
     const limit = this.config.maxBytes
     const tooLarge = `body exceeds ${String(limit)} bytes`
@@ -336,7 +335,7 @@ function listingOf(
 
 function installationOf(name: string, version: string, bundles: readonly BundleInfo[]): MarketInstallation {
   const bundle = bundles.find(candidate => candidate.name === name)
-  // An on-demand catalog entry is listed before the profile installs it.
+  // 按需目录条目在 profile 安装它之前就被列出。
   if (bundle === undefined || (!bundle.installed && bundle.availability !== 'installation')) return { status: 'not-installed' }
   if (!bundle.installed) return { status: 'provided', ...bundle.version === undefined ? {} : { installedVersion: bundle.version } }
   if (bundle.version === undefined) return { status: 'different-version' }

@@ -1,14 +1,14 @@
-/** Approve pnpm's pending dependency scripts in the current profile's workspace settings. */
+/** 在当前 profile 的工作区设置中批准 pnpm 待决的依赖脚本。 */
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { isAlias, isMap, isNode, isScalar, parseDocument, visit } from 'yaml'
 import { ManagementFailure } from './failure.ts'
 import { writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
 
-/** Value pnpm leaves for a build script that still needs a decision. */
+/** pnpm 为一个仍待决定的构建脚本保留的值。 */
 const UNDECIDED_BUILD = 'set this to true or false'
 
-/** Where a non-interactive run names the build scripts it skipped. */
+/** 非交互式运行点名它所跳过的构建脚本的位置。 */
 const IGNORED_BUILDS = /\bIgnored build scripts: (.+)/
 
 async function readPolicy(dir: string) {
@@ -37,14 +37,13 @@ async function readPolicy(dir: string) {
 }
 
 /**
- * Record the build scripts a failed run reported as ignored, then list every name awaiting a decision.
+ * 记录一次失败运行所报告为被忽略的构建脚本，然后列出每一个等待决定的名称。
  *
- * pnpm writes those policy entries itself only when it can prompt, and the
- * manager always runs it non-interactively, so the run's own report is the
- * record that survives.
- * @param dir Current profile directory.
- * @param output Captured output of the failed run.
- * @returns Exact package names awaiting a build decision; wildcard rules are excluded.
+ * pnpm 仅在能够交互提示时才会自行写入这些策略条目，而管理器始终以非交互方式运行它，
+ * 因此运行自身的报告就是能够保留下来的记录。
+ * @param dir 当前 profile 目录。
+ * @param output 失败运行捕获到的输出。
+ * @returns 等待构建决定的确切包名；通配规则被排除。
  */
 export async function recordPendingBuilds(dir: string, output: string): Promise<string[]> {
   const { document, pending, keys } = await readPolicy(dir)
@@ -57,9 +56,9 @@ export async function recordPendingBuilds(dir: string, output: string): Promise<
 }
 
 /**
- * Read the package names a pnpm run reported as ignored build scripts.
- * @param output Captured output of the run.
- * @returns Exact names in report order; wildcard patterns are excluded.
+ * 读取一次 pnpm 运行所报告为被忽略构建脚本的包名。
+ * @param output 该运行捕获到的输出。
+ * @returns 按报告顺序排列的确切名称；通配模式被排除。
  */
 export function ignoredBuildNames(output: string): string[] {
   const reported = IGNORED_BUILDS.exec(output)?.[1]
@@ -67,10 +66,10 @@ export function ignoredBuildNames(output: string): string[] {
   return reported.split(',').map(name => name.trim()).filter(name => name !== '' && !/[*?]/.test(name))
 }
 
-/** Persist approval without running scripts; the caller holds the profile manifest lock.
- * @param dir Current profile directory.
- * @param names Explicit package names from the pending build list.
- * @throws If a name is no longer pending or allowBuilds contains YAML anchors or aliases; no approvals are written.
+/** 在不运行脚本的情况下持久化批准；调用方持有 profile 清单锁。
+ * @param dir 当前 profile 目录。
+ * @param names 来自待决构建列表的显式包名。
+ * @throws 当某个名称不再待决，或 allowBuilds 含有 YAML 锚点或别名时抛出；此时不会写入任何批准。
  */
 export async function approveBuilds(dir: string, names: readonly string[]): Promise<void> {
   const { document, pending } = await readPolicy(dir)

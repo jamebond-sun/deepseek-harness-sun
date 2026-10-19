@@ -1,106 +1,105 @@
-/** Public plugin management records shared with clients. */
+/** 与客户端共享的公开插件管理记录。 */
 import type { Branded } from '@deepseek-ai/dsh-brand'
 import type { PluginLocalizedMeta } from '@deepseek-ai/dsh-package-manifest'
 import type { PluginInventoryEntry } from '@deepseek-ai/dsh-host-plugin-inventory/types'
 export type { PluginEntryId } from '@deepseek-ai/dsh-host-plugin-inventory/types'
 import type { PluginEntryId } from '@deepseek-ai/dsh-host-plugin-inventory/types'
 
-/** Reasons a profile control cannot modify its target. */
+/** 一个 profile 控制无法修改其目标的原因。 */
 export type ReadOnlyReason = 'management-required' | 'unaddressable'
 
-/** A package whose declared DSH requirements reject the running DSH version, without an exemption for the exact pair. */
+/** 一个包，其声明的 DSH 要求拒绝运行中的 DSH 版本，且不存在针对该确切组合的豁免。 */
 export interface IncompatiblePlugin {
   name: string
   version: string
   runtimeVersion: string
-  /** Only the requirements the running version does not satisfy, keyed `engines.dsh` or by DSH peer package name. */
+  /** 仅包含运行中的版本无法满足的要求，以 `engines.dsh` 或 DSH peer 包名为键。 */
   requirements: Record<string, string>
 }
 
-/** Localizable management failure and optional external diagnostic. */
+/** 可本地化的管理失败，以及可选的外部诊断。 */
 export interface ManagementError {
   code: ReadOnlyReason | 'unknown-plugin' | 'invalid-spec' | 'already-installed' | 'ambiguous-install' | 'not-bundle' | 'not-removable' | 'stop-profile' | 'bundle-in-use' | 'stale-approval' | 'incompatible-version' | 'operation-error'
   diagnostic?: string
-  /** Present with `incompatible-version`: the packages the running DSH version rejects. */
+  /** 与 `incompatible-version` 一同出现：运行中的 DSH 版本所拒绝的包。 */
   incompatible?: IncompatiblePlugin[]
 }
 
 /**
- * Why a change waits for the next start: `no-hmr` profiles apply changes only at startup; `package-moved` changes map an
- * installed package to another directory without removing it first, or change or locally override a package the DSH
- * installation provides; `host-module` changes reach
- * modules the running process itself imports; `unmanaged-plugin` changes reach a plugin running outside a Loader entry;
- * `module-comparison` means loaded modules could not be compared with disk.
+ * 一个变更要等待下一次启动的原因：`no-hmr` 的 profile 只在启动时应用变更；`package-moved`
+ * 的变更把某个已安装的包映射到另一个目录（而未先移除它），或变更/本地覆盖 DSH 安装所提供的
+ * 某个包；`host-module` 的变更触及运行中的进程自身所导入的模块；`unmanaged-plugin` 的变更
+ * 触及运行在 Loader 入口之外的某个插件；`module-comparison` 表示已加载的模块无法与磁盘比较。
  */
 export type RestartReason = 'no-hmr' | 'package-moved' | 'host-module' | 'unmanaged-plugin' | 'module-comparison'
 
-/** One running-profile entry and its persistent control availability. */
+/** 一个运行中的 profile 条目，以及其持久化控制的可用性。 */
 export type PluginInfo = PluginInventoryEntry & (
   | { patchId: string; readOnlyReason?: never }
   | { patchId?: never; readOnlyReason: ReadOnlyReason }
 )
 
-/** One row a bundle's patch declares, with its live entry while the bundle contributes it. */
+/** 一个 bundle 的补丁所声明的一行，以及在该 bundle 贡献它时其对应的活动条目。 */
 export interface BundleRowInfo {
-  /** The row id as the patch declares it. */
+  /** 补丁所声明的行 id。 */
   rowId: string
-  /** The module the row names. */
+  /** 该行所命名的模块。 */
   moduleName: string
-  /** Local package display metadata, including rows whose bundle is disabled. */
+  /** 本地包的展示元数据，包括其 bundle 已被禁用的行。 */
   meta?: PluginLocalizedMeta
-  /** The Loader entry carrying this row, when exactly one live entry has its id. */
+  /** 承载本行的 Loader 条目，当恰好有一个活动条目拥有该 id 时。 */
   entryId?: PluginEntryId
 }
 
-/** One shipped, profile-installed, or discoverable on-demand bundle. */
+/** 一个已发布、由 profile 安装，或可发现的按需 bundle。 */
 export interface BundleInfo {
   name: string
-  /** Project-maintained shipped optional bundle or on-demand catalog entry, independent of installation and selection. */
+  /** 项目维护的已发布可选 bundle 或按需目录条目，独立于安装与选择。 */
   official: boolean
-  /** Readable package location; on-demand catalog entries exclude undeclared transitive copies, and declared files may be missing. */
+  /** 可读的包位置；按需目录条目排除未声明的传递副本，且声明的文件可能缺失。 */
   availability: 'installation' | 'profile' | 'missing'
-  /** Exact released Host version or same-checkout development link offered for an on-demand catalog entry. */
+  /** 为按需目录条目所提供的精确已发布 Host 版本或同一检出中的开发链接。 */
   installTarget?: { spec: string; version: string }
   version?: string
-  /** Local display text with available translations or literal fallbacks, or a metadata diagnostic. */
+  /** 本地展示文本，带有可用翻译或字面回退，或一条元数据诊断。 */
   meta?: PluginLocalizedMeta
-  /** Untranslated `description` of this bundle's package manifest. */
+  /** 本 bundle 包清单的、未经翻译的 `description`。 */
   description?: string
-  /** Selected in the profile manifest; a load error means its layer was skipped. */
+  /** 在 profile 清单中被选中；加载错误意味着其层被跳过。 */
   enabled: boolean
-  /** Whether the profile declares this dependency; availability separately reports whether its files can be read. */
+  /** profile 是否声明了该依赖；availability 另报其文件是否可读。 */
   installed: boolean
   /**
-   * Present for a profile dependency the installation does not also supply: the spec `pnpm add` accepts, with local
-   * paths made absolute and the user information of an http(s) URL removed.
+   * 仅当某项 profile 依赖并非安装同时提供时出现：即 `pnpm add` 所接受的 spec，其中本地路径被
+   * 转为绝对路径，且 http(s) URL 的用户信息被去除。
    */
   source?: string
   /**
-   * Whether the installation ships the bundle for the person to switch on: named by the launcher's `OPTIONAL_BUNDLES`,
-   * held by the installation's dependencies, selected by no shipped template, and never removable.
+   * 安装是否随附该 bundle 供用户开启：由启动器的 `OPTIONAL_BUNDLES` 命名、被安装的依赖持有、
+   * 没有任何已发布的模板选中它，且永不可移除。
    */
   optional: boolean
   removable: boolean
   readOnlyReason?: ReadOnlyReason
   error?: ManagementError
-  /** The rows the bundle's patch inserts, in declaration order; empty when the patch cannot be read. */
+  /** 该 bundle 补丁所插入的行，按声明顺序排列；当补丁无法读取时为空。 */
   rows: BundleRowInfo[]
-  /** Ids of rows the bundle's patch changes without declaring them: the built-in rows it configures or disables. */
+  /** 该 bundle 补丁在未声明它们的情况下所改动的行 id：它配置或禁用的内置行。 */
   overrides: string[]
 }
 
-/** A registry to install from: an http(s) URL, or null for the one pnpm's own configuration names. */
+/** 要从中安装的注册表：一个 http(s) URL，或代表 pnpm 自身配置所命名者的 null。 */
 export type Registry = string | null
 
-/** The registries the manager asks: the configured first one, its fallbacks in order, and what pnpm's own configuration names. */
+/** 管理器所询问的注册表：已配置的第一个、其顺序排在其后的回退项，以及 pnpm 自身配置所命名者。 */
 export interface PluginRegistries {
   readonly registry: Registry
   readonly fallbackRegistries: readonly string[]
-  /** The URL pnpm's own configuration names in the profile, read from pnpm; null when it could not be read. */
+  /** pnpm 自身配置在 profile 中所命名的 URL，从 pnpm 读取；无法读取时为 null。 */
   readonly resolved: string | null
 }
 
-/** How a package operation failed, read off how it ended and what it printed. */
+/** 一个包操作如何失败，由它如何结束以及它打印了什么来读取。 */
 export type PluginInstallFailureKind =
   | 'pnpm-missing'
   | 'timeout'
@@ -113,77 +112,77 @@ export type PluginInstallFailureKind =
   | 'integrity'
   | 'unknown'
 
-/** Package operation completion, including Git checks and a retrieval path for unabridged diagnostics. */
+/** 包操作的完成，包括 Git 检查，以及获取未删节诊断的路径。 */
 export interface PackageResult {
   exitCode: number
   output: string
   truncated: boolean
   logPath: string
-  /** Present when the run failed: what kind of failure its exit and output describe. */
+  /** 当运行失败时存在：其退出码与输出所描述的失败种类。 */
   kind?: PluginInstallFailureKind
-  /** The manager terminated the run after it printed nothing for its silence bound; `exitCode` still reports how it ended. */
+  /** 管理器在运行打印了超过其静默上限的内容之后终止了它；`exitCode` 仍报告它如何结束。 */
   timedOut?: boolean
-  /** Present when a compatibility check refused the run: the packages the running DSH version rejects. */
+  /** 当兼容性检查拒绝该运行时存在：运行中的 DSH 版本所拒绝的包。 */
   incompatible?: IncompatiblePlugin[]
 }
 
-/** Persisted change and independently observed application outcome. */
+/** 持久化的变更，以及独立观测到的应用结果。 */
 export interface ChangeResult {
   changed: boolean
-  /** `cancelled` is an installation the caller stopped, its files restored. */
+  /** `cancelled` 是调用方停止的安装，其文件已恢复。 */
   application: 'applied' | 'restart-required' | 'overridden' | 'failed' | 'cancelled'
-  /** Present with `restart-required`: why the change takes effect only at the next start. */
+  /** 与 `restart-required` 一同出现：变更为何只在下一次启动时才生效。 */
   restartReason?: RestartReason
-  /** Last attempted step; successful installation can proceed to enablement. */
+  /** 最后尝试的步骤；成功的安装可继续进入启用阶段。 */
   stage: 'install' | 'enable' | 'remove'
   target: string
   enabled?: boolean
   error?: ManagementError
-  /** Pre-existing inactive entries the operation left as they were. */
+  /** 操作原样保留的、先前已存在的非活动条目。 */
   warnings?: string[]
   packageResult?: PackageResult
-  /** The bundle an installation added, once pnpm and the bundle check accepted it. */
+  /** 一旦 pnpm 与 bundle 检查接受了安装，该安装所添加的 bundle。 */
   bundle?: string
-  /** The installed bundle's manifest version, when declared; pnpm's `minimumReleaseAge` can make it older than the newest release. */
+  /** 已安装 bundle 的清单版本，在声明时；pnpm 的 `minimumReleaseAge` 可能使它比最新发布更旧。 */
   version?: string
-  /** Exact package names awaiting explicit script approval in the profile's pnpm settings, read after a failed run. */
+  /** 在一次失败运行之后读取、在 profile 的 pnpm 设置中等待显式脚本批准的精确包名。 */
   pendingBuilds?: string[]
-  /** Package script permissions saved before this installation attempt. */
+  /** 在本次安装尝试之前保存的包脚本权限。 */
   approvedBuilds?: string[]
-  /** The registries the installation asked, in order; `packageResult` is the last one's run. */
+  /** 该安装所询问的注册表，按顺序排列；`packageResult` 是最后一个的运衎。 */
   registries?: Registry[]
   /**
-   * What the last failed run could not reach or get an answer from: the registry it asked, or the host a git or
-   * tarball spec is fetched from, which no registry stands in for; absent for a failure neither explains.
+   * 最后一次失败的运行无法抵达或无法从中得到答案的对象：它询问的注册表，或某个 git 或
+   * tarball spec 所拉取自的主机（没有任何注册表可以替代它）；当失败两者都无法解释时缺失。
    */
   failedAt?: 'registry' | 'spec-host'
 }
 
-/** Identifies one installation from its start to its settlement, including its log chunks and cancellation. */
+/** 标识一次安装，从它开始直到它结算，包括其日志分块与取消。 */
 export type PluginInstallRequestId = Branded<'PluginInstallRequestId'>
 
-/** Bundle installation defaults to activation; callers that offer cancellation supply their request id. */
+/** bundle 安装默认激活；提供取消能力的调用方给出其 request id。 */
 export interface InstallBundleOptions {
   enabled?: boolean
-  /** Save the resolved dependency version without a range; applies to any bundle installation. */
+  /** 保存解析后的依赖版本而非一个范围；适用于任何 bundle 安装。 */
   saveExact?: boolean
   requestId?: PluginInstallRequestId
-  /** Explicitly allow these pending packages' scripts for this profile, then install; a name no longer pending refuses the call. */
+  /** 针对该 profile 显式允许这些待决包的脚本，然后安装；一个不再待决的名称会拒绝该调用。 */
   approvedBuilds?: string[]
-  /** The registry asked first; absent, the configured one. The configured fallbacks follow while a registry is unreachable or stale. */
+  /** 首先询问的注册表；缺失时为已配置的那个。在一个注册表不可达或过期时，已配置的回退项紧随其后。 */
   registry?: Registry
 }
 
-/** Where an inspection asks. */
+/** 一次检视所询问的位置。 */
 export interface InspectOptions {
-  /** The registry asked first; absent, the configured one. */
+  /** 首先询问的注册表；缺失时为已配置的那个。 */
   readonly registry?: Registry
 }
 
-/** The form one install spec takes, in pnpm's vocabulary. */
+/** 一个安装 spec 所采取的形式，用 pnpm 的术语来说。 */
 export type InstallSpecKind = 'registry' | 'path' | 'git' | 'tarball'
 
-/** Why a spec was refused before anything installed. */
+/** 在安装了任何东西之前、一个 spec 被拒绝的原因。 */
 export type PluginInspectProblem =
   | 'invalid-spec'
   | 'already-installed'
@@ -194,9 +193,8 @@ export type PluginInspectProblem =
   | 'unknown'
 
 /**
- * What a spec names, read before installing it: the registry's answer for a
- * name, a directory's manifest for a path, and only the form for a git or
- * tarball spec, whose package is known once pnpm has fetched it.
+ * 一次安装之前读取一个 spec 所命名的对象：针对名称时注册表的回答、针对路径时某个目录的
+ * 清单，而针对 git 或 tarball spec 则只有其形式——其包要等 pnpm 拉取之后才知道。
  */
 export type PluginSpecInspection =
   | {
@@ -204,80 +202,79 @@ export type PluginSpecInspection =
     readonly kind: InstallSpecKind
     readonly name?: string
     readonly version?: string
-    /** `description` of the package manifest. */
+    /** 包清单的 `description`。 */
     readonly description?: string
-    /** Whether the package declares a bundle patch; null when the spec's form does not say. */
+    /** 包是否声明了一个 bundle 补丁；当 spec 的形式未说明时为 null。 */
     readonly bundle: boolean | null
-    /** The registry that answered for a name, and for the other forms the one an install of the spec asks first. */
+    /** 为名称作答的注册表，以及为其它形式作答的安装该 spec 时首先询问的那个。 */
     readonly registry: Registry
-    /** The host a git spec or a tarball URL is fetched from, which no registry stands in for. */
+    /** 某个 git spec 或一个 tarball URL 所拉取自的主机，没有任何注册表可以替代它。 */
     readonly host?: string
   }
   | {
     readonly status: 'refused'
     readonly problem: PluginInspectProblem
-    /** What pnpm, the registry, or the file system said. */
+    /** pnpm、注册表或文件系统所说的话。 */
     readonly reason: string
-    /** The registries asked, in order, when the refusal came from asking them; `reason` is the last one's. */
+    /** 当拒绝来自对它们的询问时，所询问的注册表（按顺序排列）；`reason` 是最后一个的。 */
     readonly registries?: Registry[]
   }
 
-/** The Host phase of one installation, before its install call settles; `installing` is announced once per registry asked. */
+/** 一次安装的 Host 阶段，在其 install 调用结算之前；`installing` 每询问一个注册表即宣告一次。 */
 export interface PluginInstallProgress {
   readonly requestId: PluginInstallRequestId
   readonly phase: 'installing' | 'cancelling' | 'applying'
-  /** With `installing`: the registry this attempt asks, its one-based position, and how many the installation may ask. */
+  /** 与 `installing` 一同：本次尝试所询问的注册表、其从 1 开始的序号，以及该安装可能询问的数量。 */
   readonly attempt?: { readonly registry: Registry; readonly index: number; readonly total: number }
 }
 
-/** Cancellation is confirmed only after process exit and file restoration. */
+/** 取消只有在进程退出且文件恢复之后才被确认。 */
 export interface PluginInstallCancellation {
   readonly status: 'cancelled' | 'too-late' | 'not-running'
 }
 
-/** One chunk of a pnpm run's output, as the run produces it. */
+/** pnpm 运行输出的一块分块，随运行的产生而提供。 */
 export interface PluginInstallLogChunk {
-  /** The installation the run belongs to, when its caller supplied a request id. */
+  /** 该运行所属的安装，在调用方给出了 request id 时。 */
   readonly requestId?: PluginInstallRequestId
-  /** The run the chunk belongs to. */
+  /** 该分块所属的运行。 */
   readonly jobId: string
-  /** The command line the run executes: pnpm's command name, then its arguments. */
+  /** 运行所执行的命令行：pnpm 的命令名，然后是它的参数。 */
   readonly argv: readonly string[]
-  /** The directory the run executes in: the profile directory. */
+  /** 运行在其中执行的目录：profile 目录。 */
   readonly cwd: string
   readonly stream: 'stdout' | 'stderr'
   readonly text: string
-  /** Present on the run's last chunk: pnpm's exit code, null when it ended without one. */
+  /** 在该运行的最后一块上出现：pnpm 的退出码，当它在没有退出码的情况下结束时为 null。 */
   readonly exitCode?: number | null
 }
 
-/** What changed in the profile, for consumers that show it. */
+/** profile 中改变了什么，供展示它的消费方使用。 */
 export interface PluginChange {
-  /** The operation that changed it. */
+  /** 改变它的操作。 */
   readonly reason: 'plugin' | 'bundle' | 'install' | 'remove'
 }
 
 declare module '@deepseek-ai/cordis' {
   interface Events {
     /**
-     * The profile's plugins, bundles, or composition changed: a manager
-     * operation completed. A patch generation applied outside the manager,
-     * by HMR's watcher after a CLI or hand edit, announces nothing here.
+     * profile 的插件、bundle，或组合发生了变化：一次管理器操作已完成。在管理器之外应用
+     * 的补丁生成（由 HMR 的监听器在 CLI 或手动编辑之后触发）在此处不宣告任何内容。
      * @mode emit
-     * @param change - what changed.
+     * @param change - 改变了什么。
      */
     'plugin-manager/changed'(change: PluginChange): void
     /**
-     * One chunk of a pnpm run's output, streamed as the run produces it.
+     * pnpm 运行输出的一块分块，随运行的产生而流式提供。
      * @mode emit
-     * @param chunk - the chunk and the run it belongs to.
+     * @param chunk - 该分块以及它所属的运行。
      */
     'plugin-manager/install-log'(chunk: PluginInstallLogChunk): void
     /**
-     * An installation moved between its Host phases. `installing` is announced once per registry the
-     * installation asks, with the attempt's registry and position; `cancelling` and `applying` once.
+     * 一次安装在它的 Host 阶段之间移动。`installing` 每询问一个注册表即宣告一次，附带
+     * 该尝试的注册表与序号；`cancelling` 与 `applying` 各宣告一次。
      * @mode emit
-     * @param progress - the installation's request id and phase, with the attempt while installing.
+     * @param progress - 该安装的 request id 与阶段，以及在 installing 时的尝试。
      */
     'plugin-manager/install-state'(progress: PluginInstallProgress): void
   }

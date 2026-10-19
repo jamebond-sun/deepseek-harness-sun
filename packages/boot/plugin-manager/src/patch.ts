@@ -1,26 +1,26 @@
-/** Comment-preserving profile plugin enablement edits and the entry flattening they compare against. */
+/** 保留注释的 profile 插件启用编辑，以及它们所对比的条目扁平化。 */
 import { readFile } from 'node:fs/promises'
 import { isMap, isNode, isScalar, isSeq, parseDocument } from 'yaml'
 import type { EntryOptions } from '@deepseek-ai/cordis-plugin-loader'
 import { composeEntries, loadOptionalPatches, readBundlePatches, type ProfileContext } from '@deepseek-ai/dsh-app-boot'
 import { writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
 
-/** Flatten only the groups addressable by the profile's patch composer.
- * @param rows Composed top-level entries.
- * @returns Entries in depth-first order.
+/** 仅扁平化 profile 补丁组合器可寻址的组。
+ * @param rows 组合后的顶层条目。
+ * @returns 按深度优先顺序排列的条目。
  */
 export function flatten(rows: EntryOptions[]): EntryOptions[] {
   return rows.flatMap(row => [row, ...(row.group && Array.isArray(row.config) ? flatten(row.config as EntryOptions[]) : [])])
 }
 
-/** Replace the last matching override or append one after existing insertions. An override that holds only `id` and
- * `disabled`, without anchors, is removed, or not appended, when the bundle layers and the remaining profile patches
- * already give the entry the requested literal `disabled` value; home patches and launch overlays are not consulted.
- * @param profile Profile whose patch file is edited and whose selected bundles supply the compared composition.
- * @param id Unique composition entry id.
- * @param name Module name used to match name-qualified overrides.
- * @param enabled Desired entry enablement.
- * @returns Whether the file changed.
+/** 替换最后一条匹配的覆盖项，或在已有插入项之后追加一条。一条仅持有 `id` 与 `disabled`、
+ * 且没有锚点的覆盖项，会在 bundle 层与剩余 profile 补丁已经为该条目给出所请求的
+ * 字面 `disabled` 值时被移除（或不予追加）；home 补丁与启动覆盖不被考虑。
+ * @param profile 其补丁文件被编辑、且其已选 bundle 提供所对比组合的 profile。
+ * @param id 唯一的组合条目 id。
+ * @param name 用于匹配带名称覆盖项的模块名。
+ * @param enabled 期望的条目启用状态。
+ * @returns 文件是否发生了变化。
  */
 export async function writePluginEnabled(profile: ProfileContext, id: string, name: string, enabled: boolean): Promise<boolean> {
   const filename = profile.patchPath
@@ -45,20 +45,20 @@ export async function writePluginEnabled(profile: ProfileContext, id: string, na
     const expectedName = document.getIn([index, 'name'])
     return !expectedName || expectedName === name
   })
-  // Compares the entry's own literal `disabled`; a `!!js` value never matches, so its override is kept.
+  // 对比该条目自身的字面 `disabled`；`!!js` 值永远不会匹配，因此其覆盖项会被保留。
   const implied = (index: number): boolean => {
     const row = flatten(composeEntries([[...bundlePatches, ...patches.toSpliced(index, 1)]])).findLast(entry => entry.id === id)
     return row !== undefined && (row.disabled ?? false) === !enabled
   }
   if (isMap(target)) {
     const index = items.indexOf(target)
-    // A removed anchor would leave later aliases unresolved.
+    // 被移除的锚点会让后续的别名无法解析。
     const onlySwitch = target.anchor === undefined && target.items.every(pair => isScalar(pair.key) && isScalar(pair.value)
       && pair.key.anchor === undefined && pair.value.anchor === undefined && (pair.key.value === 'id' || pair.key.value === 'disabled'))
     if (onlySwitch && implied(index)) {
       document.deleteIn([index])
-      // The comment above the removed override can be the file header, so it moves to the following item, above an
-      // emptied sequence, or after the remaining items.
+      // 被移除的覆盖项上方的注释可能是文件头，因此它会移动到下一项上方、一个已清空序列
+      // 的上方，或剩余各项之后。
       const comment = target.commentBefore
       const next = items[index]
       if (comment && isNode(next)) next.commentBefore = next.commentBefore ? `${comment}\n${next.commentBefore}` : comment

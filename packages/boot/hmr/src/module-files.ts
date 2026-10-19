@@ -1,19 +1,19 @@
-/** Disk identities of loaded module files, used to find modules whose files changed after loading. */
+/** 已加载模块文件的磁盘身份，用于找出加载后文件发生变更的模块。 */
 import { mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 /**
- * Coarsest file timestamp resolution among supported filesystems (FAT stores modification times in 2-second units).
- * An unrecorded file modified within this interval before the last observation is treated as possibly changed.
+ * 受支持文件系统里最粗的文件时间戳分辨率（FAT 以 2 秒为单位存储修改时间）。
+ * 在上一次观测之前、处于该间隔内被修改的未记录文件，被视为可能已变更。
  */
 const TIMESTAMP_RESOLUTION_MS = 2000
 
 interface FileIdentity {
-  /** Inode, size and modification time. */
+  /** inode、大小与修改时间。 */
   key: string
-  /** Modification time in epoch milliseconds. */
+  /** 以纪元毫秒表示的修改时间。 */
   modifiedAt: number
 }
 
@@ -22,37 +22,37 @@ function identityOf(url: string): FileIdentity | undefined {
   try {
     stats = statSync(fileURLToPath(url))
   } catch (_error) {
-    // A removed or unreadable file no longer provides the loaded module.
+    // 一个被删除或不可读的文件不再提供已加载的模块。
     return undefined
   }
   return { key: `${String(stats.ino)}:${String(stats.size)}:${String(stats.mtimeMs)}`, modifiedAt: stats.mtimeMs }
 }
 
 /**
- * Records the inode, size and modification time of loaded `file:` modules. A module is stale when its file
- * disappeared or its identity differs from the recorded one. Change time is not recorded: creating a hard link to a
- * file, as pnpm does when it imports from its store, changes it without changing content. A module first loaded after
- * the last observation has no record; it is stale when its file was modified at or after that observation, less the
- * timestamp resolution, so a reinstall between loading and the next comparison is detected at the cost of reloading a
- * module that was first loaded after such a write.
+ * 记录已加载 `file:` 模块的 inode、大小与修改时间。当模块文件消失，或其身份与
+ * 所记录的不一致时，该模块即视为过期。不记录变更时间：创建一个指向文件的硬链接
+ * （正如 pnpm 从它的存储中导入时那样）会变更它，却不改变内容。一个在上次观测之后
+ * 才首次加载的模块没有记录；当它的文件在该观测时间点（减去时间戳分辨率）或之后被
+ * 修改时，它视为过期，因此加载与下次比较之间的一次重装会被检测到，代价是重新加载
+ * 一个在上述写入之后才首次加载的模块。
  */
 export class ModuleFiles {
-  /** Identity per recorded module; `undefined` marks a stale module, such as a pending one first loaded after the last observation. */
+  /** 每个已记录模块的身份；`undefined` 标记一个过期模块，例如在上次观测之后才首次加载的待定模块。 */
   private records = new Map<string, string | undefined>()
   private observedAt = Date.now()
 
   /**
-   * The current time of the clock the operating system stamps local file writes with, read from a new marker file that is
-   * removed again. The system clock and file timestamps can differ by a clock tick in either direction, so module files
-   * are compared with this time; when no marker can be created, the system clock is used.
-   * @returns Epoch milliseconds.
+   * 操作系统为本地文件写入打上时间戳所用的时钟当前时间，从新建又随即删除的标记文件
+   * 读取。系统时钟与文件时间戳可能朝任一方向相差一个时钟节拍，因此模块文件与这个
+   * 时间比较；当无法创建标记文件时，使用系统时钟。
+   * @returns 纪元毫秒。
    */
   now(): number {
     let directory: string
     try {
       directory = mkdtempSync(join(tmpdir(), 'dsh-hmr-clock-'))
     } catch (_error) {
-      // An unwritable temporary directory leaves the less precise system clock.
+      // 一个不可写的临时目录退而使用精度较低的系统时钟。
       return Date.now()
     }
     try {
@@ -65,9 +65,9 @@ export class ModuleFiles {
   }
 
   /**
-   * Compare loaded file modules with disk.
-   * @param urls `file:` URLs of the loaded modules to compare.
-   * @returns URLs of stale modules, and the identity read for each compared URL (`undefined` for a missing file).
+   * 把已加载的文件模块与磁盘比较。
+   * @param urls 要比较的已加载模块对应的 `file:` URL。
+   * @returns 过期模块的 URL，以及为每个被比较的 URL 读取到的身份（`undefined` 表示文件缺失）。
    */
   compare(urls: Iterable<string>): { stale: Set<string>; seen: Map<string, string | undefined> } {
     const stale = new Set<string>()
@@ -86,12 +86,12 @@ export class ModuleFiles {
   }
 
   /**
-   * Replace every record with the identities of the given loaded modules.
-   * @param urls `file:` URLs of the loaded modules to record.
-   * @param options `seen` supplies identities read earlier for modules whose cache entry has not changed since, so a
-   * later write stays detectable; other modules are read now, and stay stale when their file was modified after `at`.
-   * `retained` modules keep their record, or are marked stale when they have none. `at` is the observation time from
-   * {@link now} used for unrecorded modules.
+   * 用给定已加载模块的身份替换每一条记录。
+   * @param urls 要记录的已加载模块对应的 `file:` URL。
+   * @param options `seen` 提供此前为模块读取到的身份，这些模块的缓存条目自那以后没有
+   * 变化，因此后续写入仍可被检测到；其他模块现在读取，并且当它们的文件在 `at` 之后
+   * 被修改时保持过期。`retained` 模块保留自己的记录，或者在它们没有记录时被标记为
+   * 过期。`at` 是来自 {@link now} 的观测时间，用于未记录的模块。
    */
   observe(urls: Iterable<string>, options: {
     seen?: ReadonlyMap<string, string | undefined>
@@ -104,8 +104,9 @@ export class ModuleFiles {
       if (retained.has(url)) records.set(url, this.records.get(url))
       else if (seen.has(url)) records.set(url, seen.get(url))
       else {
-        // A module first loaded since `at` may have been evaluated before a write that followed it. A write in the same
-        // file clock tick as `at` counts as earlier, so files installed just before the comparison are not reloaded.
+        // 一个自 `at` 以来首次加载的模块，可能在其后的某次写入之前就已经被求值。
+        // 与 `at` 处于同一文件时钟节拍内的写入算作更早，因此在比较之前刚安装的
+        // 文件不会被重新加载。
         const identity = identityOf(url)
         records.set(url, identity === undefined || identity.modifiedAt > at ? undefined : identity.key)
       }
@@ -115,8 +116,8 @@ export class ModuleFiles {
   }
 
   /**
-   * Record the current identity of modules just evaluated again, leaving every other record unchanged.
-   * @param urls `file:` URLs of the re-evaluated modules.
+   * 记录刚刚再次求值的模块当前身份，其余记录保持不变。
+   * @param urls 被重新求值的模块对应的 `file:` URL。
    */
   refresh(urls: Iterable<string>): void {
     for (const url of urls) this.records.set(url, identityOf(url)?.key)

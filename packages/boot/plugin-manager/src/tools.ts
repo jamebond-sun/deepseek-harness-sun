@@ -1,4 +1,4 @@
-/** Agent-facing current-profile management using the same service as Web controls. */
+/** 面向智能体、对当前 profile 的管理，使用与 Web 控件相同的服务。 */
 import { assertNever } from '@deepseek-ai/dsh-util-values'
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from './index.ts'
@@ -9,7 +9,7 @@ import type { ChangeResult, ManagementError, PluginEntryId, PluginInstallFailure
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import { getDshRuntimeVersion } from '@deepseek-ai/dsh-app-boot'
 
-/** What the model does next for each refusal the manager reports. */
+/** 针对管理器报告的每一种拒绝，模型接下来要做的事。 */
 const ERROR_STEPS: Record<ManagementError['code'], string> = {
   'management-required': 'This entry belongs to plugin management itself and cannot be changed.',
   'unaddressable': 'This entry has no unique profile patch target; tell the user to edit the profile patch file directly.',
@@ -26,7 +26,7 @@ const ERROR_STEPS: Record<ManagementError['code'], string> = {
   'operation-error': 'Report the diagnostic to the user; retry only after its cause is addressed.',
 }
 
-/** What the model does next for each package-manager failure. */
+/** 针对每一种包管理器失败，模型接下来要做的事。 */
 const FAILURE_STEPS: Partial<Record<PluginInstallFailureKind, string>> = {
   'pnpm-missing': 'pnpm is not available to DSH; tell the user to install pnpm.',
   'timeout': 'Retry, or retry with another registry.',
@@ -38,7 +38,7 @@ const FAILURE_STEPS: Partial<Record<PluginInstallFailureKind, string>> = {
   'build-blocked': 'Ask the user whether to allow the install scripts of the packages in pendingBuilds; if they approve, retry with approvedBuilds.',
 }
 
-/** Why a change waits for a restart, as the model tells the user. */
+/** 变更为何要等待重启，即模型告知用户的原因。 */
 const RESTART_STEPS: Record<RestartReason, string> = {
   'no-hmr': 'this profile applies changes only at startup',
   'package-moved': 'an installed package now resolves to another directory, or the change replaces a package the DSH installation provides; remove a package before installing it from another location',
@@ -48,9 +48,9 @@ const RESTART_STEPS: Record<RestartReason, string> = {
 }
 
 /**
- * The model-facing result of a change: the manager's result plus the next step its outcome calls for.
- * @param result The manager's result.
- * @returns The result with `nextStep` when it is not plainly applied.
+ * 面向模型的变更结果：管理器的结果，加上其结果所要求的下一步。
+ * @param result 管理器的结果。
+ * @returns 当结果并非直接应用时，附带 `nextStep` 的结果。
  */
 function withNextStep(result: ChangeResult): ChangeResult & { nextStep?: string } {
   switch (result.application) {
@@ -66,7 +66,7 @@ function withNextStep(result: ChangeResult): ChangeResult & { nextStep?: string 
     }
     case 'failed': {
       const code = result.error?.code ?? 'operation-error'
-      // A refusal code is more specific than the package manager's failure kind.
+      // 拒绝码比包管理器的失败种类更具体。
       const kind = code === 'operation-error' ? result.packageResult?.kind : undefined
       return { ...result, nextStep: (kind === undefined ? undefined : FAILURE_STEPS[kind]) ?? ERROR_STEPS[code] }
     }
@@ -75,11 +75,11 @@ function withNextStep(result: ChangeResult): ChangeResult & { nextStep?: string 
   }
 }
 
-/** Required services for the management tool. */
+/** 管理工具所需的服务。 */
 export const inject = ['tools', 'pluginManager', 'sandboxPolicy']
 
-/** Register one management tool for discovery and the four persistent actions.
- * @param ctx Agent-scoped tool registration context.
+/** 为一个管理工具注册发现能力以及四种持久化动作。
+ * @param ctx 智能体作用域内的工具注册上下文。
  */
 export function apply(ctx: Context): void {
   ctx.tools.register(defineTool({
