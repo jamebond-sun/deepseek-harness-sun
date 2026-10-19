@@ -1,6 +1,6 @@
 /**
- * Scoped-context primitive: mint a Cordis context that tags registrations with
- * an opaque identity and build routing-only event carriers for that identity.
+ * 作用域上下文原语：铸造一个 Cordis 上下文，为注册打上不透明身份的标签，
+ * 并为该身份构建仅用于路由的事件载体。
  *
  * @module @deepseek-ai/dsh-scope
  */
@@ -11,46 +11,45 @@ import { Context as CordisContext } from '@deepseek-ai/cordis'
 export { AnonymousEntries, NamedEntries, ScopedLayers } from './store.ts'
 export type { ScopeLayer } from './store.ts'
 
-/** An opaque, identity-compared scope key. */
+/** 不透明、按身份比较的作用域键。 */
 export type ScopeKey = object
 
-/** Context tag written by {@link createScope}. */
+/** 由 {@link createScope} 写入的上下文标签。 */
 const kScope = Symbol('dsh.scope')
 
 declare const ScopedBrand: unique symbol
 
 /**
- * A routing-only event receiver built by {@link scopeTarget}. The type
- * parameter records the subject type for dispatch checking; the carrier does
- * not expose the subject's properties. Event payloads carry the real subject.
+ * 由 {@link scopeTarget} 构建的仅用于路由的事件接收器。类型
+ * 参数记录主体类型以供分发检查；载体不暴露主体的属性。
+ * 事件负载携带真实主体。
  */
 export type Scoped<T extends object> = object & { readonly [ScopedBrand]: T }
 
-/** The key associated with each carrier. Presence distinguishes an unkeyed carrier from a non-carrier. */
+/** 与每个载体关联的键。以存在与否区分未带键的载体和非载体。 */
 const carrierKeys = new WeakMap<object, ScopeKey | undefined>()
 
 /**
- * The enclosing scope of each key. One relation powers both directions of
- * scope nesting: registration views inherit DOWN the chain (a child scope
- * sees its ancestors' layers — {@link ScopedLayers}), and event admission
- * extends UP it (a listener tagged with an ancestor receives events dispatched
- * to a descendant key — {@link scopeTarget}).
+ * 每个键的外围作用域。一个关系驱动作用域嵌套的两个方向：
+ * 注册视图沿链向下继承（子作用域可见其祖先的层——{@link ScopedLayers}），
+ * 事件接纳沿链向上扩展（以祖先标记的监听器接收分发到后代键的事件——
+ * {@link scopeTarget}）。
  */
 const scopeParents = new WeakMap<ScopeKey, ScopeKey>()
 
-/** The privileged handle to move one scope key's parent link. */
+/** 移动单个作用域键父链接的特权句柄。 */
 export interface ScopeParentBinding {
   /**
-   * Re-link the bound key to a different parent, with the same cycle check as
-   * the bind. Valid only while nothing produced under the old parent is
-   * retained — the blank-session recompose contract, which the holder upholds
-   * because this relation cannot see what a session logged.
-   * @param parent - the new enclosing scope key.
+   * 将绑定的键重新链接到不同的父级，进行与绑定时相同的环检查。
+   * 仅在旧父级下产生的任何内容都不被保留时有效——
+   * 即空白会话重组契约，由持有者维护，
+   * 因为此关系无法看到会话记录了什么。
+   * @param parent - 新的外围作用域键。
    */
   rebind(parent: ScopeKey): void
 }
 
-/** Cycle-checked write shared by the bind and every rebind. */
+/** 由绑定和每次重绑定共享的带环检查写入。 */
 function linkScopeParent(key: ScopeKey, parent: ScopeKey): void {
   for (let cursor: ScopeKey | undefined = parent; cursor !== undefined; cursor = scopeParents.get(cursor)) {
     if (cursor === key) throw new Error('dsh-scope: scope parent link would form a cycle')
@@ -59,15 +58,15 @@ function linkScopeParent(key: ScopeKey, parent: ScopeKey): void {
 }
 
 /**
- * Bind `parent` as `key`'s enclosing scope, once.
+ * 将 `parent` 绑定为 `key` 的外围作用域，仅一次。
  *
- * A key that already has a parent throws: there is no open re-link path, so a
- * scope's ancestry cannot be moved by anyone but the original binder, who
- * alone receives the {@link ScopeParentBinding}. A link that would close a
- * cycle is rejected, because every chain consumer walks parents to the root.
- * @param key - the child scope key.
- * @param parent - its enclosing scope key.
- * @returns the binding that alone may re-link this key.
+ * 已有父级的键会抛出：不存在开放的重新链接路径，因此作用域的祖先关系
+ * 无法被原始绑定者以外的任何人移动，只有其一人收到
+ * {@link ScopeParentBinding}。会闭合环的链接被拒绝，
+ * 因为每个链消费方都会沿父级走到根。
+ * @param key - 子作用域键。
+ * @param parent - 其外围作用域键。
+ * @returns 唯一可以重新链接此键的绑定。
  */
 export function bindScopeParent(key: ScopeKey, parent: ScopeKey): ScopeParentBinding {
   if (scopeParents.has(key)) {
@@ -82,18 +81,18 @@ export function bindScopeParent(key: ScopeKey, parent: ScopeKey): ScopeParentBin
 }
 
 /**
- * Read one key's enclosing scope.
- * @param key - the scope key to inspect.
- * @returns its parent key, or `undefined` for a root scope.
+ * 读取单个键的外围作用域。
+ * @param key - 要检查的作用域键。
+ * @returns 其父键，根作用域为 `undefined`。
  */
 export function scopeParentOf(key: ScopeKey): ScopeKey | undefined {
   return scopeParents.get(key)
 }
 
 /**
- * The chain from a key to its root ancestor.
- * @param key - the starting key, or `undefined` for the empty chain.
- * @returns keys nearest-first: `[key, parent, grandparent, …]`.
+ * 从一个键到其根祖先的链。
+ * @param key - 起始键，空链为 `undefined`。
+ * @returns 以最近优先的键：`[key, parent, grandparent, …]`。
  */
 export function scopeChainOf(key: ScopeKey | undefined): ScopeKey[] {
   const chain: ScopeKey[] = []
@@ -101,38 +100,38 @@ export function scopeChainOf(key: ScopeKey | undefined): ScopeKey[] {
   return chain
 }
 
-/** A minted registration scope and its quiescent disposal boundaries. */
+/** 一个铸造的注册作用域及其静默释放边界。 */
 export interface Scope {
-  /** Context through which scope-owned registrations are made. */
+  /** 进行作用域拥有注册所经由的上下文。 */
   ctx: Context
-  /** Exact Cordis disposer, used when nesting this scope in an ordered composite effect. */
+  /** 确切的 Cordis disposer，用于将此作用域嵌套进有序的复合 effect 时。 */
   rawDispose: () => Promise<void> | void
-  /** Dispose every scope-owned registration; racing calls await the same completion. */
+  /** 释放每个作用域拥有的注册；竞争调用等待同一次完成。 */
   dispose(): Promise<void>
 }
 
-/** Follow a Cordis fiber through asynchronous teardown even if its raw disposer was already claimed. */
+/** 跟随 Cordis fiber 走完异步拆除，即使其原始 disposer 已被认领。 */
 async function quiesceFiber(fiber: Fiber): Promise<void> {
   await Promise.resolve(fiber.dispose())
   while (fiber.inertia !== undefined) await fiber.inertia
 }
 
-/** Shared no-op plugin used as the backing scope fiber. */
+/** 用作支撑作用域 fiber 的共享空操作插件。 */
 function scope(): void {}
 
-/** Options accepted by {@link createScope}. */
+/** {@link createScope} 接受的选项。 */
 export interface CreateScopeOptions {
-  /** Enclosing scope bound via {@link bindScopeParent} before the scope is usable; the binding stays internal. */
+  /** 在作用域可用之前通过 {@link bindScopeParent} 绑定的外围作用域；绑定保持内部。 */
   parent?: ScopeKey
 }
 
 /**
- * Mint a scope under `ctx`. The scoped context inherits the minting plugin's
- * dependency API and owns every registration made through it.
- * @param ctx - active context whose dependency API the scope inherits.
- * @param key - opaque identity used for listener routing.
- * @param options - optional scope-chain placement.
- * @returns the scoped context and exact/shared disposal boundaries.
+ * 在 `ctx` 下铸造一个作用域。作用域上下文继承铸造插件的依赖 API，
+ * 并拥有通过它进行的每个注册。
+ * @param ctx - 作用域继承其依赖 API 的活跃上下文。
+ * @param key - 用于监听器路由的不透明身份。
+ * @param options - 可选的作用域链位置。
+ * @returns 作用域上下文和确切/共享的释放边界。
  */
 export function createScope(ctx: Context, key: ScopeKey, options?: CreateScopeOptions): Scope {
   if (options?.parent !== undefined) bindScopeParent(key, options.parent)
@@ -147,25 +146,23 @@ export function createScope(ctx: Context, key: ScopeKey, options?: CreateScopeOp
 }
 
 /**
- * Read the nearest scope tag inherited by a context.
- * @param ctx - context to inspect.
- * @returns its scope key, or `undefined` for an unscoped context.
+ * 读取上下文继承的最近作用域标签。
+ * @param ctx - 要检查的上下文。
+ * @returns 其作用域键，未加作用域的上下文为 `undefined`。
  */
 export function scopeOf(ctx: Context): ScopeKey | undefined {
   return (ctx as Context & { [kScope]?: ScopeKey })[kScope]
 }
 
 /**
- * Build an opaque receiver that preserves the base filter, admits untagged
- * listeners globally, and admits tagged listeners for a matching key or any
- * of its ancestors ({@link bindScopeParent}): a listener owned by an enclosing
- * scope receives every descendant scope's events, which is what lets one
- * standing composition observe each of the agents composed under it. A tag
- * BELOW the dispatch key stays excluded — events flow up the chain, never
- * down.
- * @param base - subject or service whose existing Cordis filter is preserved.
- * @param key - routed scope identity, or `undefined` for an unscoped subject.
- * @returns a carrier whose subject remains available only through event arguments.
+ * 构建一个不透明接收器，保留基础过滤器，全局接纳未标记的监听器，
+ * 并为匹配键或其任何祖先（{@link bindScopeParent}）接纳已标记的监听器：
+ * 外围作用域拥有的监听器接收每个后代作用域的事件，这正是让一个常驻
+ * 组合观察在其下组合的每个 agent 的原因。位于分发键之下的标签
+ * 始终被排除——事件沿链向上流动，从不向下。
+ * @param base - 保留其既有 Cordis 过滤器的主体或服务。
+ * @param key - 路由的作用域身份，无作用域主体为 `undefined`。
+ * @returns 一个载体，其主体只能通过事件参数获得。
  */
 export function scopeTarget<T extends object>(base: T, key: ScopeKey | undefined): Scoped<T> {
   const baseFilter = (base as { [CordisContext.filter]?: (ctx: Context) => boolean })[CordisContext.filter]
@@ -185,18 +182,18 @@ export function scopeTarget<T extends object>(base: T, key: ScopeKey | undefined
 }
 
 /**
- * Test whether a value is a scope carrier.
- * @param value - dispatch receiver to inspect.
- * @returns whether {@link scopeTarget} created it.
+ * 测试一个值是否是作用域载体。
+ * @param value - 要检查的分发接收器。
+ * @returns 是否由 {@link scopeTarget} 创建。
  */
 export function isScopeCarrier(value: unknown): value is Scoped<object> {
   return typeof value === 'object' && value !== null && carrierKeys.has(value)
 }
 
 /**
- * Read a carrier's routing key.
- * @param value - dispatch receiver to inspect.
- * @returns the carrier key, or `undefined` for an unkeyed/non-carrier value.
+ * 读取载体的路由键。
+ * @param value - 要检查的分发接收器。
+ * @returns 载体键，未带键/非载体的值为 `undefined`。
  */
 export function carrierKeyOf(value: unknown): ScopeKey | undefined {
   if (!isScopeCarrier(value)) return undefined

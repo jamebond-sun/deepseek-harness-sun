@@ -1,7 +1,6 @@
 /**
- * Wire types of the generated `job` Remote namespace: the per-session roster
- * stream, the per-job observation stream, and the human kill. Client-safe: no
- * Host imports.
+ * 生成的 `job` Remote 命名空间的 wire 类型：每 session 的 roster 流、每 job
+ * 的观察流，以及人工 kill。对 client 安全：无 Host 导入。
  * @module @deepseek-ai/dsh-api-job-controller/types
  */
 
@@ -11,77 +10,73 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types'
 
 export type { JobChunk, JobView } from '@deepseek-ai/dsh-jobs/view'
 
-/** Target of one `job.list` stream: the session whose visible jobs the stream mirrors. */
+/** 一条 `job.list` 流的目标：该流镜像其可见 job 的 session。 */
 export interface JobListRequest {
   readonly sessionId: SessionId
 }
 
 /**
- * One `job.list` frame: the complete set the session can see — its own jobs
- * plus every unowned job — after a lifecycle change. Whole-set replacement,
- * so a reconnect's first frame is already the truth.
+ * 一个 `job.list` 帧：一次生命周期变更后该 session 能看到的完整集合——其
+ * 自身的 job 加上所有无主 job。整集替换，因此重连后的第一帧即是事实。
  */
 export interface JobListFrame {
   readonly type: 'rows'
   readonly jobs: readonly JobView[]
 }
 
-/** Human-initiated cancellation of one background job visible to a session. */
+/** 由人类发起、对一个 session 可见的后台 job 的取消。 */
 export interface JobKillRequest {
-  /** Session whose job list carries the job; the fenced lookup reads as it. */
+  /** 其 job 列表携带该 job 的 session；围栏查找以该 session 身份执行。 */
   readonly sessionId: SessionId
   readonly jobId: JobId
 }
 
-/** Receipt after the registry accepted the human kill request. */
+/** registry 受理人工 kill 请求后的回执。 */
 export interface JobKillValue {
   readonly outcome: 'requested' | 'already-finished'
 }
 
 declare module '@deepseek-ai/dsh-typert-protocol' {
   interface RemoteErrorDetailsMap {
-    /** The session's job list no longer carries a killable row under that id. */
+    /** 该 session 的 job 列表在该 id 下已没有可 kill 的行。 */
     'job/not-found': { readonly sessionId: SessionId; readonly jobId: JobId }
   }
 }
 
-/** Target of one `job.follow` stream: the job, its owning session, and an optional resume offset. */
+/** 一条 `job.follow` 流的目标：job、其拥有 session，以及可选的恢复偏移量。 */
 export interface JobFollowRequest {
   /**
-   * Owning session for the fenced read. Omitted for an unowned job, which any
-   * caller may observe.
+   * 围栏读取所用的拥有 session。无主 job 可省略，任何调用方都可观察它。
    */
   readonly sessionId?: SessionId
   readonly jobId: JobId
   /**
-   * Absolute byte offset to resume from (a prior frame's `next`). Omitted, the
-   * stream starts at the oldest retained byte.
+   * 恢复读取的绝对字节偏移量（先前某一帧的 `next`）。省略时，流从最早保留
+   * 的字节开始。
    */
   readonly from?: number
 }
 
 /**
- * Job observation stream frames: one `opened` anchor carrying the job's
- * projection (its `output.earliest` and `output.total` at open time) and the
- * offset the first `output` frame continues from, then coalesced `output`
- * batches, then — once the job has settled and its ring is drained — one
- * terminal `status` carrying the settled projection, after which the stream
- * closes normally. Status rides the same stream as output so settlement can
- * never race a still-open output channel.
+ * job 观察流的帧：一个 `opened` 锚点，承载该 job 的投影（打开时刻的
+ * `output.earliest` 与 `output.total`）以及第一个 `output` 帧接续的偏移量，
+ * 然后是合并后的 `output` 批次，最后——在该 job 落定且其环形缓冲排空后
+ * ——一个承载落定投影的终结 `status`，此后流正常关闭。status 与 output
+ * 共用同一条流，因此落定绝不会与仍打开的 output 通道发生竞争。
  */
 export type JobFollowFrame =
   | {
     readonly type: 'opened'
     readonly job: JobView
-    /** Offset the first `output` frame continues from. */
+    /** 第一个 `output` 帧接续的偏移量。 */
     readonly from: number
   }
   | {
     readonly type: 'output'
     readonly chunks: readonly JobChunk[]
-    /** Offset to resume from after this frame. */
+    /** 此帧之后恢复读取的偏移量。 */
     readonly next: number
-    /** Bytes between the requested offset and `chunks` were already evicted. */
+    /** 请求偏移量与 `chunks` 之间的字节已被驱逐。 */
     readonly lossy?: true
   }
   | {

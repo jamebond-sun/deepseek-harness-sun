@@ -1,4 +1,4 @@
-/** Cursor, page, and live-tail coordination over a reconnecting Remote stream. */
+/** 在可重连 Remote 流之上协调游标、页面与实时尾随。 */
 
 import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
 import { RemoteStreamCarrierError } from './stream-client.ts'
@@ -8,12 +8,12 @@ import type {
   RemoteStreamOptions,
 } from './remote-stream.ts'
 
-/** Host-side stream protocol violation, marked so consumers surface it as an error state. */
+/** Host 侧的流协议违规，已加标记，使消费方将其呈现为错误状态。 */
 function protocolViolation(message: string): RemoteError<'gateway/internal'> {
   return new RemoteError('gateway/internal', message, {})
 }
 
-/** Transport-neutral opening snapshot, durable entry, or cursorless notification. */
+/** 与传输无关的起始快照、持久条目或无游标通知。 */
 export type RemoteJournalFrame<Entry, Cursor, Page, Notification = never> =
   | { readonly type: 'opened'; readonly cursor: Cursor; readonly page: Page }
   | { readonly type: 'entry'; readonly entry: Entry }
@@ -21,7 +21,7 @@ export type RemoteJournalFrame<Entry, Cursor, Page, Notification = never> =
     ? never
     : { readonly type: 'notification'; readonly notification: Notification })
 
-/** One journal-window update or cursorless domain notification. */
+/** 一次日志流窗口更新或无游标领域通知。 */
 export type RemoteJournalChange<Page, Entry, Notification = never> =
   | {
     readonly type: 'replace'
@@ -44,48 +44,48 @@ type JournalStreamItem<Page, Entry, Cursor, Notification> = RemoteStreamItem<
   RemoteJournalFrame<Entry, Cursor, Page, Notification>
 >
 
-/** Gateway capability used to create one reconnecting Remote stream. */
+/** 用于创建一个可重连 Remote 流的 Gateway 能力。 */
 export interface RemoteStreamFactory {
   /**
-   * Create one independently cancellable logical stream.
-   * @param options - domain-owned opener and generation-end classification.
-   * @returns a reconnecting single-consumer stream.
+   * 创建一个可独立取消的逻辑流。
+   * @param options - 领域自有的打开器与代结束分类。
+   * @returns 一个可重连的单消费方流。
    */
   $stream<Item>(options: RemoteStreamOptions<Item>): RemoteStream<Item>
 }
 
-/** Domain publication and cursor operations for one addressed journal stream. */
+/** 一个已寻址日志流的领域发布与游标操作。 */
 export interface RemoteJournalStreamOptions<Page, Entry, Cursor, Notification = never> {
-  /** Diagnostic stream name used in protocol failures. */
+  /** 协议失败中使用的诊断性流名称。 */
   readonly name: string
-  /** Cursor representing a journal with no entries. */
+  /** 表示没有条目的日志流的游标。 */
   readonly emptyCursor: Cursor
-  /** Read the ordered entries carried by a page. */
+  /** 读取一个页面承载的有序条目。 */
   readonly entries: (page: Page) => readonly Entry[]
-  /** Read whether an older page exists. */
+  /** 读取是否存在更早的页面。 */
   readonly hasMore: (page: Page) => boolean
-  /** Read the inclusive first durable cursor covered by one entry. */
+  /** 读取一个条目覆盖的首个持久游标（含端点）。 */
   readonly first: (entry: Entry) => Cursor
-  /** Read the inclusive final cursor, which must not precede the first. */
+  /** 读取最终的游标（含端点），它不得早于首个游标。 */
   readonly last: (entry: Entry) => Cursor
-  /** Compare two cursors. */
+  /** 比较两个游标。 */
   readonly compare: (left: Cursor, right: Cursor) => number
-  /** Test whether the right cursor immediately follows the left cursor. */
+  /** 测试右侧游标是否紧随左侧游标。 */
   readonly follows: (left: Cursor, right: Cursor) => boolean
-  /** Apply one complete journal-window change or cursorless notification. */
+  /** 应用一次完整的日志流窗口变更或无游标通知。 */
   readonly publish: (change: RemoteJournalChange<Page, Entry, Notification>) => void
-  /** Observe a retryable carrier loss before reconnection. */
+  /** 在重连之前观察一次可重试的载体丢失。 */
   readonly carrierFailed?: (error: RemoteStreamCarrierError) => void
-  /** Publish a terminal stream, page, or protocol failure after opening. */
+  /** 在打开之后发布终止性的流、页面或协议失败。 */
   readonly failed: (error: unknown) => void
 }
 
 /**
- * Owns snapshot-first opening, ordered live delivery, pagination, and repair.
+ * 拥有快照优先的打开、有序的实时交付、分页与修复。
  *
- * The domain retains its published window during reconnection. A replacement is
- * published only after the opening page reaches the generation's cursor.
- * Notifications never change a cursor and wait behind an in-flight gap repair.
+ * 重连期间，领域保留其已发布的窗口。只有起始页面抵达该代的
+ * 游标之后，替换才会发布。通知绝不改变游标，并在进行中的
+ * 缺口修复之后等待。
  */
 export abstract class RemoteJournalStream<
   Page, Entry, Cursor, PageRequest = void, Notification = never,
@@ -105,8 +105,8 @@ export abstract class RemoteJournalStream<
   private pendingNext: Promise<IteratorResult<JournalStreamItem<Page, Entry, Cursor, Notification>>> | undefined
 
   /**
-   * @param remote - Gateway factory for the reconnecting physical-generation stream.
-   * @param options - cursor algebra and domain publication sinks.
+   * @param remote - 可重连物理代流的 Gateway 工厂。
+   * @param options - 游标代数与领域发布汇。
    */
   protected constructor(
     remote: RemoteStreamFactory,
@@ -127,10 +127,10 @@ export abstract class RemoteJournalStream<
   }
 
   /**
-   * Open one physical journal generation with a complete current snapshot.
-   * @param request - opening-window request retained for later repair.
-   * @param signal - cancellation lifetime of the physical generation.
-   * @returns opening cursor followed by live entries.
+   * 以完整的当前快照打开一个物理日志流代。
+   * @param request - 为后续修复保留的打开窗口请求。
+   * @param signal - 物理代的取消生命周期。
+   * @returns 起始游标，其后是实时条目。
    */
   protected abstract follow(
     request: PageRequest,
@@ -138,30 +138,30 @@ export abstract class RemoteJournalStream<
   ): AsyncIterable<RemoteJournalFrame<Entry, Cursor, Page, Notification>>
 
   /**
-   * Read one journal page through the addressed domain source.
-   * @param request - domain page request.
-   * @param through - inclusive journal cursor that fixes the source read.
-   * @param signal - cancellation lifetime shared with the logical stream.
-   * @returns the requested page, whose tail equals `through` unless the domain request selects older entries.
+   * 通过已寻址的领域源读取一个日志流页面。
+   * @param request - 领域页面请求。
+   * @param through - 固定源读取范围的日志流游标（含端点）。
+   * @param signal - 与逻辑流共享的取消生命周期。
+   * @returns 请求的页面，其尾部等于 `through`，除非领域请求选择了更早的条目。
    */
   protected abstract readPage(request: PageRequest, through: Cursor, signal: AbortSignal): Promise<Page>
 
   /**
-   * Derive an unbounded-tail request from the initial page request.
-   * @param initial - request used to open the journal window.
-   * @returns request suitable for reconnect and gap repair.
+   * 从初始页面请求派生一个无界尾部的请求。
+   * @param initial - 用于打开日志流窗口的请求。
+   * @returns 适用于重连与缺口修复的请求。
    */
   protected abstract repairRequest(initial: PageRequest): PageRequest
 
-  /** Cancellation lifetime shared by follow and page calls. */
+  /** follow 与页面调用共享的取消生命周期。 */
   get signal(): AbortSignal {
     return this.stream.signal
   }
 
   /**
-   * Establish follow and publish the opening snapshot carried by its first frame.
-   * @param request - initial tail-page request.
-   * @returns after the first complete window is published.
+   * 建立跟随，并发布其首帧携带的起始快照。
+   * @param request - 初始的尾部页面请求。
+   * @returns 在第一个完整窗口发布之后。
    */
   async open(request: PageRequest): Promise<void> {
     if (this.started) throw new Error(`${this.options.name} already opened`)
@@ -181,9 +181,9 @@ export abstract class RemoteJournalStream<
   }
 
   /**
-   * Read and prepend one older page after a successful open.
-   * @param request - domain page request bound to this stream's address.
-   * @returns after the page is applied or rejected as discontinuous.
+   * 在成功打开之后读取并前插一个更早的页面。
+   * @param request - 绑定到此流地址的领域页面请求。
+   * @returns 在该页面被应用，或因不连续而被拒绝之后。
    */
   async prepend(request: PageRequest): Promise<void> {
     if (!this.opened || this.disposed) throw new Error(`${this.options.name} is not open`)
@@ -211,14 +211,14 @@ export abstract class RemoteJournalStream<
     })
   }
 
-  /** Replace the active physical generation while retaining the published window. */
+  /** 在保留已发布窗口的同时替换活跃的物理代。 */
   restart(): void {
     this.stream.restart()
   }
 
   /**
-   * Permanently stop follow, page requests, and the background consumer.
-   * @returns when no stream work or publication callback can still run.
+   * 永久停止跟随、页面请求与后台消费方。
+   * @returns 不再有任何流工作或发布回调可以运行时。
    */
   dispose(): Promise<void> {
     if (this.closing !== undefined) return this.closing
@@ -285,7 +285,7 @@ export abstract class RemoteJournalStream<
     return { cursor, page: item.value.page }
   }
 
-  /** Publish a generation's opening page without issuing a second Remote call. */
+  /** 发布一个代的起始页面，而不发出第二次 Remote 调用。 */
   private replaceFromOpening(page: Page, cursor: Cursor): void {
     this.assertPageThrough(page, cursor)
     const entries = [...this.options.entries(page)]

@@ -1,4 +1,4 @@
-/** Process-local assistant attempt framing and durable stream accumulation. */
+/** 进程本地的 assistant 尝试框架化和持久流累积。 */
 
 import {
   AssistantStreamAccumulator,
@@ -14,25 +14,25 @@ import {
 import type { AssistantStreamFrame } from '@deepseek-ai/dsh-agent'
 import type { SessionEventMap, SessionId, SessionSeq } from '@deepseek-ai/dsh-session'
 
-/** Folds one model attempt into one compact stream plus ordered transient frames. */
+/** 将单次模型尝试折叠为一个紧凑流加上按顺序的瞬态帧。 */
 export class AssistantStreamAttempt {
   private readonly accumulator = new AssistantStreamAccumulator()
   private readonly assembler = new BlockAssembler()
   private index = 0
   private terminal = false
-  /** Attempt identity unique within this Agent lifecycle. */
+  /** 在此 Agent 生命周期内唯一的尝试身份。 */
   readonly attemptId: LlmAttemptId
 
-  /** Whether this started attempt has emitted its terminal frame. */
+  /** 此已启动的尝试是否已发出其终止帧。 */
   get ended(): boolean { return this.terminal }
 
   /**
-   * @param sessionId - identity embedded only in the Agent-lifecycle-local attempt id.
-   * @param attempt - attached-Session-local attempt counter.
-   * @param nextRevision - allocates the next emitted frame revision.
-   * @param turn - durable turn owning the request.
-   * @param step - durable step owning the request.
-   * @param emit - agent-scoped notification publisher.
+   * @param sessionId - 仅嵌入在 Agent 生命周期本地尝试 id 中的身份。
+   * @param attempt - 附加 Session 本地的尝试计数器。
+   * @param nextRevision - 分配下一个已发出帧的修订号。
+   * @param turn - 拥有该请求的持久 turn。
+   * @param step - 拥有该请求的持久 step。
+   * @param emit - agent 范围的通知发布器。
    */
   constructor(
     sessionId: SessionId,
@@ -45,7 +45,7 @@ export class AssistantStreamAttempt {
     this.attemptId = LlmAttemptId(`${sessionId}:${attempt}`)
   }
 
-  /** Publish the opening marker before the first delivered chunk. */
+  /** 在首个送达的块之前发布开始标记。 */
   start(): void {
     this.emit({
       type: 'start',
@@ -56,7 +56,7 @@ export class AssistantStreamAttempt {
     })
   }
 
-  /** Snapshot one chunk once, then feed durable compaction, assembly, and live publication. */
+  /** 对单个块快照一次，然后馈送持久压缩、组装和活跃发布。 */
   push(chunk: StreamChunk): void {
     const timed = this.accumulator.push({ time: Date.now(), chunk })
     this.assembler.push(timed.chunk)
@@ -71,9 +71,9 @@ export class AssistantStreamAttempt {
   }
 
   /**
-   * Publish terminal settlement after the matching durable event commits.
-   * @param eventType - durable settlement type.
-   * @param append - synchronous durable append returning its committed seq.
+   * 在匹配的持久事件提交之后发布终止结算。
+   * @param eventType - 持久结算类型。
+   * @param append - 同步的持久追加，返回其已提交的 seq。
    */
   settle(
     eventType: 'assistant/message' | 'assistant/attempt',
@@ -96,7 +96,7 @@ export class AssistantStreamAttempt {
     })
   }
 
-  /** Publish abandonment when no durable attempt event can be committed. */
+  /** 在无法提交任何持久尝试事件时发布放弃。 */
   abandon(): void {
     this.terminal = true
     this.emit({
@@ -108,32 +108,32 @@ export class AssistantStreamAttempt {
     })
   }
 
-  /** Exact compact stream for the final durable event. */
+  /** 最终持久事件的精确紧凑流。 */
   get stream(): SessionEventMap['assistant/attempt']['stream'] {
     return [...this.accumulator.snapshot()] as AssistantStreamRecord[]
   }
 
-  /** Canonical completed-message blocks from the same chunks. */
+  /** 来自相同块的规范化完成消息块。 */
   blocks(): ContentBlock[] {
     return this.assembler.blocks()
   }
 
-  /** Safe visible prefix when cancellation interrupts the attempt. */
+  /** 取消中断尝试时的安全可见前缀。 */
   interruptedBlocks(): ContentBlock[] {
     return this.assembler.interruptedBlocks()
   }
 
-  /** Latest adapter-reported usage in the stream. */
+  /** 流中适配器报告的最新用量。 */
   get usage(): TokenUsage | undefined {
     return this.assembler.usage
   }
 
-  /** Terminal reason, defaulting to stop when the stream omitted one. */
+  /** 终止原因，流未提供时默认为 stop。 */
   get finish(): FinishReason {
     return this.assembler.finish
   }
 
-  /** Replay state carried by the terminal finish record. */
+  /** 终止 finish 记录携带的重放状态。 */
   get replayState(): ReplayEnvelope | undefined {
     return this.assembler.replayState
   }

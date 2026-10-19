@@ -1,11 +1,10 @@
 /**
- * The outward session face. Feature packages never see the concrete Session
- * class: components read lifecycle state through `useSession` (the
- * ObservableSnapshot half), and orchestration code calls the behavior verbs
- * below — nothing else. Widening this interface is the explicit act of
- * widening what features may do to a session (and what every test fixture
- * must stub); implementation-internal entry points (history staging, wire-frame
- * dispatch) stay on the class, invisible out here.
+ * 对外的 session 门面。功能包永远看不到具体的 Session 类：组件通过
+ * `useSession`（ObservableSnapshot 那一半）读取生命周期状态，编排代码
+ * 只调用下面的行为动词 —— 除此之外没有别的。拓宽此接口就是
+ * 显式拓宽功能包对一个 session 所能做的事情（以及每个测试 fixture
+ * 必须桩化什么）；实现内部的入口（历史暂存、wire 帧分发）
+ * 留在类上，在这里不可见。
  */
 import type { AttachmentIdType, FileAttachmentRef, ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 import type { MessageId } from '@deepseek-ai/dsh-llm/brand'
@@ -16,10 +15,10 @@ import type { PromptContentPart, QueueAction, SessionRequestId } from '../../typ
 import type { PendingSubmissionAttachment, SessionSnapshot } from './snapshot.ts'
 
 /**
- * Why a local submission echo left the snapshot: `observed` when its durable
- * `user/message` event or host queue occurrence arrived (with the admitted
- * attachment references in prompt order), `failed` when the prompt was rejected,
- * threw, or was aborted before acceptance.
+ * 一条本地提交回显离开快照的原因：`observed` 表示其持久化
+ * `user/message` 事件或 Host 队列出现已到达（并带有按提示词顺序
+ * 排列的被接纳附件引用），`failed` 表示提示词在接纳前被拒绝、
+ * 抛错或被中止。
  */
 export type PendingSubmissionRetirement =
   | {
@@ -28,61 +27,61 @@ export type PendingSubmissionRetirement =
   }
   | { readonly reason: 'failed' }
 
-/** Input registering one local submission echo ahead of its prompt call. */
+/** 在提示词调用之前注册一条本地提交回显的输入。 */
 export interface BeginSubmissionInput {
-  /** Delivery mode used with the upcoming prompt. */
+  /** 随后的提示词所使用的投递模式。 */
   readonly mode: 'queue' | 'steer'
-  /** Prompt text exactly as the upcoming prompt will send it. */
+  /** 与随后的提示词将要发送的完全一致的提示词文本。 */
   readonly text: string
-  /** Ordered image previews and durable file metadata matching the upcoming prompt attachments. */
+  /** 与随后的提示词附件匹配的有序图片预览与持久化文件元数据。 */
   readonly attachments: readonly PendingSubmissionAttachment[]
-  /** Settlement callback fired exactly once when the echo retires. */
+  /** 回显退役时恰好触发一次的落定回调。 */
   readonly onRetire?: (retirement: PendingSubmissionRetirement) => void
 }
 
-/** One registered submission echo: the identity its prompt must carry, and the pre-prompt escape hatch. */
+/** 一条已注册的提交回显：其提示词必须携带的身份，以及提示词前的逃生通道。 */
 export interface SubmissionHandle {
-  /** The prompt RPC identity; pass it to {@link ISession.prompt}. */
+  /** 提示词 RPC 身份；传给 {@link ISession.prompt}。 */
   readonly requestId: SessionRequestId
-  /** Retire the echo as failed when the caller cannot reach prompt() (serialization failure); no-op after any other settlement. */
+  /** 当调用方无法到达 prompt() 时（序列化失败）以失败退役该回显；任何其他落定之后为 no-op。 */
   abandon(): void
 }
 
-/** Key-addressed projection read face (the useProjection resolution path; see ProjectionValueStore). */
+/** 按键寻址的投影读取门面（useProjection 的解析路径；见 ProjectionValueStore）。 */
 export interface ProjectionsFace {
   /**
-   * The identity-stable bare observable for one projection key (absence is
-   * an `undefined` snapshot, never a missing face).
-   * @param key - projection key.
-   * @returns the key's value face.
+   * 单个投影键的身份稳定裸可观察对象（缺席表示
+   * 一个 `undefined` 快照，绝不是缺失的门面）。
+   * @param key - 投影键。
+   * @returns 该键的值门面。
    */
   faceOf(key: string): ObservableSnapshot<unknown>
 }
 
-/** Identity plus the behavior verbs features may invoke on a session. */
+/** 身份加上功能包可以在 session 上调用的行为动词。 */
 export interface ISession {
-  /** The session's host identity (agent id — same axis). */
+  /** 该 session 的 Host 身份（agent id —— 同一坐标轴）。 */
   readonly sessionId: SessionId
-  /** Host-computed projection values by key (the useProjection seat). */
+  /** Host 计算的按键排列的投影值（useProjection 的席位）。 */
   readonly projections: ProjectionsFace
   /**
-   * Register one local submission echo in `snapshot.pendingSubmissions`,
-   * synchronously, before the caller serializes and sends the prompt. The
-   * Chat echoes persist until durable admission; transcript identities also
-   * wait for the Inbox claim watermark so stale queue rows stay suppressed.
-   * Queued echoes retire on queue acceptance. Identified failures retire
-   * submissions that have not already reached durable admission.
-   * @param input - echo content and the optional settlement callback.
-   * @returns the minted identity for {@link prompt} plus the pre-prompt abandon path.
+   * 在调用方序列化并发送提示词之前，同步地把一条本地提交回显
+   * 注册进 `snapshot.pendingSubmissions`。Chat 回显持续到持久化
+   * 接纳为止；transcript 身份还要等待 Inbox 认领水位线，
+   * 使过期的队列行保持抑制。
+   * 排队回显在队列接纳时退役。已识别的失败会使尚未到达
+   * 持久化接纳的提交退役。
+   * @param input - 回显内容与可选的落定回调。
+   * @returns 铸出的 {@link prompt} 身份加上提示词前的放弃路径。
    */
   beginSubmission(input: BeginSubmissionInput): SubmissionHandle
   /**
-   * Send a prompt into the session.
-   * @param content - text plus browser-owned temporary image uploads.
-   * @param mode - 'queue' appends a turn; 'steer' interrupts the running one.
-   * @param signal - optional caller cancellation for the complete admission round-trip.
-   * @param requestId - identity from {@link beginSubmission}; a failed identified prompt retires its echo.
-   * @returns acceptance, or the business error (also mirrored into snapshot.promptError).
+   * 向 session 发送一条提示词。
+   * @param content - 文本加上浏览器持有的临时图片上传。
+   * @param mode - 'queue' 追加一个 turn；'steer' 打断正在运行的 turn。
+   * @param signal - 完整接纳往返的可选调用方取消。
+   * @param requestId - 来自 {@link beginSubmission} 的身份；已识别的提示词失败会退役其回显。
+   * @returns 接纳，或业务错误（同时镜像到 snapshot.promptError）。
    */
   prompt(
     content: PromptContentPart[],
@@ -91,65 +90,63 @@ export interface ISession {
     requestId?: SessionRequestId,
   ): Promise<RemoteResult<{ accepted: true }>>
   /**
-   * Resolve one durable image referenced by this session.
-   * @param attachmentId - opaque id found in the folded session log.
-   * @returns the authenticated reference and decoded bytes.
+   * 解析本 session 引用的一张持久化图片。
+   * @param attachmentId - 在折叠的 session 日志中找到的不透明 id。
+   * @returns 经鉴权的引用与解码后的字节。
    */
   readAttachment(
     attachmentId: AttachmentIdType,
   ): Promise<RemoteResult<{ attachment: ImageAttachmentRef; data: Uint8Array }>>
   /**
-   * Apply one edit, remove, or Steer action to a still-pending queue occurrence.
-   * @param itemId - agent-owned inbox occurrence identity.
-   * @param action - requested queue operation.
-   * @returns acceptance, or a business/transport error.
+   * 对一个仍在排队的队列出现应用一次编辑、移除或 Steer 操作。
+   * @param itemId - agent 持有的 inbox 出现身份。
+   * @param action - 请求的队列操作。
+   * @returns 接纳，或业务/传输层错误。
    */
   updateQueue(itemId: MessageId, action: QueueAction): Promise<RemoteResult<{ accepted: true }>>
   /**
-   * Cancel the running turn. Pending queued work remains and resumes in FIFO
-   * order after the Host reaches cancellation quiescence.
-   * @returns acceptance, or the business error.
+   * 取消正在运行的 turn。待处理的排队工作保留，并在 Host 达到取消静息后
+   * 按 FIFO 顺序恢复。
+   * @returns 接纳，或业务错误。
    */
   cancel(): Promise<RemoteResult<{ accepted: true }>>
   /**
-   * Rename this session (explicit user title; pins it against automatic
-   * regeneration).
-   * @param title - raw title text (the host normalizes acceptance).
-   * @returns the normalized accepted title and its event seq, or the business error.
+   * 重命名此 session（显式的用户标题；将其固定以防自动重新生成）。
+   * @param title - 原始标题文本（Host 规范化接纳）。
+   * @returns 规范化后的已接纳标题及其事件 seq，或业务错误。
    */
   rename(title: string): Promise<RemoteResult<{ title: string; seq: SessionSeq }>>
   /**
-   * Extend history by at least 50 messages and two Turn starts, including a
-   * partial Turn at the window's beginning. Stop at 500 messages or history
-   * exhaustion even when those minima cannot be met. Publish one prepend.
-   * @returns completion; failures land in snapshot.openState/loadingOlder.
+   * 将历史向前（更早方向）扩展至少 50 条消息和两个 Turn 起点，
+   * 包括窗口开头处一个部分 Turn。即使无法达到这些下限，也在
+   * 500 条消息或历史耗尽处停止。发布一次 prepend。
+   * @returns 完成；失败落在 snapshot.openState/loadingOlder。
    */
   loadOlder(): Promise<void>
   /**
-   * Page history backwards until the window covers `seq` (inclusive) — the
-   * turn-jump loader. Repeated calls while a jump is paging lower its shared
-   * target and return the in-flight completion; `snapshot.loadingOlder` is
-   * the busy signal for the whole jump.
-   * Each page uses the same Turn alignment as loadOlder, with a 200-message
-   * minimum. The 500-message limit applies per page, not to the whole jump.
-   * Older pages publish together at completion, including successful pages
-   * before a later failure; live events remain independently visible.
-   * @param seq - durable event seq the window must reach (a turn's `turn/start` seq).
-   * @returns completion once covered, exhausted, superseded, or failed soft.
+   * 向更早方向分页历史，直到窗口覆盖 `seq`（含）—— turn 跳转加载器。
+   * 跳转分页期间重复调用会降低其共享目标并返回进行中的完成；
+   * `snapshot.loadingOlder` 是整个跳转的忙碌信号。
+   * 每一页使用与 loadOlder 相同的 Turn 对齐，最小 200 条消息。
+   * 500 条消息的限制按页生效，而不是整个跳转。
+   * 更早的页在完成时一起发布，包括后续失败之前已成功的页；
+   * 实时事件保持独立可见。
+   * @param seq - 窗口必须到达的持久化事件 seq（某个 turn 的 `turn/start` seq）。
+   * @returns 一旦覆盖、耗尽、被取代或软失败即完成。
    */
   loadThrough(seq: SessionSeq): Promise<void>
   /**
-   * Execute one slash-command line against this session's agent — pure
-   * admission semantics (the host executor durably logs the lifecycle).
-   * @param line - the full command line, leading slash included.
-   * @returns the admission result, or the Remote face's error branch.
+   * 针对此 session 的 agent 执行一行斜杠命令 —— 纯接纳语义
+   * （Host 执行器持久化记录生命周期）。
+   * @param line - 完整的命令行，包含前导斜杠。
+   * @returns 接纳结果，或 Remote 门面的错误分支。
    */
   command(line: string): Promise<RemoteResult<{ matched: boolean }>>
 }
 
 /**
- * The full outward face: behavior verbs plus the Session lifecycle read side
- * (the `useSession` hook source). This is the type carried by
- * `SessionBinding.session` and the provide channel.
+ * 完整的对外门面：行为动词加上 Session 生命周期读取侧
+ * （`useSession` hook 的来源）。这是 `SessionBinding.session`
+ * 与 provide 通道携带的类型。
  */
 export type SessionFace = ISession & ObservableSnapshot<SessionSnapshot>

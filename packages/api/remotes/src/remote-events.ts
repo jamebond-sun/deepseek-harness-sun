@@ -1,9 +1,9 @@
 /**
- * The one home of this application's forwarded-Host-event allowlist. Both
- * compiler faces list this file, so the Host forwarding loop and the consumer
- * `ctx.remote.$on` key face read one declaration instead of two copies that
- * could drift; `./types.ts` derives the type projection from it and stays
- * type-only.
+ * 本应用转发 Host 事件允许列表的唯一归属地。两个
+ * 编译面都列出本文件，因此 Host 转发循环与消费方
+ * `ctx.remote.$on` 键面读取同一份声明，而不是两份可能
+ * 漂移的副本；`./types.ts` 从中推导类型投影并保持
+ * type-only。
  */
 
 import type {} from '@deepseek-ai/dsh-api-session-controller/remote-events'
@@ -16,12 +16,12 @@ import type {} from '@deepseek-ai/dsh-schedule/client'
 import type { TypertForwardableEventEntry } from '@deepseek-ai/dsh-typert-protocol'
 
 /**
- * Host events this application forwards without renaming. The explicit mode is
- * both the Host dispatch strategy and the legal key set of `ctx.remote.$on`.
- * An `emit` entry declares readers of the resources its payload carries, or
- * none to touch the built-in `global` resource; it reaches a non-owner Peer
- * only when access control allows it. Each notification names one resource
- * identity or none, and collection changes travel on follow streams instead.
+ * 本应用不加重命名即转发的 Host 事件。显式 mode 既是
+ * Host 的分发策略，也是 `ctx.remote.$on` 的合法键集合。
+ * `emit` 条目声明其载荷所携资源的读取方，或不声明以
+ * 触及内建的 `global` 资源；仅当访问控制允许时它才到达
+ * 非 owner Peer。每条通知指名一个资源身份或不指名，
+ * 集合变更改经 follow 流传输。
  */
 export const API_REMOTE_FORWARDED_EVENTS = [
   { event: 'agent-preset/selected', mode: 'emit' },

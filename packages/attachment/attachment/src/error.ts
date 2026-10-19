@@ -1,4 +1,4 @@
-/** Attachment failure class. @module @deepseek-ai/dsh-attachment/error */
+/** 附件失败类。@module @deepseek-ai/dsh-attachment/error */
 
 const IMAGE_ADMISSION_ERROR_CODES = [
   'TOO_MANY_IMAGES',
@@ -12,7 +12,7 @@ const IMAGE_ADMISSION_ERROR_CODES = [
   'IMAGE_DIMENSION_TOO_LARGE',
 ] as const
 
-/** Caller-correctable attachment failure codes raised while admitting image input. */
+/** 准入图像输入时引发的、调用方可自行纠正的附件失败代码。 */
 export type ImageAdmissionErrorCode = typeof IMAGE_ADMISSION_ERROR_CODES[number]
 
 const ATTACHMENT_ERROR_CODES = [
@@ -27,30 +27,30 @@ const ATTACHMENT_ERROR_CODES = [
   'ATTACHMENT_FILES_UNSUPPORTED',
 ] as const
 
-/** Stable attachment failure codes used for protocol error routing. */
+/** 用于协议错误路由的稳定附件失败代码。 */
 export type AttachmentErrorCode = typeof ATTACHMENT_ERROR_CODES[number]
 
-/** Runtime membership for structurally compatible errors crossing package boundaries. */
+/** 供跨包边界传递的结构兼容错误使用的运行时成员判断。 */
 const IMAGE_ADMISSION_ERROR_CODE_SET: ReadonlySet<string> = new Set(IMAGE_ADMISSION_ERROR_CODES)
 const ATTACHMENT_ERROR_CODE_SET: ReadonlySet<string> = new Set(ATTACHMENT_ERROR_CODES)
 
 /**
- * Stable failures suitable for host RPC error mapping.
+ * 适合 Host RPC 错误映射的稳定失败。
  *
- * Deliberately re-implements the `HarnessError` shape instead of extending it:
- * the base lives in `@deepseek-ai/dsh-llm`, which itself depends on this
- * package (`ImageBlock` references `ImageAttachmentRef`), so sharing the base
- * would create a dependency cycle. Consumers route on `code`, never on the
- * prototype chain, so the shapes stay interchangeable at the wire boundary.
+ * 刻意重新实现 `HarnessError` 的形式而不扩展它：
+ * 基类位于 `@deepseek-ai/dsh-llm`，而后者本身依赖本
+ * 包（`ImageBlock` 引用 `ImageAttachmentRef`），共享基类
+ * 会造成依赖循环。消费方基于 `code` 路由，绝不基于
+ * 原型链，因此两种形式在 wire 边界保持可互换。
  */
 export class AttachmentError extends Error {
-  /** Stable machine-routing failure code. */
+  /** 供机器路由使用的稳定失败代码。 */
   readonly code: AttachmentErrorCode
 
   /**
-   * @param message - human-readable failure description without raw bytes or host paths.
-   * @param code - stable machine-routing code.
-   * @param options - optional chained cause.
+   * @param message - 人类可读的失败描述，不含原始字节或主机路径。
+   * @param code - 供机器路由使用的稳定代码。
+   * @param options - 可选的链式原因。
    */
   constructor(message: string, code: AttachmentErrorCode, options?: ErrorOptions) {
     super(message, options)
@@ -60,9 +60,9 @@ export class AttachmentError extends Error {
 }
 
 /**
- * Identify attachment failures by their stable code across duplicate package installations.
- * @param error - failure raised while validating, persisting, or reading an attachment.
- * @returns whether the failure carries a recognized attachment error code.
+ * 跨重复安装的包，按稳定代码识别附件失败。
+ * @param error - 校验、持久化或读取附件时引发的失败。
+ * @returns 该失败是否带有可识别的附件错误代码。
  */
 export function isAttachmentError(error: unknown): error is AttachmentError {
   return error instanceof Error
@@ -72,9 +72,9 @@ export function isAttachmentError(error: unknown): error is AttachmentError {
 }
 
 /**
- * Distinguish caller-correctable image admission failures from storage faults.
- * @param error - failure raised while validating or persisting an image batch.
- * @returns whether the caller can correct the proposed image content or batch.
+ * 把调用方可纠正的图像准入失败与存储故障区分开。
+ * @param error - 校验或持久化图像批量时引发的失败。
+ * @returns 调用方能否纠正所提交的图像内容或批量。
  */
 export function isImageAdmissionError(
   error: unknown,

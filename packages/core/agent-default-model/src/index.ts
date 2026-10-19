@@ -1,5 +1,5 @@
 /**
- * Default model selection for an Agent without a session-specific selection.
+ * 未做 session 专属选择时 Agent 的默认模型选择。
  *
  * @module @deepseek-ai/dsh-agent-default-model
  */
@@ -15,22 +15,22 @@ import type {} from '@deepseek-ai/dsh-config-editor'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
-    /** Default model selection for Agents created without an explicit model. */
+    /** 为未显式指定模型的 Agent 提供的默认模型选择。 */
     agentDefaultModel: AgentDefaultModelConfig
   }
 }
 
-/** Default model selection supplied by plugin configuration. */
+/** 由插件配置提供的默认模型选择。 */
 export interface Config {
-  /** Registered provider route. */
+  /** 已注册的 provider 路由。 */
   provider: Volatile<string>
-  /** Provider-owned model id. */
+  /** provider 侧的模型 id。 */
   model: Volatile<string>
-  /** Adapter-owned reasoning effort; omission follows the provider default. */
+  /** adapter 侧的推理力度；省略时遵循 provider 默认值。 */
   reasoningEffort: Volatile<string | undefined>
 }
 
-/** Project stored settings onto the Agent-facing selection type. */
+/** 将存储的设置映射到面向 Agent 的选择类型。 */
 function selection(settings: { provider: string; model: string; reasoningEffort?: string }): ModelSelection {
   return {
     provider: settings.provider,
@@ -42,8 +42,8 @@ function selection(settings: { provider: string; model: string; reasoningEffort?
 }
 
 /**
- * Owns the default model selection independently of any Host or transport.
- * Each operation reads the owning Config references.
+ * 独立于任何 Host 或传输层持有默认模型选择。
+ * 每次操作都读取所属 Config 引用。
  */
 export class AgentDefaultModelConfig extends Service {
   private saves: Promise<void> = Promise.resolve()
@@ -61,8 +61,8 @@ export class AgentDefaultModelConfig extends Service {
   }
 
   /**
-   * Read the current default model selection.
-   * @returns a detached provider, model, and optional reasoning selection.
+   * 读取当前默认模型选择。
+   * @returns 独立的 provider、model 及可选推理力度选择。
    */
   currentSelection(): ModelSelection {
     const reasoningEffort = this.config.reasoningEffort.get()
@@ -73,11 +73,10 @@ export class AgentDefaultModelConfig extends Service {
   }
 
   /**
-   * Save the complete default model selection. A deployment without a configuration
-   * editor keeps its composition entry. Saves commit in submission order; a failed
-   * save rejects its caller without blocking later saves.
-   * @param next - resolved selection accepted by an entry point.
-   * @returns fulfillment after the optional profile write settles.
+   * 保存完整的默认模型选择。没有配置编辑器的部署保留其组合条目。
+   * 保存按提交顺序落盘；一次保存失败只拒绝其调用方，不阻塞后续保存。
+   * @param next - 入口点接受的已解析选择。
+   * @returns 可选的 profile 写入完成后兑现。
    */
   async saveSelection(next: ModelSelection): Promise<void> {
     const entry = this.ownerContext.fiber.entry

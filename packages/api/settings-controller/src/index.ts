@@ -1,8 +1,7 @@
 /**
- * Host Remote owner for the configuration surfaces over the settings-domain
- * seams. Two namespaces: `settings`, the redacted reads and writes of
- * `ctx.settings`, owned by the class below; and `credentials`, mounted from
- * here as its own plugin.
+ * 配置界面在设置域各接缝之上的 Host Remote 拥有者。两个命名空间：`settings`，
+ * 即 `ctx.settings` 的脱敏读写，由下方的类拥有；以及 `credentials`，从这里
+ * 挂载为独立插件。
  *
  * @module @deepseek-ai/dsh-api-settings-controller
  */
@@ -26,24 +25,23 @@ export type * from './types.ts'
 
 const settingsNamespaceRequestSchema = z.object({ ns: z.string().min(1) })
 
-/** Read abort state afresh after an awaited provider or opener call. */
+/** 在等待的提供方或打开器调用之后重新读取中止状态。 */
 function isAborted(signal: AbortSignal): boolean {
   return signal.aborted
 }
 
-/** Host integrations replaceable by direct unit tests. */
+/** 可由直接单元测试替换的 Host 集成。 */
 export interface SettingsControllerInternals {
-  /** Host text-editor integration used to open the settings document. */
+  /** 用于打开设置文档的 Host 文本编辑器集成。 */
   readonly openTextFile?: (path: string, signal: AbortSignal) => Promise<void>
 }
 
 /**
- * Project one redacted descriptor onto its wire view, field by field. The
- * Gateway returns a business result without decoding it, so a provider whose
- * descriptor carried extra enumerable properties would otherwise serialize them
- * to the caller.
- * @param descriptor - one descriptor read under `redactSecrets`.
- * @returns the same facts with nothing else attached.
+ * 将一个脱敏描述符逐字段投影到其 wire 视图上。Gateway 返回业务结果时
+ * 不做解码，因此若提供方的描述符携带额外的可枚举属性，它们就会
+ * 被序列化给调用方。
+ * @param descriptor - 在 `redactSecrets` 下读取的一个描述符。
+ * @returns 相同的事实，不附加任何其他内容。
  */
 function namespaceView(descriptor: SettingsDescriptor): SettingsNamespaceView {
   return {
@@ -61,26 +59,25 @@ function namespaceView(descriptor: SettingsDescriptor): SettingsNamespaceView {
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
-    /** Host owner of the `settings` Remote namespace. */
+    /** `settings` Remote 命名空间的 Host 拥有者。 */
     settingsController: SettingsController
   }
 }
 
 /**
- * Host service backing the generated `ctx.remote.settings` namespace. Every
- * remote read uses `redactSecrets: true`, so a `role('secret')` field cannot
- * ride a response. Writes expose the settings service's merge, replacement,
- * and path-addressed operations, and classify every provider refusal as
- * `settings/conflict` or `settings/rejected` with the service's message.
+ * 支撑生成的 `ctx.remote.settings` 命名空间的 Host 服务。每次远程读取都
+ * 使用 `redactSecrets: true`，因此 `role('secret')` 字段无法随响应返回。
+ * 写入暴露设置服务的合并、替换与按路径寻址的操作，并将每次提供方拒绝
+ * 归类为 `settings/conflict` 或 `settings/rejected`，同时携带该服务的消息。
  */
 export class SettingsController extends TypertRemoteService {
   private readonly openTextFile: (path: string, signal: AbortSignal) => Promise<void>
 
   /**
-   * Register the settings namespace and mount the credentials namespace beside
-   * it. Both namespaces stay registered when a provider is absent so calls can
-   * return the configuration API's actionable missing-provider diagnostic.
-   * @param ctx - Host context where settings and credential providers may be mounted.
+   * 注册 settings 命名空间，并在其旁挂载 credentials 命名空间。当提供方
+   * 缺席时，两个命名空间都保持注册，使调用能够返回配置 API 中可指导
+   * 补救的缺失提供方诊断。
+   * @param ctx - 可挂载设置与凭据提供方的 Host 上下文。
    */
   constructor(ctx: Context, internals: SettingsControllerInternals = {}) {
     super(ctx, 'settingsController', { namespace: 'settings' })
@@ -89,10 +86,10 @@ export class SettingsController extends TypertRemoteService {
   }
 
   /**
-   * Describe every registered namespace for a configuration page: redacted
-   * layered values plus the serialized schema the page renders its form from.
-   * @returns provider writability, local-document presence, and one view per namespace.
-   * @throws RemoteError when no settings provider is mounted.
+   * 为配置页描述每个已注册的命名空间：脱敏的分层取值，加上配置页
+   * 渲染表单所用的序列化 schema。
+   * @returns 提供方可写性、本地文档是否存在，以及每个命名空间一个视图。
+   * @throws RemoteError 未挂载设置提供方时抛出。
    */
   @Remote
   describe(): SettingsDescribeValue {
@@ -105,12 +102,12 @@ export class SettingsController extends TypertRemoteService {
   }
 
   /**
-   * Merge a patch into one namespace's stored user section.
-   * @param ns - namespace key to write.
-   * @param patch - fields to merge into the user section.
-   * @param expectedRevision - revision the caller read; `undefined` writes unconditionally.
-   * @returns the namespace's redacted view after the write.
-   * @throws RemoteError when the request is invalid, no provider is mounted, or the provider refuses the write.
+   * 将一个补丁合并进某命名空间已存储的用户区。
+   * @param ns - 要写入的命名空间键。
+   * @param patch - 要合并进用户区的字段。
+   * @param expectedRevision - 调用方读取到的修订号；`undefined` 表示无条件写入。
+   * @returns 写入后该命名空间的脱敏视图。
+   * @throws RemoteError 请求无效、未挂载提供方或提供方拒绝写入时抛出。
    */
   @Remote
   update(
@@ -122,12 +119,12 @@ export class SettingsController extends TypertRemoteService {
   }
 
   /**
-   * Replace one namespace's stored user section wholesale.
-   * @param ns - namespace key to write.
-   * @param section - complete replacement user section.
-   * @param expectedRevision - revision the caller read; `undefined` writes unconditionally.
-   * @returns the namespace's redacted view after the write.
-   * @throws RemoteError when the request is invalid, no provider is mounted, or the provider refuses the write.
+   * 整体替换某命名空间已存储的用户区。
+   * @param ns - 要写入的命名空间键。
+   * @param section - 完整替换的用户区。
+   * @param expectedRevision - 调用方读取到的修订号；`undefined` 表示无条件写入。
+   * @returns 写入后该命名空间的脱敏视图。
+   * @throws RemoteError 请求无效、未挂载提供方或提供方拒绝写入时抛出。
    */
   @Remote
   replace(
@@ -139,14 +136,14 @@ export class SettingsController extends TypertRemoteService {
   }
 
   /**
-   * Apply path-addressed edits to one namespace's user section, resolved against
-   * the section as stored rather than against whatever the caller last read,
-   * then answer with that namespace's new redacted view.
-   * @param ns - namespace key to write.
-   * @param ops - the edits to apply, in order.
-   * @param expectedRevision - revision the caller read; `undefined` writes unconditionally.
-   * @returns the namespace's redacted view after the write.
-   * @throws RemoteError when the request is invalid, no provider is mounted, or the provider refuses the write.
+   * 对某命名空间的用户区应用按路径寻址的编辑，解析依据是已存储的
+   * 用户区，而非调用方最近读取到的内容，然后以该命名空间新的
+   * 脱敏视图作答。
+   * @param ns - 要写入的命名空间键。
+   * @param ops - 要按顺序应用的编辑。
+   * @param expectedRevision - 调用方读取到的修订号；`undefined` 表示无条件写入。
+   * @returns 写入后该命名空间的脱敏视图。
+   * @throws RemoteError 请求无效、未挂载提供方或提供方拒绝写入时抛出。
    */
   @Remote
   async mutate(
@@ -158,10 +155,10 @@ export class SettingsController extends TypertRemoteService {
   }
 
   /**
-   * Materialize the provider-owned settings document and open it in a native text editor.
-   * @param signal - caller lifetime; abort terminates preparation or the native command.
-   * @returns confirmation after the native opener accepts the document.
-   * @throws RemoteError when no document exists, preparation fails, or opening fails.
+   * 具现提供方拥有的设置文档，并在原生文本编辑器中打开它。
+   * @param signal - 调用方生命周期；中止会终止准备阶段或原生命令。
+   * @returns 原生打开器接受文档后的确认。
+   * @throws RemoteError 文档不存在、准备失败或打开失败时抛出。
    */
   @Remote
   async openSettingsDocument(signal: AbortSignal): Promise<SettingsDocumentOpenValue> {
@@ -205,14 +202,14 @@ export class SettingsController extends TypertRemoteService {
     }
     const descriptor = settings.describe({ redactSecrets: true }).find(candidate => candidate.ns === namespace)
     if (descriptor === undefined) {
-      // The write committed but the namespace vanished before this read: only a
-      // concurrent registrant disposal can produce it.
+      // 写入已提交，但命名空间在此读取之前消失了：只有并发的注册方释放
+      // 才能产生这种情况。
       throw new RemoteError('gateway/internal', `settings namespace "${ns}" was disposed after the ${mode}`, {})
     }
     return namespaceView(descriptor)
   }
 
-  /** Resolve the optional provider or report how to supply it. */
+  /** 解析可选的提供方，或报告如何提供它。 */
   private provider(): SettingsForms {
     const settings = this.ctx.get('settings')
     if (settings === undefined) {
@@ -247,12 +244,11 @@ function settingsConflictOf(error: unknown): SettingsConflict | undefined {
 }
 
 /**
- * Classify one seam refusal. A stale writer is its own outcome, not a malformed
- * request: the client must re-read and re-apply rather than treat the write as
- * invalid.
- * @param ns - the namespace the write addressed.
- * @param error - whatever the seam threw.
- * @returns the failure to raise for that refusal.
+ * 归类一次接缝拒绝。过期写入者是独立的一种结果，而不是畸形请求：
+ * client 必须重新读取并重新应用，而不是把这次写入视为无效。
+ * @param ns - 写入所针对的命名空间。
+ * @param error - 接缝抛出的任何错误。
+ * @returns 针对该拒绝应抛出的失败。
  */
 function rejected(ns: string, error: unknown): RemoteError {
   const conflict = settingsConflictOf(error)

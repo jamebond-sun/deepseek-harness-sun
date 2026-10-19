@@ -1,4 +1,4 @@
-/** Live Session projection state with reconnect baselines. */
+/** 带重连基线的实时 Session 投影状态。 */
 
 import type { Context } from '@deepseek-ai/cordis'
 import { Deque } from '@deepseek-ai/dsh-deque'
@@ -13,11 +13,11 @@ import type {
   SessionProjectionValues,
 } from './types.ts'
 
-/** Owns the Host-wide Session control stream. */
+/** 拥有 Host 范围的 Session 控制流。 */
 export class SessionControlController {
   private readonly streams = new Set<ControlQueue>()
 
-  /** @param ctx - Host context carrying live Agent and projection services. */
+  /** @param ctx - 携带实时 Agent 与投影服务的 Host 上下文。 */
   constructor(private readonly ctx: Context) {
     ctx.sessionProjections.onChanged((session, key, value, seq) => {
       this.broadcast({
@@ -35,9 +35,9 @@ export class SessionControlController {
   }
 
   /**
-   * Open one generation of Host-wide live control state.
-   * @param signal - Remote stream cancellation.
-   * @returns one complete baseline followed by live replacement frames.
+   * 打开一个 Host 范围实时控制状态的世代。
+   * @param signal - Remote 流取消。
+   * @returns 一个完整基线及其后的实时替换帧。
    */
   async *control(signal: AbortSignal): AsyncIterable<SessionControlFrame> {
     signal.throwIfAborted()
@@ -67,7 +67,7 @@ export class SessionControlController {
       const snapshot = this.ctx.sessionProjections.snapshot(session)
       blocks[session.id] = {
         asOfSeq: snapshot.asOfSeq,
-        // Every projection definition validates its value before snapshot publication.
+        // 每个投影定义在快照发布之前验证其值。
         values: snapshot.values as SessionProjectionValues,
       }
     }

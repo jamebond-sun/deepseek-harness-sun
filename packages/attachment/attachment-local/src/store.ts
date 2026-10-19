@@ -1,4 +1,4 @@
-/** Content-addressed, owner-private local attachment storage. */
+/** 内容寻址的、属主私有的本地附件存储。 */
 
 import { createHash, randomUUID } from 'node:crypto'
 import { constants, createReadStream } from 'node:fs'
@@ -28,9 +28,9 @@ function digest(data: Uint8Array): string {
 
 function displayName(value: string | undefined): string | undefined {
   if (value === undefined) return undefined
-  // Strip both separator styles by hand: a POSIX host treats `\` as an
-  // ordinary character, so path.basename would keep a Windows client's full
-  // local path and leak it into the reference and the session log.
+  // 手动剥离两种分隔符样式：POSIX 宿主把 `\` 当作普通字符，
+  // 因此 path.basename 会保留 Windows 客户端的完整本地路径，
+  // 并将其泄露到引用和 session 日志中。
   const leaf = value.slice(Math.max(value.lastIndexOf('/'), value.lastIndexOf('\\')) + 1)
   const clean = leaf.replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 255)
   return clean === '' ? undefined : clean
@@ -43,10 +43,10 @@ function ensureReference(ref: ImageAttachmentRef): string {
 }
 
 /**
- * Derive the absolute immutable-object path for one normalized attachment.
- * @param root - absolute `DSH_HOME/attachments/v1` root.
- * @param ref - durable normalized attachment reference.
- * @returns provider-local path without reading the object.
+ * 推导一个归一化附件的绝对不可变对象路径。
+ * @param root - 绝对的 `DSH_HOME/attachments/v1` 根目录。
+ * @param ref - 持久的归一化附件引用。
+ * @returns 提供方本地路径，不读取对象本身。
  */
 export function normalizedImagePath(root: string, ref: ImageAttachmentRef): string {
   const sha256 = ensureReference(ref)
@@ -65,13 +65,13 @@ async function inspectMetadata(
 }
 
 /**
- * Run the full admission policy for one image without touching storage,
- * including normalization: a batch whose members all validate cannot later
- * be refused by the normalized image byte cap during publication.
- * @param input - encoded bytes and declared metadata.
- * @param limits - resolved source admission policy.
- * @param policy - resolved normalization policy.
- * @returns completion after the raster has been decoded and its normalized version proven to fit.
+ * 对一张图像执行完整准入策略而不触碰存储，包括归一化：
+ * 若批次内所有成员都通过校验，发布阶段就不会再被归一化图像
+ * 字节上限拒绝。
+ * @param input - 编码字节与声明的元数据。
+ * @param limits - 已解析的源准入策略。
+ * @param policy - 已解析的归一化策略。
+ * @returns 栅格完成解码且其归一化版本被证明符合目标后完成。
  */
 export async function validateImageFile(
   input: SaveImageAttachment,
@@ -81,20 +81,20 @@ export async function validateImageFile(
   await prepareImageFile(input, limits, policy)
 }
 
-/** Fully prepared normalized object, verified before any batch member is persisted. */
+/** 完全准备好的归一化对象，在任何批次成员持久化之前经过校验。 */
 export interface PreparedImageFile {
-  /** Deterministic normalized bytes whose digest is {@link ref.attachmentId}. */
+  /** 确定性的归一化字节，其摘要为 {@link ref.attachmentId}。 */
   data: Uint8Array
-  /** Durable reference describing {@link data}. */
+  /** 描述 {@link data} 的持久引用。 */
   ref: ImageAttachmentRef
 }
 
 /**
- * Decode, normalize, and verify one submitted image without touching storage.
- * @param input - submitted encoded bytes and declared media type.
- * @param limits - source admission policy.
- * @param policy - independent normalization policy.
- * @returns immutable reference facts beside bytes ready for atomic publication.
+ * 解码、归一化并校验一张提交的图像，不触碰存储。
+ * @param input - 提交的编码字节与声明的媒体类型。
+ * @param limits - 源准入策略。
+ * @param policy - 独立的归一化策略。
+ * @returns 不可变的引用事实，以及随时可原子发布的字节。
  */
 export async function prepareImageFile(
   input: SaveImageAttachment,
@@ -124,15 +124,14 @@ export async function prepareImageFile(
 }
 
 /**
- * Make a directory's entries durable (fsync on a read-only directory handle).
- * A synced file alone does not survive a crash when its directory entry never
- * reached storage, so the publication directory is synced before a durable
- * reference is reported.
+ * 使目录的目录项持久化（对只读目录句柄执行 fsync）。
+ * 若文件的目录项从未落盘，仅同步文件本身无法在崩溃后存留，
+ * 因此在报告持久引用之前先同步发布目录。
  */
 async function syncDirectory(path: string): Promise<void> {
-  /* v8 ignore next -- Windows cannot open directory handles; NTFS metadata journaling owns entry durability there. */
+  /* v8 ignore next -- Windows 无法打开目录句柄；该平台上的目录项持久性由 NTFS 元数据日志保障。 */
   if (process.platform === 'win32') return
-  /* v8 ignore start -- Windows cannot exercise directory fsync; POSIX behavior tests enforce this peer. */
+  /* v8 ignore start -- Windows 无法执行目录 fsync；POSIX 行为测试覆盖这一对等行为。 */
   const handle = await open(path, constants.O_RDONLY)
   try {
     await handle.sync()
@@ -143,15 +142,14 @@ async function syncDirectory(path: string): Promise<void> {
 }
 
 /**
- * Create one private directory tree and persist every ancestor entry up to a
- * caller-vouched durable boundary. The walk deliberately ignores what mkdir
- * reports as newly created: a concurrent first save can create a level this
- * process then merely observes, so "already existed" is not "already durable"
- * — the entry may still be unsynced in the creator, and a crash would drop a
- * directory the session checkpoint already references. Re-syncing a durable
- * entry is harmless; skipping an unsynced one is not.
- * @param path - absolute directory to create.
- * @param boundary - absolute ancestor the caller vouches is already durable.
+ * 创建一棵私有目录树，并把每一级祖先目录项持久化到调用方担保的
+ * 持久边界。遍历刻意忽略 mkdir 报告的"新建"结果：并发的首次保存
+ * 可能创建了某一级目录而本进程只是观测到它，因此"已存在"不等于
+ * "已持久化"——该目录项在创建方可能仍未同步，一旦崩溃就会丢掉
+ * session 检查点已引用的目录。重复同步已持久的目录项无害；
+ * 跳过未同步的则不行。
+ * @param path - 要创建的绝对路径目录。
+ * @param boundary - 调用方担保已持久的绝对路径祖先目录。
  */
 async function ensureDurableDirectory(path: string, boundary: string): Promise<void> {
   const target = resolve(path)
@@ -162,16 +160,16 @@ async function ensureDurableDirectory(path: string, boundary: string): Promise<v
   while (level !== stop) {
     const parent = dirname(level)
     await syncDirectory(parent)
-    /* v8 ignore next -- filesystem-root guard: callers pass a boundary that is an ancestor of path, so the walk reaches it first. */
+    /* v8 ignore next -- 文件系统根防护：调用方传入的边界是 path 的祖先，因此遍历会先到达它。 */
     if (parent === level) return
     level = parent
   }
 }
 
 /**
- * Establish this process's proof that one DSH_HOME entry and every ancestor
- * below the filesystem root are durable. Mere existence is insufficient: a
- * concurrent process may have created the directory but not synced its parent.
+ * 为本进程建立证明：DSH_HOME 目录项以及文件系统根之下的每一级祖先
+ * 都已持久化。仅仅存在并不足够：并发进程可能已创建该目录，
+ * 但尚未同步其父目录。
  */
 async function ensureDurableHome(path: string): Promise<string> {
   const home = resolve(path)
@@ -183,10 +181,10 @@ async function ensureDurableHome(path: string): Promise<string> {
 }
 
 /**
- * Publish one already verified normalized image below a versioned attachment root.
- * @param root - absolute `DSH_HOME/attachments/v1` root.
- * @param prepared - deterministic normalized bytes and reference.
- * @returns durable content-addressed normalized image reference.
+ * 在版本化附件根目录下发布一个已校验的归一化图像。
+ * @param root - 绝对的 `DSH_HOME/attachments/v1` 根目录。
+ * @param prepared - 确定性的归一化字节与引用。
+ * @returns 持久的内容寻址归一化图像引用。
  */
 export async function commitPreparedImageFile(
   root: string,
@@ -202,14 +200,13 @@ export async function commitPreparedImageFile(
 }
 
 /**
- * Publish one immutable content-addressed object below a versioned attachment
- * root: staged write, fsync, hard-link into place, digest-verified EEXIST
- * deduplication, read-only mode, and durable directory entries from the
- * target's parent up to (excluding) `root`.
- * @param root - absolute `DSH_HOME/attachments/v1` root.
- * @param target - absolute final object path below `root`.
- * @param data - exact object bytes whose digest is `sha256`.
- * @param sha256 - hex digest the stored bytes must match on deduplication.
+ * 在版本化附件根目录下发布一个不可变的内容寻址对象：暂存写入、fsync、
+ * 硬链接到位、经摘要校验的 EEXIST 去重、只读模式，以及从目标父目录
+ * 到（不含）`root` 的持久目录项。
+ * @param root - 绝对的 `DSH_HOME/attachments/v1` 根目录。
+ * @param target - `root` 之下的绝对最终对象路径。
+ * @param data - 确切的对象字节，其摘要为 `sha256`。
+ * @param sha256 - 去重时存储字节必须匹配的十六进制摘要。
  */
 export async function publishImmutableObject(
   root: string,
@@ -227,20 +224,20 @@ export async function publishImmutableObject(
   await publishStagedObject(root, target, staged)
 }
 
-/** Digest and byte count produced while streaming one immutable object to disk. */
+/** 将一个不可变对象流式写入磁盘时产生的摘要与字节数。 */
 export interface StreamedImmutableObject {
   readonly sha256: string
   readonly bytes: number
 }
 
 /**
- * Stream one immutable object from bounded chunks into a staging file, then
- * publish it at a digest-derived target without collecting the complete object in memory.
- * @param root - absolute `DSH_HOME/attachments/v1` root.
- * @param data - exact object bytes in order.
- * @param targetFor - derive the final absolute target from the completed digest and byte count.
- * @param signal - optional cancellation for source reads and storage writes.
- * @returns digest and exact byte count of the published object.
+ * 将一个不可变对象从有界分块流式写入暂存文件，然后在摘要推导的
+ * 目标路径发布，无需在内存中收集完整对象。
+ * @param root - 绝对的 `DSH_HOME/attachments/v1` 根目录。
+ * @param data - 按顺序的确切对象字节。
+ * @param targetFor - 由完成的摘要与字节数推导最终绝对目标路径。
+ * @param signal - 可选的取消信号，作用于源读取与存储写入。
+ * @returns 已发布对象的摘要与确切字节数。
  */
 export async function publishImmutableObjectStream(
   root: string,
@@ -253,7 +250,7 @@ export async function publishImmutableObjectStream(
   try {
     target = targetFor(staged.sha256, staged.bytes)
   } catch (error) {
-    /* v8 ignore start -- The local target callback constructs a validated reference from this function's digest. */
+    /* v8 ignore start -- 本地 target 回调用本函数的摘要构造一个已校验的引用。 */
     await removeTemporary(staged.path)
     throw error
     /* v8 ignore stop */
@@ -263,11 +260,11 @@ export async function publishImmutableObjectStream(
 }
 
 /**
- * Publish another durable hard-link name for an existing immutable object.
- * @param root - absolute versioned attachment root.
- * @param source - existing content-addressed object below `root`.
- * @param target - new alias below `root`.
- * @param sha256 - expected object digest for an existing-target race.
+ * 为一个已存在的不可变对象发布另一个持久的硬链接名称。
+ * @param root - 绝对的版本化附件根目录。
+ * @param source - `root` 之下已存在的内容寻址对象。
+ * @param target - `root` 之下的新别名。
+ * @param sha256 - 目标已存在竞态下期望的对象摘要。
  */
 export async function publishImmutableAlias(
   root: string,
@@ -282,7 +279,7 @@ export async function publishImmutableAlias(
     try {
       await link(source, target)
     } catch (error) {
-      /* v8 ignore next -- Private same-filesystem directories make EEXIST the only recoverable link race. */
+      /* v8 ignore next -- 私有的同文件系统目录使 EEXIST 成为唯一可恢复的链接竞态。 */
       if (!(error instanceof Error && 'code' in error && error.code === 'EEXIST')) throw error
       if (await digestFile(target) !== sha256) {
         throw new AttachmentError('Stored attachment failed integrity verification.', 'ATTACHMENT_CORRUPT')
@@ -292,7 +289,7 @@ export async function publishImmutableAlias(
     const stop = resolve(root)
     for (let level = parent; level !== stop; level = dirname(level)) {
       await syncDirectory(level)
-      /* v8 ignore next -- filesystem-root guard: targets sit below root, so the walk reaches `stop` first. */
+      /* v8 ignore next -- 文件系统根防护：目标位于 root 之下，因此遍历会先到达 `stop`。 */
       if (dirname(level) === level) break
     }
   } catch (error) {
@@ -312,9 +309,9 @@ async function stageImmutableObject(
   signal?: AbortSignal,
 ): Promise<StagedImmutableObject> {
   const staging = join(root, 'tmp')
-  // Establish DSH_HOME itself against the filesystem root once per process.
-  // Every process performs that proof independently, so observing a directory
-  // another process created can never be mistaken for durable publication.
+  // 每个进程针对文件系统根为 DSH_HOME 本身建立一次证明。
+  // 每个进程独立执行该证明，因此观测到另一个进程创建的目录
+  // 绝不会被误认为持久化发布。
   const boundary = await ensureDurableHome(dirname(dirname(resolve(root))))
   await ensureDurableDirectory(staging, boundary)
   const temporary = join(staging, randomUUID())
@@ -336,9 +333,9 @@ async function stageImmutableObject(
     handle = undefined
     return { path: temporary, boundary, sha256: hash.digest('hex'), bytes }
   } catch (error) {
-    /* v8 ignore next -- A descriptor remains open only when write, sync, or close fails. */
+    /* v8 ignore next -- 仅当写入、同步或关闭失败时描述符才会保持打开。 */
     if (handle !== undefined) await handle.close().catch(
-      /* v8 ignore next -- Close failure is superseded by the storage operation that entered cleanup. */
+      /* v8 ignore next -- 关闭失败会被进入清理流程的存储操作所取代。 */
       () => {},
     )
     await removeTemporary(temporary)
@@ -358,26 +355,25 @@ async function publishStagedObject(
     try {
       await link(staged.path, target)
     } catch (error) {
-      /* v8 ignore next -- Private same-filesystem directories make EEXIST the only recoverable link race. */
+      /* v8 ignore next -- 私有的同文件系统目录使 EEXIST 成为唯一可恢复的链接竞态。 */
       if (!(error instanceof Error && 'code' in error && error.code === 'EEXIST')) throw error
       if (await digestFile(target) !== staged.sha256) {
         throw new AttachmentError('Stored attachment failed integrity verification.', 'ATTACHMENT_CORRUPT')
       }
     }
-    // Windows shares the read-only attribute across hard links and refuses to
-    // unlink either name once it is set, so discard the staging name first.
+    // Windows 在硬链接之间共享只读属性，一旦设置便拒绝解除任一名称的
+    // 链接，因此先丢弃暂存名称。
     await unlink(staged.path)
-    // The target remains the sole link for a new object; this also restores
-    // read-only mode when the deduplication path observes an existing object.
+    // 对新对象而言目标仍是唯一的链接；当去重路径观测到已存在的对象时，
+    // 这一步也会恢复只读模式。
     await chmod(target, 0o400)
-    // Persist the target entry and close every concurrent parent-creation
-    // window before the reference can reach a session checkpoint. The dedup
-    // path repeats these syncs because it may observe another writer's link
-    // before that writer reaches its own durability boundary.
+    // 在引用进入 session 检查点之前，持久化目标目录项并关闭所有并发
+    // 创建父目录的窗口。去重路径会重复这些同步，因为它可能在另一个
+    // 写入方到达自身持久化边界之前观测到其链接。
     const stop = resolve(root)
     for (let level = parent; level !== stop; level = dirname(level)) {
       await syncDirectory(level)
-      /* v8 ignore next -- filesystem-root guard: targets sit below root, so the walk reaches `stop` first. */
+      /* v8 ignore next -- 文件系统根防护：目标位于 root 之下，因此遍历会先到达 `stop`。 */
       if (dirname(level) === level) break
     }
   } catch (error) {
@@ -395,21 +391,21 @@ async function digestFile(path: string): Promise<string> {
 
 async function removeTemporary(path: string): Promise<void> {
   await unlink(path).catch(
-    /* v8 ignore next -- Cleanup can observe a staging name already removed after successful linking. */
+    /* v8 ignore next -- 链接成功后，清理可能观测到已被移除的暂存名称。 */
     (cleanupError: unknown) => {
-      /* v8 ignore next -- Any cleanup failure except an absent staging name must remain visible. */
+      /* v8 ignore next -- 除暂存名称不存在之外的任何清理失败都必须保持可见。 */
       if (!(cleanupError instanceof Error && 'code' in cleanupError && cleanupError.code === 'ENOENT')) throw cleanupError
     },
   )
 }
 
 /**
- * Decode and normalize one image once, then publish the prepared object.
- * @param root - absolute `DSH_HOME/attachments/v1` root.
- * @param input - submitted encoded bytes and declared media type.
- * @param limits - resolved source admission policy.
- * @param policy - resolved normalization policy.
- * @returns durable content-addressed normalized image reference.
+ * 对一张图像解码并归一化一次，然后发布准备好的对象。
+ * @param root - 绝对的 `DSH_HOME/attachments/v1` 根目录。
+ * @param input - 提交的编码字节与声明的媒体类型。
+ * @param limits - 已解析的源准入策略。
+ * @param policy - 已解析的归一化策略。
+ * @returns 持久的内容寻址归一化图像引用。
  */
 export async function saveImageFile(
   root: string,
@@ -421,12 +417,12 @@ export async function saveImageFile(
 }
 
 /**
- * Read and verify one content-addressed image.
- * @param root - absolute `DSH_HOME/attachments/v1` root.
- * @param ref - reference recorded in the session log.
- * @param signal - optional cancellation for filesystem and verification work.
- * @returns verified bytes and reference.
- * @throws the signal reason when aborted, or an AttachmentError when verification fails.
+ * 读取并校验一个内容寻址图像。
+ * @param root - 绝对的 `DSH_HOME/attachments/v1` 根目录。
+ * @param ref - 记录在 session 日志中的引用。
+ * @param signal - 可选的取消信号，作用于文件系统与校验工作。
+ * @returns 校验通过的字节与引用。
+ * @throws 中止时抛出信号原因，校验失败时抛出 AttachmentError。
  */
 export async function readImageFile(
   root: string,
@@ -445,9 +441,9 @@ export async function readImageFile(
   }
   signal?.throwIfAborted()
   if (digest(data) !== sha256) throw new AttachmentError('Stored attachment failed integrity verification.', 'ATTACHMENT_CORRUPT')
-  // The digest proves these are the exact bytes admission fully decoded, so
-  // the read path only re-derives the header fields (no raster decode, no
-  // per-request pixel amplification on history replay).
+  // 摘要证明这些字节正是准入阶段完整解码的字节，因此读取路径只需
+  // 重新推导头部字段（无需栅格解码，历史回放也不会产生按请求
+  // 放大的像素开销）。
   const metadata = await probeImage(data)
   signal?.throwIfAborted()
   if (metadata.mediaType !== ref.mediaType || data.byteLength !== ref.bytes

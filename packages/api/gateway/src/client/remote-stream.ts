@@ -1,40 +1,40 @@
-/** Reconnecting lifecycle for one single-consumer Remote stream. */
+/** 单个单消费方 Remote 流的可重连生命周期。 */
 
 import { RemoteError, remoteErrorOf } from '@deepseek-ai/dsh-typert-protocol'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
 import { RemoteStreamCarrierError } from './stream-client.ts'
 
-/** One item annotated with the physical Remote-stream generation that delivered it. */
+/** 带有交付它的物理 Remote 流代标注的一个条目。 */
 export interface RemoteStreamItem<Item> {
-  /** Monotone physical generation number within this logical stream. */
+  /** 此逻辑流内单调递增的物理代编号。 */
   readonly generation: number
-  /** Decoded item yielded by the generated Remote method. */
+  /** 生成的 Remote 方法产出的已解码条目。 */
   readonly value: Item
-  /** Cancellation lifetime of the generation that delivered this item. */
+  /** 交付此条目的代的取消生命周期。 */
   readonly signal: AbortSignal
-  /** Mark this generation's opening baseline or cursor as accepted. */
+  /** 将此代的起始基线或游标标记为已接受。 */
   accept(): void
 }
 
-/** Domain-owned operations used by {@link RemoteStream}. */
+/** {@link RemoteStream} 使用的领域自有操作。 */
 export interface RemoteStreamOptions<Item> {
-  /** Diagnostic owner name used for cancellation failures. */
+  /** 取消失败中使用的诊断性所有者名称。 */
   readonly name: string
-  /** Open one physical generation of the logical stream. */
+  /** 打开逻辑流的一个物理代。 */
   readonly open: (signal: AbortSignal) => AsyncIterable<Item>
-  /** Classify a normal generation end after or before its opening item was accepted. */
+  /** 对起始条目被接受之前或之后的正常代结束进行分类。 */
   readonly ended: (accepted: boolean) => Error
-  /** Observe a retryable carrier loss before the supervisor waits or reopens. */
+  /** 在监管器等待或重新打开之前观察一次可重试的载体丢失。 */
   readonly carrierFailed?: (error: RemoteStreamCarrierError) => void
 }
 
 /**
- * Reopens one logical Remote stream across carrier generations.
+ * 跨载体代重新打开一个逻辑 Remote 流。
  *
- * Connection owns physical retry timing; Gateway performs each requested
- * replacement. The domain consumer owns its opening item and every later
- * item, and calls {@link RemoteStreamItem.accept} only after validating the
- * opening baseline or cursor.
+ * Connection 拥有物理重试时机；Gateway 执行每次请求的替换。
+ * 领域消费方拥有其起始条目与之后的每个条目，
+ * 且只有在校验完起始基线或游标之后，
+ * 才调用 {@link RemoteStreamItem.accept}。
  */
 export class RemoteStream<Item> implements AsyncIterable<RemoteStreamItem<Item>> {
   private readonly lifetime = new AbortController()
@@ -45,20 +45,20 @@ export class RemoteStream<Item> implements AsyncIterable<RemoteStreamItem<Item>>
   private taken = false
 
   /**
-   * @param connection - observable Host generation source used to pace retries.
-   * @param options - domain stream opener, end classification, and diagnostics.
+   * @param connection - 用于节制重试节奏的可观察 Host 代源。
+   * @param options - 领域流打开器、结束分类与诊断。
    */
   constructor(
     private readonly connection: Pick<ConnectionHandle, 'generation'>,
     private readonly options: RemoteStreamOptions<Item>,
   ) {}
 
-  /** Cancellation lifetime shared by the stream and sibling page requests. */
+  /** 流与同级页面请求共享的取消生命周期。 */
   get signal(): AbortSignal {
     return this.lifetime.signal
   }
 
-  /** Interrupt the current generation and immediately request a replacement. */
+  /** 中断当前代并立即请求替换。 */
   restart(): void {
     if (this.lifetime.signal.aborted) return
     this.revision++
@@ -66,8 +66,8 @@ export class RemoteStream<Item> implements AsyncIterable<RemoteStreamItem<Item>>
   }
 
   /**
-   * Permanently stop this stream and wait for its iterator to close.
-   * @returns when the active generation and consumer iterator are quiescent.
+   * 永久停止此流并等待其迭代器关闭。
+   * @returns 活跃代与消费方迭代器归于静止时。
    */
   dispose(): Promise<void> {
     if (this.closing !== undefined) return this.closing
@@ -197,11 +197,11 @@ async function waitForRemoteStreamRetry(
 }
 
 /**
- * Mark a terminal escape before it crosses the stream boundary: consumers
- * discriminate failures by code, so an unmarked throw reads as a local bug.
- * Marked failures pass through verbatim. The carrier class never escapes as a
- * terminal outcome — it stays the retry-internal signal fed to `carrierFailed`
- * and the `ended(true)` retry trigger.
+ * 在终止性异常跨出流边界之前为其加标记：消费方按 code 区分
+ * 失败，未加标记的抛出会被当作本地缺陷。
+ * 已标记的失败原样透传。
+ * 载体类绝不作为终止结果逃逸——它始终是喂给
+ * `carrierFailed` 与 `ended(true)` 重试触发的重试内部信号。
  */
 function terminalStreamFailure(error: unknown): Error {
   return remoteErrorOf(error) ?? new RemoteError(
@@ -222,6 +222,6 @@ async function closeRemoteStreamIterator<Item>(
   try {
     await iterator.return?.()
   } catch {
-    // The disposed logical stream has no remaining consumer for cancellation failures.
+    // 已释放的逻辑流没有剩余消费方接收取消失败。
   }
 }

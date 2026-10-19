@@ -1,9 +1,9 @@
-/** Observable contiguous Session event window consumed by domain assemblers. */
+/** 由领域组装方消费的可观察连续 Session 事件窗口。 */
 import { notifySubscribers, type ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
 import type { LlmAttemptId, StreamChunk } from '@deepseek-ai/dsh-llm'
 import type { SessionEvent } from '@deepseek-ai/dsh-session/types'
 
-/** Client-only live chunk presentation; `seq` orders the transient row between durable Session seqs. */
+/** 仅 Client 侧的实时块呈现；`seq` 用持久化 Session seq 之间的序号排定这一瞬态行。 */
 export interface AssistantLiveChunkEvent {
   readonly type: 'assistant/live-chunk'
   readonly seq: number
@@ -16,22 +16,22 @@ export interface AssistantLiveChunkEvent {
   }
 }
 
-/** Current durable Session event or one client-only live chunk presentation. */
+/** 当前持久化 Session 事件，或一次仅 Client 侧的实时块呈现。 */
 export type SessionEventLike = SessionEvent | AssistantLiveChunkEvent
 
-/** Client history entry retaining its coarse transport discriminator. */
+/** 保留其粗粒度传输层判别符的 Client 历史条目。 */
 export type SessionEventLikeEntry =
   | { readonly type: 'event'; readonly event: SessionEvent }
   | { readonly type: 'transient'; readonly event: AssistantLiveChunkEvent }
 
-/** Scalar live entry accepted by append-only Client paths. */
+/** 被 append-only Client 路径接受的标量实时条目。 */
 export type SessionLiveEventEntry = Extract<SessionEventLikeEntry, { readonly type: 'event' }>
-/** Durable Assistant event that atomically supersedes one attempt's transient rows. */
+/** 原子性取代某次 attempt 的瞬态行的持久化 Assistant 事件。 */
 export interface SessionAssistantSettlementEntry {
   readonly type: 'event'
   readonly event: SessionEvent<'assistant/message'> | SessionEvent<'assistant/attempt'>
 }
-/** Client-only Assistant frame admitted outside durable cursor algebra. */
+/** 在持久化游标代数之外接纳的仅 Client 侧 Assistant 帧。 */
 export type SessionTransientEventEntry = Extract<SessionEventLikeEntry, { readonly type: 'transient' }>
 
 interface EventWindowLeaf {
@@ -94,7 +94,7 @@ function windowSnapshot(
   }
 }
 
-/** Exact delta that produced the latest event-window revision. */
+/** 产生最新事件窗口修订的精确增量。 */
 export type SessionEventChange =
   | { readonly kind: 'replace'; readonly entries: readonly SessionEventLikeEntry[] }
   | { readonly kind: 'prepend'; readonly entries: readonly SessionEventLikeEntry[] }
@@ -105,7 +105,7 @@ export type SessionEventChange =
     readonly entry?: SessionAssistantSettlementEntry
   }
 
-/** Current contiguous event window and its latest synchronous delta. */
+/** 当前连续事件窗口及其最新同步增量。 */
 export interface SessionEventWindow {
   readonly entries: readonly SessionEventLikeEntry[]
   readonly hasMore: boolean
@@ -113,10 +113,10 @@ export interface SessionEventWindow {
   readonly change: SessionEventChange
 }
 
-/** Conversation-facing event source exposed by one Session binding. */
+/** 由单个 Session 绑定暴露的面向会话内容的事件源。 */
 export type SessionEventSource = ObservableSnapshot<SessionEventWindow>
 
-/** Session-owned event feed; every accepted window mutation publishes synchronously. */
+/** Session 持有的事件馈送；每一次被接纳的窗口变更都同步发布。 */
 export class MutableSessionEventSource implements SessionEventSource {
   private readonly listeners = new Set<() => void>()
   private window: EventWindowNode = leaf([])
@@ -127,13 +127,13 @@ export class MutableSessionEventSource implements SessionEventSource {
     { kind: 'replace', entries: [] },
   )
 
-  /** @returns the cached event-window snapshot. */
+  /** @returns 缓存的事件窗口快照。 */
   getSnapshot(): SessionEventWindow { return this.snapshot }
 
   /**
-   * Subscribe to synchronous window publication.
-   * @param listener - invalidation callback.
-   * @returns unsubscribe function.
+   * 订阅同步窗口发布。
+   * @param listener - 失效回调。
+   * @returns 取消订阅函数。
    */
   subscribe(listener: () => void): () => void {
     this.listeners.add(listener)
@@ -141,9 +141,9 @@ export class MutableSessionEventSource implements SessionEventSource {
   }
 
   /**
-   * Replace the complete contiguous window.
-   * @param entries - complete window.
-   * @param hasMore - whether older history remains.
+   * 替换完整的连续窗口。
+   * @param entries - 完整窗口。
+   * @param hasMore - 是否仍有更早的历史。
    */
   replace(entries: readonly SessionEventLikeEntry[], hasMore: boolean): void {
     this.window = leaf(entries)
@@ -151,9 +151,9 @@ export class MutableSessionEventSource implements SessionEventSource {
   }
 
   /**
-   * Prepend one older contiguous page.
-   * @param entries - newly loaded older entries.
-   * @param hasMore - whether still older history remains.
+   * 前插一页更早的连续内容。
+   * @param entries - 新加载的更早条目。
+   * @param hasMore - 是否仍有更早的历史。
    */
   prepend(entries: readonly SessionEventLikeEntry[], hasMore: boolean): void {
     this.window = concat(leaf(entries), this.window)
@@ -161,8 +161,8 @@ export class MutableSessionEventSource implements SessionEventSource {
   }
 
   /**
-   * Append one contiguous live entry.
-   * @param entry - live tail entry.
+   * 追加一条连续的实时条目。
+   * @param entry - 实时尾部条目。
    */
   append(entry: SessionEventLikeEntry): void {
     const entries = [entry]
@@ -174,9 +174,9 @@ export class MutableSessionEventSource implements SessionEventSource {
   }
 
   /**
-   * Replace one attempt's transient rows with its committed durable settlement.
-   * @param attemptId - process-local attempt whose live rows are now redundant.
-   * @param entry - durable settlement committed for that attempt.
+   * 用某次 attempt 已提交的持久化落定替换其瞬态行。
+   * @param attemptId - 实时行现已冗余的进程本地 attempt。
+   * @param entry - 该 attempt 已提交的持久化落定。
    */
   settleAssistant(attemptId: LlmAttemptId, entry?: SessionAssistantSettlementEntry): void {
     const entries = materialize(this.window).filter(candidate => (

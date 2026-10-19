@@ -1,9 +1,9 @@
-/** Instance-owned concurrency bound for native image transformations. */
+/** 实例自有的原生图像变换并发上限。 */
 
 /**
- * Preserve Error rejections and normalize non-Error native binding values.
- * @param reason - rejection reason returned by a compression task.
- * @returns an Error suitable for promise rejection.
+ * 保留 Error 拒绝原因，并将非 Error 的原生绑定值归一化。
+ * @param reason - 压缩任务返回的拒绝原因。
+ * @returns 适合用于 promise 拒绝的 Error。
  */
 export function compressionFailure(reason: unknown): Error {
   return reason instanceof Error
@@ -11,20 +11,20 @@ export function compressionFailure(reason: unknown): Error {
     : new Error('Image compression task rejected with a non-Error value.', { cause: reason })
 }
 
-/** FIFO limiter for asynchronous compression work. */
+/** 面向异步压缩工作的先进先出限制器。 */
 export class CompressionLimiter {
   private active = 0
   private readonly waiting: Array<() => void> = []
 
   /**
-   * @param concurrency - positive maximum number of active tasks.
+   * @param concurrency - 活跃任务数的正数上限。
    */
   constructor(readonly concurrency: number) {}
 
   /**
-   * Run one task after an instance slot becomes available.
-   * @param task - compression operation occupying one slot until settlement.
-   * @returns the task result.
+   * 在实例槽位可用后运行一个任务。
+   * @param task - 占用一个槽位直至落定的压缩操作。
+   * @returns 任务结果。
    */
   run<T>(task: () => Promise<T>): Promise<T> {
     return new Promise<T>((resolve, reject) => {

@@ -1,4 +1,4 @@
-/** Host WebSocket owner for multiplexed Typert Remote streams. */
+/** 承载多路复用 Typert Remote 流的 Host WebSocket 所有者。 */
 
 import type { IncomingMessage } from 'node:http'
 import type { Duplex } from 'node:stream'
@@ -13,10 +13,10 @@ import {
 } from './stream-protocol.ts'
 
 /**
- * Open one validated Remote stream for a decoded wire request on behalf of one
- * Peer. `uplink` carries the Client's items; `control` cancels the logical
- * stream, and aborting it with a Remote failure as the reason delivers that
- * failure to the Client. `window` describes this stream's complete-frame inbox budget.
+ * 代表一个 Peer，为已解码的 wire 请求打开一个经过校验的 Remote 流。
+ * `uplink` 携带 Client 的条目；`control` 取消逻辑流，
+ * 且以 Remote 失败作为原因中止它时，会把该失败交付给 Client。
+ * `window` 描述此流的完整帧收件箱预算。
  */
 export type RemoteStreamOpener = (
   endpoint: string,
@@ -27,7 +27,7 @@ export type RemoteStreamOpener = (
   window: RemoteUplinkWindow,
 ) => Promise<AsyncIterable<unknown>>
 
-/** The opener one socket uses: its Peer is fixed at upgrade time. */
+/** 单个套接字使用的打开器：其 Peer 在升级时固定。 */
 type BoundStreamOpener = (
   endpoint: string,
   payload: unknown,
@@ -36,12 +36,12 @@ type BoundStreamOpener = (
   window: RemoteUplinkWindow,
 ) => Promise<AsyncIterable<unknown>>
 
-/** Convert an invocation or carrier failure to a stable wire value. */
+/** 将调用或载体失败转换为稳定的 wire 值。 */
 export type RemoteStreamFailureMapper = (error: unknown) => RemoteStreamFailure
 
 const MAX_MISSED_HEARTBEATS = 2
 
-/** Own the no-server WebSocket acceptor and every active logical stream. */
+/** 持有 no-server WebSocket 接受器与每个活跃的逻辑流。 */
 export class RemoteStreamMuxServer {
   private readonly server = new WebSocketServer({ noServer: true })
   private readonly connections = new Set<Promise<void>>()
@@ -49,10 +49,10 @@ export class RemoteStreamMuxServer {
   private heartbeatTimer: NodeJS.Timeout | undefined
 
   /**
-   * @param open - Gateway stream dispatcher.
-   * @param failure - Gateway error-to-wire mapper.
-   * @param heartbeatIntervalMs - interval between WebSocket Ping control frames.
-   * @param streamInboxBytes - buffered uplink frame bytes one logical stream may hold before it fails.
+   * @param open - Gateway 流分发器。
+   * @param failure - Gateway 的错误到 wire 映射器。
+   * @param heartbeatIntervalMs - WebSocket Ping 控制帧之间的间隔。
+   * @param streamInboxBytes - 单个逻辑流在失败前可缓冲的上行帧字节数。
    */
   constructor(
     private readonly open: RemoteStreamOpener,
@@ -62,13 +62,13 @@ export class RemoteStreamMuxServer {
   ) {}
 
   /**
-   * Upgrade one admitted request and begin serving its logical streams. Every
-   * stream the socket opens speaks for the Peer admitted at upgrade, and the
-   * socket closes when that Peer's scope is disposed.
-   * @param req - authenticated HTTP upgrade request.
-   * @param socket - carrier socket transferred to the WebSocket server.
-   * @param head - bytes already read after the HTTP upgrade headers.
-   * @param peer - Peer the upgrade was admitted as.
+   * 升级一个已获准的请求并开始服务其逻辑流。
+   * 套接字打开的每个流都代表升级时获准的 Peer，
+   * 且当该 Peer 的 scope 被释放时套接字关闭。
+   * @param req - 已通过身份验证的 HTTP 升级请求。
+   * @param socket - 移交给 WebSocket 服务端的载体套接字。
+   * @param head - HTTP 升级头之后已读取的字节。
+   * @param peer - 升级获准所代表的 Peer。
    */
   handleUpgrade(req: IncomingMessage, socket: Duplex, head: Buffer, peer: PeerScope): void {
     this.server.handleUpgrade(req, socket, head, (websocket) => {
@@ -90,7 +90,7 @@ export class RemoteStreamMuxServer {
     })
   }
 
-  /** Terminate all sockets and wait until every iterator has returned. */
+  /** 终止所有套接字，并等待每个迭代器都已返回。 */
   async close(): Promise<void> {
     clearInterval(this.heartbeatTimer)
     this.heartbeatTimer = undefined
@@ -104,7 +104,7 @@ export class RemoteStreamMuxServer {
     await Promise.all(this.connections)
   }
 
-  /** Start one `unref()` timer after the first upgrade; it spans empty-client periods until close(). */
+  /** 在首次升级后启动一个 `unref()` 定时器；它横跨无客户端的时段，直到 close()。 */
   private startHeartbeat(): void {
     if (this.heartbeatTimer !== undefined) return
     this.heartbeatTimer = setInterval(() => {
@@ -130,7 +130,7 @@ export class RemoteStreamMuxServer {
 interface ActiveStream {
   readonly abort: AbortController
   readonly inbox: UplinkInbox
-  /** Cancel the logical stream and end any Host read still waiting on its uplink. */
+  /** 取消逻辑流，并结束仍在等待其上行的任何 Host 读取。 */
   readonly stop: (reason: Error) => void
   done: Promise<void>
 }
@@ -148,11 +148,11 @@ class RemoteStreamMuxConnection {
   ) {}
 
   /**
-   * Serve frames until the socket closes. A Pong, any received frame, and a
-   * downlink write that waited in the local send buffer and then completed
-   * count as peer activity, so a congested link that delays the Pong behind
-   * data keeps its socket. A write that completes at once proves nothing
-   * about the peer and does not count.
+   * 服务帧直到套接字关闭。Pong、任何收到的帧，以及一个先在本地
+   * 发送缓冲区中等待然后才完成的下行写入，都算作对端活动，
+   * 因此拥塞链路即便 Pong 被数据延后也能保住其套接字。
+   * 立即完成的写入不能证明对端的任何状态，
+   * 因此不计入。
    */
   async run(): Promise<void> {
     const closed = new Promise<void>((resolve) => {
@@ -179,10 +179,10 @@ class RemoteStreamMuxConnection {
   }
 
   /**
-   * Dispatch one frame. `item`, `end`, and `cancel` for a stream this connection
-   * no longer owns are dropped: a finished stream leaves the table while the
-   * Client's in-flight frames are still arriving. A duplicate `open` is the one
-   * protocol violation that closes the socket.
+   * 分发一个帧。此连接不再拥有的流的 `item`、`end` 和 `cancel` 会被丢弃：
+   * 已结束的流在 Client 的在途帧仍在抵达时便已移出表。
+   * 重复的 `open`
+   * 是唯一会关闭套接字的协议违规。
    */
   private receive(text: string): void {
     const message = parseRemoteStreamClientMessage(text)
@@ -216,8 +216,8 @@ class RemoteStreamMuxConnection {
       throw new Error(`api gateway: duplicate Remote stream id ${JSON.stringify(message.streamId)}`)
     }
     const abort = new AbortController()
-    // Created before the opener resolves so items the Client sends right
-    // after `open` wait in the inbox instead of being lost.
+    // 在打开器 resolve 之前创建，使 Client 紧随 `open` 之后发送的
+    // 条目在收件箱中等待而不是丢失。
     const inbox = new UplinkInbox(this.streamInboxBytes, message.endpoint, (error) => { abort.abort(error) })
     const active: ActiveStream = {
       abort,
@@ -254,13 +254,13 @@ class RemoteStreamMuxConnection {
     } catch (error) {
       outcome = { failed: true, error }
     }
-    // The downlink has settled; later uplink frames cannot change the outcome.
+    // 下行已尘埃落定；之后的上行帧无法改变结果。
     active.inbox.fail(new Error('Remote stream ended'))
     if (active.abort.signal.aborted) {
-      // A Remote failure as the abort reason is the Gateway or this mux failing
-      // the stream (a rejected or overflowing uplink item, or an item after
-      // end); the Client is still waiting for that terminal frame. Any other
-      // abort is a cancellation.
+      // 以 Remote 失败作为中止原因，表示 Gateway 或此多路复用器使流失败
+      // （被拒绝或溢出的上行条目，或 `end` 之后的条目）；
+      // Client 仍在等待那个终止帧。
+      // 任何其他中止都是取消。
       const reason: unknown = active.abort.signal.reason
       if (remoteErrorOf(reason) !== undefined) await this.sendFailure(streamId, reason)
       return
@@ -281,8 +281,8 @@ class RemoteStreamMuxConnection {
     try {
       await this.send({ type: 'error', streamId, error: this.failure(error) })
     } catch {
-      // A terminal frame that cannot be encoded or written leaves the
-      // logical stream ambiguous, so fail the physical generation.
+      // 无法编码或写入的终止帧会让逻辑流处于未定状态，
+      // 因此使物理代失败。
       this.socket.close(1011, 'Remote stream failure could not be delivered')
     }
   }
@@ -308,8 +308,8 @@ class RemoteStreamMuxConnection {
         if (queued) this.alive()
         resolve()
       })
-      // Read after send(): bytes still buffered mean the local send buffer was
-      // full, so their completion requires the peer to acknowledge data.
+      // 在 send() 之后读取：仍有缓冲字节意味着本地发送缓冲区已满，
+      // 其完成需要对端确认数据。
       queued = this.socket.bufferedAmount > 0
     }))
     this.writes = delivery.catch(() => undefined)
@@ -325,10 +325,10 @@ interface UplinkEntry {
 const UPLINK_DONE: IteratorReturnResult<undefined> = { value: undefined, done: true }
 
 /**
- * Bounded single-consumer uplink queue of one logical stream, the source the
- * Host method reads through `invocation.uplink()`. Buffered frame bytes are
- * capped: overflow, and an item after the Client's `end`, fail the queue and
- * report a Remote failure that the connection uses to fail the logical stream.
+ * 一个逻辑流的有界单消费方上行队列，即 Host 方法通过
+ * `invocation.uplink()` 读取的源。缓冲的帧字节数有上限：溢出，
+ * 以及 Client `end` 之后的条目，都会使队列失败，并报告一个
+ * 由连接用来使逻辑流失败的 Remote 失败。
  */
 class UplinkInbox implements AsyncIterable<unknown>, AsyncIterator<unknown> {
   private readonly queue = new Deque<UplinkEntry>()
@@ -368,14 +368,14 @@ class UplinkInbox implements AsyncIterable<unknown>, AsyncIterator<unknown> {
     this.signal()
   }
 
-  /** Client half-close; idempotent. */
+  /** Client 半关闭；幂等。 */
   end(): void {
     if (this.ended) return
     this.ended = true
     this.signal()
   }
 
-  /** End the consumer's next read with `error`; idempotent, drops buffered items. */
+  /** 以 `error` 结束消费方的下一次读取；幂等，丢弃已缓冲条目。 */
   fail(error: Error): void {
     if (this.failure !== undefined) return
     this.failure = error
@@ -405,7 +405,7 @@ class UplinkInbox implements AsyncIterable<unknown>, AsyncIterator<unknown> {
     }
   }
 
-  /** Consumer stopped reading: later items are dropped, a pending read ends. */
+  /** 消费方停止读取：后续条目被丢弃，挂起的读取结束。 */
   return(): Promise<IteratorResult<unknown>> {
     this.closed = true
     this.queue.clear()
@@ -427,9 +427,9 @@ class UplinkInbox implements AsyncIterable<unknown>, AsyncIterator<unknown> {
 }
 
 /**
- * Close the socket when the Peer's scope is disposed. A scope that is already
- * disposed leaves no Peer for the socket to speak for, so the socket closes now.
- * @returns the registration's disposer, or `undefined` when the socket was closed.
+ * 当 Peer 的 scope 被释放时关闭套接字。已释放的 scope 不再留下
+ * 供套接字代表的 Peer，因此套接字立即关闭。
+ * @returns 该注册的释放器，或套接字已关闭时的 `undefined`。
  */
 function bindPeer(websocket: WebSocket, peer: PeerScope): (() => unknown) | undefined {
   try {
@@ -450,9 +450,9 @@ function rawText(data: RawData): string {
 }
 
 /**
- * Reject an upgrade without transferring socket ownership to ws.
- * @param socket - carrier socket that receives the HTTP rejection.
- * @param status - authentication or browser-trust rejection status.
+ * 拒绝一次升级，而不把套接字所有权移交给 ws。
+ * @param socket - 接收 HTTP 拒绝的载体套接字。
+ * @param status - 身份验证或浏览器信任的拒绝状态。
  */
 export function rejectRemoteStreamUpgrade(socket: Duplex, status: 401 | 403 | 409): void {
   const reason = status === 401 ? 'Unauthorized' : status === 403 ? 'Forbidden' : 'Conflict'

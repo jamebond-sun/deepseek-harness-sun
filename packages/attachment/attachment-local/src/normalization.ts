@@ -1,4 +1,4 @@
-/** Deterministic provider-independent image normalization. */
+/** 确定性的、与提供方无关的图像归一化。 */
 
 import type { Sharp } from 'sharp'
 import { AttachmentError, requestImageDimensions } from '@deepseek-ai/dsh-attachment'
@@ -8,17 +8,17 @@ import { detectImage, encodedAlphaIsCompatible } from './image.ts'
 import type { DetectedImage } from './image.ts'
 import { requireSharp } from './sharp.ts'
 
-/** Deployment-resolved policy for the persisted normalized attachment. */
+/** 部署时解析的持久化归一化附件策略。 */
 export interface NormalizationPolicy {
-  /** Total-pixel budget; larger sources are downscaled proportionally. */
+  /** 总像素预算；更大的源按比例缩小。 */
   maxPixels: number
-  /** Long-edge cap in pixels applied after the total-pixel budget, bounding extreme aspect ratios. */
+  /** 在总像素预算之后应用的长边像素上限，约束极端宽高比。 */
   maxDimension: number
-  /** Encoded-byte target for the quality ladder; the smallest ladder output is kept when no quality fits. */
+  /** 质量阶梯的编码字节目标；没有质量档符合时保留阶梯最小输出。 */
   maxBytes: number
 }
 
-/** Normalized bytes beside the facts recorded by a durable reference. */
+/** 归一化字节，以及持久引用所记录的事实。 */
 export interface NormalizedImage {
   data: Uint8Array
   mediaType: ImageMediaType
@@ -27,11 +27,11 @@ export interface NormalizedImage {
 }
 
 /**
- * Whether bytes already satisfy the normalization requirements.
- * @param detected - fully decoded source facts.
- * @param bytes - encoded source length.
- * @param policy - resolved normalization limits.
- * @returns whether the source can pass through byte-identically.
+ * 字节是否已满足归一化要求。
+ * @param detected - 完整解码的源事实。
+ * @param bytes - 编码源的长度。
+ * @param policy - 已解析的归一化限制。
+ * @returns 源能否逐字节原样通过。
  */
 export function canPassThroughNormalization(
   detected: DetectedImage,
@@ -48,7 +48,7 @@ export function canPassThroughNormalization(
     && Math.max(detected.width, detected.height) <= policy.maxDimension
 }
 
-/** Assert that a normalized output is an 8-bit sRGB/sRGBA single-frame image with matching facts. */
+/** 断言归一化输出是事实相符的 8-bit sRGB/sRGBA 单帧图像。 */
 async function verifyNormalizedImage(
   image: NormalizedImage,
   expectedAlpha: boolean | undefined,
@@ -70,7 +70,7 @@ async function verifyNormalizedImage(
   return image
 }
 
-/** Build one fixed-size, oriented, metadata-free sRGB pipeline from submitted bytes. */
+/** 从提交的字节构建一个固定尺寸、已应用 EXIF 方向、无元数据的 sRGB 流水线。 */
 function preparedPipeline(
   sharp: ReturnType<typeof requireSharp>,
   data: Uint8Array,
@@ -83,7 +83,7 @@ function preparedPipeline(
     .resize({ width, height, fit: 'inside', withoutEnlargement: true })
 }
 
-/** Dimensions under the total-pixel budget, then the long-edge cap, without changing aspect ratio. */
+/** 先按总像素预算、再按长边上限求尺寸，且不改变宽高比。 */
 function initialDimensions(detected: DetectedImage, policy: NormalizationPolicy): { width: number; height: number } {
   const budgeted = requestImageDimensions(detected.width, detected.height, policy.maxPixels)
   const longEdge = Math.max(budgeted.width, budgeted.height)
@@ -96,15 +96,15 @@ function initialDimensions(detected: DetectedImage, policy: NormalizationPolicy)
 }
 
 /**
- * Produce the persisted provider-independent normalized version of one fully decoded source.
- * The source is passed through only when it is already clean, single-frame, 8-bit sRGB/sRGBA,
- * and inside every normalization limit. Re-encoding never removes transparency. When every
- * ladder quality exceeds the byte target, the smallest ladder output is kept; provider byte
- * caps stay enforced at the route that transmits the bytes.
- * @param data - complete admitted source bytes.
- * @param detected - fully decoded source facts.
- * @param policy - resolved independent normalization limits.
- * @returns verified provider-independent normalized bytes and metadata.
+ * 为一个完整解码的源产出持久化的、与提供方无关的归一化版本。
+ * 仅当源本身已干净、单帧、8-bit sRGB/sRGBA 且处于所有归一化限制
+ * 之内时才原样通过。重新编码绝不会移除透明度。当阶梯的每个
+ * 质量档都超出字节目标时，保留阶梯最小输出；提供方字节上限仍由
+ * 传输这些字节的路由强制执行。
+ * @param data - 完整的已准入源字节。
+ * @param detected - 完整解码的源事实。
+ * @param policy - 已解析的独立归一化限制。
+ * @returns 校验通过的与提供方无关的归一化字节与元数据。
  */
 export async function normalizeImage(
   data: Uint8Array,

@@ -1,34 +1,34 @@
-/** Stateful reconstruction of historical tool definitions for request projection. */
+/** 面向请求投影的历史工具定义的有状态重建。 */
 
 import type { ToolHistory, ToolSchema } from '@deepseek-ai/dsh-llm'
 import { deepFreeze } from '@deepseek-ai/dsh-util-values'
 import type { SessionEvent, SessionSeq } from './types.ts'
 
-/** Folds committed headers and developer messages independently of model capability. */
+/** 折叠已提交的 header 与 developer 消息，独立于模型能力。 */
 export class ToolHistoryProjection {
-  /** Historical declarations indexed by the header sequence referenced by additions. */
+  /** 按新增所引用的 header 序号索引的历史声明。 */
   private readonly headers = new Map<SessionSeq, readonly ToolSchema[]>()
-  /** Definitions retained in the current declaration series, including removed tools. */
+  /** 当前声明序列中保留的定义，包括已移除的工具。 */
   private declared = new Map<string, ToolSchema>()
-  /** Active definitions from the latest request header. */
+  /** 来自最新请求 header 的活跃定义。 */
   private active: readonly ToolSchema[] = []
-  /** Active names reconstructed from the baseline and recorded updates. */
+  /** 由基线与已记录更新重建的活跃名称。 */
   private available = new Set<string>()
-  /** Header that starts the current declaration series; absent before the first header. */
+  /** 开启当前声明序列的 header；第一个 header 之前不存在。 */
   private baselineSeq: SessionSeq | undefined
-  /** Immutable request snapshot of the current baseline and resolved updates. */
+  /** 当前基线与已解析更新的不可变请求快照。 */
   private history: ToolHistory = deepFreeze({ tools: [], updates: [] })
 
   /**
-   * Consume the next committed event in log order.
-   * @param event - a session event, including inherited events during restoration.
+   * 按日志顺序消费下一个已提交事件。
+   * @param event - 一个 session 事件，包括恢复期间的继承事件。
    */
   apply(event: SessionEvent): void {
     if (event.type === 'request/header') {
       const tools = event.data.header.tools ?? []
       this.headers.set(event.seq, tools)
-      // A retained name cannot acquire a different definition without losing
-      // prefix reuse; an unchanged restored name is re-offered by its recorded addition.
+      // 一个保留的名称不能在不丢失前缀复用的情况下获得不同定义；
+      // 未变化的恢复名称会由其已记录的新增重新提供。
       const redeclared = tools.some((tool) => {
         const before = this.declared.get(tool.name)
         return before !== undefined && JSON.stringify(before) !== JSON.stringify(tool)
@@ -62,11 +62,11 @@ export class ToolHistoryProjection {
   }
 
   /**
-   * Read an immutable snapshot; subsequent events do not mutate it.
-   * @returns initial declarations and historically resolved additions for the current series.
+   * 读取不可变快照；后续事件不会改变它。
+   * @returns 当前序列的初始声明与历史解析的新增。
    */
   snapshot(): ToolHistory {
-    // Sessions written before tool-update emission have headers without matching updates.
+    // 在工具更新发出之前写入的 session，其 header 没有匹配的更新。
     if (this.active.length !== this.available.size || this.active.some(tool => !this.available.has(tool.name))) {
       return deepFreeze({ tools: this.active, updates: [] })
     }

@@ -1,9 +1,9 @@
 /**
- * Surface layer on top of the session event log: an ordered view of events
- * that produce LLM messages. The append-only log remains the source of truth.
+ * session 事件日志之上的 surface 层：产生 LLM 消息的事件的有序视图。
+ * 只追加的日志仍是权威来源。
  *
- * Browser-safe: web clients consume this subpath export, so it must stay free
- * of `node:` imports (they break the vite bundle).
+ * 浏览器安全：web 客户端消费此子路径导出，因此必须保持不含 `node:` 导入
+ * （它们会破坏 vite 打包）。
  *
  * @module @deepseek-ai/dsh-session/surface
  */
@@ -19,34 +19,34 @@ import type {
   SurfaceOp,
 } from './types.ts'
 
-/** Readonly history immediately before a message-projection event. */
+/** 产消息投影事件之前紧邻的只读历史。 */
 export interface SessionMessageProjectionContext {
-  /** Current message-producing event sequences in model-visible order. */
+  /** 按模型可见顺序排列的当前产消息事件序列。 */
   nodes: readonly SessionSeq[]
-  /** Contiguous event window; entries at or beyond the candidate seq are not committed inputs. */
+  /** 连续事件窗口；位于候选 seq 处或之后的条目不是已提交输入。 */
   events: readonly SessionEvent[]
-  /** Absolute sequence of the window's first event. */
+  /** 窗口第一个事件的绝对序号。 */
   baseSeq: SessionLogOffset
-  /** Previously projected messages keyed by their original event sequences. */
+  /** 按其原事件序号为键的先前已投影消息。 */
   messages: ReadonlyMap<SessionSeq, Message>
 }
 
-/** Pure interpretation of one plugin-owned event that changes existing message content. */
+/** 对一个更改既有消息内容的插件自有事件的纯解释。 */
 export interface SessionMessageProjection<T extends SessionEventType = SessionEventType> {
-  /** Event interpreted by this definition; declare it with `@messageProjection` in SessionEventMap. */
+  /** 由本定义解释的事件；在 SessionEventMap 中用 `@messageProjection` 声明它。 */
   type: T
   /**
-   * Validate the complete durable decision before returning any updates. Preserve
-   * message identities and publish immutable copies without mutating the input.
-   * @param event - candidate event, not yet applied to the supplied history.
-   * @param context - history preceding this decision.
-   * @returns changed current messages keyed by their original sequences.
-   * @throws when the durable decision cannot be applied to this history.
+   * 在返回任何更新之前验证完整的持久化决策。保留消息身份并发布不可变副本，
+   * 不修改输入。
+   * @param event - 候选事件，尚未应用到所提供的历史。
+   * @param context - 该决策之前的历史。
+   * @returns 以其原序号为键的已变更当前消息。
+   * @throws 当该持久化决策无法应用到该历史时。
    */
   project(event: SessionEvent<T>, context: SessionMessageProjectionContext): ReadonlyMap<SessionSeq, Message>
 }
 
-/** Runtime counterpart of the message-producing event union. */
+/** 产消息事件联合的运行时对应物。 */
 const SURFACE_EVENT_TYPES = new Set<string>([
   'system/message',
   'developer/message',
@@ -56,18 +56,18 @@ const SURFACE_EVENT_TYPES = new Set<string>([
 ])
 
 /**
- * Whether an event type can join the model-visible surface.
- * @param type - event type to test.
- * @returns true for one of the message-producing event types.
+ * 事件类型能否加入模型可见 surface。
+ * @param type - 要测试的事件类型。
+ * @returns 是产消息事件类型之一时为 true。
  */
 export function isSurfaceEligibleType(type: string): boolean {
   return SURFACE_EVENT_TYPES.has(type)
 }
 
 /**
- * Narrow an event to a surface-eligible event carrying its required marker.
- * @param event - event to test.
- * @returns true when both the type and marker identify a surface event.
+ * 把事件收窄为携带其必需标记的 surface 合格事件。
+ * @param event - 要测试的事件。
+ * @returns 类型和标记都标识一个 surface 事件时为 true。
  */
 export function isSurfaceEvent(event: SessionEvent): event is SurfaceEvent {
   if (!SURFACE_EVENT_TYPES.has(event.type)) return false
@@ -76,15 +76,14 @@ export function isSurfaceEvent(event: SessionEvent): event is SurfaceEvent {
 }
 
 /**
- * Narrow an event to an append-origin surface event: one that entered the
- * surface at its own log position and was never itself a replacement copy.
+ * 把事件收窄为追加来源的 surface 事件：在其自身日志位置进入 surface、且其
+ * 本身从不是替换副本的事件。
  *
- * The model-visible surface deliberately shadows replaced ranges, so it is the
- * wrong source for a human transcript — a landed replacement would erase
- * conversation the user already saw. Append-origin events are that transcript's
- * durable source material; replacement copies stay model-only.
- * @param event - event to test.
- * @returns true when the event appended to the surface tail.
+ * 模型可见 surface 刻意遮蔽被替换的范围，因此它是人类对话记录的错误来源——
+ * 一次落地的替换会抹掉用户已看到的对话。追加来源事件是该记录的持久来源素
+ * 材；替换副本仅面向模型。
+ * @param event - 要测试的事件。
+ * @returns 事件追加到 surface 尾部时为 true。
  */
 export function isAppendSurfaceEvent(
   event: SessionEvent,
@@ -93,11 +92,10 @@ export function isAppendSurfaceEvent(
 }
 
 /**
- * Narrow an event to a surface replacement: a node that shadowed an existing
- * surface range instead of appending to the tail. The counterpart of
- * {@link isAppendSurfaceEvent} over the two {@link SurfaceOp} variants.
- * @param event - event to test.
- * @returns true when the event replaced a surface range.
+ * 把事件收窄为 surface 替换：一个遮蔽既有 surface 范围而非追加到尾部的节
+ * 点。{@link isAppendSurfaceEvent} 在两个 {@link SurfaceOp} 变体上的对应物。
+ * @param event - 要测试的事件。
+ * @returns 事件替换了一个 surface 范围时为 true。
  */
 export function isReplacementSurfaceEvent(
   event: SessionEvent,
@@ -106,16 +104,14 @@ export function isReplacementSurfaceEvent(
 }
 
 /**
- * Project a single event into the LLM message it derives to, or null when it
- * produces none — a non-surface event (attempt, boundary, log-only record) or an
- * empty-content system, developer, or assistant message. A caller
- * reconstructing model input supplies the same prefix's `projectedMessages`
- * from {@link foldSurface}; without that map this function reads original
- * event content. Session instance methods apply the live projection. Messages
- * are immutable and unchanged content retains its durable identity.
- * @param event - the event to project.
- * @param projectedMessages - message projections from the same log prefix's surface fold.
- * @returns the derived message, or null when the event produces none.
+ * 把单个事件投影到它派生出的 LLM 消息；不产生消息时为 null——非 surface
+ * 事件（attempt、边界、仅存于日志的记录）或内容为空的 system、developer、
+ * assistant 消息。重建模型输入的调用方提供同一前缀在 {@link foldSurface} 得
+ * 到的 `projectedMessages`；没有该 map 时，本函数读取原始事件内容。Session
+ * 实例方法应用活跃投影。消息不可变，未变化的内容保留其持久身份。
+ * @param event - 要投影的事件。
+ * @param projectedMessages - 同一日志前缀 surface 折叠的消息投影。
+ * @returns 派生消息；事件不产生消息时为 null。
  */
 export function deriveEventMessage(
   event: SessionEvent,
@@ -123,18 +119,17 @@ export function deriveEventMessage(
 ): Message | null {
   const projected = projectedMessages?.get(event.seq)
   if (projected !== undefined) return projected
-  // Intentionally non-exhaustive: only message-producing events derive
-  // history; turn/step boundaries, failed attempts, and errors are trace/replay
-  // data.
+  // 刻意不做穷尽：只有产消息事件派生历史；turn/step 边界、失败 attempt 与
+  // 错误是追踪/回放数据。
   switch (event.type) {
-    // Ordinary prompts and injected context retain producer-owned framing.
-    // See Derived history in packages/core/session/README.md.
+    // 普通提示词与注入上下文保留生产者自有的框架。
+    // 参见 packages/core/session/README.md 的 Derived history。
     case 'user/message': {
       return event.data
     }
-    // Empty system and developer nodes retain their surface positions without
-    // adding wire messages. An empty assistant event hosts a max-tokens step's
-    // usage and must not inject a content-less turn into the provider transcript.
+    // 空的 system 与 developer 节点保留其 surface 位置而不产生 wire 消息。
+    // 空的 assistant 事件承载 max-tokens step 的 usage，绝不能向 provider
+    // 对话注入无内容的 turn。
     case 'system/message':
     case 'developer/message':
     case 'assistant/message': {
@@ -145,23 +140,24 @@ export function deriveEventMessage(
       return event.data.message
     }
     default:
-      // A non-surface event (boundary, attempt, log-only record) projects to
-      // no message. Merge-extensible union: no assertNever here.
+      // 非 surface 事件（边界、attempt、仅存于日志的记录）不投影任何消息。
+      // 可合并扩展联合：此处不用 assertNever。
       return null
   }
 }
 
-/** Whether a payload field is a JSON object rather than an array or scalar. */
+/** 载荷字段是 JSON 对象而非数组或标量时为 true。 */
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 /**
- * Reject noncanonical request-header fields, developer roles/content, and contradictory tool failure metadata.
- * This does not validate complete event payloads or embedded provider streams.
- * @param event - event whose locally related payload fields are inspected.
- * @param subject - event location to include in validation errors.
- * @throws when request-header fields, developer roles/content, or tool failure metadata are invalid.
+ * 拒绝非规范的 request-header 字段、developer 角色与内容，以及矛盾的工具失
+ * 败元数据。这不验证完整事件载荷或内嵌的 provider 流。
+ * @param event - 检查其局部相关载荷字段的事件。
+ * @param subject - 计入验证错误的事件位置。
+ * @throws 当 request-header 字段、developer 角色与内容或工具失败元数据无
+ *   效时。
  */
 export function validateSessionEventData(
   event: Pick<SessionEvent, 'type' | 'data'>,
@@ -219,39 +215,39 @@ export function validateSessionEventData(
   }
 }
 
-/** One replacement operation observed while folding a session surface. */
+/** 折叠 session surface 期间观察到的一次替换操作。 */
 export interface SurfaceFoldReplacement {
-  /** Seq of the event that replaced the prior surface range. */
+  /** 替换先前 surface 范围的事件的 seq。 */
   seq: SessionSeq
-  /** Declared inclusive start seq of the replaced surface range. */
+  /** 声明的被替换 surface 范围的含端点起始 seq。 */
   start: SessionSeq
-  /** Declared inclusive end seq of the replaced surface range. */
+  /** 声明的被替换 surface 范围的含端点结束 seq。 */
   end: SessionSeq
-  /** Actual surface entries removed by the operation, in surface order. */
+  /** 该操作按 surface 顺序移除的实际 surface 条目。 */
   shadowedSeqs: SessionSeq[]
 }
 
-/** Complete result of replaying the surface operations in a session log. */
+/** 回放 session 日志中 surface 操作的完整结果。 */
 export interface SurfaceFoldResult {
-  /** Current surface event sequences in model-visible order. */
+  /** 按模型可见顺序排列的当前 surface 事件序列。 */
   nodes: SessionSeq[]
-  /** Replacement operations in event order. */
+  /** 按事件顺序排列的替换操作。 */
   replacements: SurfaceFoldReplacement[]
-  /** Immutable projected messages, keyed by their original event sequences. */
+  /** 按其原事件序号为键的不可变已投影消息。 */
   projectedMessages: ReadonlyMap<SessionSeq, Message>
 }
 
-/** Readonly live projection of the message-producing session events. */
+/** 产消息 session 事件的只读活跃投影。 */
 export interface SessionSurface {
-  /** Current surface event sequences in model-visible order. */
+  /** 按模型可见顺序排列的当前 surface 事件序列。 */
   readonly nodes: readonly SessionSeq[]
-  /** Monotonic count of committed positional replacements. */
+  /** 已提交位置替换的单调计数。 */
   readonly replaceGeneration: number
-  /** Monotonic count of committed replacements and plugin-owned message changes. */
+  /** 已提交替换与插件自有消息变更的单调计数。 */
   readonly contentGeneration: number
 }
 
-/** Mutable state shared by complete and incremental folds. */
+/** 完整折叠与增量折叠共享的可变状态。 */
 interface SurfaceFoldState {
   nodes: SessionSeq[]
   replaceGeneration: number
@@ -260,25 +256,25 @@ interface SurfaceFoldState {
   projections: Set<SessionMessageProjection>
 }
 
-/** A validated replacement transition that has not mutated fold state yet. */
+/** 已验证但尚未改变折叠状态的替换过渡。 */
 interface SurfaceReplacePlan extends SurfaceFoldReplacement {
   kind: 'replace'
   startIdx: number
   endIdx: number
 }
 
-/** One validated surface transition that has not mutated fold state yet. */
+/** 已验证但尚未改变折叠状态的一个 surface 过渡。 */
 type SurfacePlan =
   | { kind: 'append'; seq: SessionSeq }
   | SurfaceReplacePlan
   | { kind: 'project'; projection: SessionMessageProjection; messages: ReadonlyMap<SessionSeq, Message> }
 
-/** Create an empty surface fold state. */
+/** 创建空的 surface 折叠状态。 */
 function createFoldState(): SurfaceFoldState {
   return { nodes: [], replaceGeneration: 0, contentGeneration: 0, projectedMessages: new Map(), projections: new Set() }
 }
 
-/** Whether a runtime value is a non-negative safe event sequence. */
+/** 运行时值是否为非负安全事件序号。 */
 function isEventSeq(value: unknown): value is SessionSeq {
   return typeof value === 'number'
     && Number.isSafeInteger(value)
@@ -286,7 +282,7 @@ function isEventSeq(value: unknown): value is SessionSeq {
     && !Object.is(value, -0)
 }
 
-/** Whether a runtime value is the exact positional-replacement shape. */
+/** 运行时值是否为确切的位置替换形状。 */
 function isReplaceOp(value: object): value is Extract<SurfaceOp, { op: 'replace' }> {
   const op = value as Record<string, unknown>
   return Object.keys(op).length === 3
@@ -298,11 +294,11 @@ function isReplaceOp(value: object): value is Extract<SurfaceOp, { op: 'replace'
     && isEventSeq(op['endSeq'])
 }
 
-/** Validate event-local surface eligibility and return its operation. */
+/** 验证事件局部的 surface 合格性并返回其操作。 */
 function surfaceOpOf(event: SessionEvent): SurfaceOp | undefined {
   const raw: { surfaceOp?: unknown; sourceEventSeqs?: unknown } = event
   if (!isSurfaceEligibleType(event.type)) {
-    // Unknown ignorable records retain opaque metadata without affecting history.
+    // 未知的可忽略记录保留不透明元数据，不影响历史。
     if (!KNOWN_SESSION_EVENT_TYPES.has(event.type) && event.ignorable === true) return
     if (raw.surfaceOp !== undefined) {
       throw new Error(`session event "${event.type}" is not surface-eligible and cannot carry surfaceOp`)
@@ -326,7 +322,7 @@ function surfaceOpOf(event: SessionEvent): SurfaceOp | undefined {
   return op
 }
 
-/** Validate cited source-event seqs against prior log entries and the replacement range. */
+/** 相对先前日志条目与替换范围验证引用的来源事件 seq。 */
 function assertSourceEventReferences(
   event: SessionEvent,
   shadowedSeqs: readonly SessionSeq[],
@@ -364,7 +360,7 @@ function assertSourceEventReferences(
   }
 }
 
-/** Resolve tool additions against their immutable historical request header. */
+/** 相对其不可变历史请求 header 解析工具新增。 */
 function assertDeveloperHeader(
   event: SessionEvent,
   events: readonly SessionEvent[],
@@ -395,11 +391,11 @@ function assertDeveloperHeader(
 }
 
 /**
- * Validate one event's surface metadata without checking membership in a log or surface.
- * @param event - event whose marker and source sequence values are inspected.
- * Unknown ignorable records retain opaque metadata and never change the surface.
- * @returns the validated operation, or undefined for a log-only or unknown ignorable event.
- * @throws when metadata violates event-local eligibility, marker, or source-sequence rules.
+ * 验证一个事件的 surface 元数据，不检查它在日志或 surface 中的成员资格。
+ * @param event - 检查其标记与来源 seq 值的事件。
+ * 未知的可忽略记录保留不透明元数据，从不改变 surface。
+ * @returns 验证通过的操作；仅存于日志或未知可忽略事件为 undefined。
+ * @throws 当元数据违反事件局部合格性、标记或来源 seq 规则时。
  */
 export function validateSurfaceMetadata(event: SessionEvent): SurfaceOp | undefined {
   const op = surfaceOpOf(event)
@@ -411,7 +407,7 @@ export function validateSurfaceMetadata(event: SessionEvent): SurfaceOp | undefi
   return op
 }
 
-/** Locate one replacement range without mutating the current fold state. */
+/** 不改变当前折叠状态地定位一个替换范围。 */
 function replacementRange(
   state: SurfaceFoldState,
   op: Extract<SurfaceOp, { op: 'replace' }>,
@@ -435,9 +431,8 @@ function replacementRange(
 }
 
 /**
- * Deep structural equality over the session-event JSON value domain
- * (null/boolean/number/string, arrays, plain objects). Replaces
- * `node:util`'s isDeepStrictEqual to keep this module browser-safe.
+ * session 事件 JSON 值域（null/布尔/数值/字符串、数组、普通对象）上的深层
+ * 结构相等。替代 `node:util` 的 isDeepStrictEqual，以保持本模块浏览器安全。
  */
 function isDeepEqualJson(a: unknown, b: unknown): boolean {
   if (a === b) return true
@@ -452,7 +447,7 @@ function isDeepEqualJson(a: unknown, b: unknown): boolean {
   return aKeys.every(key => Object.hasOwn(b, key) && isDeepEqualJson((a as Record<string, unknown>)[key], bRecord[key]))
 }
 
-/** Restrict a tool-result replacement to one current result's content. */
+/** 把 tool-result 替换限制为单个当前结果的内容。 */
 function assertToolResultRewrite(
   event: SessionEvent,
   shadowedSeqs: readonly SessionSeq[],
@@ -485,10 +480,9 @@ function assertToolResultRewrite(
 }
 
 /**
- * Protect the system prompt at surface node 0. A replacement covering node 0
- * while that node is a `system/message` must itself be a `system/message` over
- * exactly that node; later system nodes carry no protection and a compaction
- * range may shadow them.
+ * 保护 surface 节点 0 处的系统提示词。当节点 0 是 `system/message` 时，覆盖
+ * 它的替换本身必须是恰好覆盖该节点的 `system/message`；后续系统节点不受保
+ * 护，压缩范围可以遮蔽它们。
  */
 function assertSystemHeadRewrite(
   event: SessionEvent,
@@ -506,7 +500,7 @@ function assertSystemHeadRewrite(
   }
 }
 
-/** Validate one event at its replay boundary and prepare its atomic fold transition. */
+/** 在事件的回放边界验证它并准备其原子折叠过渡。 */
 function planSurfaceEvent(
   state: SurfaceFoldState,
   event: SessionEvent,
@@ -546,7 +540,7 @@ function planSurfaceEvent(
   }
 }
 
-/** Apply one event and return replacement metadata only when one occurred. */
+/** 应用一个事件；仅当发生替换时返回替换元数据。 */
 function applySurfaceEvent(
   state: SurfaceFoldState,
   event: SessionEvent,
@@ -559,7 +553,7 @@ function applySurfaceEvent(
   return applySurfacePlan(state, plan)
 }
 
-/** Commit one previously validated surface transition. */
+/** 提交一个此前已验证的 surface 过渡。 */
 function applySurfacePlan(
   state: SurfaceFoldState,
   plan: SurfacePlan | undefined,
@@ -585,11 +579,12 @@ function applySurfacePlan(
 }
 
 /**
- * Replay a complete session log through the canonical surface fold.
- * @param events - session events in contiguous seq order.
- * @param projections - pure interpreters for plugin-owned message changes; required definitions must be supplied.
- * @returns detached current sequences and replacement history.
- * @throws when an interpreter is missing or an event violates its projection, surface metadata, source attribution, or replacement rules.
+ * 通过规范 surface 折叠回放完整的 session 日志。
+ * @param events - 按连续 seq 顺序排列的 session 事件。
+ * @param projections - 插件自有消息变更的纯解释器；必需的定义必须提供。
+ * @returns 脱离的当前序列与替换历史。
+ * @throws 当缺少解释器，或事件违反其投影、surface 元数据、来源归属或替换
+ *   规则时。
  */
 export function foldSurface(events: readonly SessionEvent[], projections: readonly SessionMessageProjection[] = []): SurfaceFoldResult {
   const state = createFoldState()
@@ -608,19 +603,19 @@ export function foldSurface(events: readonly SessionEvent[], projections: readon
   return { nodes: [...state.nodes], replacements, projectedMessages: new Map(state.projectedMessages) }
 }
 
-/** Incremental ordered surface view and append-boundary validator. */
+/** 增量有序 surface 视图与追加边界验证器。 */
 export class SurfaceManager implements SessionSurface {
-  /** Shared transition state; replacement history is not retained. */
+  /** 共享过渡状态；不保留替换历史。 */
   private _state = createFoldState()
-  /** Last processed absolute seq. */
+  /** 上次处理的绝对 seq。 */
   private _lastProcessedSeq: SessionSeqCursor
-  /** Candidate already validated by `validateNext`, pending exact log admission. */
+  /** 已由 `validateNext` 验证的候选，等待确切的日志接纳。 */
   private _pendingPlan: { event: SessionEvent; expectedSeq: SessionSeq; plan: SurfacePlan | undefined } | undefined
 
   /**
-   * @param log - Contiguous complete log or loaded event window.
-   * @param baseSeq - Absolute sequence of the window's first event.
-   * @param projections - live borrowed definitions; removing a used definition invalidates further reads.
+   * @param log - 连续完整日志或已加载的事件窗口。
+   * @param baseSeq - 窗口第一个事件的绝对序号。
+   * @param projections - 活跃借用的定义；移除一个在用定义会使后续读取失效。
    */
   constructor(
     private log: readonly SessionEvent[],
@@ -631,8 +626,8 @@ export class SurfaceManager implements SessionSurface {
   }
 
   /**
-   * Validate the next candidate without mutating the committed surface.
-   * @param event - candidate event that has not entered the log yet.
+   * 验证下一个候选，不改变已提交的 surface。
+   * @param event - 尚未进入日志的候选事件。
    */
   validateNext(event: SessionEvent): void {
     this._assertProjections()
@@ -645,14 +640,14 @@ export class SurfaceManager implements SessionSurface {
     }
   }
 
-  /** Monotonic count of folded positional replacements. */
+  /** 已折叠位置替换的单调计数。 */
   get replaceGeneration(): number {
     this._assertProjections()
     if (this._lastProcessedSeq < this.baseSeq + this.log.length - 1) this._processDelta()
     return this._state.replaceGeneration
   }
 
-  /** Monotonic count of committed changes to existing model-visible content. */
+  /** 对既有模型可见内容已提交变更的单调计数。 */
   get contentGeneration(): number {
     this._assertProjections()
     if (this._lastProcessedSeq < this.baseSeq + this.log.length - 1) this._processDelta()
@@ -660,9 +655,9 @@ export class SurfaceManager implements SessionSurface {
   }
 
   /**
-   * Project one message with every committed message projection applied.
-   * @param event - message-producing or log-only event.
-   * @returns its immutable projected message, or null when it produces none.
+   * 把一个消息在应用每个已提交消息投影后投影出来。
+   * @param event - 产消息或仅存于日志的事件。
+   * @returns 其不可变已投影消息，或不产生消息时为 null。
    */
   deriveEventMessage(event: SessionEvent): Message | null {
     this._assertProjections()
@@ -670,14 +665,14 @@ export class SurfaceManager implements SessionSurface {
     return deriveEventMessage(event, this._state.projectedMessages)
   }
 
-  /** Surface event sequences in model-visible order. */
+  /** 按模型可见顺序排列的 surface 事件序列。 */
   get nodes(): readonly SessionSeq[] {
     this._assertProjections()
     if (this._lastProcessedSeq < this.baseSeq + this.log.length - 1) this._processDelta()
     return this._state.nodes
   }
 
-  /** Fold events appended since the previous access. */
+  /** 折叠自上次访问以来追加的事件。 */
   private _processDelta(): void {
     const tailSeq = this.baseSeq + this.log.length - 1
     for (let seq = this._lastProcessedSeq + 1; seq <= tailSeq; seq++) {
@@ -695,7 +690,7 @@ export class SurfaceManager implements SessionSurface {
     }
   }
 
-  /** Cached messages cannot outlive the definitions that interpreted their log. */
+  /** 缓存的消息不能比解释其日志的定义活得久。 */
   private _assertProjections(): void {
     const candidate = this._pendingPlan
     const pending = candidate !== undefined && this.log[candidate.expectedSeq - this.baseSeq] === candidate.event

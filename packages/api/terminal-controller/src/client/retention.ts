@@ -1,11 +1,11 @@
-/** One reconnecting window hold, shared by all occurrences of a terminal. */
+/** 一个可重连的窗口持有，由终端的所有出现项共享。 */
 import type { ClientRemote, RemoteStream } from '@deepseek-ai/dsh-api-gateway/client'
 import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { TerminalRetentionFrame, WebTerminalId } from '../types.ts'
 import type { TerminalRemote } from './model.ts'
 
-/** A stream acknowledgement gates output attachment for each physical connection. */
+/** 流确认对每次物理连接的输出连接进行门控。 */
 export class TerminalWindowHold {
   private readonly stream: RemoteStream<TerminalRetentionFrame>
   private readonly waiters = new Set<{ resolve: () => void; reject: (error: unknown) => void }>()
@@ -13,10 +13,10 @@ export class TerminalWindowHold {
   private failure: Error | undefined
 
   /**
-   * @param gateway - reconnecting stream owner.
-   * @param remote - typed terminal namespace.
-   * @param sessionId - saved layout's Session, without Agent activation.
-   * @param id - existing Host terminal.
+   * @param gateway - 可重连流的拥有者。
+   * @param remote - 类型化的终端命名空间。
+   * @param sessionId - 已保存布局的 Session，不激活 Agent。
+   * @param id - 现有的 Host 终端。
    */
   constructor(gateway: Pick<ClientRemote, '$stream'>, remote: TerminalRemote, sessionId: SessionId, id: WebTerminalId) {
     this.stream = gateway.$stream<TerminalRetentionFrame>({
@@ -27,13 +27,13 @@ export class TerminalWindowHold {
     void this.consume()
   }
 
-  /** Whether a terminal-domain failure ended this hold, allowing an explicit retry. */
+  /** 终端域的失败是否已终结此持有，从而允许显式重试。 */
   get failed(): boolean { return this.failure !== undefined }
 
   /**
-   * Wait for an acknowledged current physical hold before following its screen.
-   * @param signal - output request or view lifetime.
-   * @returns after acknowledgement, or rejects on cancellation/unavailability.
+   * 在跟随其屏幕之前，等待已确认的当前物理持有。
+   * @param signal - 输出请求或视图的生命周期。
+   * @returns 确认之后返回；取消或不可用时拒绝。
    */
   async ready(signal: AbortSignal): Promise<void> {
     signal.throwIfAborted()
@@ -48,8 +48,8 @@ export class TerminalWindowHold {
   }
 
   /**
-   * Release this window's stream and all acknowledgement waiters.
-   * @returns after the stream consumer closes.
+   * 释放此窗口的流与所有确认等待者。
+   * @returns 流消费方关闭之后。
    */
   dispose(): Promise<void> {
     this.reject(new Error('Terminal window hold released'))

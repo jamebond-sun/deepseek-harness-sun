@@ -1,6 +1,6 @@
 /**
- * Host owner of the `credentials` Remote namespace: the reference half of
- * `ctx.credentials` as a browser configuration page reads and writes it.
+ * `credentials` Remote 命名空间的 Host 拥有者：浏览器配置页所读写的
+ * `ctx.credentials` 引用那一半。
  *
  * @module @deepseek-ai/dsh-api-settings-controller/src/credentials.ts
  */
@@ -13,9 +13,9 @@ import { Remote, RemoteError, TypertRemoteService } from '@deepseek-ai/dsh-typer
 import { z } from 'zod'
 
 /**
- * Fan-out bound on one remote `describe` batch. A settings page asks about the
- * references its own rows name, so this is far above any real page and still
- * keeps one authenticated request from starting unbounded provider work.
+ * 单个远程 `describe` 批次的扇出上限。设置页只询问它自己的行所提到的
+ * 引用，因此该上限远高于任何真实页面，同时仍能防止单个已认证请求
+ * 启动无界的提供方工作。
  */
 const MAX_DESCRIBE_REFS = 64
 
@@ -26,7 +26,7 @@ const describeRequestSchema = z.object({
 const setRequestSchema = z.object({ ref: credentialRefSchema, value: z.string().min(1) })
 const unsetRequestSchema = z.object({ ref: credentialRefSchema })
 
-/** Parse the domain constraints that are more specific than generated TypeScript codecs. */
+/** 解析比生成的 TypeScript 编解码器更具体的域约束。 */
 function parseRequest<T>(method: string, schema: z.ZodType<T>, value: unknown): T {
   const parsed = schema.safeParse(value)
   if (!parsed.success) {
@@ -36,11 +36,11 @@ function parseRequest<T>(method: string, schema: z.ZodType<T>, value: unknown): 
 }
 
 /**
- * Copy exactly the fields {@link CredentialInfo} declares. The Gateway returns
- * a business result without decoding it, so a provider whose `describe` carried
- * extra enumerable properties would otherwise serialize them to the caller.
- * @param info - the provider's answer for one reference.
- * @returns the same facts with nothing else attached.
+ * 恰好复制 {@link CredentialInfo} 声明的字段。Gateway 返回业务结果时
+ * 不做解码，因此若提供方的 `describe` 携带额外的可枚举属性，它们就会
+ * 被序列化给调用方。
+ * @param info - 提供方对一个引用的回答。
+ * @returns 相同的事实，不附加任何其他内容。
  */
 function projectCredentialInfo(info: CredentialInfo): CredentialInfo {
   return {
@@ -52,32 +52,30 @@ function projectCredentialInfo(info: CredentialInfo): CredentialInfo {
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
-    /** Host owner of the `credentials` Remote namespace. */
+    /** `credentials` Remote 命名空间的 Host 拥有者。 */
     credentialsController: CredentialsController
   }
 }
 
 /**
- * Host service backing the generated `ctx.remote.credentials` namespace. It
- * carries every wire obligation the credential seam itself does not: the batch
- * fan-out bound, the field-by-field view projection, the reference-grammar
- * guard, and the refusal mapping. Secret values cross in one direction only —
- * no method here returns one.
+ * 支撑生成的 `ctx.remote.credentials` 命名空间的 Host 服务。它承担凭据接缝
+ * 本身不承担的每项 wire 义务：批次扇出上限、逐字段的视图投影、引用
+ * 文法守卫，以及拒绝映射。秘密值只单向穿越——此处的任何方法都不
+ * 返回它。
  */
 export class CredentialsController extends TypertRemoteService {
-  /** @param ctx - Host context where a credential provider may be mounted. */
+  /** @param ctx - 可挂载凭据提供方的 Host 上下文。 */
   constructor(ctx: Context) {
     super(ctx, 'credentialsController', { namespace: 'credentials' })
   }
 
   /**
-   * Describe several references for one configuration surface. Batched because
-   * a settings page describes every reference its rows name at once, and one
-   * round trip keeps those rows from settling separately.
-   * @param refs - reference names, at most {@link MAX_DESCRIBE_REFS}; a name outside the grammar
-   *   rejects the whole call as `gateway/bad-request`.
-   * @returns one view per requested name, keyed by that name.
-   * @throws RemoteError when the request is invalid or no credential provider is mounted.
+   * 为一个配置界面描述多个引用。之所以批量，是因为设置页一次性描述
+   * 它的各行提到的所有引用，一次往返能让这些行不会各自分别落定。
+   * @param refs - 引用名称，至多 {@link MAX_DESCRIBE_REFS} 个；文法之外的名称
+   *   会以 `gateway/bad-request` 拒绝整个调用。
+   * @returns 每个请求的名称一个视图，以该名称为键。
+   * @throws RemoteError 请求无效或未挂载凭据提供方时抛出。
    */
   @Remote
   async describe(refs: string[]): Promise<Record<string, CredentialInfo>> {
@@ -90,11 +88,11 @@ export class CredentialsController extends TypertRemoteService {
   }
 
   /**
-   * Store one value from a configuration surface. The value crosses the wire in
-   * this direction only: no read path returns it.
-   * @param ref - reference name to store under.
-   * @param value - the non-empty secret value.
-   * @throws RemoteError when the request is invalid, no provider is mounted, or the provider refuses the write.
+   * 从配置界面存储一个值。该值只沿此方向穿越 wire：没有任何读取
+   * 路径会返回它。
+   * @param ref - 要存储到的引用名称。
+   * @param value - 非空的秘密值。
+   * @throws RemoteError 请求无效、未挂载提供方或提供方拒绝写入时抛出。
    */
   @Remote
   async set(ref: string, value: string): Promise<void> {
@@ -105,9 +103,9 @@ export class CredentialsController extends TypertRemoteService {
   }
 
   /**
-   * Remove one reference from a configuration surface.
-   * @param ref - reference name to remove.
-   * @throws RemoteError when the request is invalid, no provider is mounted, or the provider refuses the write.
+   * 从配置界面移除一个引用。
+   * @param ref - 要移除的引用名称。
+   * @throws RemoteError 请求无效、未挂载提供方或提供方拒绝写入时抛出。
    */
   @Remote
   async unset(ref: string): Promise<void> {
@@ -117,7 +115,7 @@ export class CredentialsController extends TypertRemoteService {
     await this.write(request.ref, () => credentials.unset(branded))
   }
 
-  /** Resolve the optional provider or report how to supply it. */
+  /** 解析可选的提供方，或报告如何提供它。 */
   private provider(): CredentialProvider {
     const credentials = this.ctx.get('credentials')
     if (credentials === undefined) {
@@ -131,13 +129,12 @@ export class CredentialsController extends TypertRemoteService {
   }
 
   /**
-   * Run one remote write and report every refusal as `credential/rejected`
-   * carrying the seam's own message: a provider refusal, such as a stored
-   * document that no longer parses, is what a settings page must show
-   * verbatim. Callers brand the reference before entering, so a name outside
-   * the grammar never reaches this path and fails the same way it does on the
-   * read side. The details name only the reference, so no failure path can
-   * carry the value back out.
+   * 执行一次远程写入，并把每种拒绝都报告为携带接缝自身消息的
+   * `credential/rejected`：提供方拒绝（例如已存储的文档不再能解析）
+   * 正是设置页必须逐字展示的内容。调用方在进入之前先对引用做
+   * 品牌化处理，因此文法之外的名称永远不会到达此路径，且以与读取侧
+   * 相同的方式失败。details 只给出引用，因此任何失败路径都无法把
+   * 值带出去。
    */
   private async write(ref: string, write: () => Promise<void>): Promise<void> {
     try {

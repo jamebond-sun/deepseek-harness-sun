@@ -1,20 +1,20 @@
 /**
- * Pure request-projection geometry shared by model routes and provider-side
- * request pricing. @module @deepseek-ai/dsh-attachment/request-projection
+ * 由模型路由与提供方侧请求计价共享的纯请求投影几何。
+ * @module @deepseek-ai/dsh-attachment/request-projection
  */
 
-/** Integer width and height of one projected image. */
+/** 单张投影图像的整数宽度和高度。 */
 export interface ProjectedDimensions {
   width: number
   height: number
 }
 
 /**
- * Compute aspect-preserving integer dimensions within a hard total-pixel budget.
- * @param width - positive source width.
- * @param height - positive source height.
- * @param maxPixels - positive width-times-height cap.
- * @returns inward-rounded dimensions; small images are not enlarged.
+ * 在硬性总像素预算内计算保持宽高比的整数尺寸。
+ * @param width - 正的源宽度。
+ * @param height - 正的源高度。
+ * @param maxPixels - 正的宽乘高上限。
+ * @returns 向内取整的尺寸；小图不会被放大。
  */
 export function requestImageDimensions(
   width: number,
@@ -42,13 +42,13 @@ export function requestImageDimensions(
 }
 
 /**
- * Compute aspect-preserving integer dimensions with an exact long edge; the
- * short edge rounds to the nearest pixel, as an encoder resize by the
- * long edge alone.
- * @param width - positive source width.
- * @param height - positive source height.
- * @param longEdge - positive target for the longer source edge.
- * @returns the target dimensions; a long edge at or above the source returns the source unchanged.
+ * 以精确长边计算保持宽高比的整数尺寸；
+ * 短边就近取整到像素，等同于编码器
+ * 仅按长边进行的缩放。
+ * @param width - 正的源宽度。
+ * @param height - 正的源高度。
+ * @param longEdge - 较长源边的正数目标。
+ * @returns 目标尺寸；长边大于等于源尺寸时原样返回源尺寸。
  */
 export function longEdgeDimensions(
   width: number,

@@ -1,4 +1,4 @@
-/** Platform-neutral assembly of generated Host Remote contributions. */
+/** 生成 Host Remote 贡献的平台中立装配。 */
 
 import type { Context } from '@deepseek-ai/cordis'
 import productAnalyticsRemote from '@deepseek-ai/dsh-client-product-analytics/remote'
@@ -73,12 +73,12 @@ export type {} from '@deepseek-ai/dsh-api-workspace-files/remote'
 export type * from '@deepseek-ai/dsh-api-workspace-files/types'
 export type {} from '@deepseek-ai/dsh-api-terminal-controller/remote'
 export type * from '@deepseek-ai/dsh-api-terminal-controller/types'
-// The forwarded-event allowlist's selection seat: without it in the consumer's
-// compilation face `TypertRemoteEvent` is `never` and every `$on` call fails.
+// 转发事件允许列表的选择席位：若消费方编译面缺少它，
+// `TypertRemoteEvent` 即为 `never`，每个 `$on` 调用都会失败。
 export type { ApiRemoteForwardedEvent } from '../types.ts'
-// The owner packages' client-safe `./types` exports supply the `Events`
-// signatures `$on` hands to a listener, so a consumer reads the very
-// declaration the Host emits rather than a flattened restatement of it.
+// owner 包的 client-safe `./types` 导出提供 `$on` 交给监听器的
+// `Events` 签名，因此消费方读取的正是 Host 发出的那份
+// 声明，而非它的扁平化复述。
 export type {} from '@deepseek-ai/dsh-commands/types'
 export type {} from '@deepseek-ai/dsh-cordis-host-runner/types'
 export type {} from '@deepseek-ai/dsh-credentials/types'
@@ -91,9 +91,9 @@ export type {} from '@deepseek-ai/dsh-user-questions/types'
 export type {} from '@deepseek-ai/dsh-api-session-controller/types'
 
 /**
- * The carrier's Client-facing types, re-exported so a business package names one
- * assembly package instead of both this facade and the Connection plugin. Type-only:
- * the carrier's runtime values stay behind their own module edge.
+ * carrier 面向 Client 的类型，再导出它们是为了让业务包
+ * 只命名一个装配包，而不是同时命名本门面与 Connection
+ * 插件。仅类型：carrier 的运行时值仍留在其自身的模块边界之后。
  */
 export type {
   ConnectionHandle, ConnectionSinks, ContentBlock,
@@ -104,9 +104,9 @@ export type {
 export type {} from '@deepseek-ai/dsh-api-gateway/client'
 export type {} from '@deepseek-ai/dsh-cordis-host-runner/remote'
 
-// The payload vocabulary of the selected namespaces, re-exported so a Client
-// contribution can name what it sends and receives without importing a Host
-// package: this assembly is the one place both planes legitimately meet.
+// 所选命名空间的载荷词汇，再导出它们是为了让 Client 贡献
+// 无需导入 Host 包即可命名其收发内容：本装配是两个平面
+// 唯一合法交汇之处。
 export type {
   ApprovalRequestId,
   CordisHalfState,
@@ -141,27 +141,27 @@ export type {
   DynamicCordisUndefineReceipt,
   RequestRunOutcome,
 } from '@deepseek-ai/dsh-cordis-host-runner/types'
-// Credential state vocabulary for the credentials namespace (values never ride it).
+// credentials 命名空间的凭据状态词汇（值绝不随其传输）。
 export type { CredentialInfo } from '@deepseek-ai/dsh-credentials/types'
-// Redacted namespace vocabulary for the settings namespace (secrets never ride
-// it). It travels with its seam, whose `./types` the Client face already reads.
+// settings 命名空间的脱敏词汇（机密绝不随其
+// 传输）。它随自身接缝一同携带，Client 编译面已读取其 `./types`。
 export type {
   SettingsDescribeValue, SettingsNamespaceView, SettingsPathOpView, SettingsSecretView,
 } from '@deepseek-ai/dsh-settings/types'
-// Provider registry and discovery vocabulary for the llm namespace.
+// llm 命名空间的提供方注册表与发现词汇。
 export type {
   LlmConfigurableProvider, LlmDiscoveredModel,
   LlmModelDiscoveryRequest, LlmNativeAuth, LlmProviderInfo,
 } from '@deepseek-ai/dsh-llm/types'
-// Reference-discovery result vocabulary for the fileReferences and
-// sessionReferenceResolver namespaces.
+// fileReferences 与 sessionReferenceResolver 命名空间的
+// 引用发现结果词汇。
 export type { FileReferenceCandidate } from '@deepseek-ai/dsh-file-reference/types'
 export type { SessionReferenceMentionCandidate } from '@deepseek-ai/dsh-session-reference/types'
 
-// The Remote failure vocabulary, re-exported so business packages keep naming
-// this assembly alone. Types only: a value export would make spec imports load
-// this module's owner /remote artifacts; specs take RemoteError from
-// dsh-client-test-runtime instead.
+// Remote 失败词汇，再导出它们是为了让业务包继续只命名
+// 本装配。仅类型：值导出会使 spec 导入加载
+// 本模块的 owner /remote 产物；spec 改从
+// dsh-client-test-runtime 获取 RemoteError。
 export type {
   RemoteErrorCode, RemoteErrorDetailsMap, RemoteFailure, RemoteResult,
 } from '@deepseek-ai/dsh-typert-protocol'
@@ -169,18 +169,18 @@ export type { RemoteHostFacts } from '@deepseek-ai/dsh-api-gateway/client'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
-    /** Generated Remote namespaces selected by this Client assembly. */
+    /** 本 Client 装配所选的生成 Remote 命名空间。 */
     remote: ClientRemote
   }
 }
 
-/** Required service: the typed Client Remote contribution mount. */
+/** 必需服务：带类型的 Client Remote 贡献挂载。 */
 export const inject = ['remote']
 
 /**
- * Mount the Host capabilities explicitly selected for this Client assembly.
- * @param ctx - Client Cordis root carrying the typed API service.
- * @returns disposer after every selected Remote namespace is ready.
+ * 挂载为本 Client 装配显式选择的 Host 能力。
+ * @param ctx - 携带带类型 API 服务的 Client Cordis 根上下文。
+ * @returns 每个所选 Remote 命名空间就绪后的释放器。
  */
 export async function apply(ctx: Context): Promise<() => Promise<void>> {
   const disposers: Array<() => Promise<void>> = []
@@ -200,8 +200,8 @@ export async function apply(ctx: Context): Promise<() => Promise<void>> {
     for (const dispose of disposers.reverse()) await dispose()
     throw error
   }
-  // Unwound in reverse mount order, so a namespace never outlives one mounted
-  // after it.
+  // 按挂载的逆序释放，因此一个命名空间绝不会比在它之后
+  // 挂载的命名空间存活更久。
   return async () => {
     for (const dispose of disposers.reverse()) await dispose()
   }

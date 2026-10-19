@@ -1,4 +1,4 @@
-/** Standard ACP updates derived from committed DSH session events. */
+/** 由已提交的 DSH 会话事件派生的标准 ACP 更新。 */
 
 import type { Context } from '@deepseek-ai/cordis'
 import type { SessionUpdate, ToolCallContent } from '@agentclientprotocol/sdk'
@@ -7,11 +7,11 @@ import type {} from '@deepseek-ai/dsh-token-meter'
 import { assistantBlockToAcp } from './content.ts'
 
 /**
- * Convert one committed assistant message and its context usage in block order.
- * @param ctx - bridge context carrying attachment and token-meter services.
- * @param session - durable session used for context pressure.
- * @param event - committed assistant message event.
- * @returns ordered standard thought, message, and optional usage updates.
+ * 按内容块顺序转换一条已提交的 assistant 消息及其上下文用量。
+ * @param ctx - 携带附件服务与 token 计量服务的 bridge 上下文。
+ * @param session - 用于判断上下文压力的持久会话。
+ * @param event - 已提交的 assistant 消息事件。
+ * @returns 有序的标准 thought、消息以及可选的用量更新。
  */
 export async function assistantUpdates(
   ctx: Context,
@@ -45,9 +45,9 @@ export async function assistantUpdates(
 }
 
 /**
- * Start one generic ACP tool lifecycle from the durable call fact.
- * @param event - committed DSH tool-call event.
- * @returns the standard generic tool-call update.
+ * 依据持久化的调用事实启动一次通用 ACP 工具生命周期。
+ * @param event - 已提交的 DSH 工具调用事件。
+ * @returns 标准的通用工具调用更新。
  */
 export function toolCallUpdate(event: SessionEvent<'tool/call'>): SessionUpdate {
   return {
@@ -61,10 +61,10 @@ export function toolCallUpdate(event: SessionEvent<'tool/call'>): SessionUpdate 
 }
 
 /**
- * Finish one generic ACP tool lifecycle from its committed model-facing result.
- * @param ctx - bridge context carrying the attachment store.
- * @param event - committed DSH tool-result event.
- * @returns the standard completed or failed tool-call update.
+ * 依据已提交的、面向模型的结果结束一次通用 ACP 工具生命周期。
+ * @param ctx - 携带附件存储的 bridge 上下文。
+ * @param event - 已提交的 DSH 工具结果事件。
+ * @returns 标准的已完成或失败工具调用更新。
  */
 export async function toolResultUpdate(
   ctx: Context,
@@ -84,7 +84,7 @@ export async function toolResultUpdate(
   }
 }
 
-/** Report current context occupancy only when DSH has both usage and capacity facts. */
+/** 仅在 DSH 同时具备用量与容量事实时报告当前上下文占用。 */
 function usageUpdate(
   ctx: Context,
   session: Session,
@@ -101,7 +101,7 @@ function usageUpdate(
   }
 }
 
-/** Preserve malformed model output as opaque input instead of dropping the call update. */
+/** 将格式错误的模型输出保留为不透明输入，而不是丢弃该调用更新。 */
 function parseToolArguments(value: string): unknown {
   try {
     return JSON.parse(value) as unknown

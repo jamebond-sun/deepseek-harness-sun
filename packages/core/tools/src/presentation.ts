@@ -1,24 +1,22 @@
 /**
- * Tool render-intent vocabulary: the provider-neutral types a tool declares via
- * `ToolDefinition.presentCall`/`ToolDefinition.presentResult` to say how one of its calls
- * renders in a UI (an editor's tool-call card, a CLI log line).
+ * 工具渲染意图词汇表：工具通过 `ToolDefinition.presentCall`/`ToolDefinition.presentResult`
+ * 声明的提供方中立类型，用于说明其某次调用在 UI（编辑器的工具调用卡片、
+ * CLI 日志行）中如何渲染。
  * @module @deepseek-ai/dsh-tools/src/presentation
  */
 
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 
 /**
- * Category of a tool call, used by a UI to pick an icon or treatment. The
- * provider-neutral vocabulary lets tools describe themselves without depending
- * on a particular client; `other` is the default.
+ * 工具调用的类别，UI 用它选择图标或样式。提供方中立的词汇表让工具描述自身
+ * 而不依赖特定客户端；默认为 `other`。
  */
 export type ToolCallKind = 'read' | 'edit' | 'delete' | 'move' | 'search' | 'execute' | 'fetch' | 'other'
 
 /**
- * A file location a tool reads or modifies, so a capable UI can "follow along" —
- * highlight or jump to the file (and line) as the tool runs. `path` is what the
- * tool operated on (the model-facing path); `line` is an optional 1-based line
- * to focus (e.g. a read's offset).
+ * 工具读取或修改的文件位置，使具备能力的 UI 能"跟随"——在工具运行时高亮
+ * 或跳转到该文件（及行）。`path` 是工具操作的对象（面向模型的路径）；
+ * `line` 是可选的聚焦行号（1 起，例如读取的偏移）。
  */
 export interface FileLocation {
   path: string
@@ -26,103 +24,96 @@ export interface FileLocation {
 }
 
 /**
- * A single-file change a tool is about to make, for a UI that renders inline
- * diffs. `oldText` is `null` for a new-file create (nothing to diff against);
- * an overwrite also uses `null`, because a call-time presenter has no access to
- * the file's prior content.
+ * 工具即将做出的单文件变更，供渲染内联差异的 UI 使用。新建文件时 `oldText`
+ * 为 `null`（没有可对比的内容）；覆盖写入也使用 `null`，因为调用时呈现器
+ * 无法访问文件先前内容。
  */
 export interface FileDiff {
   path: string
-  /** Prior content, or `null` for a new file / an overwrite (no prior content available at call time). */
+  /** 先前内容；新建文件或覆盖写入时为 `null`（调用时无法获得先前内容）。 */
   oldText: string | null
-  /** Content after the change. */
+  /** 变更后的内容。 */
   newText: string
 }
 
 /**
- * Provider-neutral pending-call presentation. Tools declare one tagged intent;
- * UI bridges map it without special-casing tool names.
+ * 提供方中立的待处理调用展示。工具声明一个带标签的意图；UI 桥接层映射它
+ * 而不特判工具名。
  */
 export type ToolCallView = GenericCallView | TerminalCallView | DiffCallView
 
 /**
- * The default card: a titled tool-call row with an optional category icon, a
- * salient raw input, extra content blocks, and follow-along file locations. Any
- * tool whose call is not a terminal or a diff uses this.
+ * 默认卡片：带标题的工具调用行，含可选类别图标、醒目的原始输入、额外的
+ * 内容块和可跟随的文件位置。调用不是终端或差异的工具都使用它。
  */
 export interface GenericCallView {
   card: 'generic'
   /**
-   * Human-readable, always-visible label describing what THIS call does. Keep it
-   * short — a UI shows it as a card header / log line.
+   * 人类可读、始终可见的标签，描述本次调用做什么。保持简短——UI 将其作为
+   * 卡片标题 / 日志行展示。
    */
   title: string
-  /** Category for icon/treatment; defaults to `other` when omitted. */
+  /** 用于图标/样式的类别；省略时默认为 `other`。 */
   kind?: ToolCallKind
   /**
-   * The salient input to show in a detail/expanded view (e.g. a background
-   * job id). Omit to show nothing; a string renders as-is, an object as pretty
-   * JSON. NOT the full raw args object unless that is genuinely what a reader wants.
+   * 在详情/展开视图中展示的醒目输入（例如后台任务 id）。省略则不显示；
+   * 字符串原样渲染，对象渲染为格式化 JSON。除非读者确实需要，否则不是
+   * 完整的原始参数对象。
    */
   rawInput?: unknown
   /**
-   * UI-facing content blocks to show on the pending call alongside the title.
-   * Omit to show none. A UI maps these to its own content blocks.
+   * 面向 UI 的内容块，与标题一起显示在待处理调用上。省略则不显示。UI 将
+   * 这些映射为自己的内容块。
    */
   content?: ContentBlock[]
-  /** Files this call reads/modifies, for editor follow-along. Omit for a call that touches no file. */
+  /** 本次调用读取/修改的文件，供编辑器跟随。不触及文件的调用省略此项。 */
   locations?: FileLocation[]
 }
 
 /**
- * A call that IS a shell command running in a working directory: a capable UI
- * renders it as a terminal card (cwd-headed, with the command as the title and
- * live/afterward output from the {@link TerminalResultView}); an incapable UI
- * falls back to a generic card whose body is the fenced command output. Set by a
- * tool whose call is a foreground command (e.g. `bash`).
+ * 本身就是在工作目录中运行的 shell 命令的调用：具备能力的 UI 将其渲染为
+ * 终端卡片（以 cwd 开头，命令作为标题，实时/事后输出来自
+ * {@link TerminalResultView}）；不具备能力的 UI 回退为通用卡片，其主体是
+ * 围栏化的命令输出。由调用为前台命令的工具设置（例如 `bash`）。
  */
 export interface TerminalCallView {
   card: 'terminal'
-  /** The command, shown as the terminal card's title / header line. */
+  /** 命令，显示为终端卡片的标题 / 头行。 */
   title: string
   /**
-   * A human-readable one-line summary of what the command does, rendered ABOVE
-   * the terminal card (the card itself has no description slot). Omit for none.
+   * 人类可读的一行摘要，说明命令做什么，渲染在终端卡片上方（卡片本身没有
+   * 描述槽位）。无则省略。
    */
   description?: string
   /**
-   * Working directory the command runs in, shown as the terminal header. An
-   * ABSOLUTE path is used as-is; a RELATIVE path is resolved by the UI bridge
-   * against the session workspace (the pure presenter can't see the session cwd).
-   * Omit entirely to let the bridge use the session workspace.
+   * 命令运行的工作目录，显示为终端头部。绝对路径原样使用；相对路径由 UI
+   * 桥接层相对 session 工作区解析（纯呈现器看不到 session cwd）。完全省略
+   * 则由桥接层使用 session 工作区。
    */
   cwd?: string
 }
 
 /**
- * A call that creates or modifies files, rendered as an inline diff card by a
- * capable UI. Set by a tool whose call writes/edits a file (e.g. `write`,
- * `edit`). The diffs are derived from the call ARGUMENTS (a create's `oldText` is
- * `null`); the tool emits a separate {@link DiffResultView} after `execute` — the
- * applied change (an edit/overwrite hunk with context, or a whole-file diff for a
- * create).
+ * 创建或修改文件的调用，由具备能力的 UI 渲染为内联差异卡片。由调用写入/
+ * 编辑文件的工具设置（例如 `write`、`edit`）。差异派生自调用参数（新建的
+ * `oldText` 为 `null`）；工具在 `execute` 之后单独发出 {@link DiffResultView}
+ * ——已应用的变更（带上下文的编辑/覆盖块，或新建时的整文件差异）。
  */
 export interface DiffCallView {
   card: 'diff'
-  /** Card header (e.g. `Write foo.txt`). */
+  /** 卡片头部（例如 `Write foo.txt`）。 */
   title: string
-  /** One entry per file the call changes. */
+  /** 调用变更的每个文件一项。 */
   diffs: FileDiff[]
-  /** Files this call modifies, for editor follow-along (usually the diffs' paths). */
+  /** 本次调用修改的文件，供编辑器跟随（通常是各差异的路径）。 */
   locations?: FileLocation[]
 }
 
 /**
- * One numbered line of a file, the unit a {@link ReadResultView} carries so a
- * capable UI can render a syntax-highlighted, line-numbered code view. `number`
- * is the 1-based line number in the file (a window past `offset` keeps the file's
- * own numbering, not a 1-based re-count); `text` is the line without its trailing
- * newline, already truncated to the read tool's per-line cap.
+ * 文件中一个带编号的行，是 {@link ReadResultView} 携带的单位，使具备能力的
+ * UI 能渲染语法高亮、带行号的代码视图。`number` 是文件中的行号（1 起；
+ * 位于 `offset` 之后的窗口保持文件自身编号，而非从 1 重新计数）；`text` 是
+ * 不含行尾换行的行文本，已按读取工具的每行上限截断。
  */
 export interface ReadFileLine {
   number: number
@@ -130,260 +121,242 @@ export interface ReadFileLine {
 }
 
 /**
- * How a tool wants the COMPLETED call shown — the *result* state, after `execute`
- * returns. A `card`-tagged union mirroring {@link ToolCallView}: a UI switches on
- * `card`. Lets the tool reformat its result for a UI distinctly from the
- * model-facing text it returned from `execute`. Returned by
- * `ToolDefinition.presentResult`; omitting the method keeps the pending
- * title and renders the raw result content.
+ * 工具希望已完成调用如何展示——`execute` 返回后的 *结果* 状态。镜像
+ * {@link ToolCallView} 的 `card` 标签联合类型：UI 按 `card` 分派。让工具
+ * 为 UI 重新格式化结果，区别于它从 `execute` 返回的面向模型文本。由
+ * `ToolDefinition.presentResult` 返回；省略该方法则保留待处理标题并渲染
+ * 原始结果内容。
  */
 export type ToolResultView = GenericResultView | TerminalResultView | DiffResultView | SearchResultView | ReadResultView | WebResultView
 
 /**
- * The default completed card: an optional replacement title and reformatted
- * content. Omit a field to keep the pending title / render the raw result content.
+ * 默认的完成卡片：可选的替换标题与重新格式化的内容。省略字段则保留待处理
+ * 标题 / 渲染原始结果内容。
  */
 export interface GenericResultView {
   card: 'generic'
-  /** Replacement title for the completed call. Omit to keep the pending-state title. */
+  /** 已完成调用的替换标题。省略则保留待处理状态的标题。 */
   title?: string
   /**
-   * UI-facing result content (harness {@link ContentBlock}s), reformatted from
-   * the model-facing result. Omit to let the UI render the raw result content.
+   * 面向 UI 的结果内容（harness {@link ContentBlock}），由面向模型的结果
+   * 重新格式化而来。省略则让 UI 渲染原始结果内容。
    */
   content?: ContentBlock[]
 }
 
 /**
- * The completed state of a {@link TerminalCallView}: the captured output and exit
- * status. A capable UI renders `output` in the terminal card and shows an
- * exit-status pill; an incapable UI gets a fenced ```console fallback the BRIDGE
- * derives from `output` (the tool does not double-encode it).
+ * {@link TerminalCallView} 的完成状态：捕获的输出与退出状态。具备能力的 UI
+ * 在终端卡片中渲染 `output` 并显示退出状态徽标；不具备能力的 UI 得到由
+ * BRIDGE 从 `output` 派生的围栏 ```console 回退（工具不会双重编码）。
  */
 export interface TerminalResultView {
   card: 'terminal'
-  /** Replacement title for the completed call. Omit to keep the pending-state title. */
+  /** 已完成调用的替换标题。省略则保留待处理状态的标题。 */
   title?: string
-  /** Captured command output (stdout+stderr as the tool chooses to combine them). */
+  /** 捕获的命令输出（stdout+stderr，由工具决定如何合并）。 */
   output?: string
   /**
-   * Process exit code, when the run ended by exiting (not a signal). Lets a
-   * capable UI show an exit-status pill. Omit when killed by a signal or unknown.
+   * 进程退出码，适用于运行以退出（而非信号）结束的情况。让具备能力的 UI
+   * 显示退出状态徽标。被信号杀死或未知时省略。
    */
   exitCode?: number
-  /** Signal name that killed the process (e.g. `SIGTERM`). Mutually exclusive with `exitCode`. */
+  /** 杀死进程的信号名（例如 `SIGTERM`）。与 `exitCode` 互斥。 */
   signal?: string
 }
 
 /**
- * A completed file mutation rendered as an inline diff card, the result-time
- * analogue of {@link DiffCallView}. Because a completed UI update replaces the
- * pending card content, mutation tools return this even when it repeats the
- * call-time diff; otherwise raw result text would replace the diff.
+ * 已完成的文件变更，渲染为内联差异卡片，是 {@link DiffCallView} 的结果期
+ * 对应物。由于完成时的 UI 更新会替换待处理卡片内容，变更类工具即使重复
+ * 调用期差异也返回它；否则原始结果文本会替换掉差异。
  */
 export interface DiffResultView {
   card: 'diff'
-  /** Replacement title for the completed call. Omit to keep the pending-state title. */
+  /** 已完成调用的替换标题。省略则保留待处理状态的标题。 */
   title?: string
-  /** The change to show, in file order — applied contextual hunks, or a whole-file diff when there is no before-image. */
+  /** 要展示的变更，按文件顺序——已应用的带上下文块，或无先前镜像时的整文件差异。 */
   diffs: FileDiff[]
 }
 
-/** One matched line inside a {@link SearchFileMatches} group: its 1-based line number and text. */
+/** {@link SearchFileMatches} 组内的一条匹配行：其 1 起行号与文本。 */
 export interface SearchLineMatch {
-  /** 1-based line number of the match within its file. */
+  /** 匹配在其文件内的 1 起行号。 */
   lineNumber: number
-  /** The matched line text, as the tool surfaced it (the per-line preview budget already applied). */
+  /** 匹配行的文本，按工具呈现的形式（每行预览预算已应用）。 */
   line: string
 }
 
-/** One file's grouped content matches for a {@link SearchMatchesResultView}, in first-seen file order. */
+/** {@link SearchMatchesResultView} 中一个文件的内容匹配组，按首次出现的文件顺序。 */
 export interface SearchFileMatches {
-  /** The file the matches belong to (the model-facing display path). */
+  /** 匹配所属的文件（面向模型的展示路径）。 */
   path: string
-  /** The file's matched lines, in output order. */
+  /** 该文件的匹配行，按输出顺序。 */
   matches: SearchLineMatch[]
 }
 
 /**
- * A completed content search (`grep`) rendered as a search card whose matches are
- * grouped by file, so a capable UI can list each file as an expandable group of
- * its matched lines. `shape: 'matches'` discriminates this variant from the path
- * variant ({@link SearchPathsResultView}) within {@link SearchResultView}. The
- * discriminant is `shape`, not `kind`, so it never collides with the
- * {@link ToolCallKind} `kind` an icon-picking bridge reads off a call view.
+ * 已完成的内容搜索（`grep`），渲染为匹配按文件分组的搜索卡片，使具备能力的
+ * UI 能将每个文件列为含其匹配行的可展开组。`shape: 'matches'` 在
+ * {@link SearchResultView} 内区分此变体与路径变体
+ * （{@link SearchPathsResultView}）。判别字段是 `shape` 而非 `kind`，因此
+ * 永远不会与图标选择桥接层从调用视图读取的 {@link ToolCallKind} `kind`
+ * 冲突。
  */
 export interface SearchMatchesResultView {
   card: 'search'
   shape: 'matches'
-  /** Replacement title for the completed call. Omit to keep the pending-state title. */
+  /** 已完成调用的替换标题。省略则保留待处理状态的标题。 */
   title?: string
-  /** Matched lines grouped by file, in first-seen file order. */
+  /** 按文件分组的匹配行，按首次出现的文件顺序。 */
   files: SearchFileMatches[]
   /**
-   * Whether the tool capped the inline result: `files` carries only the retained
-   * matches, not every match the search found. A UI shows a capped indicator so it
-   * never presents a partial group as complete.
+   * 工具是否截断了内联结果：`files` 只携带保留的匹配，而非搜索找到的每个
+   * 匹配。UI 显示截断指示器，使其永远不会把部分组当作完整组展示。
    */
   truncated: boolean
-  /** Total matches the search found before capping (equals the retained count when not `truncated`). */
+  /** 截断前搜索找到的总匹配数（未 `truncated` 时等于保留数量）。 */
   total: number
 }
 
 /**
- * A completed path search (`glob`) rendered as a search card whose result is a flat
- * path list. `shape: 'paths'` discriminates this variant from the grouped-matches
- * variant ({@link SearchMatchesResultView}) within {@link SearchResultView}.
+ * 已完成的路径搜索（`glob`），渲染为结果为扁平路径列表的搜索卡片。
+ * `shape: 'paths'` 在 {@link SearchResultView} 内区分此变体与分组匹配变体
+ * （{@link SearchMatchesResultView}）。
  */
 export interface SearchPathsResultView {
   card: 'search'
   shape: 'paths'
-  /** Replacement title for the completed call. Omit to keep the pending-state title. */
+  /** 已完成调用的替换标题。省略则保留待处理状态的标题。 */
   title?: string
-  /** The discovered paths, in the tool's result order (the retained page when `truncated`). */
+  /** 发现的路径，按工具的结果顺序（`truncated` 时为保留的页）。 */
   paths: string[]
   /**
-   * Whether the tool capped the inline result: `paths` carries only the retained
-   * page, not every path the search found. A UI shows a capped indicator so it
-   * never presents a partial list as complete.
+   * 工具是否截断了内联结果：`paths` 只携带保留的页，而非搜索找到的每个
+   * 路径。UI 显示截断指示器，使其永远不会把部分列表当作完整列表展示。
    */
   truncated: boolean
-  /** Total paths the search found before capping (equals `paths.length` when not `truncated`). */
+  /** 截断前搜索找到的总路径数（未 `truncated` 时等于 `paths.length`）。 */
   total: number
 }
 
 /**
- * A completed search rendered as a search card, the result-time view a discovery
- * tool (`grep`, `glob`) returns from `presentResult`. One `card: 'search'` view
- * with two `shape`-discriminated variants: grouped-by-file content matches
- * ({@link SearchMatchesResultView}) and a flat path list
- * ({@link SearchPathsResultView}). Both carry a `truncated`/`total` signal so a UI
- * never presents a capped result as complete. The view carries no result text: a
- * UI without a search card falls back to the raw `tool/result` content. There is
- * no call-time analogue: a search call stays a {@link GenericCallView}
- * (`kind: 'search'`) because the pending state has no matches or paths to show —
- * the structured shape exists only after `execute`.
+ * 已完成的搜索，渲染为搜索卡片，是发现工具（`grep`、`glob`）从
+ * `presentResult` 返回的结果期视图。一个 `card: 'search'` 视图，含两个按
+ * `shape` 区分的变体：按文件分组的内容匹配（{@link SearchMatchesResultView}）
+ * 与扁平路径列表（{@link SearchPathsResultView}）。两者都携带
+ * `truncated`/`total` 信号，使 UI 永远不会把截断结果当作完整结果展示。
+ * 该视图不携带结果文本：没有搜索卡片的 UI 回退到原始 `tool/result` 内容。
+ * 没有调用期对应物：搜索调用保持为 {@link GenericCallView}
+ * （`kind: 'search'`），因为待处理状态没有可显示的匹配或路径——结构化
+ * 形态只在 `execute` 之后存在。
  */
 export type SearchResultView = SearchMatchesResultView | SearchPathsResultView
 
 /**
- * A completed file read rendered as a line-numbered, optionally syntax-highlighted
- * code view by a capable UI. Set by a tool whose call reads file text (e.g.
- * `read`); the pending state stays a {@link GenericCallView} (`kind: 'read'`)
- * because a call carries no content until `execute` returns. The structured
- * `lines`/`path`/`lang`/`totalLines` fields cannot be reconstructed from the
- * model-facing result text alone, so the read tool projects them through its
- * `output.presentationMeta` (persisted with the session log) and `presentResult`
- * narrows that metadata back into this view on live and replay paths alike. A UI
- * without the read capability falls back to `content` (the model-facing text with
- * its envelope stripped), so this view degrades to the generic text card.
+ * 已完成的文件读取，由具备能力的 UI 渲染为带行号、可选语法高亮的代码视图。
+ * 由调用读取文件文本的工具设置（例如 `read`）；待处理状态保持为
+ * {@link GenericCallView}（`kind: 'read'`），因为调用在 `execute` 返回前
+ * 不携带内容。结构化的 `lines`/`path`/`lang`/`totalLines` 字段无法仅从
+ * 面向模型的结果文本重建，因此读取工具通过其 `output.presentationMeta`
+ * （随 session 日志持久化）投影它们，`presentResult` 在实时与重放路径上
+ * 都把该元数据收窄回此视图。不具备读取能力的 UI 回退到 `content`（去除了
+ * 信封的面向模型文本），因此该视图退化为通用文本卡片。
  */
 export interface ReadResultView {
   card: 'read'
-  /** Replacement title for the completed call. Omit to keep the pending-state title. */
+  /** 已完成调用的替换标题。省略则保留待处理状态的标题。 */
   title?: string
-  /** The read file's path (the model-facing path; the bridge relativizes it). */
+  /** 读取文件的路径（面向模型的路径；桥接层将其相对化）。 */
   path: string
   /**
-   * The 1-based first line the window requested, preserved even when `lines` is
-   * empty (a byte cap below the first selected line yields an empty window) so a
-   * UI knows where the window starts and where a continuation resumes.
+   * 窗口请求的首行（1 起），即使 `lines` 为空也保留（字节上限低于首个选中
+   * 行时得到空窗口），使 UI 知道窗口从哪里开始、续读从哪里恢复。
    */
   offset: number
-  /** The returned window's lines, in file order, each keeping its file line number. */
+  /** 返回窗口的行，按文件顺序，每行保留其文件行号。 */
   lines: ReadFileLine[]
-  /** Exact total line count in the file, so a UI can show a "showing N of M" affordance. */
+  /** 文件的确切总行数，使 UI 能显示"显示 N/M"的提示。 */
   totalLines: number
   /**
-   * A syntax-highlighting language hint derived from the file extension (e.g.
-   * `ts`, `py`), or omitted when the extension maps to no known language so a UI
-   * renders the lines as plain text.
+   * 从文件扩展名派生的语法高亮语言提示（例如 `ts`、`py`）；扩展名不映射到
+   * 任何已知语言时省略，使 UI 将各行渲染为纯文本。
    */
   lang?: string
   /**
-   * The model-facing result content with its envelope stripped, for a UI without
-   * the read capability. Omit to let such a UI render the raw result content.
+   * 去除信封后的面向模型结果内容，供不具备读取能力的 UI 使用。省略则让
+   * 这类 UI 渲染原始结果内容。
    */
   content?: ContentBlock[]
 }
 
 /**
- * One citeable source in a completed {@link WebSearchResultView}, the faithful
- * projection of one web-search source. The presentation projection of `dsh-web`'s
- * `WebSearchSource`: that Service Definition type is authoritative (core cannot depend
- * on the web Service Definition, so the two are declared separately and MUST evolve together).
- * A web tool projects this shape through `output.presentationMeta` because the
- * render text cannot losslessly carry it (see the web-result-card Agent Note); its
- * `presentResult` reads it back.
+ * 已完成 {@link WebSearchResultView} 中一个可引用的来源，是单个网页搜索来源
+ * 的忠实投影。`dsh-web` 的 `WebSearchSource` 的展示投影：那个服务定义类型
+ * 是权威的（core 不能依赖 web 服务定义，因此两者分开声明且必须同步演化）。
+ * 网页工具通过 `output.presentationMeta` 投影此形态，因为渲染文本无法无损
+ * 承载它（见 web-result-card Agent Note）；其 `presentResult` 读回它。
  */
 export interface WebSource {
-  /** The source URL. */
+  /** 来源 URL。 */
   url: string
-  /** The source title, when the provider returned one. */
+  /** 来源标题，当提供方返回了标题时。 */
   title?: string
-  /** A short excerpt or summary, when the provider returned one. */
+  /** 简短摘录或摘要，当提供方返回了摘要时。 */
   snippet?: string
-  /** Publication/crawl timestamp as a provider-supplied ISO-8601 string, when present. */
+  /** 发布/抓取时间戳，提供方提供的 ISO-8601 字符串，存在时填写。 */
   publishedAt?: string
 }
 
 /**
- * A completed web retrieval rendered as a structured card by a capable UI. Set
- * by a web tool whose call retrieves from the web (`web_search`, `web_fetch`).
- * One `kind`-tagged union carries both shapes because both are web retrieval and
- * a UI renders them with one component family; a UI switches on `kind`. An
- * incapable UI falls back to the raw `tool/result` content (this view carries no
- * `content` copy — see the web-result-card Agent Note). This is the result-time
- * analogue of the `web_search`/`web_fetch` calls' generic call views
- * (`kind: 'search'`/`'fetch'`); those tools keep their generic pending card and
- * add only this completed card.
+ * 已完成的网页检索，由具备能力的 UI 渲染为结构化卡片。由从网络检索的网页
+ * 工具设置（`web_search`、`web_fetch`）。一个 `kind` 标签联合类型承载两种
+ * 形态，因为两者都是网页检索，UI 用同一组件族渲染它们；UI 按 `kind`
+ * 分派。不具备能力的 UI 回退到原始 `tool/result` 内容（此视图不携带
+ * `content` 副本——见 web-result-card Agent Note）。这是
+ * `web_search`/`web_fetch` 调用的通用调用视图（`kind: 'search'`/`'fetch'`）
+ * 的结果期对应物；这些工具保留其通用待处理卡片，只添加此完成卡片。
  *
- * The `kind` field here is this union's own discriminant, NOT a
- * {@link ToolCallKind}: the two values deliberately match the tools' pending
- * `ToolCallKind` (`'search'`/`'fetch'`) so a call and its result read as one
- * category, but a new arm is a union edit plus a consumer branch, not any
- * arbitrary `ToolCallKind` value.
+ * 这里的 `kind` 字段是此联合类型自身的判别字段，不是
+ * {@link ToolCallKind}：两个值刻意与工具的待处理 `ToolCallKind`
+ * （`'search'`/`'fetch'`）一致，使调用与其结果读起来属同一类别，但新增
+ * 分支是联合类型修改加一个消费方分支，而不是任意的 `ToolCallKind` 值。
  */
 export type WebResultView = WebSearchResultView | WebFetchResultView
 
 /**
- * The completed state of a `web_search` call: the structured sources the model
- * cited, an optional provider answer, and whether the source list was cut to the
- * result cap. A capable UI renders the sources as a citation list; a UI without
- * the `web` capability falls back to the raw `tool/result` content.
+ * `web_search` 调用的完成状态：模型引用的结构化来源、可选的提供方答案，
+ * 以及来源列表是否被裁剪到结果上限。具备能力的 UI 将来源渲染为引用列表；
+ * 不具备 `web` 能力的 UI 回退到原始 `tool/result` 内容。
  */
 export interface WebSearchResultView {
   card: 'web'
   kind: 'search'
-  /** Replacement title for the completed call. Omit to keep the pending-state title. */
+  /** 已完成调用的替换标题。省略则保留待处理状态的标题。 */
   title?: string
-  /** The faithful, structured sources — the field render text cannot losslessly carry. */
+  /** 忠实的结构化来源——渲染文本无法无损承载的字段。 */
   sources: WebSource[]
-  /** The provider-generated answer text, when any. */
+  /** 提供方生成的答案文本，若有。 */
   answer?: string
-  /** True when the web service cut the source list to honor the result cap. */
+  /** 网页服务为遵守结果上限而裁剪来源列表时为真。 */
   truncated: boolean
 }
 
 /**
- * The completed state of a `web_fetch` call: the fetched URL, its HTTP status,
- * and whether the content was cut. The body itself is already markdown in the
- * raw `tool/result` content, so this card carries only the retrieval summary and
- * a UI without the `web` capability falls back to that content.
+ * `web_fetch` 调用的完成状态：抓取的 URL、其 HTTP 状态，以及内容是否被
+ * 裁剪。正文在原始 `tool/result` 内容中已是 markdown，因此此卡片只承载
+ * 检索摘要，不具备 `web` 能力的 UI 回退到该内容。
  */
 export interface WebFetchResultView {
   card: 'web'
   kind: 'fetch'
-  /** Replacement title for the completed call. Omit to keep the pending-state title. */
+  /** 已完成调用的替换标题。省略则保留待处理状态的标题。 */
   title?: string
-  /** The final URL after allowed redirects. */
+  /** 允许的重定向之后的最终 URL。 */
   url: string
-  /** HTTP status code of the fetched response. */
+  /** 抓取响应的 HTTP 状态码。 */
   statusCode: number
   /**
-   * True when the provider capped the decoded body, or the output cap or a
-   * pre-conversion source cut trimmed the rendered text (the effective
-   * truncation the model-facing text also reflects).
+   * 当提供方截断了已解码正文，或输出上限或转换前的来源裁剪削减了渲染文本
+   * 时为真（面向模型文本反映的也是这一有效截断）。
    */
   truncated: boolean
 }

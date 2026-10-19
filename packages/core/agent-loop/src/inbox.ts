@@ -1,5 +1,5 @@
 /**
- * Driver-owned durable agent inbox projection and command facade.
+ * 驱动器拥有的持久 agent 收件箱投影与命令门面。
  *
  * @module @deepseek-ai/dsh-agent-loop/inbox
  */
@@ -17,13 +17,13 @@ import type {
 } from '@deepseek-ai/dsh-agent'
 import { z } from 'zod'
 
-/** Wire validation for pending agent input reconstructed from durable inbox splices. */
+/** 对从持久收件箱拼接重建的待处理 agent 输入的线上验证。 */
 export const inboxProjectionSchema = z.object({
   'next-turn': z.array(z.custom<UserMessage>()).readonly(),
   'next-step': z.array(z.custom<UserMessage>()).readonly(),
 }).readonly()
 
-/** Standard fold that reconstructs pending input and rejects invalid durable splice history. */
+/** 重建待处理输入并拒绝无效持久拼接历史的标准折叠。 */
 export const inboxProjectionDefinition = {
   key: 'inbox',
   stateSchema: inboxProjectionSchema,
@@ -55,9 +55,9 @@ export const inboxProjectionDefinition = {
     }
   },
   wire: {
-    // The wire value is the fold state itself: every pending message already
-    // round-trips the session log as lossless JSON. Only the static type
-    // narrows to the JSON-safe projection table entry.
+    // 线上值就是折叠状态本身：每条待处理消息都已经
+    // 以无损 JSON 在会话日志中往返。只有静态类型
+    // 收窄到 JSON 安全的投影表条目。
     viewSchema: inboxProjectionSchema as unknown as z.ZodType<InboxWireState>,
     view: (state: InboxState) => state as unknown as InboxWireState,
   },
@@ -65,11 +65,11 @@ export const inboxProjectionDefinition = {
 } satisfies ProjectionDefinition<'inbox', InboxState>
 
 /**
- * Driver-owned durable Inbox implementation used by ReactLoopAgent and focused
- * provider tests.
- * @param projections - registry with the standard Inbox projection registered by AgentLoop.
- * @param session - session whose durable events store pending input.
- * @param dispatch - agent-scoped notifications for Inbox lifecycle events.
+ * 驱动器拥有的持久 Inbox 实现，供 ReactLoopAgent 和聚焦的
+ * 提供方测试使用。
+ * @param projections - 注册了由 AgentLoop 注册的标准 Inbox 投影的注册表。
+ * @param session - 其持久事件存储待处理输入的会话。
+ * @param dispatch - Inbox 生命周期事件的 agent 范围通知。
  */
 export class ReactLoopInbox implements InboxContract {
   constructor(
@@ -78,33 +78,33 @@ export class ReactLoopInbox implements InboxContract {
     private readonly dispatch: AgentEventDispatch,
   ) {}
 
-  /** Prompts awaiting individual turns. */
+  /** 等待各自 turn 的提示词。 */
   get nextTurn(): readonly UserMessage[] {
     return this.current()['next-turn']
   }
 
-  /** Input awaiting the next step boundary. */
+  /** 等待下一个 step 边界的输入。 */
   get nextStep(): readonly UserMessage[] {
     return this.current()['next-step']
   }
 
-  /** Whether either pending-message list contains work. */
+  /** 任一待处理消息列表是否包含工作。 */
   get hasPending(): boolean {
     const state = this.current()
     return state['next-turn'].length > 0 || state['next-step'].length > 0
   }
 
-  /** Durably cancel all pending input, clearing next-step before next-turn. */
+  /** 持久取消所有待处理输入，先清空 next-step 再清空 next-turn。 */
   clear(): void {
     this.splice('next-step', 0, this.nextStep.length, [])
     this.splice('next-turn', 0, this.nextTurn.length, [])
   }
 
   /**
-   * Remove and return the complete batch proposed for one step.
-   * @param target - whether this boundary also consumes one queued turn.
-   * @param turn - turn that will own the claimed batch.
-   * @returns next-step input followed by the queued turn, when requested.
+   * 移除并返回为一个步骤提议的完整批次。
+   * @param target - 此边界是否还消耗一个排队的 turn。
+   * @param turn - 将拥有被认领批次的 turn。
+   * @returns next-step 输入，其后是排队的 turn（如请求）。
    */
   claim(target: InboxTarget, turn: number): UserMessage[] {
     const claimed = this.mutate('next-step', 0, this.nextStep.length, [], false)
@@ -114,28 +114,28 @@ export class ReactLoopInbox implements InboxContract {
   }
 
   /**
-   * Append one message to a pending list.
-   * @param target - pending list to extend.
-   * @param message - message to append.
+   * 向一个待处理列表追加一条消息。
+   * @param target - 要扩展的待处理列表。
+   * @param message - 要追加的消息。
    */
   append(target: InboxTarget, message: UserMessage): void {
     this.splice(target, this.current()[target].length, 0, [message])
   }
 
   /**
-   * Prepend one message to a pending list.
-   * @param target - pending list to extend.
-   * @param message - message to prepend.
+   * 向一个待处理列表前插一条消息。
+   * @param target - 要扩展的待处理列表。
+   * @param message - 要前插的消息。
    */
   prepend(target: InboxTarget, message: UserMessage): void {
     this.splice(target, 0, 0, [message])
   }
 
   /**
-   * Replace one pending message in place.
-   * @param messageId - identity of the pending message to replace.
-   * @param newMessage - replacement message.
-   * @returns whether the message was still pending.
+   * 原位替换一条待处理消息。
+   * @param messageId - 要替换的待处理消息的身份。
+   * @param newMessage - 替换消息。
+   * @returns 该消息是否仍待处理。
    */
   replace(messageId: MessageId, newMessage: UserMessage): boolean {
     const location = this.locate(messageId)
@@ -145,9 +145,9 @@ export class ReactLoopInbox implements InboxContract {
   }
 
   /**
-   * Remove one pending message.
-   * @param messageId - identity of the pending message to remove.
-   * @returns whether the message was still pending.
+   * 移除一条待处理消息。
+   * @param messageId - 要移除的待处理消息的身份。
+   * @returns 该消息是否仍待处理。
    */
   remove(messageId: MessageId): boolean {
     const location = this.locate(messageId)
@@ -157,12 +157,12 @@ export class ReactLoopInbox implements InboxContract {
   }
 
   /**
-   * Apply standard splice semantics and durably record the normalized result.
-   * @param target - pending list to mutate.
-   * @param start - splice position.
-   * @param deleteCount - maximum number of messages to remove.
-   * @param inserted - messages to insert at the resolved position.
-   * @returns messages removed by the splice.
+   * 应用标准 splice 语义并持久记录规范化后的结果。
+   * @param target - 要变更的待处理列表。
+   * @param start - splice 位置。
+   * @param deleteCount - 可移除的最大消息数。
+   * @param inserted - 要在解析后的位置插入的消息。
+   * @returns 被 splice 移除的消息。
    */
   splice(
     target: InboxTarget,
@@ -173,7 +173,7 @@ export class ReactLoopInbox implements InboxContract {
     return this.mutate(target, start, deleteCount, inserted, true)
   }
 
-  /** Locate one pending identity across both owned lists. */
+  /** 在两个拥有的列表中定位单个待处理身份。 */
   private locate(messageId: MessageId): { target: InboxTarget; index: number } | undefined {
     const state = this.current()
     for (const target of ['next-turn', 'next-step'] as const) {
@@ -183,7 +183,7 @@ export class ReactLoopInbox implements InboxContract {
     return undefined
   }
 
-  /** Read the current durable projection state. */
+  /** 读取当前的持久投影状态。 */
   private current(): InboxState {
     const state = this.projections.stateOf(this.session, 'inbox')
     if (state === undefined) {
@@ -194,7 +194,7 @@ export class ReactLoopInbox implements InboxContract {
     return state
   }
 
-  /** Commit one normalized mutation and publish its live events. */
+  /** 提交单个规范化变更并发布其活跃事件。 */
   private mutate(
     target: InboxTarget,
     start: number,

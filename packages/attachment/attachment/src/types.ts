@@ -1,29 +1,29 @@
-/** Durable attachment vocabulary. @module @deepseek-ai/dsh-attachment/types */
+/** 持久化附件词汇表。@module @deepseek-ai/dsh-attachment/types */
 
 import type { AttachmentId, ImageVariantId } from './brand.ts'
 
 export type { AttachmentId } from './brand.ts'
 
-/** Raster image formats accepted by the version-one attachment path. */
+/** 第一版附件路径所接受的位图图像格式。 */
 export type ImageMediaType = 'image/png' | 'image/jpeg' | 'image/webp' | 'image/gif'
 
-/** Durable, serializable reference to one immutable normalized image. */
+/** 指向一个不可变规范化图像的持久化、可序列化引用。 */
 export interface ImageAttachmentRef {
-  /** Opaque storage identifier; never a filesystem path or bearer URL. */
+  /** 不透明的存储标识符；绝不是文件系统路径或 bearer URL。 */
   attachmentId: AttachmentId
-  /** Media type verified from the stored bytes. */
+  /** 依据已存储字节校验过的媒体类型。 */
   mediaType: ImageMediaType
-  /** Exact encoded byte length. */
+  /** 精确的编码字节长度。 */
   bytes: number
-  /** Intrinsic encoded width in pixels. */
+  /** 编码后的固有宽度（像素）。 */
   width: number
-  /** Intrinsic encoded height in pixels. */
+  /** 编码后的固有高度（像素）。 */
   height: number
-  /** Optional display name stripped of local path information. */
+  /** 可选的显示名，已剥离本地路径信息。 */
   name?: string
   /**
-   * Input dimensions after applying EXIF orientation and before normalization
-   * scaling. Present only when normalization reduced the image.
+   * 应用 EXIF 方向之后、规范化缩放之前的输入尺寸。
+   * 仅当规范化缩小了图像时才存在。
    */
   originalDimensions?: {
     width: number
@@ -32,70 +32,68 @@ export interface ImageAttachmentRef {
 }
 
 /**
- * Durable, serializable reference to one verbatim stored file. Files are
- * stored byte-for-byte with no normalization; `attachmentId` is the sha256
- * digest of exactly those bytes.
+ * 指向一个逐字节存储文件的持久化、可序列化引用。文件按字节原样存储，
+ * 不做规范化；`attachmentId` 正是这些字节的 sha256 摘要。
  */
 export interface FileAttachmentRef {
-  /** Opaque content-addressed storage identifier; never a filesystem path or bearer URL. */
+  /** 不透明的按内容寻址存储标识符；绝不是文件系统路径或 bearer URL。 */
   attachmentId: AttachmentId
-  /** Sanitized display filename, also the stored object's leaf name. */
+  /** 净化后的显示文件名，同时也是存储对象的叶子名。 */
   name: string
-  /** Exact byte length. */
+  /** 精确的字节长度。 */
   bytes: number
 }
 
-/** Base64-encoded file upload accompanying one wire request. */
+/** 随一次线上请求提交的 base64 编码文件上传。 */
 export interface EncodedFileAttachment {
-  /** Canonical base64 encoding of the file bytes. */
+  /** 文件字节的规范 base64 编码。 */
   data: string
-  /** Optional display name; it is never interpreted as a path. */
+  /** 可选的显示名；它绝不会被当作路径解析。 */
   name?: string
 }
 
-/** Request to durably commit one file verbatim. */
+/** 逐字节持久化提交一个文件的请求。 */
 export interface SaveFileAttachment {
   data: Uint8Array
-  /** Optional browser/provider display name; it is never interpreted as a path. */
+  /** 可选的浏览器/提供方显示名；它绝不会被当作路径解析。 */
   name?: string
 }
 
-/** Request to durably commit one file from bounded byte chunks. */
+/** 从有界字节块持久化提交一个文件的请求。 */
 export interface SaveFileStreamAttachment {
-  /** Exact file bytes in order; providers must not retain the complete sequence in memory. */
+  /** 有序的精确文件字节；提供方不得在内存中保留完整序列。 */
   data: AsyncIterable<Uint8Array>
-  /** Optional cancellation for source reads and storage writes. */
+  /** 可选的取消信号，用于源读取和存储写入。 */
   signal?: AbortSignal
-  /** Optional browser/provider display name; it is never interpreted as a path. */
+  /** 可选的浏览器/提供方显示名；它绝不会被当作路径解析。 */
   name?: string
 }
 
-/** Deployment-resolved limits used by upload admission and request buffering. */
+/** 上传准入与请求缓冲所使用的、按部署解析出的限制。 */
 export interface ImageAttachmentLimits {
   maxImageBytes: number
   maxImagesPerMessage: number
   maxMessageImageBytes: number
   maxImagePixels: number
-  /** Maximum intrinsic width and maximum intrinsic height in pixels for one image. */
+  /** 单张图像允许的最大固有宽度和最大固有高度（像素）。 */
   maxImageDimension: number
   mediaTypes: readonly ImageMediaType[]
 }
 
-/** Base64-encoded image upload accompanying one wire request. */
+/** 随一次线上请求提交的 base64 编码图像上传。 */
 export interface EncodedImageAttachment {
-  /** Declared media type, verified against the decoded bytes during admission. */
+  /** 调用方声明的媒体类型，在准入时依据解码后的字节进行校验。 */
   mediaType: ImageMediaType
-  /** Canonical base64 encoding of the image bytes. */
+  /** 图像字节的规范 base64 编码。 */
   data: string
-  /** Optional display name; it is never interpreted as a path. */
+  /** 可选的显示名；它绝不会被当作路径解析。 */
   name?: string
 }
 
 /**
- * Browser-submitted prompt content accepted by Host prompt endpoints; the
- * accepting Host promotes image parts to durable references through
- * `ctx.attachments.admitPromptContent()` before any message is created, so a wire caller can
- * never cite an attachment it did not upload.
+ * Host 提示端点所接受的、由浏览器提交的提示内容；接受该内容的 Host 会在
+ * 创建任何消息之前，通过 `ctx.attachments.admitPromptContent()` 将图像部分
+ * 提升为持久化引用，因此线上调用方永远无法引用它未上传的附件。
  */
 export type PromptContentPart =
   | { readonly type: 'text'; readonly text: string }
@@ -106,58 +104,58 @@ export type PromptContentPart =
     readonly name?: string
   }
 
-/** Host prompt content whose file receipts are resolved and whose image bytes await admission. */
+/** 文件凭证已解析、图像字节等待准入的 Host 提示内容。 */
 export type AttachmentAdmissionPart =
   | PromptContentPart
   | { readonly type: 'file'; readonly attachment: FileAttachmentRef }
 
-/** Host-admitted prompt content with every attachment represented by its durable reference. */
+/** 经 Host 准入的提示内容，其中每个附件都以其持久化引用表示。 */
 export type AdmittedPromptContentPart =
   | { readonly type: 'text'; readonly text: string }
   | { readonly type: 'image'; readonly attachment: ImageAttachmentRef }
   | { readonly type: 'file'; readonly attachment: FileAttachmentRef }
 
-/** Request to validate and durably commit one image. */
+/** 校验并持久化提交一张图像的请求。 */
 export interface SaveImageAttachment {
   data: Uint8Array
-  /** Caller-declared media type, checked against fully decoded bytes. */
+  /** 调用方声明的媒体类型，会依据完全解码后的字节进行检查。 */
   mediaType: ImageMediaType
-  /** Optional browser/provider display name; it is never interpreted as a path. */
+  /** 可选的浏览器/提供方显示名；它绝不会被当作路径解析。 */
   name?: string
 }
 
-/** Stored image bytes returned after reference and digest verification. */
+/** 通过引用与摘要校验后返回的已存储图像字节。 */
 export interface StoredImageAttachment {
   ref: ImageAttachmentRef
   data: Uint8Array
 }
 
-/** Deterministic request-image target selected by one exact model route for one attachment. */
+/** 某个确切模型路由为某个附件选定的确定性请求图像目标。 */
 export interface ImageRequestTarget {
-  /** Target width in pixels; a target above the source keeps the source width. */
+  /** 目标宽度（像素）；目标高于源时保留源宽度。 */
   width: number
-  /** Target height in pixels; a target above the source keeps the source height. */
+  /** 目标高度（像素）；目标高于源时保留源高度。 */
   height: number
-  /** Encoded-byte target before base64 expansion or Files API upload; the smallest quality-ladder output is kept when no quality fits. */
+  /** base64 膨胀或 Files API 上传之前的编码字节目标；当没有任何质量档满足时，保留质量阶梯中最小的输出。 */
   maxBytes: number
 }
 
-/** Cached request version derived from one provider-independent normalized attachment. */
+/** 由某个与提供方无关的规范化附件派生出的缓存请求版本。 */
 export interface RequestImageAttachment {
-  /** Cache and upload-index key over the attachment id, policy, and fixed encoder parameters. */
+  /** 覆盖附件 id、策略与固定编码器参数的缓存键和上传索引键。 */
   variantId: ImageVariantId
-  /** Durable normalized attachment from which this request version was derived. */
+  /** 派生此请求版本所依据的持久化规范化附件。 */
   attachment: ImageAttachmentRef
-  /** Encoded request bytes. */
+  /** 编码后的请求字节。 */
   data: Uint8Array
   mediaType: ImageMediaType
   bytes: number
   width: number
   height: number
-  /** Provider-compatible sample depth proven after request encoding. */
+  /** 请求编码之后确认的、与提供方兼容的采样位深。 */
   depth: 'uchar'
-  /** Provider-compatible color space proven after request encoding. */
+  /** 请求编码之后确认的、与提供方兼容的色彩空间。 */
   space: 'srgb'
-  /** Whether the encoded request version retains an alpha channel. */
+  /** 编码后的请求版本是否保留 alpha 通道。 */
   hasAlpha: boolean
 }

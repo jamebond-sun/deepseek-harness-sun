@@ -1,7 +1,7 @@
 /**
- * Authenticated GET/HEAD /api/file reads bounded file responses through
- * the composed filesystem provider. Paths and MIME types do not restrict access;
- * the connection service authenticates requests before this handler.
+ * 经过身份验证的 GET/HEAD /api/file 通过组合的文件系统提供方读取有界文件响应。
+ * 路径与 MIME 类型不限制访问；
+ * 连接服务在此处理程序之前对请求进行身份验证。
  * @module @deepseek-ai/dsh-api-session-controller/media-references
  */
 
@@ -15,7 +15,7 @@ import mime from 'mime-types'
 const BASE_HEADERS = {
   'Cache-Control': 'private, no-store',
   'X-Content-Type-Options': 'nosniff',
-  // HTML and SVG files may be opened directly on the authenticated API origin.
+  // HTML 与 SVG 文件可以在经过身份验证的 API 源上直接打开。
   'Content-Security-Policy': "sandbox; default-src 'none'",
 }
 
@@ -60,8 +60,8 @@ async function serveFile(request: Request, fs: FileSystem, maxBytes: number): Pr
 }
 
 /**
- * File-display contribution. The connection service supplies authentication;
- * `ctx.fs` supplies the execution world's paths, reads, and access policy.
+ * 文件展示贡献。连接服务提供身份验证；
+ * `ctx.fs` 提供执行世界的路径、读取与访问策略。
  */
 export const SessionMediaReferences = {
   inject: ['connection', 'fs', 'attachments'],

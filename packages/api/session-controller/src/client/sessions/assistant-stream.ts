@@ -1,4 +1,4 @@
-/** Web presentation fold joining transient Assistant frames to one durable v2 settlement. */
+/** 把瞬态 Assistant 帧折叠到一次持久化 v2 落定的 Web 呈现层。 */
 
 import type {
   SessionAssistantStreamBaseline,
@@ -22,12 +22,12 @@ interface ActiveAttempt {
   nextIndex: number
 }
 
-/** One Web publication decision from the assistant stream fold. */
+/** assistant 流折叠的一次 Web 发布决策。 */
 export type ClientAssistantStreamResult =
   | {
     readonly type: 'publish'
     readonly entry: SessionLiveEventEntry
-    /** Retire the successful attempt's transient rows after publishing its Step end. */
+    /** 在发布其 Step 结束之后退役该成功 attempt 的瞬态行。 */
     readonly retireAttemptId?: LlmAttemptId
   }
   | {
@@ -40,7 +40,7 @@ export type ClientAssistantStreamResult =
   | { readonly type: 'rebaseline' }
   | undefined
 
-/** Keeps transient Assistant presentation behind one settlement-aware interface. */
+/** 让瞬态 Assistant 呈现保持在一个感知落定的接口之后。 */
 export class ClientAssistantStream {
   private activeAttempt: ActiveAttempt | undefined
   private retainedAttempt: Pick<ActiveAttempt, 'attemptId' | 'turn' | 'step'> | undefined
@@ -50,10 +50,10 @@ export class ClientAssistantStream {
   private transientInGap = 0
 
   /**
-   * Replace the durable Web window and adopt an optional reconnect baseline.
-   * @param entries - durable entries in the replacement window.
-   * @param baseline - compact prefix for an Assistant attempt that is still live.
-   * @returns immediately visible durable entries plus reconstructed transient chunks.
+   * 替换持久化 Web 窗口并采纳一个可选的重连基线。
+   * @param entries - 替换窗口中的持久化条目。
+   * @param baseline - 仍存活的 Assistant attempt 的紧凑前缀。
+   * @returns 立即可见的持久化条目加上重建的瞬态块。
    */
   replace(
     entries: readonly SessionEventLikeEntry[],
@@ -102,9 +102,9 @@ export class ClientAssistantStream {
   }
 
   /**
-   * Stage one durable v2 settlement while its matching live attempt is open.
-   * @param entry - newly followed durable entry.
-   * @returns a publication decision, or `undefined` when no entry becomes visible.
+   * 在其匹配的实时 attempt 仍开启时暂存一次持久化 v2 落定。
+   * @param entry - 新跟随到的持久化条目。
+   * @returns 一个发布决策，或在没有条目变为可见时返回 `undefined`。
    */
   acceptDurable(entry: SessionLiveEventEntry): ClientAssistantStreamResult {
     const event = entry.event
@@ -120,11 +120,11 @@ export class ClientAssistantStream {
   }
 
   /**
-   * Fold one dense transient frame and release its named durable settlement.
-   * Successful messages retain their transient rows until the owning Step ends;
-   * interrupted messages, failed attempts, and abandonment retire them immediately.
-   * @param frame - next Assistant stream frame received by the follow connection.
-   * @returns a transient, publication, or rebaseline decision, or `undefined` when no entry becomes visible.
+   * 折叠一个稠密的瞬态帧并释放其指名的持久化落定。
+   * 成功的消息保留其瞬态行，直到所属的 Step 结束；
+   * 被打断的消息、失败的 attempt 与放弃会立即退役它们。
+   * @param frame - 跟随连接收到的下一个 Assistant 流帧。
+   * @returns 瞬态、发布或重新定基线决策，或在没有条目变为可见时返回 `undefined`。
    */
   acceptFrame(frame: SessionAssistantStreamFrame): ClientAssistantStreamResult {
     switch (frame.type) {
@@ -142,9 +142,9 @@ export class ClientAssistantStream {
         return undefined
       case 'chunk': {
         const attempt = this.activeAttempt
-        // A controller mounted after the Host saw this attempt has no start
-        // frame to reconstruct. Its durable settlement publishes directly;
-        // ignore the transient suffix until the next known start.
+        // 在 Host 看到该 attempt 之后才挂载的控制器没有可用的
+        // start 帧来重建。其持久化落定直接发布；
+        // 在下一个已知 start 之前忽略瞬态后缀。
         if (attempt === undefined || attempt.attemptId !== frame.attemptId) return undefined
         if (frame.index !== attempt.nextIndex) return { type: 'rebaseline' }
         attempt.nextIndex += 1

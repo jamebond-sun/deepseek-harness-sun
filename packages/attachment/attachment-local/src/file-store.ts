@@ -1,4 +1,4 @@
-/** Verbatim content-addressed local file storage. @module @deepseek-ai/dsh-attachment-local/file-store */
+/** 逐字节保留的内容寻址本地文件存储。@module @deepseek-ai/dsh-attachment-local/file-store */
 
 import { createHash } from 'node:crypto'
 import { createReadStream } from 'node:fs'
@@ -33,14 +33,13 @@ function utf8Prefix(value: string, maxBytes: number): string {
 }
 
 /**
- * Sanitize one caller display name into a safe stored leaf name. Both
- * separator styles are stripped by hand: a POSIX host treats `\` as an
- * ordinary character, so path.basename would keep a Windows client's full
- * local path and leak it into the reference and the session log. Characters
- * Windows refuses in file names become `_` so one reference stays valid on
- * every supported host.
- * @param value - caller-declared display name, possibly a full client path.
- * @returns a non-empty leaf name safe to store on every supported filesystem.
+ * 将调用方的显示名称净化为安全的存储叶名称。两种分隔符样式都被手动剥离：
+ * POSIX 宿主把 `\` 当作普通字符，因此 path.basename 会保留 Windows
+ * 客户端的完整本地路径，并将其泄露到引用和 session 日志中。
+ * Windows 拒绝出现在文件名中的字符替换为 `_`，使一个引用在
+ * 每个受支持的宿主上都保持有效。
+ * @param value - 调用方声明的显示名称，可能是完整的客户端路径。
+ * @returns 在每个受支持文件系统上都可安全存储的非空叶名称。
  */
 export function fileLeafName(value: string | undefined): string {
   if (value === undefined) return 'file'
@@ -64,29 +63,29 @@ function ensureFileReference(ref: FileAttachmentRef): string {
 }
 
 /**
- * Derive the absolute immutable-object path for one stored file. The digest
- * names a directory so the sanitized display name stays the stored leaf name,
- * giving models and users a path that ends in the real filename.
- * @param root - absolute `DSH_HOME/attachments/v1` root.
- * @param ref - durable file reference from the session log or an upload receipt.
- * @returns provider-local path without reading the object.
- * @throws an AttachmentError when the reference digest or name is invalid.
+ * 推导一个已存储文件的绝对不可变对象路径。摘要充当目录名，
+ * 净化后的显示名称保持为存储叶名称，为模型和用户提供以真实
+ * 文件名结尾的路径。
+ * @param root - 绝对的 `DSH_HOME/attachments/v1` 根目录。
+ * @param ref - 来自 session 日志或上传回执的持久文件引用。
+ * @returns 提供方本地路径，不读取对象本身。
+ * @throws 引用摘要或名称无效时抛出 AttachmentError。
  */
 export function storedFilePath(root: string, ref: FileAttachmentRef): string {
   const sha256 = ensureFileReference(ref)
   return join(root, 'files', sha256.slice(0, 2), sha256, ref.name)
 }
 
-/** Canonical object path shared by every display name for one digest. */
+/** 同一摘要下所有显示名称共享的规范对象路径。 */
 function storedFileObjectPath(root: string, sha256: string): string {
   return join(root, 'file-objects', sha256.slice(0, 2), sha256)
 }
 
 /**
- * Commit one file byte-for-byte below a versioned attachment root.
- * @param root - absolute `DSH_HOME/attachments/v1` root.
- * @param input - exact bytes and optional display name.
- * @returns the durable content-addressed file reference.
+ * 在版本化附件根目录下逐字节提交一个文件。
+ * @param root - 绝对的 `DSH_HOME/attachments/v1` 根目录。
+ * @param input - 确切的字节与可选的显示名称。
+ * @returns 持久的内容寻址文件引用。
  */
 export async function saveFileVerbatim(
   root: string,
@@ -105,10 +104,10 @@ export async function saveFileVerbatim(
 }
 
 /**
- * Commit one file byte-for-byte from bounded chunks below a versioned attachment root.
- * @param root - absolute `DSH_HOME/attachments/v1` root.
- * @param input - ordered exact bytes, optional cancellation, and display name.
- * @returns the durable content-addressed file reference.
+ * 在版本化附件根目录下从有界分块逐字节提交一个文件。
+ * @param root - 绝对的 `DSH_HOME/attachments/v1` 根目录。
+ * @param input - 按序的确切字节、可选取消信号与显示名称。
+ * @returns 持久的内容寻址文件引用。
  */
 export async function saveFileStreamVerbatim(
   root: string,
@@ -138,11 +137,11 @@ export async function saveFileStreamVerbatim(
 }
 
 /**
- * Read one stored file in bounded chunks and verify its byte count and digest.
- * @param root - absolute `DSH_HOME/attachments/v1` root.
- * @param ref - durable file reference from the session log.
- * @param signal - optional cancellation for filesystem reads.
- * @returns exact stored bytes in order; integrity failures reject after the final chunk.
+ * 以有界分块读取一个已存储文件，并校验其字节数与摘要。
+ * @param root - 绝对的 `DSH_HOME/attachments/v1` 根目录。
+ * @param ref - 来自 session 日志的持久文件引用。
+ * @param signal - 可选的取消信号，作用于文件系统读取。
+ * @returns 按序的确切存储字节；完整性失败在最后一个分块之后拒绝。
  */
 export async function* readFileStreamVerbatim(
   root: string,

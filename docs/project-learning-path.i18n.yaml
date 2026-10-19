@@ -1,0 +1,79 @@
+# Bilingual-pair consistency record for project-learning-path.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/project-learning-path.md
+/deepseek-harness-learning-and-second-development-path:
+  en: a6e3db67fff3cb4e
+  zh: 71e14b9ee675d9b8
+/deepseek-harness-learning-and-second-development-path/summary:
+  en: 7fa52a7b93727262
+  zh: 09953798c3796f1b
+/deepseek-harness-learning-and-second-development-path/table-of-contents:
+  en: b02f7d53becc5c79
+  zh: 65450d300ad41b2b
+/deepseek-harness-learning-and-second-development-path/how-to-use-this-tutorial:
+  en: 67fad572226a5c82
+  zh: 733114fa847588fa
+/deepseek-harness-learning-and-second-development-path/the-mental-model:
+  en: c49dab8c12819826
+  zh: 1bbb108799fa218e
+/deepseek-harness-learning-and-second-development-path/preparation-and-evidence-rules:
+  en: a96429a84736aa3d
+  zh: 17a13d6841abcb36
+/deepseek-harness-learning-and-second-development-path/twelve-week-curriculum:
+  en: 1ae122278c3de148
+  zh: 96fe352a1ffc6ec3
+/deepseek-harness-learning-and-second-development-path/twelve-week-curriculum/week-1-typescript-node-js-and-the-repository-map:
+  en: 24964d49e5f6c4d7
+  zh: 476177fbbb65f27f
+/deepseek-harness-learning-and-second-development-path/twelve-week-curriculum/week-2-cordis-fundamentals:
+  en: a293113cf393799c
+  zh: e976d7c8a6c18dd5
+/deepseek-harness-learning-and-second-development-path/twelve-week-curriculum/week-3-profiles-bundles-patches-and-launch:
+  en: c3e650e887efb82b
+  zh: 711e54e55428964b
+/deepseek-harness-learning-and-second-development-path/twelve-week-curriculum/week-4-cli-to-web-startup:
+  en: 6196d1071b908190
+  zh: 4fbc07f0fe1aa7e7
+/deepseek-harness-learning-and-second-development-path/twelve-week-curriculum/week-5-agent-loop-and-turn-lifecycle:
+  en: 1037e90861b0143c
+  zh: 789a8f402908f717
+/deepseek-harness-learning-and-second-development-path/twelve-week-curriculum/week-6-session-replay-and-persistence:
+  en: 8ad1390ec6003f54
+  zh: 9e303862eac9f21f
+/deepseek-harness-learning-and-second-development-path/twelve-week-curriculum/week-7-tools-and-execution-policy:
+  en: 080325e675aea40a
+  zh: acad16684883b5ea
+/deepseek-harness-learning-and-second-development-path/twelve-week-curriculum/week-8-model-adapters-and-capability-seams:
+  en: c1fac86d2e288185
+  zh: 27fb5343759cfed5
+/deepseek-harness-learning-and-second-development-path/twelve-week-curriculum/week-9-web-presentation-and-client-extensions:
+  en: 816e8653d1a11aea
+  zh: 46e0298c6b9aee9b
+/deepseek-harness-learning-and-second-development-path/twelve-week-curriculum/week-10-tests-snapshots-and-gates:
+  en: 10dc439f9c4041d3
+  zh: a9537a526ac65d96
+/deepseek-harness-learning-and-second-development-path/twelve-week-curriculum/week-11-packaging-and-reusable-extensions:
+  en: 8afdb93a15b3427a
+  zh: 84f54df697e9a05f
+/deepseek-harness-learning-and-second-development-path/twelve-week-curriculum/week-12-deployment-operations-and-a-complete-project:
+  en: c36b8eba40e58ed9
+  zh: 7e268c1c9cd8a75c
+/deepseek-harness-learning-and-second-development-path/second-development-ladder:
+  en: edb95d6d69c2cab1
+  zh: 72879c0b13282962
+/deepseek-harness-learning-and-second-development-path/feature-design-checklist:
+  en: fb6ae12cb4555134
+  zh: 1a4ed7375377a49e
+/deepseek-harness-learning-and-second-development-path/deployment-study:
+  en: 7d7501273f68aa5f
+  zh: 8fe23966689a73eb
+/deepseek-harness-learning-and-second-development-path/completion-standard:
+  en: f7479e57e8e1051f
+  zh: bf99b26ca6a4b87f
+/deepseek-harness-learning-and-second-development-path/further-exploration:
+  en: b985423b75b88eba
+  zh: ad972e7483e1ce16
+/deepseek-harness-learning-and-second-development-path/dev-note:
+  en: 95376d134609898f
+  zh: 6936a8161dced875

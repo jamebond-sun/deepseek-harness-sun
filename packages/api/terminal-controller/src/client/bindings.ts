@@ -1,18 +1,18 @@
-/** Independent content-to-terminal records keep concurrent browser writes disjoint. */
+/** 独立的内容到终端记录让并发的浏览器写入互不干扰。 */
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { WebTerminalId } from '../types.ts'
 
 const PREFIX = 'dsh.terminal.binding.v1.'
 
-/** Saved recovery targets keyed by Session and globally unique terminal content identity. */
+/** 以 Session 与全局唯一的终端内容标识为键的已保存恢复目标。 */
 export class TerminalBindings {
   private readonly memory = new Map<string, WebTerminalId>()
 
   /**
-   * Read a saved target, retaining this window's value when storage is unavailable.
-   * @param sessionId - owning Session.
-   * @param contentId - terminal content identity, shared only by deliberate copies.
-   * @returns the existing Host identity, if one has been saved.
+   * 读取已保存的目标；存储不可用时保留此窗口的值。
+   * @param sessionId - 拥有该目标的 Session。
+   * @param contentId - 终端内容标识，仅由刻意的副本共享。
+   * @returns 已存在的 Host 标识（如果已保存）。
    */
   get(sessionId: SessionId, contentId: string): WebTerminalId | undefined {
     const key = this.key(sessionId, contentId)
@@ -30,10 +30,10 @@ export class TerminalBindings {
   }
 
   /**
-   * Save an identity before its Host allocation begins.
-   * @param sessionId - owning Session.
-   * @param contentId - globally unique terminal content identity.
-   * @param id - existing or newly allocated Host identity.
+   * 在其 Host 分配开始之前保存标识。
+   * @param sessionId - 拥有该标识的 Session。
+   * @param contentId - 全局唯一的终端内容标识。
+   * @param id - 现有的或新分配的 Host 标识。
    */
   set(sessionId: SessionId, contentId: string, id: WebTerminalId): void {
     const key = this.key(sessionId, contentId)
@@ -44,9 +44,9 @@ export class TerminalBindings {
   }
 
   /**
-   * Remove this content's target after its close intent has been saved.
-   * @param sessionId - owning Session.
-   * @param contentId - closing terminal content identity.
+   * 在其关闭意图保存之后移除此内容的目标。
+   * @param sessionId - 拥有该目标的 Session。
+   * @param contentId - 正在关闭的终端内容标识。
    */
   delete(sessionId: SessionId, contentId: string): void {
     const key = this.key(sessionId, contentId)
@@ -56,7 +56,7 @@ export class TerminalBindings {
     catch (error) { console.error('Terminal binding cleanup failed:', error) }
   }
 
-  /** Release cached values when the Client service is disposed. */
+  /** 在 Client 服务释放时清空缓存值。 */
   clear(): void { this.memory.clear() }
 
   private key(sessionId: SessionId, contentId: string): string { return PREFIX + JSON.stringify([sessionId, contentId]) }

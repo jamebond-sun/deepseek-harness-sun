@@ -1,9 +1,9 @@
 /**
- * Browser half: the `file` resource provider over `remote.workspaceFiles`.
+ * 浏览器侧：构建在 `remote.workspaceFiles` 之上的 `file` 资源提供方。
  *
- * `types.ts` is what the protocol publishes, `change-feed.ts` shares one Host
- * `changes` stream per session, `provider.ts` turns it and `stat` into a value
- * stream, and this module only wires them into `ctx.resources`.
+ * `types.ts` 是 protocol 发布的内容，`change-feed.ts` 为每个 session 共享
+ * 一个 Host `changes` 流，`provider.ts` 将它与 `stat` 转成值流，
+ * 本模块只负责把它们装配进 `ctx.resources`。
  */
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-api-gateway/client'
@@ -13,20 +13,20 @@ import { createFileResourceProvider } from './provider.ts'
 
 export type { WorkspaceFileParams } from './types.ts'
 
-/** Required browser services: the resource model, the Remote carrier and its namespace. */
+/** 浏览器必需服务：资源模型、Remote 载体及其命名空间。 */
 export const inject = ['resources', 'remote', 'remote.workspaceFiles']
 
 /**
- * Client plugin body: register the `file` provider for this plugin's lifetime.
- * @param ctx - client root context carrying `resources` and the Remote face.
+ * Client 插件体：为本插件生命周期注册 `file` 提供方。
+ * @param ctx - 携带 `resources` 与 Remote 接口面的 client 根上下文。
  */
 export function apply(ctx: ClientContext): void {
   const changes = new ChangeFeed(ctx.remote)
   const provider = createFileResourceProvider(ctx.remote, changes)
   ctx.effect(() => {
     const release = ctx.resources.register(provider)
-    // Teardown waits for every session stream still closing, so the plugin
-    // leaves no Host stream behind.
+    // 拆卸等待每个仍在关闭中的 session 流，使插件不留任何
+    // Host 流在后台。
     return async () => {
       release()
       await changes.settle()

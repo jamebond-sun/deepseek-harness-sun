@@ -1,4 +1,4 @@
-/** Workspace-specific adapter for the Gateway-owned snapshot stream lifecycle. */
+/** 面向 Workspace 的适配器，服务于 Gateway 持有的快照流生命周期。 */
 
 import type { Context } from '@deepseek-ai/cordis'
 import {
@@ -24,7 +24,7 @@ export type {
 
 type WorkspaceBaselineFrame = Extract<WorkspaceFollowFrame, { type: 'baseline' }>
 
-/** Gateway-owned snapshot stream configured for Workspace state. */
+/** 为 Workspace 状态配置的 Gateway 持有快照流。 */
 export type WorkspaceStateStream = RemoteSnapshotStream<
   WorkspaceBaselineFrame,
   WorkspaceFollowIncrement
@@ -32,17 +32,17 @@ export type WorkspaceStateStream = RemoteSnapshotStream<
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
-    /** React-free Client Workspace state and commands. */
+    /** 不依赖 React 的 Client Workspace 状态与命令。 */
     workspaces: import('./service.ts').IWorkspaces
   }
 }
 
-/** Required Client Remote services. */
+/** 必需的 Client Remote 服务。 */
 export const inject = ['remote', 'remote.workspace']
 
 /**
- * Install Client Workspace state, commands, and reconnecting follow control.
- * @param ctx - Client root Context.
+ * 安装 Client Workspace 状态、命令与可重连的 follow 控制。
+ * @param ctx - Client 根上下文。
  */
 export function apply(ctx: Context): void {
   const model = new ClientWorkspaceModel(ctx.remote.workspace)
@@ -59,21 +59,21 @@ export function apply(ctx: Context): void {
   )
 }
 
-/** Domain sinks used by the Workspace state stream. */
+/** Workspace 状态流使用的领域接收端。 */
 export interface WorkspaceStateStreamOptions {
-  /** Destinations for decoded Workspace state operations. */
+  /** 解码后的 Workspace 状态操作的去向。 */
   readonly accept: WorkspaceFollowSink
-  /** Observe a retryable carrier loss before reconnection. */
+  /** 在重连前观察一次可重试的 carrier 丢失。 */
   readonly carrierFailed?: (error: RemoteStreamCarrierError) => void
-  /** Publish a terminal business or protocol failure. */
+  /** 发布终态业务或协议失败。 */
   readonly failed: (error: unknown) => void
 }
 
 /**
- * Create the reconnecting Workspace state stream.
- * @param remote - Client Remote face carrying the Workspace namespace and the stream factory.
- * @param options - Workspace state destinations.
- * @returns an unstarted stream owned by the Client Workspace runtime.
+ * 创建可重连的 Workspace 状态流。
+ * @param remote - 携带 Workspace 命名空间与流工厂的 Client Remote 接口面。
+ * @param options - Workspace 状态去向。
+ * @returns 未启动的流，由 Client Workspace 运行时持有。
  */
 export function createWorkspaceStateStream(
   remote: ClientRemote,
@@ -116,13 +116,13 @@ function acceptIncrement(accept: WorkspaceFollowSink, frame: WorkspaceFollowIncr
     case 'pinned':
       accept.replacePinned(frame.pinnedSessionIds)
       return
-    /* v8 ignore next -- the generated Remote codec validates this closed union */
+    /* v8 ignore next -- 生成的 Remote 编解码器已校验该封闭联合 */
     default:
       return assertNever(frame)
   }
 }
 
-/* v8 ignore next 3 -- closed-union backstop after generated Remote validation */
+/* v8 ignore next 3 -- 生成的 Remote 校验之后的封闭联合兜底 */
 function assertNever(value: never): never {
   throw new Error(`unreachable Workspace increment: ${JSON.stringify(value)}`)
 }

@@ -1,54 +1,54 @@
-/** Wire messages for Gateway-owned Remote streams and event-result RPCs. */
+/** Gateway 自有的 Remote 流与事件结果 RPC 的 wire 消息。 */
 
 import type { Branded } from '@deepseek-ai/dsh-brand'
 import { isRemoteJsonValue } from '@deepseek-ai/dsh-typert-protocol'
 
-/** Exact WebSocket route carrying every Typert Remote stream. */
+/** 承载所有 Typert Remote 流的确切 WebSocket 路由。 */
 export const REMOTE_STREAM_MUX_PATH = '/api/remote.mux'
 
-/** Gateway-internal logical stream carrying application-selected Cordis events. */
+/** 携带应用选定 Cordis 事件的 Gateway 内部逻辑流。 */
 export const REMOTE_EVENT_STREAM_ENDPOINT = '$events'
 
-/** Gateway-internal unary endpoint returning one Client Remote Event outcome. */
+/** 返回单个 Client Remote Event 结果的 Gateway 内部一元端点。 */
 export const REMOTE_EVENT_RESULT_ENDPOINT = '$events/result'
 
-/** Empty standard Remote payload used to open the forwarded-event stream. */
+/** 用于打开转发事件流的空标准 Remote 载荷。 */
 export const REMOTE_EVENT_STREAM_PAYLOAD = { args: {} } as const
 
-/** Discriminator for the first item proving the Host event source is ready. */
+/** 证明 Host 事件源已就绪的首个条目的判别符。 */
 export const REMOTE_EVENT_STREAM_READY = { type: 'ready' } as const
 
-/** Opaque identity for one active Client Remote Event generation. */
+/** 一个活跃 Client Remote Event 代的不透明身份。 */
 export type RemoteEventClientId = Branded<'RemoteEventClientId'>
 
-/** Opaque correlation id for one pending Host-to-Client Remote Event. */
+/** 一条挂起的 Host 到 Client Remote Event 的不透明关联 id。 */
 export type RemoteEventId = Branded<'RemoteEventId'>
 
-/** Stable Host facts published with every established Client event generation. */
+/** 随每个已建立的 Client 事件代发布的稳定 Host 事实。 */
 export interface RemoteEventHostInfo {
-  /** Host account home used only to abbreviate displayed filesystem paths. */
+  /** Host 账户主目录，仅用于缩略显示的文件系统路径。 */
   readonly home: string
 }
 
-/** Opening item that binds later HTTP results to this active event stream. */
+/** 将后续 HTTP 结果绑定到此活跃事件流的起始条目。 */
 export interface RemoteEventReadyFrame {
   readonly type: 'ready'
   readonly clientId: RemoteEventClientId
-  /** Stable Host facts attached to this connection generation. */
+  /** 附加到此连接代的稳定 Host 事实。 */
   readonly host: RemoteEventHostInfo
 }
 
-/** Opaque Agent identity carried by one scoped Remote Event. */
+/** 一个作用域 Remote Event 携带的不透明 Agent 身份。 */
 export type RemoteEventAgentId = Branded<'RemoteEventAgentId'>
 
-/** One Host notification delivered to a Client generation. */
+/** 交付给一个 Client 代的一条 Host 通知。 */
 export interface RemoteEventEmitFrame {
   readonly type: 'emit'
   readonly event: string
   readonly args: readonly unknown[]
 }
 
-/** One pending Agent-scoped waterfall delivered to a Client generation. */
+/** 交付给一个 Client 代的一条挂起的 Agent 作用域瀑布。 */
 export interface RemoteEventInvocationFrame {
   readonly type: 'waterfall'
   readonly event: string
@@ -57,26 +57,26 @@ export interface RemoteEventInvocationFrame {
   readonly request: Readonly<Record<string, unknown>>
 }
 
-/** Cancellation of a pending waterfall previously delivered under the same id. */
+/** 之前以相同 id 交付的挂起瀑布的取消。 */
 export interface RemoteEventCancellationFrame {
   readonly type: 'cancel'
   readonly eventId: RemoteEventId
 }
 
-/** Every item carried by the Gateway-internal forwarded-event stream. */
+/** Gateway 内部转发事件流承载的每一种条目。 */
 export type RemoteEventDownlinkFrame =
   | RemoteEventReadyFrame
   | RemoteEventEmitFrame
   | RemoteEventInvocationFrame
   | RemoteEventCancellationFrame
 
-/** JSON request fields plus the Host cancellation lifetime removed for transport. */
+/** JSON 请求字段，加上为传输而移除的 Host 取消生命周期。 */
 export interface ProjectedRemoteEventRequest {
   readonly request: Readonly<Record<string, unknown>>
   readonly signal?: AbortSignal
 }
 
-/** Error fields retained when a Client listener rejects a Host waterfall. */
+/** Client 监听器拒绝 Host 瀑布时保留的错误字段。 */
 export interface RemoteEventRejection {
   readonly name: string
   readonly message: string
@@ -84,7 +84,7 @@ export interface RemoteEventRejection {
   readonly details?: unknown
 }
 
-/** Client response to one scoped Remote Event delivery. */
+/** Client 对一次作用域 Remote Event 交付的响应。 */
 export interface RemoteEventResult {
   readonly clientId: RemoteEventClientId
   readonly eventId: RemoteEventId
@@ -95,9 +95,9 @@ export interface RemoteEventResult {
 }
 
 /**
- * Parse one result sent through the Client's `$events/result` HTTP RPC.
- * @param value - untrusted result payload.
- * @returns validated event correlation and outcome fields.
+ * 解析通过 Client 的 `$events/result` HTTP RPC 发送的一条结果。
+ * @param value - 不受信任的结果载荷。
+ * @returns 校验后的事件关联与结果字段。
  */
 export function parseRemoteEventResult(value: unknown): RemoteEventResult {
   if (!isRecord(value)
@@ -138,10 +138,10 @@ export function parseRemoteEventResult(value: unknown): RemoteEventResult {
 }
 
 /**
- * Remove the direct Agent and cancellation fields from one waterfall request.
- * @param value - request object before the waterfall's `next` callback.
- * @param subject - Agent used by the Cordis scope carrier.
- * @returns JSON-safe request fields and the optional Host cancellation signal.
+ * 从一个瀑布请求中移除直接的 Agent 与取消字段。
+ * @param value - 瀑布的 `next` 回调之前的请求对象。
+ * @param subject - Cordis scope 载体使用的 Agent。
+ * @returns JSON 安全的请求字段与可选的 Host 取消信号。
  */
 export function projectRemoteEventRequest(
   value: unknown,
@@ -173,9 +173,9 @@ export function projectRemoteEventRequest(
 }
 
 /**
- * Project an arbitrary rejection to stable, JSON-safe error fields.
- * @param reason - value thrown or rejected by a Client listener.
- * @returns wire-safe rejection fields.
+ * 将任意拒绝投射为稳定且 JSON 安全的错误字段。
+ * @param reason - Client 监听器抛出或拒绝的值。
+ * @returns wire 安全的拒绝字段。
  */
 export function projectRemoteEventRejection(reason: unknown): RemoteEventRejection {
   const record = typeof reason === 'object' && reason !== null ? reason : undefined
@@ -192,9 +192,9 @@ export function projectRemoteEventRejection(reason: unknown): RemoteEventRejecti
 }
 
 /**
- * Recreate a Client rejection for the Host continuation.
- * @param rejection - validated wire-safe error fields.
- * @returns an Error preserving the remote name, code, and JSON-safe details.
+ * 为 Host 的继续执行重建一个 Client 拒绝。
+ * @param rejection - 已校验的 wire 安全错误字段。
+ * @returns 一个保留远端 name、code 与 JSON 安全 details 的 Error。
  */
 export function restoreRemoteEventRejection(rejection: RemoteEventRejection): Error {
   const error = new Error(rejection.message) as Error & { code?: string; details?: unknown }
@@ -205,33 +205,33 @@ export function restoreRemoteEventRejection(rejection: RemoteEventRejection): Er
 }
 
 /**
- * Recognize a non-empty Remote Event correlation id at a wire boundary.
- * @param value - untrusted wire value.
- * @returns whether the value is a valid Remote Event id.
+ * 在 wire 边界识别非空的 Remote Event 关联 id。
+ * @param value - 不受信任的 wire 值。
+ * @returns 该值是否为有效的 Remote Event id。
  */
 export function isRemoteEventId(value: unknown): value is RemoteEventId {
   return typeof value === 'string' && value.length > 0
 }
 
 /**
- * Recognize a non-empty Remote Event Client id at a wire boundary.
- * @param value - untrusted wire value.
- * @returns whether the value identifies one event-stream generation.
+ * 在 wire 边界识别非空的 Remote Event Client id。
+ * @param value - 不受信任的 wire 值。
+ * @returns 该值是否标识一个事件流代。
  */
 export function isRemoteEventClientId(value: unknown): value is RemoteEventClientId {
   return typeof value === 'string' && value.length > 0
 }
 
 /**
- * Recognize the direct Agent identity used by a scoped Remote Event.
- * @param value - untrusted wire value.
- * @returns whether the value is a non-empty Agent identity.
+ * 识别作用域 Remote Event 使用的直接 Agent 身份。
+ * @param value - 不受信任的 wire 值。
+ * @returns 该值是否为非空的 Agent 身份。
  */
 export function isRemoteEventAgentId(value: unknown): value is RemoteEventAgentId {
   return typeof value === 'string' && value.length > 0
 }
 
-/** One logical stream request sent from the browser: open, one uplink item, uplink half-close, or cancel. */
+/** 浏览器发出的一条逻辑流请求：open、一条上行条目、上行半关闭或 cancel。 */
 export type RemoteStreamClientMessage =
   | {
     readonly type: 'open'
@@ -243,23 +243,23 @@ export type RemoteStreamClientMessage =
   | { readonly type: 'end'; readonly streamId: string }
   | { readonly type: 'cancel'; readonly streamId: string }
 
-/** Carrier-safe failure delivered by the Host. */
+/** Host 交付的对载体安全的失败。 */
 export interface RemoteStreamFailure {
   readonly code: string
   readonly message: string
   readonly details: object
 }
 
-/** One logical stream frame sent from the Host. */
+/** Host 发出的一条逻辑流帧。 */
 export type RemoteStreamServerMessage =
   | { readonly type: 'item'; readonly streamId: string; readonly value?: unknown }
   | { readonly type: 'error'; readonly streamId: string; readonly error: RemoteStreamFailure }
   | { readonly type: 'end'; readonly streamId: string }
 
 /**
- * Parse and validate one browser-to-Host text message.
- * @param text - complete WebSocket text message.
- * @returns the validated logical-stream request.
+ * 解析并校验一条浏览器到 Host 的文本消息。
+ * @param text - 完整的 WebSocket 文本消息。
+ * @returns 校验后的逻辑流请求。
  */
 export function parseRemoteStreamClientMessage(text: string): RemoteStreamClientMessage {
   return parseMessage(text, (value) => {
@@ -286,9 +286,9 @@ export function parseRemoteStreamClientMessage(text: string): RemoteStreamClient
 }
 
 /**
- * Parse and validate one Host-to-browser text message.
- * @param text - complete WebSocket text message.
- * @returns the validated logical-stream frame.
+ * 解析并校验一条 Host 到浏览器的文本消息。
+ * @param text - 完整的 WebSocket 文本消息。
+ * @returns 校验后的逻辑流帧。
  */
 export function parseRemoteStreamServerMessage(text: string): RemoteStreamServerMessage {
   return parseMessage(text, (value) => {

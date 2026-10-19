@@ -1,37 +1,36 @@
-/** Raster inspection: full decode at admission, header-only probe on verified reads. */
+/** 栅格检查：准入时完整解码，已校验读取时仅探测头部。 */
 
 import type { Sharp } from 'sharp'
 import { AttachmentError } from '@deepseek-ai/dsh-attachment'
 import type { ImageMediaType } from '@deepseek-ai/dsh-attachment'
 import { requireSharp } from './sharp.ts'
 
-/** Decoded metadata from a supported image. */
+/** 受支持图像的解码元数据。 */
 export interface DetectedImage {
   mediaType: ImageMediaType
-  /** Intrinsic width with EXIF orientation applied — the width a viewer perceives. */
+  /** 应用 EXIF 方向后的固有宽度——即观看者感知的宽度。 */
   width: number
-  /** Intrinsic height with EXIF orientation applied — the height a viewer perceives. */
+  /** 应用 EXIF 方向后的固有高度——即观看者感知的高度。 */
   height: number
-  /** Whether the container carries more than one frame. */
+  /** 容器是否携带多于一帧。 */
   animated: boolean
-  /** Whether the bytes carry descriptive metadata, a color profile, or orientation. */
+  /** 字节是否携带描述性元数据、色彩配置文件或方向信息。 */
   carriesMetadata: boolean
-  /** Sharp sample depth reported for the decoded channels. */
+  /** Sharp 为解码通道报告的采样位深。 */
   depth: string
-  /** Sharp colour space reported for the decoded pixels. */
+  /** Sharp 为解码像素报告的色彩空间。 */
   space: string
-  /** Whether decoded pixels carry an alpha channel. */
+  /** 解码像素是否携带 alpha 通道。 */
   hasAlpha: boolean
 }
 
 /**
- * Check alpha metadata for bytes produced by this package's encoders.
- * Sharp/libvips may omit an all-opaque alpha plane from WebP output; every
- * other addition or removal indicates that the encoded result is incompatible
- * with its source facts.
- * @param sourceHasAlpha - whether the source bytes declare an alpha plane, or undefined when the source frame is unspecified.
- * @param output - decoded media type and alpha metadata from the encoded result.
- * @returns whether the output alpha metadata is compatible with the source.
+ * 检查本包编码器产出的字节的 alpha 元数据。
+ * Sharp/libvips 可能从 WebP 输出中省略完全不透明的 alpha 平面；除此之外
+ * 任何新增或移除都表明编码结果与其源事实不兼容。
+ * @param sourceHasAlpha - 源字节是否声明 alpha 平面；源帧未指明时为 undefined。
+ * @param output - 编码结果解码出的媒体类型与 alpha 元数据。
+ * @returns 输出的 alpha 元数据是否与源兼容。
  */
 export function encodedAlphaIsCompatible(
   sourceHasAlpha: boolean | undefined,
@@ -66,8 +65,8 @@ async function imageMetadata(image: Sharp): Promise<DetectedImage> {
   if (mediaType === undefined) {
     throw new AttachmentError('Unsupported or malformed image data.', 'INVALID_IMAGE')
   }
-  // EXIF orientations 5-8 transpose the stored raster; report the perceived
-  // axes so limits, source facts, and coordinate advice all share them.
+  // EXIF 方向 5-8 会转置存储的栅格；报告感知轴，
+  // 使限制、源事实与坐标建议共享同一组轴。
   const transposed = metadata.orientation !== undefined && metadata.orientation >= 5
   return {
     mediaType,
@@ -82,12 +81,11 @@ async function imageMetadata(image: Sharp): Promise<DetectedImage> {
 }
 
 /**
- * Parse a supported raster's header and return its intrinsic metadata without
- * decoding pixels. Digest-verified reads use this: admission already proved
- * that these exact bytes decode completely, so the read path only re-derives
- * the reference fields instead of paying the full-raster decode again.
- * @param data - complete encoded image bytes.
- * @returns verified format and dimensions.
+ * 解析受支持栅格的头部并返回其固有元数据，不解码像素。
+ * 经摘要校验的读取使用此方法：准入阶段已证明这些确切字节可完整解码，
+ * 因此读取路径只需重新推导引用字段，而不必再次付出完整栅格解码的代价。
+ * @param data - 完整的编码图像字节。
+ * @returns 校验通过的格式与尺寸。
  */
 export async function probeImage(data: Uint8Array): Promise<DetectedImage> {
   const sharp = requireSharp()
@@ -99,19 +97,19 @@ export async function probeImage(data: Uint8Array): Promise<DetectedImage> {
   }
 }
 
-/** Admission limits applied to a decoded raster's intrinsic dimensions. */
+/** 应用于解码栅格固有尺寸的准入限制。 */
 export interface DecodedImageLimits {
-  /** Decoded-pixel (width times height) admission limit. */
+  /** 解码像素（宽乘高）的准入限制。 */
   maxPixels?: number
-  /** Per-side admission limit applied to width and height independently. */
+  /** 分别应用于宽度与高度的单边准入限制。 */
   maxDimension?: number
 }
 
 /**
- * Fully decode a supported raster and return its intrinsic metadata.
- * @param data - complete encoded image bytes.
- * @param limits - intrinsic-dimension admission limits.
- * @returns verified format and dimensions.
+ * 完整解码一个受支持的栅格并返回其固有元数据。
+ * @param data - 完整的编码图像字节。
+ * @param limits - 固有尺寸的准入限制。
+ * @returns 校验通过的格式与尺寸。
  */
 export async function detectImage(data: Uint8Array, limits?: DecodedImageLimits): Promise<DetectedImage> {
   const sharp = requireSharp()

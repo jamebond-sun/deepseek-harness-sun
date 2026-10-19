@@ -1,4 +1,4 @@
-/** Client Session object layer, Agent scopes, and Remote lifecycle wiring. */
+/** Client Session 对象层、Agent scope 与 Remote 生命周期接线。 */
 
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-agent/types'
@@ -76,25 +76,25 @@ export type {
   SessionSnapshot,
 } from './contract/snapshot.ts'
 
-/** Consumer-owned reference labels; extend this map through the package's canonical /client entry. */
+/** 消费方持有的引用标签；经由包的规范 /client 入口扩展此映射。 */
 export interface SessionReferenceSourceMap {
-  /** Temporary Client Controller work, including fork-title preparation. */
+  /** 临时的 Client Controller 工作，包括 fork 标题准备。 */
   controllerOperation: unknown
-  /** A Client Gateway invocation's synchronous Context ownership. */
+  /** 一次 Client Gateway 调用的同步 Context 所有权。 */
   gateway: unknown
 }
 
-/** Declaration-merge-extensible labels carried by independent Client references. */
+/** 由独立 Client 引用携带的声明合并可扩展标签。 */
 export type SessionReferenceSource = Extract<keyof SessionReferenceSourceMap, string>
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
-    /** Client Session object layer and Agent scope owner. */
+    /** Client Session 对象层与 Agent scope 持有者。 */
     sessions: import('./contract/sessions.ts').ISessions
   }
 }
 
-/** Required Remote and Context projection services. */
+/** 必需的 Remote 与 Context 投影服务。 */
 export const inject = [
   'connection',
   'fileUpload',
@@ -106,8 +106,8 @@ export const inject = [
 ]
 
 /**
- * Install Client Session state and its reconnecting control stream.
- * @param ctx - Client Cordis context.
+ * 安装 Client Session 状态及其重连控制流。
+ * @param ctx - Client Cordis 上下文。
  */
 export function apply(ctx: Context): void {
   const remotes = ctx.remote as unknown as SessionRemotes
@@ -131,7 +131,7 @@ export function apply(ctx: Context): void {
   })
   const connected = (): void => {
     if (connection.generation.getSnapshot() === undefined) return
-    // A ready control baseline may arrive before Cordis delivers connection/reset.
+    // 就绪的控制基线可能在 Cordis 交付 connection/reset 之前到达。
     sessions.handleConnected()
     control.restart()
     control.start()

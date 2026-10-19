@@ -1,48 +1,48 @@
 /**
- * PTC mode codegen: the pure projection from registered tool schemas to the TypeScript SDK
- * text the model programs against (the `tools:sdk` prompt section). Sibling of
- * `json-schema.ts` — `schemas()` (native function calling) and this module (the generated
- * `declare const tools` API) are two projections of the same store.
+ * PTC 模式代码生成：从已注册工具模式到模型编程所针对的 TypeScript SDK
+ * 文本（`tools:sdk` 提示词章节）的纯投影。`json-schema.ts` 的兄弟模块——
+ * `schemas()`（原生函数调用）与本模块（生成的 `declare const tools` API）
+ * 是同一存储的两个投影。
  * @module @deepseek-ai/dsh-tools/src/ts-types
  */
 
 import type { ToolSchema } from '@deepseek-ai/dsh-llm'
 import { assertSupportedJsonSchema } from './json-schema.ts'
 import type { JsonSchemaNode, JsonSchemaScalar } from './json-schema.ts'
-/** Internal PTC mode projection: the model-facing schema plus the canonical output schema. */
+/** 内部 PTC 模式投影：面向模型的模式加上规范输出模式。 */
 export interface ToolSdkSchema extends ToolSchema {
-  /** Validated canonical value returned by the tool binding. */
+  /** 工具绑定返回的已验证规范值。 */
   output: JsonSchemaNode
 }
 
-/** Property names that are valid bare TS identifiers; anything else is quoted. */
+/** 可作为裸 TS 标识符的属性名；其余一律加引号。 */
 const IDENTIFIER = /^[A-Za-z_$][A-Za-z0-9_$]*$/
 
-/** Render an object key: bare when it is a valid identifier, quoted otherwise (every name stays reachable, no aliasing). */
+/** 渲染对象键：有效标识符时裸写，否则加引号（每个名称都保持可达，无别名）。 */
 function renderKey(name: string): string {
   return IDENTIFIER.test(name) ? name : JSON.stringify(name)
 }
 
-/** One `indent`-deep line prefix (two spaces per level). */
+/** 深度为 `indent` 的行前缀（每级两个空格）。 */
 function pad(indent: number): string {
   return '  '.repeat(indent)
 }
 
-/** A one-line JSDoc block for a schema `description`, or no lines when there is none. */
+/** 为模式 `description` 生成单行 JSDoc 块；没有描述则不产生行。 */
 function docLines(description: unknown, indent: number): string[] {
   if (typeof description !== 'string' || description.length === 0) return []
-  // Collapse prose to stable one-line docs and escape comment closers so a
-  // schema description cannot terminate generated JSDoc.
+  // 将散文折叠为稳定的单行文档，并转义注释结束符，使模式描述无法终止
+  // 生成的 JSDoc。
   const collapsed = description.replace(/\s+/g, ' ').trim()
   return [`${pad(indent)}/** ${collapsed.replaceAll('*/', String.raw`*\/`)} */`]
 }
 
-/** Render one scalar already validated by the unified schema boundary. */
+/** 渲染一个已被统一模式校验方验证过的标量。 */
 function renderScalar(value: JsonSchemaScalar): string {
   return JSON.stringify(value)
 }
 
-/** Render a validated scalar `const`/`enum`, falling back to the broad type. */
+/** 渲染已验证的标量 `const`/`enum`，否则回退到宽泛类型。 */
 function renderConstrainedScalar(node: Record<string, unknown>, type: string): string {
   const broad = type === 'integer' ? 'number' : type
   if (Object.hasOwn(node, 'const')) return renderScalar(node.const as JsonSchemaScalar)
@@ -52,13 +52,13 @@ function renderConstrainedScalar(node: Record<string, unknown>, type: string): s
   return broad
 }
 
-/** A composable type document that can be flattened without recursive string concatenation. */
+/** 可组合的类型文档，无需递归字符串拼接即可扁平化。 */
 interface TypeDocument {
   readonly parts: readonly (string | TypeDocument)[]
   readonly containsUnionOrIntersection: boolean
 }
 
-/** Build one document from captured parts while retaining the legacy array-parenthesization test. */
+/** 从捕获的部分构建文档，同时保留旧有的数组加括号判定。 */
 function typeDocumentFrom(parts: readonly (string | TypeDocument)[]): TypeDocument {
   return {
     parts,
@@ -68,12 +68,12 @@ function typeDocumentFrom(parts: readonly (string | TypeDocument)[]): TypeDocume
   }
 }
 
-/** Build a small document without an intermediate array at each call site. */
+/** 构建小型文档，每个调用点不经中间数组。 */
 function typeDocument(...parts: (string | TypeDocument)[]): TypeDocument {
   return typeDocumentFrom(parts)
 }
 
-/** Flatten a nested document with an explicit work stack. */
+/** 用显式工作栈扁平化嵌套文档。 */
 function flattenTypeDocument(document: TypeDocument): string {
   const chunks: string[] = []
   const tasks: (string | TypeDocument)[] = [document]
@@ -91,7 +91,7 @@ function flattenTypeDocument(document: TypeDocument): string {
   return chunks.join('')
 }
 
-/** One explicit call frame for stack-safe schema-to-TypeScript rendering. */
+/** 栈安全的模式到 TypeScript 渲染的一个显式调用帧。 */
 interface SchemaRenderFrame {
   readonly node: JsonSchemaNode
   readonly indent: number
@@ -103,12 +103,12 @@ interface SchemaRenderFrame {
   entries: [string, JsonSchemaNode][]
 }
 
-/** Initialize one schema-render frame with empty aggregation state. */
+/** 以空聚合状态初始化一个模式渲染帧。 */
 function schemaRenderFrame(node: JsonSchemaNode, indent: number): SchemaRenderFrame {
   return { node, indent, phase: 'start', children: [], childIndex: 0, childDocuments: [], entries: [] }
 }
 
-/** Render an already asserted schema to a composable document. */
+/** 将已断言的模式渲染为可组合文档。 */
 function renderSupportedSchema(schema: JsonSchemaNode, indent: number): TypeDocument {
   const frames: SchemaRenderFrame[] = [schemaRenderFrame(schema, indent)]
   let rootDocument: TypeDocument | undefined
@@ -230,12 +230,11 @@ function renderSupportedSchema(schema: JsonSchemaNode, indent: number): TypeDocu
 }
 
 /**
- * Map one enforced JSON-Schema node to a TypeScript type literal. Supports
- * every unified schema construct and returns `unknown` for malformed or
- * unsupported inputs without throwing.
- * @param schema - the JSON-Schema node (any shape; hostile inputs degrade).
- * @param indent - the indentation level for nested object members.
- * @returns the TS type text (multi-line for objects with properties).
+ * 将一个受强制的 JSON Schema 节点映射为 TypeScript 类型字面量。支持每个
+ * 统一模式构造，对畸形或不支持的输入返回 `unknown` 而不抛出。
+ * @param schema - JSON Schema 节点（任意形态；恶意输入退化为 unknown）。
+ * @param indent - 嵌套对象成员的缩进层级。
+ * @returns TS 类型文本（含属性的对象为多行）。
  */
 export function jsonSchemaToTs(schema: unknown, indent = 0): string {
   try {
@@ -246,7 +245,7 @@ export function jsonSchemaToTs(schema: unknown, indent = 0): string {
   }
 }
 
-/** Render the argument and call instructions for the selected execution syntax. */
+/** 为所选执行语法渲染参数与调用指令。 */
 function renderSdkInstructions(programFormat: 'function-body' | 'repl'): string {
   const programDescription = programFormat === 'function-body'
     ? 'the body of an async TypeScript function (erasable syntax only — no `enum` or namespaces; type annotations are advisory, the code runs type-stripped)'
@@ -256,7 +255,7 @@ function renderSdkInstructions(programFormat: 'function-body' | 'repl'): string 
 \`run_code\` takes two required arguments: \`code\`, ${programDescription}, and \`description\`, a short summary of what the program does. The declarations below are SDK bindings for this program. A declaration does not make its name a directly callable tool; only names supplied as separate tool schemas may be called directly.`
 }
 
-/** Render tool execution and output instructions for the selected execution syntax. */
+/** 为所选执行语法渲染工具执行与输出指令。 */
 function renderSdkProgramInstructions(programFormat: 'function-body' | 'repl'): string {
   const outputInstruction = programFormat === 'function-body'
     ? 'Emit results with `return` and/or `console.log(...)`. Only what you print or return is program output.'
@@ -271,14 +270,14 @@ function renderSdkProgramInstructions(programFormat: 'function-body' | 'repl'): 
 Program-only SDK bindings:`
 }
 
-/** Whether one string schema accepts the literal used by the bash example. */
+/** 某个字符串模式是否接受 bash 示例使用的字面量。 */
 function acceptsExampleString(schema: JsonSchemaNode | undefined, value: string): boolean {
   return schema?.type === 'string'
     && (schema.const === undefined || schema.const === value)
     && (schema.enum === undefined || schema.enum.includes(value))
 }
 
-/** Render the bash example only when its literal arguments satisfy the current parameter schema. */
+/** 仅当字面量参数满足当前参数模式时渲染 bash 示例。 */
 function renderBashExample(schemas: ToolSdkSchema[], programFormat: 'function-body' | 'repl'): string {
   const bash = schemas.find(schema => schema.name === 'bash')
   if (bash === undefined) return ''
@@ -297,17 +296,14 @@ function renderBashExample(schemas: ToolSdkSchema[], programFormat: 'function-bo
 }
 
 /**
- * Render the full `tools:sdk` prompt section: the fixed usage instructions
- * plus one `declare const tools` interface covering every given tool.
- * Deterministic — tools are emitted in lexicographic name order, so an
- * unchanged tool set produces byte-identical text across assemblies. The sort
- * is not a total order on byte-equal names, so two schemas sharing a name
- * would render in argument order; the caller's visible-capability map is keyed
- * by name, so the input never carries a duplicate.
- * @param schemas - the tool schemas to declare (the caller excludes
- *   `run_code` itself).
- * @param programFormat - Runtime syntax; function bodies support returning a result, REPLs print it.
- * @returns the complete section text.
+ * 渲染完整的 `tools:sdk` 提示词章节：固定的使用说明，加上覆盖每个给定
+ * 工具的一个 `declare const tools` 接口。确定性——工具按名称字典序发出，
+ * 因此未变的工具集在多次组装间产生字节相同的文本。该排序在字节相等的
+ * 名称上不是全序，因此共享名称的两个模式会按参数顺序渲染；调用方的
+ * 可见能力映射以名称为键，输入因此不会携带重复。
+ * @param schemas - 要声明的工具模式（调用方排除 `run_code` 本身）。
+ * @param programFormat - 运行时语法；函数体支持返回结果，REPL 打印结果。
+ * @returns 完整的章节文本。
  */
 export function renderToolsSdk(schemas: ToolSdkSchema[], programFormat: 'function-body' | 'repl' = 'function-body'): string {
   const sorted = [...schemas].sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0)

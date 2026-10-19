@@ -1,4 +1,4 @@
-/** Browser-safe request, result, and lifecycle vocabulary for the Session Remote service. */
+/** Session Remote 服务使用的浏览器安全请求、结果与生命周期词汇。 */
 import type { NativeFileApplication } from '@deepseek-ai/dsh-native-command/types'
 
 import type {
@@ -15,19 +15,19 @@ import type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
 
 declare module '@deepseek-ai/dsh-session-projection/types' {
   interface SessionProjectionStateMap {
-    /** Host state persisted for cold Session list summaries. */
+    /** 为冷 Session 列表摘要持久化的 Host 状态。 */
     sessionListMetadata: SessionListMetadata
-    /** Host state for the boot-constant image-limit view. */
+    /** 启动期常量图片限制视图的 Host 状态。 */
     imageLimits: null
-    /** Durable model selection already used by a request and still pending for a later request. */
+    /** 已被某次请求使用、仍等待后续请求使用的持久化模型选择。 */
     modelSelection: ModelSelectionProjectionState
   }
   interface SessionProjectionMap {
-    /** Persisted facts used to summarize a Session without activating it. */
+    /** 用于在不激活 Session 的情况下摘要它的持久化事实。 */
     sessionListMetadata: SessionListMetadata
-    /** Image-intake limits enforced by the Session prompt endpoint. */
+    /** Session 提示词端点强制执行的图片录入限制。 */
     imageLimits: ImageAttachmentLimits
-    /** Durable model selection already used and selected for the next request. */
+    /** 已被使用并已为下一次请求选定的持久化模型选择。 */
     modelSelection: ModelSelectionProjection
   }
 }
@@ -35,57 +35,55 @@ declare module '@deepseek-ai/dsh-session-projection/types' {
 declare module '@deepseek-ai/dsh-session/types' {
   interface SessionEventMap {
     /**
-     * Complete validated model selection requested for subsequent prompt
-     * assembly. Log-only: it never enters derived model history.
+     * 为后续提示词组装请求的完整已验证模型选择。
+     * 仅日志记录：从不进入派生的模型历史。
      */
     'model/selection': ModelSelection
   }
 }
 
-/** Persisted hints used to summarize a cold Session. */
+/** 用于摘要冷 Session 的持久化提示。 */
 export interface SessionListMetadata {
-  /** Whether the folded prefix contains no turn. */
+  /** 折叠前缀是否不含任何回合。 */
   readonly blank: boolean
-  /** Latest human-authored prompt time in the folded prefix. */
+  /** 折叠前缀中最新的人工撰写提示词时间。 */
   readonly lastPromptAt: number | null
 }
 
 /**
- * Every available wire value a Session-list row carries as partial, possibly
- * stale hints. `kind` and `asOfSeq` are independent facts: `kind` says which
- * sequence space `asOfSeq` belongs to, and therefore how a client may merge
- * the block; `asOfSeq` is the producer's watermark in that space.
+ * Session 列表行携带的每一个可用 wire 值，作为部分且可能过期的提示。
+ * `kind` 与 `asOfSeq` 是相互独立的事实：`kind` 说明 `asOfSeq` 属于哪个
+ * 序列空间，从而决定客户端可以如何合并该块；`asOfSeq` 是生产方在该
+ * 空间中的水位线。
  */
 export interface SessionProjectionHints {
   /**
-   * `sequenced`: the Host's live registry produced the block for an attached
-   * Session, so `asOfSeq` is comparable with baselines and frames of the same
-   * connection. `cached`: a header-only listing viewed the block from the
-   * persisted projection cache, so `asOfSeq` is the stored record's own
-   * watermark and must not be compared with the connected Session's values.
+   * `sequenced`：Host 的活跃注册表为已附加的 Session 产出了该块，因此
+   * `asOfSeq` 可与同一连接的基线和帧比较。`cached`：仅含 header 的列表
+   * 从持久化投影缓存读取了该块，因此 `asOfSeq` 是所存记录自身的
+   * 水位线，不得与已连接 Session 的值比较。
    */
   readonly kind: 'cached' | 'sequenced'
-  /** Watermark of the block in the sequence space named by `kind`. */
+  /** 该块在 `kind` 所指序列空间中的水位线。 */
   readonly asOfSeq: number
-  /** Provider-validated values present in the block; omitted keys remain unknown. */
+  /** 块中存在的经提供方验证的值；省略的键仍为未知。 */
   readonly values: SessionProjectionValues
 }
 
-/** Complete projection values at an exact Session event cursor. */
+/** 精确 Session 事件游标处的完整投影值。 */
 export interface SessionProjectionBaseline {
   readonly asOfSeq: number
-  /** Provider-validated values; omitted keys are absent capabilities at this cut. */
+  /** 经提供方验证的值；省略的键表示此切点缺失该能力。 */
   readonly values: SessionProjectionValues
 }
 
-/** Typed known projections plus JSON-safe values contributed outside this compilation face. */
+/** 类型化的已知投影，加上在此编译面之外贡献的 JSON 安全值。 */
 export type SessionProjectionValues = Partial<SessionProjectionMap>
   & Readonly<Record<string, SessionProjectionValue>>
 
 /**
- * Browser-submitted prompt content; the Host promotes image bytes to durable
- * references. File parts carry the opaque receipt returned by a preceding
- * `uploadFile` call on the same Session.
+ * 浏览器提交的提示词内容；Host 将图片字节提升为持久引用。
+ * 文件部分携带同一 Session 上前一次 `uploadFile` 调用返回的不透明回执。
  */
 export type PromptContentPart =
   | { readonly type: 'text'; readonly text: string }
@@ -97,43 +95,43 @@ export type PromptContentPart =
   }
   | { readonly type: 'file'; readonly receiptId: Branded<'file-upload-receipt-id'> }
 
-/** Complete model selection for one Session. */
+/** 一个 Session 的完整模型选择。 */
 export interface ModelSelection {
   readonly provider: string
   readonly model: string
   readonly reasoningEffort?: string
 }
 
-/** Host fold state for durable model selection. */
+/** 持久化模型选择的 Host 折叠状态。 */
 export interface ModelSelectionProjectionState {
-  /** Selection consumed by the latest recorded model request. */
+  /** 最近一次已记录模型请求所消费的选择。 */
   readonly lastUsed: ModelSelection | null
-  /** Later user selection not yet consumed by a matching model request. */
+  /** 尚未被匹配模型请求消费的后续用户选择。 */
   readonly pending: ModelSelection | null
 }
 
-/** Client view of the durable model-selection fold. */
+/** 持久化模型选择折叠的客户端视图。 */
 export interface ModelSelectionProjection {
-  /** Selection consumed by the latest recorded model request. */
+  /** 最近一次已记录模型请求所消费的选择。 */
   readonly lastUsed: ModelSelection | null
-  /** Selection the next request should use, falling back to {@link lastUsed}. */
+  /** 下一次请求应使用的选择，回退到 {@link lastUsed}。 */
   readonly next: ModelSelection | null
 }
 
-/** One adapter-owned reasoning effort for an exact model route. */
+/** 精确模型路由上的一个由适配器拥有的推理力度档位。 */
 export interface ModelReasoningEffort {
   readonly id: string
   readonly name: string
   readonly description?: string
 }
 
-/** Selectable reasoning metadata for one exact model route. */
+/** 精确模型路由上的可选推理元数据。 */
 export interface ModelReasoning {
   readonly efforts: readonly ModelReasoningEffort[]
   readonly defaultEffort?: string
 }
 
-/** One model displayed inside its provider group. */
+/** 在其提供方分组内展示的一个模型。 */
 export interface ModelCatalogModel {
   readonly id: string
   readonly name: string
@@ -141,44 +139,44 @@ export interface ModelCatalogModel {
   readonly reasoning?: ModelReasoning
 }
 
-/** One provider and its successfully loaded model catalog. */
+/** 一个提供方及其成功加载的模型目录。 */
 export interface ModelProviderGroup {
   readonly id: string
   readonly name: string
   readonly models: readonly ModelCatalogModel[]
 }
 
-/** One provider whose model catalog lookup failed. */
+/** 模型目录查询失败的一个提供方。 */
 export interface ModelCatalogFailure {
   readonly id: string
   readonly name: string
   readonly message: string
 }
 
-/** Host-generation model catalog and the default used by unconfigured Sessions. */
+/** Host 生成的模型目录，以及未配置 Session 使用的默认值。 */
 export interface ModelCatalog {
   readonly default: ModelSelection
-  /** Provider routes with at least one currently available catalog model. */
+  /** 至少拥有一个当前可用目录模型的提供方路由。 */
   readonly routableProviders: readonly string[]
   readonly groups: readonly ModelProviderGroup[]
   readonly failures: readonly ModelCatalogFailure[]
 }
 
-/** One client-requested mutation of a still-pending queue item. */
+/** 客户端请求的对一个仍待处理队列项的变更。 */
 export type QueueAction =
   | {
     readonly kind: 'edit'
-    /** Non-empty text-only replacement content. */
+    /** 非空的纯文本替换内容。 */
     readonly content: readonly TextBlock[]
   }
   | { readonly kind: 'remove' }
   | { readonly kind: 'steer' }
 
-/** One Session list entry. */
+/** 一个 Session 列表条目。 */
 export interface SessionSummary {
-  /** Whether this Session currently owns a live Agent. */
+  /** 该 Session 当前是否拥有活跃 Agent。 */
   readonly agentAvailable: boolean
-  /** Current for attached Sessions; otherwise the persistence format status when reported. */
+  /** 已附加的 Session 为 current；否则为报告出的持久化格式状态。 */
   readonly formatStatus?: 'current' | 'migration-required'
   readonly sessionId: SessionId
   readonly updatedAt: number
@@ -190,16 +188,16 @@ export interface SessionSummary {
   readonly projections?: SessionProjectionHints
 }
 
-/** One session-content search result. */
+/** 一个 Session 内容搜索结果。 */
 export interface SessionSearchItem {
   readonly sessionId: SessionId
   readonly snippet: string
 }
 
-/** Maximum number of Sessions returned by one search. */
+/** 一次搜索返回的 Session 数量上限。 */
 export const SESSION_SEARCH_RESULT_LIMIT = 20
 
-/** Maximum search snippet length in Unicode code points. */
+/** 以 Unicode 码点计的搜索摘录最大长度。 */
 export const SESSION_SEARCH_SNIPPET_MAX_CODE_POINTS = 240
 
 declare module '@deepseek-ai/dsh-typert-protocol' {
@@ -239,187 +237,186 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
   }
 }
 
-/** Session-addressed request for the human-invocable skill catalog. */
+/** 面向人类可调用技能目录的按 Session 寻址请求。 */
 export interface SkillListRequest {
   readonly sessionId: SessionId
 }
 
-/** One skill available to the Session's human-facing composer. */
+/** Session 面向人类的输入框可用的一个技能。 */
 export interface SkillEntry {
-  /** Absolute SKILL.md path when supplied by a filesystem provider. */
+  /** 当由文件系统提供方提供时的绝对 SKILL.md 路径。 */
   readonly path?: string
-  /** Kebab-case identifier referenced as `/name`. */
+  /** 以 `/name` 形式引用的 kebab-case 标识符。 */
   readonly name: string
-  /** Short routing description. */
+  /** 简短的路由描述。 */
   readonly description: string
-  /** Optional extra routing guidance. */
+  /** 可选的额外路由指引。 */
   readonly whenToUse?: string
-  /** Whether the same skill is also advertised to the model. */
+  /** 同一技能是否也向模型声明可用。 */
   readonly modelInvocable: boolean
 }
 
-/** Human-invocable skills visible through one Session's composition. */
+/** 通过一个 Session 组合可见的人类可调用技能。 */
 export interface SkillListValue {
   readonly skills: readonly SkillEntry[]
 }
 
-/** Session list request. */
+/** Session 列表请求。 */
 export interface SessionListRequest {
   readonly cursor?: string
 }
 
-/** Session list response value. */
+/** Session 列表响应值。 */
 export interface SessionListValue {
   readonly items: readonly SessionSummary[]
 }
 
-/** Session search request. */
+/** Session 搜索请求。 */
 export interface SessionSearchRequest {
   readonly query: string
 }
 
-/** Session search response value. */
+/** Session 搜索响应值。 */
 export interface SessionSearchValue {
   readonly items: readonly SessionSearchItem[]
   readonly hasMore: boolean
 }
 
-/** Request for a Session for a new conversation. */
+/** 为新对话请求一个 Session。 */
 export interface SessionCreateRequest {
-  /** Workspace the Session joins; exclusive with `cwd`. */
+  /** Session 加入的 Workspace；与 `cwd` 互斥。 */
   readonly workspaceId?: WorkspaceId
-  /** Directory the Session owns when no Workspace is named. */
+  /** 未指定 Workspace 时 Session 拥有的目录。 */
   readonly cwd?: string
-  /** Blank Session to reuse while it is reusable, or the identity of a new Session when none is stored under it. */
+  /** 在仍可复用时复用的空白 Session；当该标识下未存储任何 Session 时作为新 Session 的标识。 */
   readonly sessionId?: SessionId
-  /** Preset the Session runs, replacing a reused Session's recorded preset; the configured default when omitted. */
+  /** Session 运行的预设，会替换被复用 Session 已记录的预设；省略时使用配置的默认值。 */
   readonly agentPreset?: string
 }
 
-/** Session creation response value. */
+/** Session 创建响应值。 */
 export interface SessionCreateValue {
-  /** The created or reused Session, which may differ from the requested `sessionId`. */
+  /** 创建或复用的 Session，可能与请求的 `sessionId` 不同。 */
   readonly sessionId: SessionId
-  /** Preset the Session runs, when the deployment composes a preset roster. */
+  /** Session 运行的预设（当部署组合了预设名册时）。 */
   readonly agentPreset?: string
 }
 
-/** Session model-selection request. */
+/** Session 模型选择请求。 */
 export interface SessionSelectModelRequest extends ModelSelection {
   readonly sessionId: SessionId
 }
 
-/** Accepted model selection after Host resolution. */
+/** Host 解析后被接受的模型选择。 */
 export interface SessionSelectModelValue {
   readonly selected: ModelSelection
 }
 
-/** Session rename request. */
+/** Session 重命名请求。 */
 export interface SessionRenameRequest {
   readonly sessionId: SessionId
   readonly title: string
 }
 
-/** Normalized title and the durable event position that committed it. */
+/** 规范化后的标题以及提交它的持久化事件位置。 */
 export interface SessionRenameValue {
   readonly title: string
   readonly seq: number
 }
 
-/** Session fork request. */
+/** Session 分叉请求。 */
 export interface SessionForkRequest {
   readonly sessionId: SessionId
-  /** Exact inclusive source event seq; omission selects the latest completed-turn prefix. */
+  /** 精确的含端点源事件 seq；省略时选择最新的已完成回合前缀。 */
   readonly atSeq?: number
-  /** False asks the Host to check for required migration before forking. Defaults to true. */
+  /** false 要求 Host 在分叉前检查是否需要迁移。默认为 true。 */
   readonly allowMigration?: boolean
 }
 
-/** Identity of a newly forked Session. */
+/** 新分叉 Session 的标识。 */
 export interface SessionForkValue {
   readonly sessionId: SessionId
 }
 
-/** Session prompt request. */
+/** Session 提示词请求。 */
 export interface SessionPromptRequest {
-  /** Client-minted identity persisted on the exact accepted user message. */
+  /** 客户端生成的标识，持久化在确切被接受的用户消息上。 */
   readonly requestId: SessionRequestId
   readonly sessionId: SessionId
   readonly mode: 'queue' | 'steer'
-  /** At least one non-whitespace text part or attachment. */
+  /** 至少一个非空白文本部分或附件。 */
   readonly content: readonly PromptContentPart[]
   readonly clientTimeZone?: string
 }
 
-/** Receipt after one prompt enters the target Agent inbox. */
+/** 一条提示词进入目标 Agent 收件箱后的回执。 */
 export interface SessionPromptValue {
   readonly accepted: true
 }
 
-/** Durable image read request. */
+/** 持久化图片读取请求。 */
 export interface SessionAttachmentRequest {
   readonly sessionId: SessionId
   readonly attachmentId: AttachmentIdType
 }
 
-/** Durable image read response value. */
+/** 持久化图片读取响应值。 */
 export interface SessionAttachmentValue {
   readonly attachment: ImageAttachmentRef
   readonly data: string
 }
 
-/** Pending queue mutation request. */
+/** 待处理队列变更请求。 */
 export interface SessionUpdateQueueRequest {
   readonly sessionId: SessionId
   readonly itemId: MessageId
   readonly action: QueueAction
 }
 
-/** Receipt after one pending queue mutation commits. */
+/** 一个待处理队列变更提交后的回执。 */
 export interface SessionUpdateQueueValue {
   readonly accepted: true
 }
 
-/** Active-turn cancellation request. */
+/** 活动回合取消请求。 */
 export interface SessionCancelRequest {
   readonly sessionId: SessionId
 }
 
-/** Receipt after cancellation is admitted to the live Agent. */
+/** 取消被活跃 Agent 接纳后的回执。 */
 export interface SessionCancelValue {
   readonly accepted: true
 }
 
-/** Request to open one path prepared by a Session-aware caller on the Host desktop. */
+/** 在 Host 桌面上打开一个由感知 Session 的调用方准备好的路径的请求。 */
 export interface SessionOpenWorkspacePathRequest {
-  /** File-manager navigation when requested; omission uses the default application. */
+  /** 请求时在文件管理器中定位；省略时使用默认应用程序。 */
   readonly action?: 'reveal'
-  /** Registered application identifier; ignored for reveal. Omission preserves the operating system default. */
+  /** 已注册的应用程序标识符；定位时忽略。省略时保留操作系统默认。 */
   readonly application?: string
-  /** Path after best-effort Session workspace resolution, in Host filesystem syntax. */
+  /** 尽力完成 Session 工作区解析后的路径，采用 Host 文件系统语法。 */
   readonly path: string
 }
 
-/** Confirmation that the Host handed a workspace path to its native opener. */
+/** 确认 Host 已将工作区路径交给其原生打开器。 */
 export interface SessionOpenWorkspacePathValue {
   readonly opened: true
 }
 
-/** Client-minted prompt identity used to reconcile optimistic and durable messages. */
+/** 客户端生成的提示词标识，用于对账乐观消息与持久化消息。 */
 export type SessionRequestId = Branded<'session-request-id'>
 
 declare module '@deepseek-ai/dsh-llm' {
   interface MessageSourceMap {
     /**
-     * Browser prompt correlation, optional Host-validated time zone, and the
-     * caller that submitted the prompt. `principal` is written only for a
-     * caller other than the owner, so an absent `principal` means the owner.
+     * 浏览器提示词关联、可选的 Host 验证时区，以及提交提示词的调用方。
+     * `principal` 仅为非拥有者调用方写入，因此缺失 `principal` 即表示拥有者。
      */
     'user-rpc': { kind: 'user'; rpcId: SessionRequestId; clientTimeZone?: string; principal?: Principal }
   }
 }
 
-/** Durable identity selecting an ordinary Session or one direct subagent child. */
+/** 选择普通 Session 或一个直接 subagent 子级的持久化标识。 */
 export type SessionAddress =
   | { readonly kind: 'session'; readonly sessionId: SessionId }
   | {
@@ -429,49 +426,49 @@ export type SessionAddress =
     readonly mode: 'one-shot' | 'continuable' | 'unknown'
   }
 
-/** One non-activating Session projection read. */
+/** 一次不激活 Session 的投影读取。 */
 export interface SessionProjectionsRequest {
   readonly sessionId: SessionId
 }
 
-/** Exact projections carry their event cut; required migration returns sequence-free cache hints. Null means absent. */
+/** 精确投影携带其事件切点；需要迁移时返回无序列的缓存提示。null 表示不存在。 */
 export type SessionProjectionsValue =
   | (SessionProjectionBaseline & { readonly kind: 'sequenced' })
   | { readonly kind: 'migration-required'; readonly values: SessionProjectionValues }
   | null
 
-/** One raw Session event in the Remote journal. */
+/** Remote 日志中的一条原始 Session 事件。 */
 export interface SessionEventEntry {
   readonly type: 'event'
   readonly event: SessionWireEvent
 }
 
-/** Current logical Session metadata carried on the browser wire. */
+/** 浏览器 wire 上携带的当前逻辑 Session 元数据。 */
 export interface SessionWireHeader {
   readonly version: number
   readonly id: SessionId
   readonly createdAt: number
   readonly cwd?: string
   readonly parentSession?: SessionId
-  /** Whether the Session contains a fork-inherited prefix. */
+  /** Session 是否包含分叉继承的前缀。 */
   readonly isSeeded: boolean
   readonly origin?: 'subagent'
   readonly delegationDepth?: number
   readonly agentPreset?: string
 }
 
-/** Browser wire surface operation; replacement endpoints are earlier event seqs in surface order. */
+/** 浏览器 wire 表面操作；替换端点是表面顺序中更早的事件 seq。 */
 export type SessionWireSurfaceOp =
   | 'append'
   | { readonly op: 'replace'; readonly startSeq: number; readonly endSeq: number }
 
-/** One history-page record with compact Assistant streams embedded inside events. */
+/** 一条历史页记录，事件内嵌紧凑的 Assistant 流。 */
 export type SessionHistoryRecord = SessionEventEntry
 
 /**
- * Exact Session event envelope accepted by the Client journal adapter.
- * Surface events require surfaceOp; only non-Assistant surface events may cite earlier sources.
- * Durable readers own recognition of merge-extensible event names.
+ * 客户端日志适配器接受的精确 Session 事件信封。
+ * 表面事件需要 surfaceOp；仅非 Assistant 表面事件可以引用更早的来源。
+ * 持久化读取方负责识别可合并扩展的事件名。
  */
 export interface SessionWireEvent {
   readonly type: string
@@ -479,55 +476,55 @@ export interface SessionWireEvent {
   readonly time: number
   readonly data: JsonValue
   readonly ignorable?: true
-  /** Earlier sources on current surface events; opaque JSON on unknown ignorable events. */
+  /** 当前表面事件上的更早来源；未知可忽略事件上为不透明 JSON。 */
   readonly sourceEventSeqs?: JsonValue
-  /** Canonical placement on current surface events; opaque JSON on unknown ignorable events. */
+  /** 当前表面事件上的规范放置；未知可忽略事件上为不透明 JSON。 */
   readonly surfaceOp?: JsonValue
 }
 
-/** One message-aligned backwards-history request. */
+/** 一次按消息对齐的向后历史请求。 */
 export interface SessionPageRequest {
   readonly address: SessionAddress
-  /** Inclusive log cut obtained from the corresponding follow opening frame. */
+  /** 从对应 follow 开场帧获得的含端点日志切点。 */
   readonly throughSeq: number
   readonly beforeSeq?: number
   readonly maxMessages?: number
-  /** Stop at a Turn start after both minima, unless maxMessages or history exhaustion wins. */
+  /** 在满足两个最小值后的一个回合起点处停止，除非 maxMessages 或历史耗尽优先。 */
   readonly turnWindow?: {
-    /** Minimum append-origin user/assistant messages; must not exceed maxMessages. */
+    /** 追加来源的用户/assistant 消息最小数量；不得超过 maxMessages。 */
     readonly minMessages: number
-    /** Minimum Turn starts crossed, including the partial Turn at beforeSeq. */
+    /** 跨过的回合起点最小数量，包括 beforeSeq 处的部分回合。 */
     readonly minTurns: number
   }
 }
 
-/** One live event request for a durable Session address. */
+/** 针对一个持久化 Session 地址的实时事件请求。 */
 export interface SessionFollowRequest extends Pick<SessionPageRequest, 'maxMessages' | 'turnWindow'> {
   readonly address: SessionAddress
-  /** Include process-local assistant presentation frames for the Web client. */
+  /** 为 Web 客户端包含进程本地的 assistant 呈现帧。 */
   readonly assistantStream?: true
 }
 
-/** One active assistant attempt in a reconnect opening snapshot. */
+/** 重连开场快照中的一个活跃 assistant 尝试。 */
 export interface SessionAssistantStreamAttempt {
   readonly attemptId: LlmAttemptId
-  /** Last durable Session seq observed when this attempt started. */
+  /** 该尝试开始时观察到的最后持久化 Session seq。 */
   readonly startedAfterSeq: SessionSeqCursor
   readonly turn: number
   readonly step: number
-  /** Dense position expected for the next live chunk frame. */
+  /** 下一个实时 chunk 帧所期望的稠密位置。 */
   readonly nextIndex: number
-  /** Compact detached stream accumulated at this opening revision. */
+  /** 在此开场修订处累积的紧凑分离流。 */
   readonly stream: readonly JsonValue[]
 }
 
-/** Complete process-local assistant state at one follow opening. */
+/** 一次 follow 开场时的完整进程本地 assistant 状态。 */
 export interface SessionAssistantStreamBaseline {
   readonly revision: number
   readonly activeAttempt?: SessionAssistantStreamAttempt
 }
 
-/** Browser wire form of one process-local assistant frame. */
+/** 进程本地 assistant 帧的浏览器 wire 形式。 */
 export type SessionAssistantStreamFrame =
   | {
     readonly type: 'start'
@@ -549,7 +546,7 @@ export type SessionAssistantStreamFrame =
     readonly type: 'end'
     readonly attemptId: LlmAttemptId
     readonly revision: number
-    /** Number of chunk frames represented by this terminal marker. */
+    /** 该终止标记所代表的 chunk 帧数量。 */
     readonly index: number
     readonly outcome:
       | {
@@ -560,13 +557,13 @@ export type SessionAssistantStreamFrame =
       | { readonly kind: 'abandoned' }
   }
 
-/** One contiguous backwards page of a Session log. */
+/** Session 日志的一个连续向后页。 */
 export interface SessionPage {
   readonly records: readonly SessionHistoryRecord[]
   readonly hasMore: boolean
 }
 
-/** Complete opening window followed by ordered durable events and opted-in assistant frames. */
+/** 完整的开场窗口，其后为有序的持久化事件与选择加入的 assistant 帧。 */
 export type SessionFollowFrame =
   | {
     readonly type: 'snapshot'
@@ -580,12 +577,12 @@ export type SessionFollowFrame =
   | SessionEventEntry
   | { readonly type: 'assistant-stream'; readonly frame: SessionAssistantStreamFrame }
 
-/** Complete live control baseline emitted once per control stream generation. */
+/** 完整的实时控制基线，每个控制流世代发射一次。 */
 export interface SessionControlBaseline {
   readonly projections: Readonly<Record<SessionId, SessionProjectionBaseline>>
 }
 
-/** One finished projection value and its durable watermark. */
+/** 一个已完成的投影值及其持久化水位线。 */
 export interface SessionProjectionUpdate {
   readonly sessionId: SessionId
   readonly key: string
@@ -593,7 +590,7 @@ export interface SessionProjectionUpdate {
   readonly seq: number
 }
 
-/** Host-wide live state stream. Each generation starts with exactly one baseline. */
+/** Host 范围的实时状态流。每个世代恰好以一个基线开始。 */
 export type SessionControlFrame =
   | { readonly type: 'baseline'; readonly value: SessionControlBaseline }
   | ({ readonly type: 'projection' } & SessionProjectionUpdate)
@@ -601,44 +598,44 @@ export type SessionControlFrame =
 declare module '@deepseek-ai/cordis' {
   interface Events {
     /**
-     * A Session became visible or its Agent was created or disposed.
-     * Consumers upsert the summary and replace its current running and availability state.
+     * 一个 Session 变为可见，或其 Agent 被创建或释放。
+     * 消费方 upsert 该摘要并替换其当前的运行与可用性状态。
      * @mode emit
-     * @param summary - current list row for the Session.
+     * @param summary - 该 Session 当前的列表行。
      */
     'api-session/added'(summary: SessionSummary): void
     /**
-     * A Session left the live Host registry.
+     * 一个 Session 离开了活跃 Host 注册表。
      * @mode emit
-     * @param sessionId - removed Session identity.
+     * @param sessionId - 被移除的 Session 标识。
      */
     'api-session/removed'(sessionId: SessionId): void
     /**
-     * One Agent changed running state.
+     * 一个 Agent 改变了运行状态。
      * @mode emit
-     * @param sessionId - Agent and Session identity.
-     * @param running - whether the Agent is running.
+     * @param sessionId - Agent 与 Session 标识。
+     * @param running - Agent 是否正在运行。
      */
     'api-session/status'(sessionId: SessionId, running: boolean): void
     /**
-     * One user-authored durable message advanced Session list activity.
+     * 一条用户撰写的持久化消息推进了 Session 列表活动。
      * @mode emit
-     * @param sessionId - addressed Session identity.
-     * @param updatedAt - durable message time used for list ordering.
+     * @param sessionId - 被寻址的 Session 标识。
+     * @param updatedAt - 用于列表排序的持久化消息时间。
      */
     'api-session/activity'(sessionId: SessionId, updatedAt: number): void
     /**
-     * One Agent failed outside a durable turn position.
+     * 一个 Agent 在持久化回合位置之外失败。
      * @mode emit
-     * @param sessionId - Agent and Session identity.
-     * @param message - user-safe failure chain.
+     * @param sessionId - Agent 与 Session 标识。
+     * @param message - 对用户安全的失败链。
      */
     'api-session/error'(sessionId: SessionId, message: string): void
   }
 }
 
-/** JSON-compatible projection value accepted by list consumers. */
+/** 列表消费方接受的 JSON 兼容投影值。 */
 export type SessionProjectionValue = JsonValue
 
-/** Application metadata returned by the serving desktop for one file. */
+/** 服务桌面为一个文件返回的应用程序元数据。 */
 export type SessionWorkspacePathApplication = NativeFileApplication

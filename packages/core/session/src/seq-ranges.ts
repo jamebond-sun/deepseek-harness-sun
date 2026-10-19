@@ -1,9 +1,9 @@
-/** Lossless range encoding for JSONL `sourceEventSeqs` arrays. */
+/** `sourceEventSeqs` 数组面向 JSONL 的无损范围编码。 */
 
 import { SessionSeq } from './types.ts'
 import type { SessionSeq as SessionSeqType } from './types.ts'
 
-/** A stored source sequence or inclusive consecutive range. */
+/** 一个存储的来源序号或含端点连续范围。 */
 export type EncodedSeq = number | [number, number]
 
 function isStrictlyIncreasing(values: readonly SessionSeqType[]): boolean {
@@ -11,9 +11,9 @@ function isStrictlyIncreasing(values: readonly SessionSeqType[]): boolean {
 }
 
 /**
- * Replace profitable consecutive runs with inclusive pairs.
- * @param values - validated in-memory source sequences.
- * @returns a lossless JSON storage form.
+ * 把有收益的连续运行替换为含端点数对。
+ * @param values - 已验证的内存中来源序号。
+ * @returns 无损的 JSON 存储形态。
  */
 export function encodeSeqRanges(values: readonly SessionSeqType[]): EncodedSeq[] {
   if (!isStrictlyIncreasing(values)) return [...values]
@@ -29,10 +29,10 @@ export function encodeSeqRanges(values: readonly SessionSeqType[]): EncodedSeq[]
 }
 
 /**
- * Expand a JSON storage-form source sequence array.
- * @param value - parsed storage value.
- * @param maxEntries - largest list permitted by the owning event.
- * @returns the in-memory source sequences.
+ * 展开一个 JSON 存储形态的来源序号数组。
+ * @param value - 已解析的存储值。
+ * @param maxEntries - 所属事件允许的最大列表长度。
+ * @returns 内存中的来源序号。
  */
 export function decodeSeqRanges(value: unknown, maxEntries = Number.MAX_SAFE_INTEGER): SessionSeqType[] {
   if (!Array.isArray(value)) throw new TypeError('sourceEventSeqs must be an array')

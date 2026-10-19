@@ -1,7 +1,7 @@
 /**
- * Live Typert Remote dispatch over Cordis Services and registered providers.
- * Unary transport and response envelopes belong to Connection; live Remote
- * streams use the Gateway-owned WebSocket mux.
+ * 基于 Cordis 服务与已注册提供方的实时 Typert Remote 分发。
+ * 一元传输与响应信封属于 Connection；
+ * 实时 Remote 流使用 Gateway 自有的 WebSocket 多路复用器。
  * @module @deepseek-ai/dsh-api-gateway
  */
 
@@ -95,22 +95,22 @@ interface ResolvedBinding {
 interface PreparedInvocation {
   readonly endpoint: string
   readonly descriptor: InvocationDescriptor
-  /** Service view bound to a Context carrying `invocation`, so the method reads it as `this.ctx.invocation`. */
+  /** 绑定到携带 `invocation` 的上下文的 Service 视图，方法因此以 `this.ctx.invocation` 读取它。 */
   readonly receiver: object
   readonly args: readonly unknown[]
   readonly method: (...args: never[]) => unknown
   readonly invocation: GatewayInvocation
 }
 
-/** Carrier inputs `GatewayInvocation.uplink()` decodes on first use. */
+/** `GatewayInvocation.uplink()` 首次使用时解码的载体输入。 */
 interface UplinkSource {
   readonly window: RemoteInvocation['uplinkWindow']
-  /** Carrier items; an immediately ended iterable when the carrier has none. */
+  /** 载体条目；载体没有时为立即结束的可迭代对象。 */
   readonly source: AsyncIterable<unknown>
-  /** Descriptor codec, or the JSON-safety codec when the descriptor declares no uplink. */
+  /** 描述符编解码器，描述符未声明上行时为 JSON 安全编解码器。 */
   readonly codec: TypertCodec
   readonly endpoint: string
-  /** Fail the logical stream with a Remote failure as the reason. */
+  /** 以 Remote 失败作为原因使逻辑流失败。 */
   readonly abort: (reason: unknown) => void
 }
 
@@ -126,9 +126,9 @@ interface RemoteEventClient {
   readonly queue: RemoteEventQueue
   readonly signal: AbortSignal
   readonly deliveries: Map<RemoteEventId, PendingRemoteEvent>
-  /** The stream's Peer principal: only the owner answers scoped waterfalls and receives every broadcast. */
+  /** 流的 Peer 主体：只有 owner 应答作用域瀑布并接收每次广播。 */
   readonly principal: Principal
-  /** Only owner streams receive scoped waterfalls they could answer; other Peers receive admitted broadcasts only. */
+  /** 只有 owner 流接收其可应答的作用域瀑布；其他 Peer 仅接收获准的广播。 */
   readonly answers: boolean
 }
 
@@ -152,11 +152,11 @@ const EMPTY_ASYNC_ITERABLE: AsyncIterable<never> = {
 const UPLINK_DONE: IteratorReturnResult<undefined> = { value: undefined, done: true }
 const SRC_JSON_CODEC: TypertCodec = { mode: 'src-json' }
 
-/** Gateway transport configuration. */
+/** Gateway 传输配置。 */
 export interface Config {
-  /** WebSocket Ping interval from 1 through 2,147,483,647 milliseconds. @default 2000 */
+  /** WebSocket Ping 间隔，从 1 到 2,147,483,647 毫秒。 @default 2000 */
   readonly websocketHeartbeatIntervalMs?: number
-  /** Buffered uplink frame bytes one logical stream may hold before it fails with `gateway/uplink-overflow`. @default 262144 */
+  /** 单个逻辑流在以 `gateway/uplink-overflow` 失败前可缓冲的上行帧字节数。 @default 262144 */
   readonly streamInboxBytes?: number
 }
 
@@ -166,22 +166,22 @@ interface ResolvedConfig extends Config {
 }
 
 /**
- * Dispatch failure produced outside the invoked business method. Rides the
- * shared Remote failure vocabulary, so its code crosses the wire instead of
- * folding to `internal`.
+ * 在被调用的业务方法之外产生的分发失败。搭乘共享的 Remote 失败
+ * 词汇表，因此其 code 跨越 wire 传输，
+ * 而不是折叠为 `internal`。
  */
 export class TypertGatewayError extends RemoteError<TypertGatewayErrorCode> {
-  /** Canonical `<namespace>/<method>` endpoint. */
+  /** 规范的 `<namespace>/<method>` 端点。 */
   readonly endpoint: string
-  /** Affected wire field when the failure is field-specific. */
+  /** 失败针对特定字段时受影响的 wire 字段。 */
   readonly field: string | undefined
 
   /**
-   * Construct a Gateway failure without embedding boundary values in its message.
-   * @param code - stable failure category.
-   * @param endpoint - canonical Remote endpoint.
-   * @param message - correction-oriented diagnostic without sensitive values.
-   * @param options - optional field and contained cause.
+   * 构造一个 Gateway 失败，不在其消息中嵌入边界值。
+   * @param code - 稳定的失败类别。
+   * @param endpoint - 规范的 Remote 端点。
+   * @param message - 面向纠正、不含敏感值的诊断。
+   * @param options - 可选字段与被包含的原因。
    */
   constructor(
     code: TypertGatewayErrorCode,
@@ -202,8 +202,8 @@ export class TypertGatewayError extends RemoteError<TypertGatewayErrorCode> {
 }
 
 /**
- * Resolve strict generated definitions or conservative SRC markers against
- * current Cordis Services and Typert providers.
+ * 针对当前 Cordis 服务与 Typert 提供方，
+ * 解析严格的生成定义或保守的 SRC 标记。
  * @typert service typertGateway
  */
 export class TypertGatewayService extends Service implements TypertGateway {
@@ -214,7 +214,7 @@ export class TypertGatewayService extends Service implements TypertGateway {
     streamInboxBytes: z.number().step(1).min(1).default(DEFAULT_STREAM_INBOX_BYTES),
   })
 
-  /** Carrier adapter shared by the WebSocket mux and local Host transports. */
+  /** 由 WebSocket 多路复用器与本地 Host 传输共享的载体适配器。 */
   readonly wireStream: TypertGatewayWireStream = {
     open: (endpoint, payload, uplink, peer, signal) =>
       this.openWireStream(endpoint, payload, uplink, peer, signal, new AbortController()),
@@ -227,11 +227,11 @@ export class TypertGatewayService extends Service implements TypertGateway {
   private readonly pendingRemoteEvents = new Map<RemoteEventId, PendingRemoteEvent>()
 
   /**
-   * Register the Gateway against the active Typert registry.
-   * WebSocket admission waits for launcher-owned application readiness when supplied;
-   * direct invocation and in-process streams remain available independently.
-   * @param ctx - owning Host Context with Typert registry access.
-   * @param config - validated Gateway transport configuration.
+   * 针对活跃的 Typert 注册表注册 Gateway。
+   * 提供启动器所有的应用就绪信号时，WebSocket 准入会等待它；
+   * 直接调用与进程内流仍可独立使用。
+   * @param ctx - 拥有 Typert 注册表访问权的所属 Host 上下文。
+   * @param config - 校验后的 Gateway 传输配置。
    */
   constructor(ctx: Context, config: Config) {
     super(ctx, 'typertGateway')
@@ -270,8 +270,8 @@ export class TypertGatewayService extends Service implements TypertGateway {
                 return
               }
               const release = (): void => {
-                // release removes the API Peer synchronously, before awaiting
-                // scope cleanup or any logical-stream iterator's return.
+                // release 同步移除 API Peer，先于等待
+                // scope 清理或任何逻辑流迭代器的 return。
                 const done = admission.release().catch((error: unknown) => {
                   console.error('[api-gateway] Peer release failed:', error)
                 })
@@ -300,8 +300,8 @@ export class TypertGatewayService extends Service implements TypertGateway {
           yield webCtx.webServer.registerUpgrade(route)
         }, `api-gateway: ${REMOTE_STREAM_MUX_PATH} WebSocket`)
       }
-      // Existing pages reconnect before the new Host prints its URL. No stream
-      // may enter until the launcher has activated and audited its controllers.
+      // 既有页面在新 Host 打印其 URL 之前重连。在启动器激活并审计其
+      // 控制器之前，任何流都不得进入。
       const ready = webCtx.get('appReady')
       if (ready === undefined) listen()
       else webCtx.effect(() => {
@@ -316,8 +316,8 @@ export class TypertGatewayService extends Service implements TypertGateway {
   }
 
   /**
-   * Check for an active owner Client event stream, the only kind that can answer forwarded waterfalls.
-   * @returns whether an owner stream is open and has not been cancelled.
+   * 检查是否存在活跃的 owner Client 事件流，它是唯一能应答被转发瀑布的一类。
+   * @returns 是否有 owner 流处于打开且未被取消的状态。
    */
   hasLiveClient(): boolean {
     for (const client of this.remoteEventClients.values()) {
@@ -327,10 +327,10 @@ export class TypertGatewayService extends Service implements TypertGateway {
   }
 
   /**
-   * Register the sole application-selected forwarded-event source.
-   * @param source - stream factory installed by the Remote assembly.
-   * @param host - stable Host facts included in each Client generation's opening frame.
-   * @returns disposer removing this source and cancelling its active streams.
+   * 注册唯一的应用选定转发事件源。
+   * @param source - 由 Remote 装配安装的流工厂。
+   * @param host - 包含在每个 Client 代起始帧中的稳定 Host 事实。
+   * @returns 释放器，移除该源并取消其活跃流。
    */
   registerRemoteEvents(
     source: TypertRemoteEventSource,
@@ -370,9 +370,9 @@ export class TypertGatewayService extends Service implements TypertGateway {
   }
 
   /**
-   * The `resources` readers of a method, read from the root Service's class
-   * metadata so a Context method's receiver is not resolved before access is
-   * decided; `undefined` when the Service is absent or the method declares none.
+   * 方法的 `resources` 读取器，从根 Service 的类元数据读取，
+   * 因此 Context 方法的接收者不会在访问决策之前被解析；
+   * Service 不存在或方法未声明时为 `undefined`。
    */
   private resourceReaders(descriptor: InvocationDescriptor): RemoteMethodMarker['resources'] {
     const receiver: unknown = this.ctx.get(descriptor.service)
@@ -399,10 +399,10 @@ export class TypertGatewayService extends Service implements TypertGateway {
   }
 
   /**
-   * Invoke one live Remote method through strict generated reflection or SRC markers.
-   * @param request - decoded endpoint and exact named wire arguments.
-   * @returns the business result without output decoding.
-   * @throws {@link TypertGatewayError} for dispatch, provider, or boundary failures; lookup-policy and business errors retain identity.
+   * 通过严格的生成反射或 SRC 标记调用一个活跃的 Remote 方法。
+   * @param request - 已解码的端点与精确的具名 wire 参数。
+   * @returns 未做输出解码的业务结果。
+   * @throws {@link TypertGatewayError} 表示分发、提供方或边界失败；查找策略与业务错误保留其自身身份。
    */
   async invoke(request: InvokeRemoteRequest): Promise<unknown> {
     return this.invokePrepared(await this.prepareInvocation(request, new AbortController()))
@@ -423,23 +423,23 @@ export class TypertGatewayService extends Service implements TypertGateway {
       if (prepared.invocation.signal.aborted) throw remoteCancelled(prepared.endpoint, error)
       throw error
     } finally {
-      // A unary call's uplink is readable only while the method runs.
+      // 一元调用的上行只在方法运行期间可读。
       await prepared.invocation.close()
     }
   }
 
   /**
-   * Open one live stream Remote method without assuming a physical carrier.
-   * @param request - decoded endpoint, named wire arguments, and the Client uplink when the carrier has one.
-   * @returns a cancellation-aware iterable over the business results.
+   * 打开一个活跃的流式 Remote 方法，不假设物理载体。
+   * @param request - 已解码的端点、具名 wire 参数，以及载体存在时的 Client 上行。
+   * @returns 一个支持取消的业务结果可迭代对象。
    */
   async stream(request: InvokeRemoteRequest): Promise<AsyncIterable<unknown>> {
     return this.openStream(request, new AbortController())
   }
 
   /**
-   * `control` belongs to the logical stream: a rejected uplink item aborts it
-   * with the Remote failure as the reason so the carrier delivers that failure.
+   * `control` 属于逻辑流：被拒绝的上行条目以 Remote 失败作为原因
+   * 中止它，使载体交付该失败。
    */
   private async openStream(request: InvokeRemoteRequest, control: AbortController): Promise<AsyncIterable<unknown>> {
     const prepared = await this.prepareInvocation(request, control)
@@ -515,7 +515,7 @@ export class TypertGatewayService extends Service implements TypertGateway {
     uplinkWindow?: RemoteInvocation['uplinkWindow'],
   ): Promise<AsyncIterable<unknown>> {
     if (endpoint === REMOTE_EVENT_STREAM_ENDPOINT) {
-      // A Gateway-owned stream reads no uplink: releasing it now keeps its items out of the bounded inbox.
+      // Gateway 自有的流不读取上行：现在释放它使其条目不进入有界收件箱。
       releaseUplink(uplink)
       assertPeerLive(peer, endpoint)
       requireInteractions(peer, endpoint)
@@ -606,8 +606,8 @@ export class TypertGatewayService extends Service implements TypertGateway {
     let resources: readonly RemoteAccessResource[] | undefined
     for (const client of this.remoteEventClients.values()) {
       if (!client.answers) {
-        // A non-owner receives the whole notification or nothing: its resources decide, payloads are never trimmed,
-        // and a notification with invalid resources reaches no non-owner.
+        // 非 owner 收到完整通知或什么都不收：由其资源决定，载荷从不裁剪，
+        // 且资源无效的通知不会到达任何非 owner。
         if (!resolved) {
           resources = eventResources(frame.resources, frame.args)
           resolved = true
@@ -693,8 +693,8 @@ export class TypertGatewayService extends Service implements TypertGateway {
     result: ReturnType<typeof parseRemoteEventResult>,
   ): void {
     const pending = this.pendingRemoteEvents.get(result.eventId)
-    // Settlement and Client replacement may race the result request. Results
-    // from a completed event or a superseded delivery are idempotent no-ops.
+    // 结算与 Client 替换可能与结果请求竞争。来自已完成事件或
+    // 被取代交付的结果是幂等的无操作。
     if (pending === undefined || !pending.deliveries.has(client)) return
     this.removeRemoteEventDelivery(pending, client)
     if (result.outcome.kind === 'result') {
@@ -763,16 +763,16 @@ export class TypertGatewayService extends Service implements TypertGateway {
         new AbortController(),
       )
       const value = await this.invokePrepared(prepared)
-      // A void or explicitly absent business result carries no `value` field;
-      // JSON has no `undefined`, and the envelope's optional slot is the one
-      // representation of absence that both args and results already use.
+      // void 或显式缺席的业务结果不携带 `value` 字段；
+      // JSON 没有 `undefined`，而信封的可选槽位是 args 与结果
+      // 都已在使用的唯一缺席表示。
       return encodeRpcResult(value, prepared.descriptor.result)
     } catch (error) {
       return rpcFailure(error)
     }
   }
 
-  /** `control` fails the logical stream when an uplink item is rejected; unary calls hand over an inert one. */
+  /** 上行条目被拒绝时 `control` 使逻辑流失败；一元调用移交一个惰性的。 */
   private async prepareInvocation(
     request: InvokeRemoteRequest,
     control: AbortController,
@@ -782,7 +782,7 @@ export class TypertGatewayService extends Service implements TypertGateway {
     const descriptor = this.resolveDescriptor(request.namespace, request.method, endpoint)
     assertExactArguments(request.args, descriptor, endpoint)
     const validated = validateArguments(descriptor, request.args, endpoint)
-    // Access precedes lookup resolution, so a refused call activates nothing.
+    // 访问决策先于查找解析，因此被拒绝的调用不会激活任何东西。
     // oxlint-disable-next-line typescript/no-unnecessary-condition -- other packages merge non-owner kinds into PrincipalMap.
     if (request.peer.principal.kind !== 'owner') {
       const resources = callResources(
@@ -834,10 +834,10 @@ export class TypertGatewayService extends Service implements TypertGateway {
       },
     )
     if (descriptor.cancellation !== undefined) args.push(signal)
-    // The method runs on a Service view bound to a Context carrying this call:
-    // Cordis rebinds `this.ctx` to the accessing Context, so `this.ctx.invocation`
-    // is this call and nothing travels through the parameter list. The view
-    // resolves the Service the plain read above already found.
+    // 方法运行在绑定到携带本次调用的上下文的 Service 视图上：
+    // Cordis 将 `this.ctx` 重绑定为访问方上下文，因此 `this.ctx.invocation`
+    // 就是本次调用，且没有任何东西经过参数列表传递。该视图解析的
+    // 是上面普通读取已经找到的 Service。
     const callReceiver = receiverContext.extend({ invocation }).get(descriptor.service) as object
     const implementation = descriptor.implementation ?? descriptor.method
     const method: unknown = Reflect.get(callReceiver, implementation)
@@ -1047,7 +1047,7 @@ export class TypertGatewayService extends Service implements TypertGateway {
     args: Readonly<Record<string, unknown>>,
     endpoint: string,
   ): Promise<unknown> {
-    // Lookup ids are never omissible, so an absent field belongs to a json parameter that takes undefined.
+    // 查找 id 绝不可省略，因此缺席的字段属于接受 undefined 的 json 参数。
     if (!Object.hasOwn(args, parameter.wire)) return undefined
     if (parameter.source === 'json') return args[parameter.wire]
     const value = decode(parameter.codec, args[parameter.wire], endpoint, parameter.wire)
@@ -1122,7 +1122,7 @@ function encodeRuntimeResult(
   const path: (string | number)[] = []
   const ancestors = new Set<object>()
   const extract = (input: unknown, key: string): unknown => {
-    // Capture accessors and toJSON once, before materializing the JSON metadata.
+    // 在物化 JSON 元数据之前，一次性捕获访问器与 toJSON。
     let value = input
     if (input !== null && typeof input === 'object' && !(input instanceof Uint8Array)) {
       const toJSON: unknown = Reflect.get(input, 'toJSON')
@@ -1136,14 +1136,14 @@ function encodeRuntimeResult(
     let copy: object
     if (Array.isArray(value)) {
       const items: unknown[] = []
-      // JSON arrays include every index, even holes and non-enumerable elements.
+      // JSON 数组包含每个索引，即使是空洞与不可枚举元素。
       for (let index = 0, length = value.length; index < length; index++) items.push(child(value[index], index))
       copy = items
     } else {
       const fields: Record<string, unknown> = {}
       for (const key of Object.keys(value)) {
         const item: unknown = Reflect.get(value, key)
-        // A toJSON method on the projected object must not run a second time.
+        // 投射对象上的 toJSON 方法绝不能运行第二次。
         if (key === 'toJSON' && typeof item === 'function') continue
         const extracted = child(item, key)
         if (key === '__proto__') Object.defineProperty(fields, key, { value: extracted, enumerable: true })
@@ -1169,7 +1169,7 @@ type RemoteEventWireFrame =
   | RemoteEventInvocationFrame
   | RemoteEventCancellationFrame
 
-/** Pull-driven queue owned by one connected Client event generation. */
+/** 由一个已连接 Client 事件代拥有的拉取驱动队列。 */
 class RemoteEventQueue {
   private readonly frames = new Deque<RemoteEventWireFrame>()
   private waiter: (() => void) | undefined
@@ -1188,10 +1188,10 @@ class RemoteEventQueue {
   }
 
   /**
-   * Yield buffered and later frames until the queue ends or `signal` aborts.
-   * An abort discards the frames still buffered, so a revoked Peer receives none of them.
-   * @param signal - Client generation lifetime.
-   * @returns the queued wire frames in push order.
+   * 产出已缓冲及后续帧，直到队列结束或 `signal` 中止。
+   * 中止会丢弃仍在缓冲的帧，因此被吊销的 Peer 一个也收不到。
+   * @param signal - Client 代的生命周期。
+   * @returns 按推送顺序排列的已排队 wire 帧。
    */
   async *iterate(signal: AbortSignal): AsyncGenerator<RemoteEventWireFrame> {
     const abort = (): void => { this.end() }
@@ -1247,7 +1247,7 @@ function remoteRequest(
   signal: AbortSignal,
   peer: PeerScope,
 ): InvokeRemoteRequest {
-  // A disposed Peer is refused whatever it sent.
+  // 已释放的 Peer 无论发送什么都遭拒绝。
   assertPeerLive(peer, endpoint)
   const segments = endpoint.split('/')
   if (segments.length !== 2 || segments[0] === '' || segments[1] === '') {
@@ -1266,25 +1266,25 @@ function remoteRequest(
 }
 
 /**
- * The signal a method observes. A carrier that supplies an uplink fails the
- * stream through `control` when an item is rejected, so that invocation joins
- * `control` with the carrier signal; a stream also ends with its Peer. Every
- * other invocation keeps the carrier signal's identity.
+ * 方法观察的信号。提供上行的载体在条目被拒绝时
+ * 通过 `control` 使流失败，因此该调用将 `control` 与载体信号合并；
+ * 流还随其 Peer 一起结束。
+ * 其他所有调用保持载体信号的身份。
  */
 function methodSignal(request: InvokeRemoteRequest, control: AbortController, stream: boolean): AbortSignal {
   const carrier = request.signal
   if (request.uplink === undefined && !stream) return carrier ?? NEVER_ABORTED_SIGNAL
   const joined = carrier === undefined || carrier === control.signal ? [control.signal] : [carrier, control.signal]
-  // `AbortSignal.any` leaves each source only a weak reference to the joined signal,
-  // so per-stream joins on a Host-lifetime Peer signal accumulate nothing.
+  // `AbortSignal.any` 只让每个源保留对合并信号的弱引用，
+  // 因此在 Host 生命周期的 Peer 信号上按流合并不会积累任何东西。
   return AbortSignal.any(stream ? [...joined, request.peer.signal] : joined)
 }
 
 /**
- * Refuse a call whose Peer has been disposed.
- * @param peer - Peer the call speaks for.
- * @param endpoint - endpoint named in the failure.
- * @throws {@link TypertGatewayError} `gateway/peer-disposed` once the Peer is disposed.
+ * 拒绝 Peer 已被释放的调用。
+ * @param peer - 调用所代表的 Peer。
+ * @param endpoint - 失败中指名的端点。
+ * @throws {@link TypertGatewayError} Peer 被释放后抛出 `gateway/peer-disposed`。
  */
 function assertPeerLive(peer: PeerScope, endpoint: string): void {
   if (peer.signal.aborted) {
@@ -1317,9 +1317,9 @@ async function *cancellableStream(
   try {
     while (true) {
       if (signal.aborted) throw streamAbortFailure(endpoint, signal.reason)
-      // Reusing a pending cancellation promise retains every completed race.
+      // 复用挂起的取消 promise 可保留每次已完成的竞态。
       const aborted = new Promise<never>((_resolve, reject) => { rejectAbort = reject })
-      // next() can abort and throw synchronously before the race subscribes.
+      // next() 可能中止并同步抛出，先于竞态订阅。
       void aborted.catch(() => undefined)
       const next = await Promise.race([Promise.resolve(iterator.next()), aborted])
       rejectAbort = undefined
@@ -1329,34 +1329,34 @@ async function *cancellableStream(
   } finally {
     rejectAbort = undefined
     signal.removeEventListener('abort', onAbort)
-    // The uplink closes first so a method blocked on `uplink.next()` unwinds
-    // before its iterator is asked to return.
+    // 上行先关闭，使阻塞在 `uplink.next()` 上的方法在其迭代器
+    // 被要求返回之前展开退出。
     await invocation.close()
     await iterator.return?.()
   }
 }
 
 /**
- * The failure a stream surfaces for its abort: a Remote failure used as the
- * reason is the Gateway or carrier failing the stream itself (a rejected,
- * overflowing, or misplaced uplink item); any other abort is a cancellation.
+ * 流为其中止呈现的失败：作为原因使用的 Remote 失败表示 Gateway
+ * 或载体使流自身失败（被拒绝、溢出或错位的上行条目）；
+ * 任何其他中止都是取消。
  */
 function streamAbortFailure(endpoint: string, reason: unknown): unknown {
   return remoteErrorOf(reason) === undefined ? remoteCancelled(endpoint, reason) : reason
 }
 
-/** Carrier-signal cancellation as the shared failure vocabulary expresses it. */
+/** 以共享失败词汇表表达的载体信号取消。 */
 function remoteCancelled(endpoint: string, cause: unknown): RemoteError<'gateway/cancelled'> {
   return new RemoteError('gateway/cancelled', `Remote invocation "${endpoint}" was aborted`, {}, { cause })
 }
 
 /**
- * The iterable `invocation.uplink()` returns. Each uplink item passes the
- * descriptor codec, or the JSON-safety check when the descriptor declares no
- * uplink, before delivery; a rejected item fails the whole logical stream.
- * Iteration ends when the Client half-closes or the downlink finishes, and
- * fails when the stream is cancelled, so a method blocked on the uplink always
- * wakes.
+ * `invocation.uplink()` 返回的可迭代对象。每个上行条目在交付之前
+ * 都要通过描述符编解码器，或描述符未声明上行时的 JSON 安全检查；
+ * 被拒绝的条目使整个逻辑流失败。
+ * 迭代在 Client 半关闭或下行结束时结束，
+ * 在流被取消时失败，
+ * 因此阻塞在上行上的方法总会被唤醒。
  */
 class UplinkDecoder implements AsyncIterable<unknown>, AsyncIterator<unknown> {
   private readonly source: AsyncIterator<unknown>
@@ -1383,13 +1383,13 @@ class UplinkDecoder implements AsyncIterable<unknown>, AsyncIterator<unknown> {
   }
 
   async next(): Promise<IteratorResult<unknown>> {
-    // A cancelled stream reports the cancellation on every read, closed or not.
+    // 已取消的流在每次读取时都报告取消，无论是否已关闭。
     if (this.signal.aborted) throw streamAbortFailure(this.endpoint, this.signal.reason)
     if (this.closed) return UPLINK_DONE
-    // Only pending reads belong to the decoder; finish() must wake all of them.
+    // 只有挂起的读取属于解码器；finish() 必须唤醒它们全部。
     const interrupted = Promise.withResolvers<IteratorResult<unknown>>()
     this.interrupted.add(interrupted)
-    // The source can abort and throw synchronously before the race subscribes.
+    // 源可能中止并同步抛出，先于竞态订阅。
     void interrupted.promise.catch(() => undefined)
     let next: IteratorResult<unknown>
     try {
@@ -1403,24 +1403,24 @@ class UplinkDecoder implements AsyncIterable<unknown>, AsyncIterator<unknown> {
     }
     let value: unknown
     try {
-      // A top-level `undefined` is the absent `value` of its frame: without a codec it is the item itself.
+      // 顶层的 `undefined` 是其帧缺席的 `value`：没有编解码器时它就是条目本身。
       value = next.value === undefined && this.codec.mode === 'src-json'
         ? undefined
         : decode(this.codec, next.value, this.endpoint, 'uplink')
     } catch (failure) {
-      // The codec failure (`gateway/input-invalid`, field `uplink`) fails the whole logical stream.
+      // 编解码器失败（`gateway/input-invalid`，字段 `uplink`）使整个逻辑流失败。
       this.abort(failure)
       throw failure
     }
     return { value, done: false }
   }
 
-  /** Downlink finished or the method stopped reading: unread uplink items are dropped. */
+  /** 下行结束或方法停止读取：未读的上行条目被丢弃。 */
   return(): Promise<IteratorResult<unknown>> {
     if (!this.closed) {
       this.finish()
-      // The carrier owns the source iterator; a generator blocked in next()
-      // completes this return once it yields, so it is not awaited here.
+      // 载体拥有源迭代器；阻塞在 next() 中的生成器一旦让出就会
+      // 完成此 return，因此此处不等待它。
       void Promise.resolve().then(() => this.source.return?.()).catch(() => undefined)
     }
     return Promise.resolve(UPLINK_DONE)
@@ -1434,9 +1434,9 @@ class UplinkDecoder implements AsyncIterable<unknown>, AsyncIterator<unknown> {
 }
 
 /**
- * The context of one Remote call as the receiving method reads it through
- * `this.ctx.invocation`. The uplink is decoded on first use and released when
- * the call's downlink finishes.
+ * 一个 Remote 调用的上下文，接收方法通过 `this.ctx.invocation` 读取它。
+ * 上行在首次使用时解码，
+ * 并在调用的下行结束时释放。
  */
 class GatewayInvocation implements RemoteInvocation {
   private decoder: UplinkDecoder | undefined
@@ -1445,11 +1445,11 @@ class GatewayInvocation implements RemoteInvocation {
   get uplinkWindow(): RemoteInvocation['uplinkWindow'] { return this.uplink_.window }
 
   /**
-   * @param request - decoded endpoint and wire arguments.
-   * @param service - Cordis service key of the receiver.
-   * @param peer - Peer the call speaks for.
-   * @param signal - the signal the method observes.
-   * @param uplink - carrier items and the codec that decodes them.
+   * @param request - 已解码的端点与 wire 参数。
+   * @param service - 接收者的 Cordis 服务键。
+   * @param peer - 调用所代表的 Peer。
+   * @param signal - 方法观察的信号。
+   * @param uplink - 载体条目与解码它们的编解码器。
    */
   constructor(
     readonly request: RemoteInvocation['request'],
@@ -1466,15 +1466,15 @@ class GatewayInvocation implements RemoteInvocation {
     this.taken = true
     const { source, codec, endpoint, abort } = this.uplink_
     this.decoder = new UplinkDecoder(source, codec, endpoint, this.signal, abort)
-    // The descriptor codec decides what arrives; `In` is the caller's assertion.
+    // 描述符编解码器决定到达的内容；`In` 是调用方的断言。
     return this.decoder as AsyncIterable<In>
   }
 
   /**
-   * The downlink finished: release the uplink. Unread items are dropped, and a
-   * carrier iterable the method never took is returned so it stops producing;
-   * a later `uplink()` throws like a second one would.
-   * @returns settles once a taken uplink has closed.
+   * 下行已结束：释放上行。未读条目被丢弃，
+   * 方法从未取用的载体可迭代对象被返回以使其停止产出；
+   * 之后再调用 `uplink()` 会像第二次调用那样抛出。
+   * @returns 在已取用的上行关闭之后完成。
    */
   async close(): Promise<void> {
     if (this.decoder !== undefined) {
@@ -1487,10 +1487,10 @@ class GatewayInvocation implements RemoteInvocation {
 }
 
 /**
- * Return a carrier uplink nobody will read, so it drops later items instead of
- * buffering them. The carrier owns the iterator and `return()` is not awaited:
- * a generator blocked in `next()` completes it only once it yields.
- * @param source - the carrier's uplink iterable.
+ * 返回一个无人读取的载体上行，使其丢弃后续条目而不是缓冲它们。
+ * 载体拥有迭代器，且 `return()` 不被等待：阻塞在 `next()` 中的
+ * 生成器只有让出时才能完成它。
+ * @param source - 载体的上行可迭代对象。
  */
 function releaseUplink(source: AsyncIterable<unknown>): void {
   void Promise.resolve().then(() => source[Symbol.asyncIterator]().return?.()).catch(() => undefined)
@@ -1622,10 +1622,10 @@ function assertExactArguments(
   if (descriptor.invocation.kind === 'context') expected.add(descriptor.invocation.wire)
   const actual = Reflect.ownKeys(args)
   const extra = actual.filter(key => typeof key !== 'string' || !expected.has(key))
-  // A JSON field may be omitted when the strict descriptor declares absence,
-  // and always under SRC: a weak descriptor reads parameter names from the
-  // JavaScript signature and cannot see which are optional, so LIB is where an
-  // omitted required argument is caught. Lookup ids are never omissible.
+  // 严格描述符声明可缺席时，JSON 字段可以省略，SRC 下则总是可以：
+  // 弱描述符从 JavaScript 签名读取参数名，无法看出哪些可选，
+  // 因此 LIB 是捕获省略的必需参数之处。
+  // 查找 id 绝不可省略。
   const acceptsMissing = new Set(descriptor.parameters
     .filter(parameter => parameter.source === 'json'
       && (parameter.acceptsUndefined === true || parameter.codec.mode === 'src-json'))
@@ -1639,11 +1639,11 @@ function assertExactArguments(
 }
 
 /**
- * Decode every present JSON argument once through its parameter codec; a
- * Typert codec drops object fields its compiled type does not declare. Lookup
- * and Context identities keep their wire values; dispatch decodes and resolves
- * them only after the access check. An absent field stays absent; a present
- * `undefined` is not JSON-safe and fails decoding.
+ * 每个在场的 JSON 参数都通过其参数编解码器解码一次；
+ * Typert 编解码器会丢弃其编译类型未声明的对象字段。
+ * 查找与上下文身份保留其 wire 值；分发只在访问检查之后才解码并解析它们。
+ * 缺席的字段保持缺席；
+ * 在场的 `undefined` 不是 JSON 安全的，解码失败。
  */
 function validateArguments(
   descriptor: InvocationDescriptor,

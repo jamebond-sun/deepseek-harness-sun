@@ -1,6 +1,6 @@
 /**
- * Method-level access control contracts: actions, roles, bindings, policies,
- * decision requests, and the access snapshot stream.
+ * 方法级访问控制契约：动作、角色、绑定、策略、
+ * 决策请求与访问快照流。
  * @module @deepseek-ai/dsh-api-remote-access/types
  */
 
@@ -19,36 +19,35 @@ export type {
   TypertResourceMap,
 } from '@deepseek-ai/dsh-typert-protocol'
 
-/** Canonical `<namespace>/<method>` Remote endpoint; its segments never contain `:`. */
+/** 规范的 `<namespace>/<method>` Remote 端点；其分段绝不包含 `:`。 */
 export type RemoteAccessEndpoint = `${string}/${string}`
 
-/** A Remote endpoint, or `event:<name>` for one forwarded event. */
+/** 一个 Remote 端点，或针对单个转发事件的 `event:<name>`。 */
 export type RemoteAccessAction = RemoteAccessEndpoint | `event:${string}`
 
-/** A named action set over one resource kind; a plain value the business package owns. */
+/** 一个资源种类上的具名动作集合；由业务包持有的普通值。 */
 export interface RemoteAccessRole<K extends RemoteAccessResourceKind> {
-  /** Name for diagnostics; decisions read only `resource` and `actions`. */
+  /** 供诊断使用的名称；决策只读取 `resource` 与 `actions`。 */
   readonly name: string
-  /** The resource kind every binding of this role names. */
+  /** 此角色的每个绑定所指名的资源种类。 */
   readonly resource: K
-  /** Actions the role allows on its binding's resource. */
+  /** 角色在其绑定资源上允许的动作。 */
   readonly actions: readonly RemoteAccessAction[]
 }
 
-/** Answer of `decide()` and of a condition. */
+/** `decide()` 与条件的回答。 */
 export type RemoteAccessDecision =
   | { readonly kind: 'allow' }
   | { readonly kind: 'deny'; readonly reason: string }
 
 /**
- * Refines one binding for one action on its resource. Called synchronously,
- * only for a binding whose resource matches and whose role lists the action.
- * @param request - the action, the binding's resource, and the named
- *   arguments of a concrete call, validated against their Typert-compiled
- *   types with lookup parameters as wire identities; `args` is absent for
- *   events, snapshots, and list filtering, where the condition answers for
- *   the action alone.
- * @returns allow, or deny with the reason a refused call reports.
+ * 针对其资源上的一个动作细化某个绑定。同步调用，
+ * 仅针对资源匹配且角色列出该动作的绑定。
+ * @param request - 动作、绑定的资源，以及一次具体调用的具名
+ *   参数，已按其 Typert 编译类型校验，并以 lookup 参数作为
+ *   wire 身份；对事件、快照与列表过滤而言 `args` 缺省，此时
+ *   条件仅就动作本身作答。
+ * @returns allow，或 deny 并附被拒调用上报的原因。
  */
 export type RemoteAccessCondition<K extends RemoteAccessResourceKind> = (request: {
   readonly action: RemoteAccessAction
@@ -56,61 +55,61 @@ export type RemoteAccessCondition<K extends RemoteAccessResourceKind> = (request
   readonly args?: Readonly<Record<string, unknown>>
 }) => RemoteAccessDecision
 
-/** One role on one resource of the role's kind; the resource type follows from the role. */
+/** 角色所属种类的一个资源上的一个角色；资源类型随角色而定。 */
 export type RemoteAccessBinding = {
   [K in RemoteAccessResourceKind]: {
     readonly role: RemoteAccessRole<K>
     readonly resource: RemoteAccessResourceOf<K>
-    /** Without a condition, the binding allows every action its role lists. */
+    /** 无条件时，绑定允许其角色列出的每个动作。 */
     readonly condition?: RemoteAccessCondition<K>
   }
 }[RemoteAccessResourceKind]
 
-/** One access question: may `principal` take `action` on `resources`. */
+/** 一个访问问题：`principal` 可否在 `resources` 上执行 `action`。 */
 export interface RemoteAccessRequest<P extends Principal> {
   readonly principal: P
   readonly action: RemoteAccessAction
   /**
-   * Every resource the action touches, the global resource alone when it
-   * names none; allowed only when the action is allowed on every listed resource.
+   * 该动作触及的每个资源，未指名时仅为 global 资源；
+   * 只有该动作在每个列出的资源上都被允许时才放行。
    */
   readonly resources: readonly RemoteAccessResource[]
   /**
-   * Named arguments of a concrete call, validated against their Typert-compiled types
-   * with lookup parameters as wire identities; absent for events, snapshots, and list filtering.
+   * 一次具体调用的具名参数，已按其 Typert 编译类型校验，
+   * 并以 lookup 参数作为 wire 身份；对事件、快照与列表过滤缺省。
    */
   readonly args?: Readonly<Record<string, unknown>>
 }
 
 /**
- * Business rules for one non-owner principal kind. Every member answers
- * synchronously from state the business package holds in memory.
+ * 一个非 owner principal 种类的业务规则。每个成员都
+ * 同步地依据业务包在内存中持有的状态作答。
  */
 export interface RemoteAccessPolicy<P extends Principal> {
   /**
-   * List the principal's bindings. Called once per `decide()`, once per
-   * `allows()`, and once per snapshot computation; never cached.
-   * @param principal - non-owner caller of this policy's kind.
-   * @returns every binding the principal holds now.
+   * 列出该 principal 的绑定。每次 `decide()`、每次
+   * `allows()` 与每次快照计算各调用一次；绝不缓存。
+   * @param principal - 本策略种类、非 owner 的调用方。
+   * @returns 该 principal 当前持有的每个绑定。
    */
   bindings(principal: P): readonly RemoteAccessBinding[]
   /**
-   * Name the reason for a request no binding allows; called only after the
-   * decision is already a deny, so it never changes the decision.
-   * @param request - the refused request.
-   * @returns the reason a refused call reports, or `undefined` for `no-allow`.
+   * 给出无任何绑定允许的请求的原因；仅在决策已为
+   * deny 之后调用，因此绝不改变决策。
+   * @param request - 被拒绝的请求。
+   * @returns 被拒调用上报的原因；`no-allow` 时为 `undefined`。
    */
   explain?(request: RemoteAccessRequest<P>): string | undefined
 }
 
-/** Details of a refused non-owner call. */
+/** 非 owner 被拒调用的详情。 */
 export interface RemoteAccessDeniedDetails {
-  /** Canonical `<namespace>/<method>` endpoint of the refused call. */
+  /** 被拒调用的规范 `<namespace>/<method>` 端点。 */
   readonly action: string
   /**
-   * A condition's or `explain()`'s reason, `no-allow`, or `policy-failed`;
-   * the Gateway refuses a call whose resources are invalid with
-   * `resource-invalid` before `decide()` is asked.
+   * 条件或 `explain()` 给出的原因、`no-allow` 或 `policy-failed`；
+   * 资源无效的调用会在询问 `decide()` 之前被 Gateway 以
+   * `resource-invalid` 拒绝。
    */
   readonly reason: string
 }
@@ -121,19 +120,19 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
   }
 }
 
-/** The endpoint actions one principal may call on one resource. */
+/** 一个 principal 可在一个资源上调用的端点动作。 */
 export interface RemoteAccessGrant {
   readonly resource: RemoteAccessResource
   /**
-   * Endpoint actions allowed on this resource without call arguments, sorted;
-   * plain strings because Typert generates no codec for template literal types.
+   * 在本资源上无需调用参数即被允许的端点动作，已排序；
+   * 为普通字符串是因为 Typert 不为模板字面量类型生成编解码器。
    */
   readonly actions: readonly string[]
 }
 
 /**
- * One frame of `remoteAccess/follow`. A generation opens with one baseline;
- * an owner baseline is the only frame of its generation.
+ * `remoteAccess/follow` 的一帧。一代以一个 baseline 开启；
+ * owner baseline 是其所在代的唯一一帧。
  */
 export type RemoteAccessFrame =
   | { readonly type: 'baseline'; readonly owner: true }

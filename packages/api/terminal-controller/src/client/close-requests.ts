@@ -1,8 +1,8 @@
-/** Unfinished close requests survive reload independently of the removed sidebar tabs. */
+/** 未完成的关闭请求可在刷新后存活，独立于被移除的侧边栏标签页。 */
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { WebTerminalId } from '../types.ts'
 
-/** An explicit cleanup request; no process or open-tab metadata is mirrored here. */
+/** 一条显式清理请求；此处不镜像任何进程或打开标签页的元数据。 */
 export interface TerminalCloseRequest {
   readonly sessionId: SessionId
   readonly id: WebTerminalId
@@ -11,7 +11,7 @@ export interface TerminalCloseRequest {
 
 const PREFIX = 'dsh.terminal.close.v1.'
 
-/** Each request has its own storage key, so other browser windows cannot overwrite its cleanup. */
+/** 每个请求都有自己的存储键，其他浏览器窗口无法覆盖其清理。 */
 export class TerminalCloseRequests {
   private readonly requests = new Map<WebTerminalId, TerminalCloseRequest>()
 
@@ -26,14 +26,14 @@ export class TerminalCloseRequests {
   }
 
   /**
-   * Read cleanup work still awaiting Host confirmation.
-   * @returns unfinished requests owned by this browser instance.
+   * 读取仍在等待 Host 确认的清理工作。
+   * @returns 此浏览器实例拥有的未完成请求。
    */
   pending(): readonly TerminalCloseRequest[] { return [...this.requests.values()] }
 
   /**
-   * Retain cleanup across reload before removing a tab.
-   * @param request - close intent to save before removing its tab.
+   * 在移除标签页之前让清理跨刷新保留。
+   * @param request - 要在移除其标签页之前保存的关闭意图。
    */
   save(request: TerminalCloseRequest): void {
     this.requests.set(request.id, request)
@@ -43,8 +43,8 @@ export class TerminalCloseRequests {
   }
 
   /**
-   * Forget confirmed cleanup in memory and browser storage.
-   * @param id - terminal whose Host cleanup succeeded.
+   * 在内存与浏览器存储中清除已确认的清理。
+   * @param id - Host 清理已成功的终端。
    */
   remove(id: WebTerminalId): void {
     this.requests.delete(id)

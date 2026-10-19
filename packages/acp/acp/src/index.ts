@@ -1,10 +1,9 @@
 /**
- * Automation-only Agent Client Protocol server over JSON-RPC stdio.
+ * 基于 JSON-RPC stdio 的 automation-only Agent Client Protocol 服务器。
  *
- * The bridge exposes persistent harness sessions to trusted programmatic
- * clients. It carries standard configuration, MCP mounts, prompt content,
- * committed semantic updates, cancellation, and one-shot permission decisions;
- * presentation and human-interaction features stay with the harness's UI modules.
+ * 该 bridge 把可持久化的 harness 会话暴露给受信任的程序化客户端。它承载标准配置、
+ * MCP 挂载、提示词内容、已提交的语义更新、取消与一次性权限决策；
+ * 呈现与人类交互功能仍由 harness 的 UI 模块负责。
  *
  * @module @deepseek-ai/dsh-acp
  */
@@ -48,7 +47,7 @@ import {
 import type { ModelSelection } from '@deepseek-ai/dsh-agent'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-session-persistence'
-// Side-effect type import: declaration-merges the approval waterfall answered below.
+// 副作用类型导入：通过声明合并引入下方应答的 approval waterfall。
 import type {} from '@deepseek-ai/dsh-user-approval'
 import { supportsAcpImagePrompts } from './content.ts'
 import { AcpMcpConfigError } from './mcp.ts'
@@ -58,28 +57,28 @@ import { AcpSession } from './session.ts'
 const DEFAULT_SESSION_LIST_PAGE_SIZE = 100
 
 export const name = 'acp'
-/** Core services required by the standard automation controls. */
+/** 标准 automation 控制所需的核心服务。 */
 export const inject = ['agents', 'llm', 'sessionPersistence', 'sessions']
 
-/** Preserve invalid-parameter detail in the SDK wire error message. */
+/** 在 SDK 线上错误消息中保留无效参数详情。 */
 function invalidParams(detail: string): RequestError {
   return RequestError.invalidParams(undefined, detail)
 }
 
-/** Preserve failed-turn detail; plain handler errors become a generic wire internal error. */
+/** 保留失败轮次详情；普通处理程序的错误会变成通用的线上内部错误。 */
 function internalError(detail: string): RequestError {
   return RequestError.internalError(undefined, detail)
 }
 
-/** Plugin config: the provider/model selection used for each ACP-created agent. */
+/** 插件配置：每个由 ACP 创建的 agent 所使用的提供方/模型选择。 */
 export interface AcpConfig {
-  /** Provider route for created agents. */
+  /** 创建 agent 时使用的提供方路由。 */
   provider?: string
-  /** Model name for created agents. */
+  /** 创建 agent 时使用的模型名称。 */
   model?: string
-  /** Maximum summaries returned by one session/list page. */
+  /** 单次 session/list 分页返回的最大摘要数。 */
   sessionListPageSize?: number
-  /** Runtime-only transport override; production uses stdio. */
+  /** 仅运行期使用的传输覆盖；生产环境使用 stdio。 */
   stream?: Stream
 }
 
@@ -90,13 +89,13 @@ export const Config: Schema<AcpConfig> = Schema.object({
 })
 
 /**
- * Mount the automation-only ACP server.
- * @param ctx - Cordis context carrying the agent factory and session events.
- * @param config - Initial provider/model selection and optional test transport.
+ * 挂载 automation-only ACP 服务器。
+ * @param ctx - 携带 agent 工厂与会话事件的 Cordis 上下文。
+ * @param config - 初始提供方/模型选择以及可选的测试传输。
  */
 export function apply(ctx: Context, config: AcpConfig): void {
-  // ACP handlers execute outside this plugin's injection scope, so capture the
-  // injected service during apply rather than reading it lazily in a callback.
+  // ACP 处理程序在本插件的注入作用域之外执行，因此在 apply 期间捕获注入的服务，
+  // 而不是在回调中延迟读取。
   const persistence = ctx.sessionPersistence
   const logger = ctx.logger
   const sessionListPageSize = resolveSessionListPageSize(config.sessionListPageSize)
@@ -105,7 +104,7 @@ export function apply(ctx: Context, config: AcpConfig): void {
   let closed = false
   let imagePromptEnabled = false
 
-  /** Return the bridge-owned record for an agent, rejecting same-id impostors. */
+  /** 返回 bridge 拥有的 agent 记录，并拒绝 id 相同的冒充者。 */
   const ownedRecord = (agent: Parameters<AcpSession['owns']>[0]): AcpSession | undefined => {
     const record = sessions.get(agent.session.id)
     return record?.owns(agent) === true ? record : undefined
@@ -121,11 +120,11 @@ export function apply(ctx: Context, config: AcpConfig): void {
     return record
   }
 
-  /** Send one ordered protocol update while containing transport-only failure. */
+  /** 发送一条有序协议更新，同时收敛仅由传输产生的失败。 */
   const notify = async (notification: SessionNotification): Promise<void> => {
     try {
       await conn.notify(methods.client.session.update, notification)
-    /* v8 ignore start -- the ACP SDK contains notification-handler failures; only a transport write failure reaches this guard. */
+    /* v8 ignore start -- ACP SDK 会收敛通知处理程序的失败；只有传输写入失败会到达此保护分支。 */
     } catch (error: unknown) {
       logger.warn(`acp: session/update failed: ${String(error)}`)
     }
@@ -153,9 +152,8 @@ export function apply(ctx: Context, config: AcpConfig): void {
     for (const record of sessions.values()) record.topologyChanged()
   })
 
-  // Permission requests are a machine policy channel for ACP clients such as
-  // dsh-subagent-acp. The bridge offers one-shot choices only and never infers a
-  // durable grant from an unknown client response.
+  // 权限请求是面向 dsh-subagent-acp 等 ACP 客户端的机器策略通道。bridge 只提供
+  // 一次性选项，绝不从未知的客户端响应推断持久授权。
   ctx.on('approval/request', (request, next) => {
     const record = ownedRecord(request.agent)
     if (record === undefined || request.callId === undefined) return next()
@@ -178,8 +176,8 @@ export function apply(ctx: Context, config: AcpConfig): void {
 
   const implementation = {
     async initialize(_params: InitializeRequest): Promise<InitializeResponse> {
-      // Single-version agent: the spec's "same version if supported, else
-      // the latest supported" both resolve to this server's one version.
+      // 单版本 agent：规范中的“若支持则使用相同版本，否则使用最新支持版本”，
+      // 都归结为本服务器唯一的版本。
       imagePromptEnabled = await supportsAcpImagePrompts(ctx, config.provider, config.model)
       return {
         protocolVersion: PROTOCOL_VERSION,
@@ -201,10 +199,9 @@ export function apply(ctx: Context, config: AcpConfig): void {
       assertOpen()
       validateWorkspaceParams(params)
       const sessionId = brandString<SessionId>(randomUUID())
-      // No preset composition: the ACP bundle keeps the model-facing rows in
-      // the host plane, so this agent reads them from the global layer. A
-      // deployment that configures a roster has to join one here first
-      // (@deepseek-ai/dsh-agent-preset-registry README, "Composing a child agent").
+      // 不做 preset 组合：ACP bundle 把面向模型的行保留在 host plane，因此该 agent
+      // 从全局层读取它们。配置了 roster 的部署必须在此先加入一个
+      // （@deepseek-ai/dsh-agent-preset-registry README，“Composing a child agent”）。
       let record: AcpSession
       try {
         record = await AcpSession.create(ctx, {
@@ -220,7 +217,7 @@ export function apply(ctx: Context, config: AcpConfig): void {
         if (error instanceof AcpMcpConfigError) throw invalidParams(error.message)
         throw error
       }
-      /* v8 ignore next 4 -- a real stdio close can race an in-flight create. */
+      /* v8 ignore next 4 -- 真实的 stdio 关闭可能与进行中的创建竞争。 */
       if (closed) {
         await record.close('connection closed during session/new')
         throw internalError('connection closed during session/new')
@@ -229,7 +226,7 @@ export function apply(ctx: Context, config: AcpConfig): void {
       try {
         const configOptions = await record.configOptions(signal)
         assertOpen()
-        // The attached log writer's flush materializes an empty session durably.
+        // 已挂载日志写入器的 flush 会把空会话持久化落盘。
         await ctx.sessions.flush(record.agent.session)
         assertOpen()
         return { sessionId, configOptions }
@@ -271,13 +268,13 @@ export function apply(ctx: Context, config: AcpConfig): void {
           if (error instanceof AcpMcpConfigError) throw invalidParams(error.message)
           throw error
         }
-        /* v8 ignore start -- the persisted header was checked before resume; the factory restores that exact header. */
+        /* v8 ignore start -- 持久化 header 已在恢复之前检查；工厂会恢复同一个 header。 */
         if (!await sameDirectory(record.agent.session.header.cwd, params.cwd)) {
           await record.close('session/resume cwd mismatch')
           throw invalidParams(`session cwd does not match: ${params.cwd}`)
         }
         /* v8 ignore stop */
-        /* v8 ignore next 4 -- a real stdio close can race an in-flight resume. */
+        /* v8 ignore next 4 -- 真实的 stdio 关闭可能与进行中的恢复竞争。 */
         if (closed) {
           await record.close('connection closed during session/resume')
           throw internalError('connection closed during session/resume')
@@ -374,7 +371,7 @@ export function apply(ctx: Context, config: AcpConfig): void {
     },
   }
 
-  /* v8 ignore next 4 -- production stdio wiring; tests inject config.stream. */
+  /* v8 ignore next 4 -- 生产 stdio 接线；测试注入 config.stream。 */
   const stream: Stream = config.stream ?? ndJsonStream(
     Writable.toWeb(process.stdout) as WritableStream<Uint8Array>,
     Readable.toWeb(process.stdin) as ReadableStream<Uint8Array>,
@@ -400,12 +397,12 @@ export function apply(ctx: Context, config: AcpConfig): void {
     if (quiescing !== undefined) return quiescing
     closed = true
     const records = [...sessions.values()]
-    // AcpSession.close cancels synchronously before its first await, so every owned
-    // prompt stops before any descendant or persistence drain can block.
+    // AcpSession.close 在第一个 await 之前同步取消，因此每个拥有的提示词都会在
+    // 任何后代或持久化 drain 阻塞之前停止。
     quiescing = (async () => {
       const disposals = await Promise.allSettled(records.map(record => record.close('ACP bridge disposed')))
       for (const record of records) {
-        /* v8 ignore next -- closed blocks concurrent handlers; each captured record remains mapped until this loop. */
+        /* v8 ignore next -- closed 会阻止并发处理程序；每个已捕获的记录在此循环之前保持映射。 */
         if (sessions.get(record.agent.session.id) === record) sessions.delete(record.agent.session.id)
       }
       const failures: unknown[] = []
@@ -413,9 +410,8 @@ export function apply(ctx: Context, config: AcpConfig): void {
         if (result.status === 'rejected') failures.push(result.reason as unknown)
       }
       if (failures.length > 0) {
-        // The production consumer logs this AggregateError through `String`,
-        // which renders only its message. Embed every per-session diagnostic,
-        // including nested causes and aggregate members, in that message.
+        // 生产消费方会通过 `String` 记录此 AggregateError，而它只渲染 message。
+        // 把每个会话的诊断信息（包括嵌套 cause 与 aggregate 成员）都嵌入该 message。
         const detail = failures.map(failure => errorChain(failure)).join('; ')
         throw new AggregateError(
           failures,
@@ -426,7 +422,7 @@ export function apply(ctx: Context, config: AcpConfig): void {
     return quiescing
   }
 
-  /* v8 ignore start -- production transport rejection and teardown failure. */
+  /* v8 ignore start -- 生产传输拒绝与销毁失败。 */
   void connection.closed
     .catch((error: unknown) => {
       logger.warn(`acp: connection closed with an error: ${String(error)}`)
@@ -441,9 +437,9 @@ export function apply(ctx: Context, config: AcpConfig): void {
 }
 
 /**
- * Build per-agent options from plugin config without assigning absent optional fields.
- * @param config - ACP provider/model configuration.
- * @returns the configured fields only.
+ * 根据插件配置构建 per-agent 选项，不为缺失的可选字段赋值。
+ * @param config - ACP 提供方/模型配置。
+ * @returns 仅包含已配置的字段。
  */
 function agentOptions(config: AcpConfig): { provider?: string; model?: string } {
   return {
@@ -452,7 +448,7 @@ function agentOptions(config: AcpConfig): { provider?: string; model?: string } 
   }
 }
 
-/** Initial session selection when both deployment fields are present. */
+/** 两个部署字段都存在时的初始会话选择。 */
 function initialSelection(config: AcpConfig): ModelSelection | undefined {
   return config.provider === undefined || config.model === undefined
     ? undefined
@@ -464,10 +460,10 @@ interface SessionListCursor {
   sessionId: string
 }
 
-/** Resolve and validate the deployment-owned session page limit. */
+/** 解析并校验部署方拥有的会话分页上限。 */
 function resolveSessionListPageSize(value: number | undefined): number {
   const resolved = value ?? DEFAULT_SESSION_LIST_PAGE_SIZE
-  /* v8 ignore start -- Cordis applies the positive-integer Config schema; this protects direct apply callers. */
+  /* v8 ignore start -- Cordis 会应用正整数 Config schema；此处保护直接调用 apply 的调用方。 */
   if (!Number.isSafeInteger(resolved) || resolved < 1) {
     throw new Error('acp: sessionListPageSize must be a positive safe integer')
   }
@@ -475,7 +471,7 @@ function resolveSessionListPageSize(value: number | undefined): number {
   return resolved
 }
 
-/** Decode an opaque keyset cursor without assigning meaning to client metadata. */
+/** 解码不透明的 keyset 游标，不为客户端元数据赋予含义。 */
 function decodeSessionListCursor(value: string | null | undefined): SessionListCursor | undefined {
   if (value === undefined || value === null) return undefined
   if (!/^[A-Za-z0-9_-]+$/.test(value)) throw new Error('session/list cursor is invalid')
@@ -500,23 +496,23 @@ function decodeSessionListCursor(value: string | null | undefined): SessionListC
   }
 }
 
-/** Encode the last returned ordering key as an opaque continuation token. */
+/** 将最后返回的排序键编码为不透明的续页令牌。 */
 function encodeSessionListCursor(entry: SessionListCursor): string {
   return Buffer.from(JSON.stringify([entry.createdAt, entry.sessionId]), 'utf8').toString('base64url')
 }
 
-/** Test whether an entry follows the cursor in newest-first list order. */
+/** 判断条目在最新优先的列表顺序中是否位于游标之后。 */
 function isAfterSessionListCursor(entry: SessionListCursor, cursor: SessionListCursor): boolean {
   return entry.createdAt < cursor.createdAt
     || (entry.createdAt === cursor.createdAt && compareSessionIds(entry.sessionId, cursor.sessionId) > 0)
 }
 
-/** Compare opaque session ids by stable UTF-8 bytes, independent of process locale. */
+/** 按稳定的 UTF-8 字节比较不透明会话 id，与进程 locale 无关。 */
 function compareSessionIds(left: string, right: string): number {
   return Buffer.compare(Buffer.from(left), Buffer.from(right))
 }
 
-/** Reject workspace features outside the automation contract. */
+/** 拒绝 automation 约定之外的工作区特性。 */
 function validateWorkspaceParams(params: { cwd: string; additionalDirectories?: string[] | null }): void {
   if (!isAbsolute(params.cwd)) throw invalidParams(`cwd must be an absolute path: ${params.cwd}`)
   if (
@@ -528,7 +524,7 @@ function validateWorkspaceParams(params: { cwd: string; additionalDirectories?: 
   }
 }
 
-/** Compare existing directories by physical identity and missing paths lexically. */
+/** 已存在的目录按物理标识比较，缺失的路径按字面比较。 */
 async function sameDirectory(left: string | undefined, right: string): Promise<boolean> {
   if (left === undefined) return false
   try {

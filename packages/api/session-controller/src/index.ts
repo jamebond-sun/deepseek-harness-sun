@@ -1,4 +1,4 @@
-/** Session Remote owner: cold reads, explicit Agent commands, and live control state. */
+/** Session Remote 拥有者：冷读取、显式 Agent 命令与实时控制状态。 */
 
 import { hostname } from 'node:os'
 import { resolve } from 'node:path'
@@ -75,47 +75,47 @@ export { SessionSkillCatalog } from './skill-catalog.ts'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
-    /** Host Session business API and Remote namespace owner. */
+    /** Host Session 业务 API 与 Remote 命名空间拥有者。 */
     sessionController: SessionController
   }
 }
 
 /**
- * Read the Session resource a history address names: the Session itself, or
- * the child Session whose transcript a subagent address reads.
- * @param request - history request carrying the durable address.
- * @returns the Session whose access the read requires.
+ * 读取历史地址所指名的 Session 资源：Session 本身，或
+ * subagent 地址所读取其对话记录的子 Session。
+ * @param request - 携带持久化地址的历史请求。
+ * @returns 该读取需要访问权限的 Session。
  */
 function addressedSession(request: { readonly address: SessionAddress }): SessionId {
   return request.address.kind === 'session' ? request.address.sessionId : request.address.childSessionId
 }
 
-/** Session Controller deployment policy. */
+/** Session Controller 部署策略。 */
 export interface Config {
-  /** Override platform desktop-opener detection. */
+  /** 覆盖平台桌面打开器检测。 */
   readonly nativeOpen?: boolean
-  /** Positive integral milliseconds of list work before yielding between complete rows. */
+  /** 在完整行之间让出前，列表工作的正整数毫秒数。 */
   readonly listWorkSliceMs?: number
 }
 
-/** Deployment policy after schema defaults have been applied. */
+/** 应用 schema 默认值之后的部署策略。 */
 type ResolvedConfig = Config & { readonly listWorkSliceMs: number }
 
-/** Host integrations replaceable by direct unit tests. */
+/** 可被直接单元测试替换的 Host 集成。 */
 export interface SessionControllerInternals {
-  /** Native default-application handoff. */
+  /** 原生默认应用程序移交。 */
   readonly openPath?: (path: string, signal: AbortSignal) => Promise<void>
-  /** Native file-association query. */
+  /** 原生文件关联查询。 */
   readonly fileApplications?: typeof nativeFileApplications
-  /** Explicit registered-application handoff. */
+  /** 显式已注册应用程序移交。 */
   readonly openFileApplication?: typeof openNativeFileApplication
-  /** Native file-manager handoff. */
+  /** 原生文件管理器移交。 */
   readonly revealPath?: (path: string, signal: AbortSignal) => Promise<void>
-  /** Native handoff availability probe. */
+  /** 原生移交可用性探测。 */
   readonly canOpenPath?: () => boolean
 }
 
-/** Host service backing the generated `ctx.remote.session` namespace. */
+/** 支撑生成的 `ctx.remote.session` 命名空间的 Host 服务。 */
 export class SessionController extends TypertRemoteService {
   static inject = [
     'agentDefaultModel',
@@ -150,9 +150,9 @@ export class SessionController extends TypertRemoteService {
   private readonly promotions = new Set<Promise<void>>()
 
   /**
-   * @param ctx - Host context containing the Session capability assembly.
-   * @param config - native-opener and list-scheduling deployment policy.
-   * @param internals - host integrations replaceable by direct unit tests.
+   * @param ctx - 包含 Session 能力组合的 Host 上下文。
+   * @param config - 原生打开器与列表调度的部署策略。
+   * @param internals - 可被直接单元测试替换的 Host 集成。
    */
   constructor(ctx: Context, config: Config, internals: SessionControllerInternals = {}) {
     super(ctx, 'sessionController', { namespace: 'session' })
@@ -167,8 +167,8 @@ export class SessionController extends TypertRemoteService {
       return result.agent
     }), 'session-controller: file-upload Agent resolver')
     this.controlState = new SessionControlController(ctx)
-    // Registered before history so reverse-order teardown closes every
-    // follower before waiting for already-admitted promotions.
+    // 在 history 之前注册，使逆序拆除在等待已接纳的激活之前
+    // 先关闭每个跟随者。
     ctx.effect(() => async () => {
       await Promise.allSettled([...this.promotions])
     }, 'session-controller.promotions')
@@ -183,9 +183,9 @@ export class SessionController extends TypertRemoteService {
     ctx.plugin(SessionFileReferences)
     ctx.plugin(SessionMediaReferences)
     ctx.plugin(SessionSkillCatalog)
-    // An archived Session, or a subagent descendant of one, runs no model step
-    // until it is restored; what it still runs is stopped by the owners that
-    // answer the Workspace registry's archive-admission events.
+    // 已归档的 Session 或其 subagent 后代在恢复之前不运行任何模型步骤；
+    // 它仍在运行的工作由响应 Workspace 注册表归档准入事件的
+    // 拥有者停止。
     ctx.plugin(ArchivedSessionGate)
 
     ctx.on('session/created', (session) => {
@@ -236,19 +236,19 @@ export class SessionController extends TypertRemoteService {
   }
 
   /**
-   * Resolve or resume one ordinary Session for another Host API domain.
-   * @param sessionId - Session identity whose Agent owns the operation.
-   * @returns the live Agent or the stable Session-domain failure.
+   * 为另一个 Host API 域解析或恢复一个普通 Session。
+   * @param sessionId - 其 Agent 拥有该操作的 Session 标识。
+   * @returns 活跃 Agent 或稳定的 Session 域失败。
    */
   resolveAgent(sessionId: SessionId): Promise<ApiSessionAgentResult> {
     return this.agents.resolveAgent(sessionId)
   }
 
   /**
-   * Inspect one attached or persisted Session without activating its Agent.
-   * @param sessionId - durable Session identity.
-   * @param signal - optional caller cancellation for persistence reads.
-   * @returns the current attached state or persisted header and event prefix.
+   * 检查一个已附加或已持久化的 Session，不激活其 Agent。
+   * @param sessionId - 持久化 Session 标识。
+   * @param signal - 持久化读取的可选调用方取消。
+   * @returns 当前已附加状态，或持久化 header 与事件前缀。
    */
   inspect(
     sessionId: SessionId,
@@ -267,10 +267,10 @@ export class SessionController extends TypertRemoteService {
   }
 
   /**
-   * Read all visible Session rows without resuming an Agent.
-   * @param _request - reserved empty list request.
-   * @param signal - cancellation for persistence reads and summary generation.
-   * @returns visible Session summaries ordered by activity.
+   * 读取所有可见的 Session 行，不恢复 Agent。
+   * @param _request - 保留的空列表请求。
+   * @param signal - 持久化读取与摘要生成的取消。
+   * @returns 按活动排序的可见 Session 摘要。
    */
   @Remote('list')
   async list(_request: SessionListRequest, signal: AbortSignal): Promise<SessionListValue> {
@@ -279,12 +279,12 @@ export class SessionController extends TypertRemoteService {
   }
 
   /**
-   * Search visible Session content without resuming an Agent. A non-owner
-   * receives only the hits whose Session `allows()` admits; `hasMore`
-   * describes the bounded result before that filtering.
-   * @param request - literal message-content query.
-   * @param signal - cancellation for list and search reads.
-   * @returns authorized bounded Session search results.
+   * 搜索可见的 Session 内容，不恢复 Agent。非拥有者只会收到其 Session
+   * 通过 `allows()` 准入的命中；`hasMore` 描述的是该过滤之前的
+   * 有界结果。
+   * @param request - 字面消息内容查询。
+   * @param signal - 列表与搜索读取的取消。
+   * @returns 经授权的有界 Session 搜索结果。
    */
   @Remote('search')
   async search(request: SessionSearchRequest, signal: AbortSignal): Promise<SessionSearchValue> {
@@ -293,9 +293,9 @@ export class SessionController extends TypertRemoteService {
   }
 
   /**
-   * Create one ordinary Session for a new conversation, reusing the named blank Session while it is reusable.
-   * @param request - optional blank Session to reuse, location, and Agent preset.
-   * @returns the created or reused Session identity and its preset when configured.
+   * 为新对话创建一个普通 Session，在命名空白 Session 仍可复用时复用它。
+   * @param request - 可选的待复用空白 Session、位置与 Agent 预设。
+   * @returns 创建或复用的 Session 标识，以及配置了预设时的该预设。
    */
   @Remote('create')
   create(request: SessionCreateRequest): Promise<SessionCreateValue> {
@@ -303,9 +303,9 @@ export class SessionController extends TypertRemoteService {
   }
 
   /**
-   * Select one Session-local model after explicitly resuming the Session; save the default in the background.
-   * @param request - Session identity and requested model selection.
-   * @returns the normalized selection installed for the Session, without waiting for default persistence.
+   * 在显式恢复 Session 之后选择一个 Session 本地模型；在后台保存默认值。
+   * @param request - Session 标识与请求的模型选择。
+   * @returns 为该 Session 安装的规范化选择，不等待默认值持久化。
    */
   @Remote('selectModel')
   selectModel(request: SessionSelectModelRequest): Promise<SessionSelectModelValue> {
@@ -313,8 +313,8 @@ export class SessionController extends TypertRemoteService {
   }
 
   /**
-   * Select the first available account model after login when no provider API key is configured.
-   * @returns after saving the first available model or retaining the existing default.
+   * 在未配置提供方 API 密钥时，于登录后选择第一个可用的账户模型。
+   * @returns 在保存第一个可用模型或保留既有默认值之后。
    */
   @Remote
   async initializeDefaultModel(): Promise<void> {
@@ -331,8 +331,8 @@ export class SessionController extends TypertRemoteService {
   }
 
   /**
-   * Describe every currently routable model for Host-generation selectors.
-   * @returns provider-grouped models, the deployment default, and isolated provider failures.
+   * 为 Host 生成的选择器描述每个当前可路由的模型。
+   * @returns 按提供方分组的模型、部署默认值，以及相互隔离的提供方失败。
    */
   @Remote('modelCatalog')
   modelCatalog(): Promise<ModelCatalog> {
@@ -340,8 +340,8 @@ export class SessionController extends TypertRemoteService {
   }
 
   /**
-   * Report whether this deployment can hand a Session workspace path to a native desktop.
-   * @returns true when the matching open operation is available.
+   * 报告此部署能否将 Session 工作区路径交给原生桌面。
+   * @returns 当匹配的打开操作可用时为 true。
    */
   @Remote
   canOpenWorkspacePath(): boolean {
@@ -349,8 +349,8 @@ export class SessionController extends TypertRemoteService {
   }
 
   /**
-   * Describe the serving desktop for authenticated file-action routes.
-   * @returns Host name, configured availability, and platform-specific file-manager behavior.
+   * 描述为经过身份验证的文件操作路由提供服务的桌面。
+   * @returns Host 名、配置的可用性，以及平台特定的文件管理器行为。
    */
   workspaceDesktop(): { name: string; available: boolean; fileManager: 'finder' | 'explorer' | 'directory' | null } {
     const fileManager = nativeFileManager()
@@ -358,11 +358,11 @@ export class SessionController extends TypertRemoteService {
   }
 
   /**
-   * Verify one path through the composed filesystem and open it on the Host desktop.
-   * @param request - path after best-effort Session workspace resolution.
-   * @param signal - caller lifetime; abort terminates the native command.
-   * @returns confirmation after the native opener accepts the path.
-   * @throws RemoteError when the request is invalid, has no verified Host mapping, is cancelled, or the opener fails.
+   * 通过组合的文件系统验证一个路径，并在 Host 桌面上打开它。
+   * @param request - 尽力完成 Session 工作区解析后的路径。
+   * @param signal - 调用方生命周期；中止会终止原生命令。
+   * @returns 原生打开器接受该路径后的确认。
+   * @throws RemoteError 当请求无效、没有已验证的 Host 映射、被取消或打开器失败时。
    */
   @Remote('openWorkspacePath')
   async openWorkspacePath(
@@ -388,11 +388,11 @@ export class SessionController extends TypertRemoteService {
   }
 
   /**
-   * Query current file handlers on the serving desktop without activating an Agent.
-   * @param request - file path in Host filesystem syntax.
-   * @param signal - caller lifetime, propagated to filesystem and desktop queries.
-   * @returns OS application names, icons, and default selection; empty when desktop opening is unavailable.
-   * @throws RemoteError when the path is invalid, the query is cancelled, or native discovery fails.
+   * 在提供服务的桌面上查询当前文件处理程序，不激活 Agent。
+   * @param request - Host 文件系统语法的文件路径。
+   * @param signal - 调用方生命周期，传播到文件系统与桌面查询。
+   * @returns 操作系统应用程序名称、图标与默认选择；桌面打开不可用时为空。
+   * @throws RemoteError 当路径无效、查询被取消或原生发现失败时。
    */
   @Remote('workspacePathApplications')
   async workspacePathApplications(
@@ -423,9 +423,9 @@ export class SessionController extends TypertRemoteService {
   }
 
   /**
-   * Rename one Session after explicitly resuming it.
-   * @param request - Session identity and proposed title.
-   * @returns the accepted title and durable event sequence.
+   * 在显式恢复一个 Session 之后重命名它。
+   * @param request - Session 标识与建议的标题。
+   * @returns 被接受的标题与持久化事件序列。
    */
   @Remote('rename')
   rename(request: SessionRenameRequest): Promise<SessionRenameValue> {
@@ -433,11 +433,11 @@ export class SessionController extends TypertRemoteService {
   }
 
   /**
-   * Fork one cold-readable exact event prefix into a new Session. An omitted
-   * boundary selects the latest completed-turn prefix; an open cut receives
-   * synthetic fork closers.
-   * @param request - source Session, optional exact inclusive event boundary, and migration preflight choice.
-   * @returns the new Session identity.
+   * 将一个冷可读的精确事件前缀分叉为新 Session。省略的
+   * 边界选择最新的已完成回合前缀；开放切点会收到合成的
+   * 分叉收尾事件。
+   * @param request - 源 Session、可选的精确含端点事件边界，以及迁移预检选择。
+   * @returns 新 Session 的标识。
    */
   @Remote('fork')
   async fork(request: SessionForkRequest): Promise<SessionForkValue> {
@@ -453,10 +453,10 @@ export class SessionController extends TypertRemoteService {
   }
 
   /**
-   * Admit one prompt after explicitly resuming its Session.
-   * @param request - Session identity, prompt content, source metadata, and delivery mode.
-   * @param signal - caller cancellation before prompt admission begins.
-   * @returns acknowledgement that the Agent accepted the prompt.
+   * 在显式恢复其 Session 之后接纳一条提示词。
+   * @param request - Session 标识、提示词内容、来源元数据与投递模式。
+   * @param signal - 提示词接纳开始之前的调用方取消。
+   * @returns Agent 已接受该提示词的确认。
    */
   @Remote('prompt')
   async prompt(request: SessionPromptRequest, signal: AbortSignal): Promise<SessionPromptValue> {
@@ -474,7 +474,7 @@ export class SessionController extends TypertRemoteService {
         { value: request.clientTimeZone },
       )
     }
-    // The caller is recorded only when it is not the owner, so owner messages keep their exact source.
+    // 仅当调用方不是拥有者时才记录它，因此拥有者的消息保留其确切来源。
     const principal = principalOf(this.ctx.invocation)
     const source: MessageSource = {
       kind: 'user',
@@ -486,9 +486,9 @@ export class SessionController extends TypertRemoteService {
   }
 
   /**
-   * Read one image proven reachable from the addressed Session log.
-   * @param request - Session and attachment identities used for authorization.
-   * @returns the durable attachment reference and base64-encoded bytes.
+   * 读取一张已被证明可从被寻址 Session 日志到达的图片。
+   * @param request - 用于授权的 Session 与附件标识。
+   * @returns 持久化附件引用与 base64 编码的字节。
    */
   @Remote('attachment')
   attachment(request: SessionAttachmentRequest): Promise<SessionAttachmentValue> {
@@ -496,9 +496,9 @@ export class SessionController extends TypertRemoteService {
   }
 
   /**
-   * Mutate one still-pending queue occurrence, resuming a cold Agent first.
-   * @param request - Session, queue item, and requested mutation.
-   * @returns acknowledgement that the queue mutation was applied.
+   * 变更一个仍待处理的队列条目，先恢复冷 Agent。
+   * @param request - Session、队列项与请求的变更。
+   * @returns 队列变更已应用的确认。
    */
   @Remote('updateQueue')
   updateQueue(request: SessionUpdateQueueRequest): Promise<SessionUpdateQueueValue> {
@@ -506,9 +506,9 @@ export class SessionController extends TypertRemoteService {
   }
 
   /**
-   * Cancel one active Agent turn without dropping its pending inbox.
-   * @param request - Session whose active Agent turn is cancelled.
-   * @returns acknowledgement that cancellation was requested.
+   * 取消一个活跃的 Agent 回合，不丢弃其待处理的收件箱。
+   * @param request - 其活跃 Agent 回合被取消的 Session。
+   * @returns 已请求取消的确认。
    */
   @Remote('cancel')
   cancel(request: SessionCancelRequest): SessionCancelValue {
@@ -516,10 +516,10 @@ export class SessionController extends TypertRemoteService {
   }
 
   /**
-   * Read one cold-safe, message-aligned Session history page.
-   * @param request - durable address, backward cursor, and page budget.
-   * @param signal - cancellation for persistence reads.
-   * @returns one chronological page.
+   * 读取一个冷安全、按消息对齐的 Session 历史页。
+   * @param request - 持久化地址、向后游标与页预算。
+   * @param signal - 持久化读取的取消。
+   * @returns 一个按时间顺序的页。
    */
   @Remote({ name: 'page', resources: { session: addressedSession } })
   page(request: SessionPageRequest, signal: AbortSignal): Promise<SessionPage> {
@@ -527,11 +527,11 @@ export class SessionController extends TypertRemoteService {
   }
 
   /**
-   * Follow one Session log from its opening or resume cursor.
-   * @param request - durable address and last committed sequence already held by the caller.
-   * @param signal - cancellation owned by the Remote stream carrier.
-   * @returns a complete opening snapshot followed by gap-free durable event
-   *   frames and optional cursorless assistant-stream frames.
+   * 从开场或恢复游标起跟随一个 Session 日志。
+   * @param request - 持久化地址与调用方已持有的最后已提交序列。
+   * @param signal - 由 Remote 流载体拥有的取消。
+   * @returns 完整的开场快照，其后是无间隙的持久化事件
+   *   帧与可选的无游标 assistant 流帧。
    */
   @Remote({ mode: 'stream', resources: { session: addressedSession } })
   follow(request: SessionFollowRequest, signal: AbortSignal): AsyncIterable<SessionFollowFrame> {
@@ -539,10 +539,10 @@ export class SessionController extends TypertRemoteService {
   }
 
   /**
-   * Read exact projections, returning cached hints only when migration is required.
-   * @param request - Session whose current values are required.
-   * @param signal - cancellation for the Session read.
-   * @returns a sequenced baseline, cached hints when migration is deferred, or null when absent.
+   * 读取精确投影，仅在需要迁移时返回缓存提示。
+   * @param request - 需要其当前值的 Session。
+   * @param signal - Session 读取的取消。
+   * @returns sequenced 基线、迁移被推迟时的缓存提示，或不存在时为 null。
    */
   @Remote('projections')
   async projections(request: SessionProjectionsRequest, signal: AbortSignal): Promise<SessionProjectionsValue> {
@@ -591,9 +591,9 @@ export class SessionController extends TypertRemoteService {
   }
 
   /**
-   * Stream a complete live-control baseline followed by replacement frames.
-   * @param signal - cancellation owned by the Remote stream carrier.
-   * @returns one complete baseline followed by live replacement frames.
+   * 流式传输完整的实时控制基线及其后的替换帧。
+   * @param signal - 由 Remote 流载体拥有的取消。
+   * @returns 一个完整基线及其后的实时替换帧。
    */
   @Remote({ mode: 'stream' })
   async *control(signal: AbortSignal): AsyncIterable<SessionControlFrame> {

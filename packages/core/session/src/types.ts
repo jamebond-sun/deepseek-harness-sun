@@ -17,25 +17,25 @@ import type {
 import type { TypertResource } from '@deepseek-ai/dsh-typert-protocol'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 
-/** Identifies one session in the store (and its persistence artifacts). */
+/** 标识存储中的一个 session（及其持久化产物）。 */
 export type SessionId = Branded<'SessionId'>
 
 /**
- * Brand a string as a {@link SessionId}.
- * @param id - the raw session id string.
- * @returns the same string with the session-id brand.
+ * 将字符串标记为 {@link SessionId}。
+ * @param id - 原始 session id 字符串。
+ * @returns 附带 session-id 品牌的同一字符串。
  */
 export function SessionId(id: string): SessionId {
   return brandString<SessionId>(id)
 }
 
-/** Sequence number of one existing event in a Session log. */
+/** Session 日志中一个已存在事件的序号。 */
 export type SessionSeq = BrandedNumber<'SessionSeq'>
 
 /**
- * Admit a numeric value as an existing Session event position.
- * @param value - non-negative safe integer admitted by the owning log operation.
- * @returns the same number with the Session-sequence brand.
+ * 将数值接受为已存在的 Session 事件位置。
+ * @param value - 由所属日志操作接受的非负安全整数。
+ * @returns 附带 Session-sequence 品牌的同一数值。
  */
 export function SessionSeq(value: number): SessionSeq {
   if (!Number.isSafeInteger(value) || value < 0 || Object.is(value, -0)) {
@@ -44,13 +44,13 @@ export function SessionSeq(value: number): SessionSeq {
   return brandNumber<SessionSeq>(value)
 }
 
-/** A Session log gap, prefix length, or read offset, which may equal the event count. */
+/** Session 日志间隙、前缀长度或读取偏移，可以等于事件总数。 */
 export type SessionLogOffset = BrandedNumber<'SessionLogOffset'>
 
 /**
- * Admit a numeric value as a Session log offset.
- * @param value - non-negative safe integer used as a gap or prefix length.
- * @returns the same number with the Session-log-offset brand.
+ * 将数值接受为 Session 日志偏移。
+ * @param value - 用作间隙或前缀长度的非负安全整数。
+ * @returns 附带 Session-log-offset 品牌的同一数值。
  */
 export function SessionLogOffset(value: number): SessionLogOffset {
   if (!Number.isSafeInteger(value) || value < 0 || Object.is(value, -0)) {
@@ -59,95 +59,87 @@ export function SessionLogOffset(value: number): SessionLogOffset {
   return brandNumber<SessionLogOffset>(value)
 }
 
-/** Inclusive Session event watermark, or `-1` before any event exists. */
+/** 含端点的 Session 事件水位线，任何事件存在之前为 `-1`。 */
 export type SessionSeqCursor = SessionSeq | -1
 
-/** One existing Session event position, or explicit absence. */
+/** 一个已存在的 Session 事件位置，或显式缺失。 */
 export type OptionalSessionSeq = SessionSeq | null
 
 /**
- * Current logical Session format version, stamped into every newly written
- * {@link SessionHeader}. Current Session and persistence code accept only this
- * value; header-only readers classify supported historical formats, while an
- * event-body read composes the build-static adjacent chain and publishes only
- * this final generation before constructing a Session.
+ * 当前逻辑 Session 格式版本，盖入每个新写入的 {@link SessionHeader}。当前
+ * Session 与持久化代码只接受该值；仅读 header 的读取方对受支持的历史格式做
+ * 分类，而事件体读取会组接构建期固定的相邻迁移链，并在构造 Session 前只发布
+ * 这一代最终格式。
  *
- * The version is a single monotonic integer with no major/minor split. Retain
- * it when older readers resume correctly, preserve safely ignorable records,
- * or refuse required features before execution, mutation, or tail repair.
- * New readers must preserve historical meanings, including logs mixing old
- * and new record representations. Bump when an existing discriminator cannot
- * prevent unsafe interpretation; a structural difference alone is insufficient.
- * Unknown fields and values require evidence of the released reader's actual
- * admission behavior. The per-event {@link SessionEvent.ignorable} marker
- * governs unknown event types, not arbitrary nested payload changes.
- * Same-version readers retain earlier representations: the adjacent migration
- * chain does not run when stored and current versions match. A subsequent
- * migration must account for all supported representations of its source.
- * Compatibility review and the retained migration obligations are recorded in
- * `.agents/notes/implemented/process/2026-10-08-session-reader-compatibility-review.md`.
+ * 版本是单个单调递增整数，不分 major/minor。满足以下条件时保留该版本：旧读
+ * 取方能正确恢复、能安全保留可忽略记录，或在执行、变更、尾部修复前拒绝所需
+ * 特性。新读取方必须保留历史语义，包括新旧记录表示混存的日志。仅当现有
+ * discriminator 无法阻止不安全的解读时才升版本；仅有结构差异并不足够。未知
+ * 字段与取值需要已发布读取方实际接受行为的证据。逐事件的
+ * {@link SessionEvent.ignorable} 标记管辖未知事件类型，而非任意的嵌套载荷变
+ * 更。同版本读取方保留更早的表示：存储版本与当前版本一致时相邻迁移链不运行。
+ * 后续迁移必须覆盖其来源的全部受支持表示。兼容性评审及保留的迁移义务记录在
+ * `.agents/notes/implemented/process/2026-10-08-session-reader-compatibility-review.md`。
  */
 export const SESSION_FORMAT_VERSION = 4
 
 /**
- * Immutable validated storage metadata, kept outside the conversation event log.
+ * 不可变且经验证的存储元数据，保存在会话事件日志之外。
  */
 export interface SessionHeader {
   /**
-   * Current logical format version, stamped from {@link SESSION_FORMAT_VERSION}.
-   * Historical physical headers are translated before entering this interface.
+   * 当前逻辑格式版本，取自 {@link SESSION_FORMAT_VERSION}。
+   * 历史物理 header 在进入此接口前先做转换。
    */
   readonly version: typeof SESSION_FORMAT_VERSION
-  /** The session's id (mirrors the {@link Session}'s id). */
+  /** 该 session 的 id（与 {@link Session} 的 id 一致）。 */
   readonly id: SessionId
-  /** Non-negative safe-integer Unix epoch milliseconds when the session was created. */
+  /** session 创建时间的非负安全整数 Unix 纪元毫秒。 */
   readonly createdAt: number
-  /** Absolute working directory the session was created in (if any). */
+  /** 创建 session 时所在的工作目录绝对路径（如有）。 */
   readonly cwd?: string
-  /** The session this one was forked from (seed lineage), if any. */
+  /** 本 session 由其分叉而来的 session（seed 谱系），如有。 */
   readonly parentSession?: SessionId
   /**
-   * Whether this Session contains a fork-inherited event prefix. The exact prefix
-   * length is Session state rather than ordinary header metadata.
+   * 本 Session 是否包含分叉继承的事件前缀。确切的前缀长度是 Session 状态，
+   * 而非普通 header 元数据。
    */
   readonly isSeeded: boolean
   /**
-   * Coarse product classification for a session created as a subagent child.
-   * This is presentation metadata, not proof that the child is continuable.
+   * 作为 subagent 子级创建的 session 的粗粒度产品分类。
+   * 这是展示元数据，不能证明该子级可以继续。
    */
   readonly origin?: 'subagent'
   /**
-   * Delegation depth: absent (zero) for a top-level session, parent depth + 1
-   * for a subagent child. Persisted so a recursion budget survives restart and
-   * resume — a runtime-only depth would reset a resumed child to top-level.
+   * 委派深度：顶层 session 缺省（为零），subagent 子级为父级深度 + 1。持久化
+   * 它使递归预算在重启与恢复后仍然有效——仅存于运行时的深度会把恢复的子级
+   * 重置为顶层。
    */
   readonly delegationDepth?: number
   /**
-   * Id of the agent preset this session's agent was composed from, when the
-   * deployment composes per session. Durable because the preset decides the
-   * session's tools and prompt: a resume that restored a different composition
-   * would replay history the model can no longer act on.
+   * 部署按 session 组合时，本 session 的 agent 由哪个 agent preset 组合而来的
+   * id。持久化它是因为 preset 决定 session 的工具与提示词：恢复到不同组合的
+   * 话，回放的历史将是模型无法再执行的。
    */
   readonly agentPreset?: string
 }
 
 /**
- * Options for creating a {@link Session} via the store. `seed` replays/forks
- * an existing event log; `meta` carries the caller-supplied storage fields the
- * store folds into a {@link SessionHeader}.
+ * 通过存储创建 {@link Session} 的选项。`seed` 回放/分叉一个既有事件日志；
+ * `meta` 携带调用方提供的存储字段，由存储折叠进 {@link SessionHeader}。
  */
 export interface CreateSessionOptions {
-  /** Initial replay or fork history supplied at construction. */
+  /** 构造时提供的初始回放或分叉历史。 */
   readonly seed?: readonly SessionEvent[]
   /**
-   * Exact fork-inherited prefix length when `meta.isSeeded` is true. The
-   * constructor appends the child-owned tagged marker at the cut unless
-   * the seed already includes it followed by child-owned fork closers.
+   * `meta.isSeeded` 为 true 时的确切分叉继承前缀长度。构造器会在切点处追
+   * 加子级自有的带标记 marker，除非 seed 已包含它且其后是子级自有的分叉收
+   * 尾事件。
    */
   readonly inheritedEventCount?: SessionLogOffset
   /**
-   * Storage metadata read once before publication. `isSeeded` marks fork
-   * lineage; supplying replay history alone does not make it inherited.
+   * 发布前读取一次的存储元数据。`isSeeded` 标记分叉谱系；仅提供回放历史
+   * 并不使其成为继承历史。
    */
   readonly meta?: {
     readonly cwd?: string
@@ -161,281 +153,256 @@ export interface CreateSessionOptions {
 }
 
 /**
- * Aliasing state of an adoptable Session seed. `shared-frozen` permits deeply
- * frozen aliases plus independently owned unfrozen values in the same seed.
+ * 可采纳 Session seed 的别名状态。`shared-frozen` 允许同一 seed 中同时存在深
+ * 冻结的别名与独立持有的未冻结值。
  */
 export type SessionSeedEventState = 'detached' | 'shared-frozen'
 
 /**
- * Adoptable storage values transferred to {@link SessionStore.prepare}
- * without another copy or freeze pass.
+ * 转移给 {@link SessionStore.prepare} 的可采纳存储值，无需再复制或冻结。
  */
 export interface RestoredSessionOptions {
-  /** Events that are independently owned or already deeply frozen. */
+  /** 独立持有或已深度冻结的事件。 */
   readonly seed: SessionEvent[]
-  /** Independently owned storage metadata to validate and freeze in place. */
+  /** 独立持有的存储元数据，将就地验证并冻结。 */
   readonly meta: SessionHeader
-  /** Exact number of fork-inherited leading events decoded from storage. */
+  /** 从存储解码出的分叉继承前导事件的确切数量。 */
   readonly inheritedEventCount: SessionLogOffset
-  /** Aliasing state carried from the operation that produced the seed. */
+  /** 由产生 seed 的操作所携带的别名状态。 */
   readonly eventState: SessionSeedEventState
 }
 
-/** Inputs accepted while constructing an unpublished Session. */
+/** 构造未发布 Session 时接受的输入。 */
 export type PrepareSessionOptions =
   | (CreateSessionOptions & { readonly eventState?: undefined })
   | RestoredSessionOptions
 
-/** Why an active agent driver was cancelled. */
+/** 活跃 agent driver 被取消的原因。 */
 export type AgentCancelCause =
   | { readonly kind: 'user' }
   | { readonly kind: 'parent' }
   | { readonly kind: 'hook'; readonly reason: string }
   | { readonly kind: 'disposed' }
 
-/** Durable cancellation cause, including imports whose original coarse record carried no cause. */
+/** 持久化的取消原因，包括原始粗粒度记录未带原因的导入。 */
 export type TurnEndCancelCause = AgentCancelCause | { readonly kind: 'legacy' }
 
 /**
- * Why a turn ended. Merge-extensible sum type.
+ * turn 结束的原因。可合并扩展的 sum 类型。
  */
 export interface TurnEndReasonMap {
   completed: { kind: 'completed' }
-  /** A cancellation request interrupted the live turn. */
+  /** 取消请求中断了进行中的 turn。 */
   aborted: { kind: 'aborted'; reason: TurnEndCancelCause }
 
   blocked: { kind: 'blocked' }
   /**
-   * The turn failed. `error` is always a structured failure: the `LlmError`
-   * facts verbatim, or `{ message: errorChain(error), code: 'UNKNOWN' }`
-   * flattened from any other error.
+   * turn 失败。`error` 始终是结构化失败：原样保留 `LlmError` 的事实，或将任
+   * 何其他错误摊平为 `{ message: errorChain(error), code: 'UNKNOWN' }`。
    */
   error: { kind: 'error'; error: LlmFailure }
-  /** At least one step reached its output-token ceiling, even if a plugin continued the turn. */
+  /** 至少一个 step 达到了输出 token 上限，即使插件继续了该 turn。 */
   'max-tokens': { kind: 'max-tokens' }
   /**
-   * A crash-orphaned turn was closed after the fact: agent-loop resume appends
-   * this closer for a stored log whose last turn never ended, and session-query
-   * synthesizes it on cold reads. The loop never emits this marker live, and
-   * the events recorded before the crash remain intact.
+   * 因崩溃而孤立的 turn 在事后被关闭：agent-loop 恢复为最后一个 turn 未结束
+   * 的存储日志追加此收尾事件，session-query 在冷读取时合成它。循环从不在运
+   * 行中发出此标记，崩溃前记录的事件保持原样。
    */
   interrupted: { kind: 'interrupted' }
   /**
-   * Fork-seed construction closed a turn that was still open at the fork
-   * boundary in the source session. Only fork seeds carry this marker — the
-   * loop never emits it — and the source events before the boundary remain
-   * intact in the child.
+   * 分叉 seed 构造关闭了源 session 中在分叉切点处仍处于打开状态的 turn。只有
+   * 分叉 seed 携带此标记——循环从不发出它——且切点之前的源事件在子级中保持
+   * 原样。
    */
   forked: { kind: 'forked' }
 }
 
-/** The union over {@link TurnEndReasonMap} — why a turn ended; plugins extend it by merging variants into the map. */
+/** {@link TurnEndReasonMap} 的联合——turn 结束的原因；插件通过向该 map 合并变体来扩展它。 */
 export type TurnEndReason = TurnEndReasonMap[keyof TurnEndReasonMap]
 
 /**
- * Logged request state outside derived history: call config and tools. The
- * system prompt is derived history — surface node 0, a `system/message` event.
- * The latest full `request/header` snapshot reconstructs the header; canonical
- * empty optional fields are absent.
+ * 派生历史之外的已记录请求状态：调用配置与工具。系统提示词属于派生历史——
+ * surface 节点 0，一个 `system/message` 事件。最新完整的 `request/header`
+ * 快照重建该 header；规范的空可选字段不存在。
  */
 export interface EpochHeader {
-  /** The conversation's call configuration (provider, model, reasoning effort, and sampling scalars). */
+  /** 会话的调用配置（provider、model、推理努力度与采样标量）。 */
   config: LlmCallConfig
-  /** Effective config fields materialized from the exact adapter rather than proposed by a caller. */
+  /** 由确切 adapter 物化而非调用方提议的生效配置字段。 */
   adapterDefaults?: LlmCallConfigAdapterDefaults
-  /** Assembled tool schemas; absent for a tool-less request. */
+  /** 组装好的工具 schema；无工具请求时不存在。 */
   tools?: ToolSchema[]
-  /** Retired request text; system prompts belong to system/message events.
+  /** 已废弃的请求文本；系统提示词属于 system/message 事件。
    * @persistenceReserved
    */
   system?: never
 }
 
-/** Registration-bound metadata for one resolved model route. */
+/** 一个已解析模型路由的注册期绑定元数据。 */
 export interface RequestContext {
-  /** Registered provider route the metadata belongs to. */
+  /** 该元数据所属的已注册 provider 路由。 */
   provider: string
-  /** Provider-owned model id the metadata belongs to. */
+  /** 该元数据所属的 provider 侧 model id。 */
   model: string
-  /** Maximum combined request and response context in tokens, when advertised. */
+  /** 提供方声明时的请求与响应合计上下文 token 上限。 */
   contextWindow?: number
-  /** `'in-history'` when the route reads the latest `system` message at any position as the effective system prompt. */
+  /** 路由把任意位置的最新 `system` 消息读作生效系统提示词时为 `'in-history'`。 */
   systemPromptUpdate?: SystemPromptUpdate
 }
 
 /**
- * Why a `request/header` snapshot was appended: `'initial'` — the log's first
- * header (a new conversation); `'resume'` — a loop instance's first request
- * over a log that already has header events (process restart, fork seed);
- * `'change'` — a later request used a different header; `'series'` — an unchanged
- * header began an explicitly distinct message series or followed a surface
- * replacement. Other reasons carry `startsSeries` when a new series coincides.
+ * 追加 `request/header` 快照的原因：`'initial'`——日志的第一个 header（新会
+ * 话）；`'resume'`——循环实例对已含 header 事件的日志发起的第一个请求（进程
+ * 重启、分叉 seed）；`'change'`——后续请求使用了不同的 header；`'series'`——
+ * 未变化的 header 开启了显式区分的消息序列，或出现在 surface 替换之后。出现
+ * 新序列且与其他原因重合时，其他原因也携带 `startsSeries`。
  */
 export type RequestHeaderReason = 'initial' | 'resume' | 'change' | 'series'
 
 /**
- * The merge-extensible, append-only source of truth for an agent interaction.
- * Message history is derived from this log. Every event is lossless JSON and
- * sequence numbers stay contiguous. Assistant attempt events embed their exact
- * compact raw streams so persistence stores one durable settlement per attempt.
+ * agent 交互的可合并扩展、只追加的权威来源。消息历史由该日志派生。每个事件
+ * 都是无损 JSON，序号保持连续。assistant attempt 事件内嵌其精确压缩的原始流，
+ * 使持久化为每次尝试存储一个持久结算。
  */
 export interface SessionEventMap {
   /**
-   * Opens turn `turn` before the loop claims queued input or runs pre-step.
-   * Rejection, empty input, cancellation, or failure may close it with no
-   * step; otherwise the following identified `user/message` event or batch
-   * records the messages entering the step.
+   * 在循环认领排队输入或运行 pre-step 之前打开 turn `turn`。拒绝、空输入、
+   * 取消或失败可能在不产生 step 的情况下关闭它；否则随后的已标识
+   * `user/message` 事件或批次记录进入该 step 的消息。
    */
   'turn/start': { turn: number }
   /**
-   * Closes turn `turn` with the {@link TurnEndReason} that ended it. A turn
-   * with no entered step has no `step/start` or `step/end`. The loop does not await a
-   * flush at turn boundaries: `dsh-session-checkpoint-policy` owns the
-   * per-request durability checkpoint, and consumers that read storage after
-   * `whenIdle()` flush themselves. Success commits the turn; rejection is
-   * reported live and does not prevent later work.
+   * 以结束该 turn 的 {@link TurnEndReason} 关闭 turn `turn`。没有进入 step
+   * 的 turn 没有 `step/start` 或 `step/end`。循环不在 turn 边界等待刷新：
+   * `dsh-session-checkpoint-policy` 拥有按请求的持久化检查点，在 `whenIdle()`
+   * 之后读取存储的消费方自行刷新。成功提交该 turn；拒绝被实时上报且不阻碍
+   * 后续工作。
    */
   'turn/end': { turn: number; reason: TurnEndReason }
-  /** Opens step `step` of turn `turn` — one model call plus the tool executions it requested. */
+  /** 打开 turn `turn` 的 step `step`——一次模型调用加上它请求的工具执行。 */
   'step/start': { turn: number; step: number }
-  /** Closes step `step` of turn `turn`. */
+  /** 关闭 turn `turn` 的 step `step`。 */
   'step/end': { turn: number; step: number }
   /**
-   * A user-role message on the model-visible surface: a direct human prompt
-   * (the queued message claimed for this turn), a synthetic `agent.inject()`
-   * context (file-change notices, subdir AGENTS.md, skill content, cron
-   * notifications, …), or an entered goal continuation round. All three
-   * project their `content` verbatim; `source` tells them apart.
+   * 模型可见 surface 上的 user 角色消息：直接的人类提示词（本 turn 认领的排
+   * 队消息）、合成的 `agent.inject()` 上下文（文件变更通知、子目录
+   * AGENTS.md、技能内容、cron 通知等），或已进入的 goal 续轮。三者的
+   * `content` 都按原样投影；`source` 用于区分它们。
    */
   'user/message': UserMessage
-  /** An incremental agent session change admitted at the named turn and step. */
+  /** 在所指 turn 与 step 处接受的增量 agent session 变更。 */
   'developer/message': {
     turn: number
     step: number
     message: DeveloperMessage
-    /** Earlier request/header defining every tool addition; required exactly when additions are present. */
+    /** 定义每个工具新增的更早 request/header；恰好存在新增时必填。 */
     headerSeq?: SessionSeq
   }
   /**
-   * The rendered system prompt on the model-visible surface. The loop appends
-   * the first one as surface node 0 before the step's first `user/message`.
-   * A prepared in-history route can append nonempty changes in a continuing
-   * series. An incapable route or new series normalizes text to the first system
-   * node. Normalization empties nonempty later nodes, then rewrites the head if
-   * needed, through logged per-node replacements. An empty rendering always
-   * clears all active system nodes, leaving no older instructions model-visible.
-   * Empty later nodes are dormant and project to no message; an empty head with
-   * no active later node records "no system prompt". Restored nonempty text follows
-   * the same route and series rule; empty nodes never restore older text.
+   * 模型可见 surface 上渲染后的系统提示词。循环在该 step 的第一个
+   * `user/message` 之前把第一个系统提示词追加为 surface 节点 0。已准备的
+   * in-history 路由可以在延续序列中追加非空变更。无能力路由或新序列会把文
+   * 本规范化到第一个系统节点。规范化先清空非空的后续节点，再按需重写头节点，
+   * 全程通过已记录的逐节点替换完成。空渲染总是清除所有活跃系统节点，不留下
+   * 任何模型可见的旧指令。空的后续节点处于休眠状态且不投影任何消息；没有活
+   * 跃后续节点的空头节点记录"无系统提示词"。恢复的非空文本遵循相同的路由与
+   * 序列规则；空节点从不恢复更早的文本。
    */
   'system/message': { turn: number; step: number; message: SystemMessage }
   /**
-   * Assembled assistant message for one step (derived history uses this).
-   * Carries the step's `usage` when the adapter reported token accounting, so
-   * the model output and its accounting travel together (there is no separate
-   * usage record). `usage` is absent when the adapter reported none. A turn
-   * cancelled mid-stream finalizes its delivered text/reasoning prefix as this
-   * event with `interrupted: true`; undispatched tool calls are absent. The
-   * marker distinguishes that prefix without re-deriving interruption from turn
-   * boundaries. An aborted turn with no such event streamed no visible content.
+   * 一个 step 的组装后 assistant 消息（派生历史使用它）。adapter 报告了 token
+   * 核算时携带该 step 的 `usage`，使模型输出与其核算同行（没有单独的 usage
+   * 记录）。adapter 未报告时 `usage` 不存在。流中取消的 turn 将其已交付的文
+   * 本/推理前缀以 `interrupted: true` 定格为本事件；未派发的工具调用不存在。
+   * 该标记区分该前缀，无需从 turn 边界重新推导中断。没有此类事件的中止 turn
+   * 未流式输出任何可见内容。
    */
   'assistant/message': {
     turn: number
     step: number
     message: AssistantMessage
-    /** Exact timed model stream, compacted without joining delta boundaries. */
+    /** 精确的带时序模型流，压缩时不合并 delta 边界。 */
     stream: AssistantStreamRecord[]
     usage?: TokenUsage
     interrupted?: true
   }
   /**
-   * One model attempt that committed no surface message. The embedded stream
-   * preserves a failed, retried, cancelled, or stream-error attempt that
-   * reached settlement without fabricating model-visible history.
+   * 未提交任何 surface 消息的一次模型尝试。内嵌流保留到达结算的失败、重试、
+   * 取消或流错误尝试，而不伪造模型可见历史。
    */
   'assistant/attempt': { turn: number; step: number; stream: AssistantStreamRecord[] }
   /**
-   * The model requested one tool invocation: `name` with the raw `arguments`
-   * JSON string exactly as the model produced it (unparsed). `callId` pairs the
-   * call with its `tool/result`.
+   * 模型请求一次工具调用：`name` 与模型产出的原始 `arguments` JSON 字符串
+   * （未解析）。`callId` 把该调用与其 `tool/result` 配对。
    */
   'tool/call': { turn: number; step: number; callId: ToolCallId; name: string; arguments: string }
   /**
-   * A completed tool call's model-facing result, optional internal failure
-   * identity and user-facing reason, and optional tool-private `meta`
-   * presentation payload. The reason remains outside the model-facing message.
-   * `meta` is
-   * opaque to the core (the producing tool owns its shape and reads it back in
-   * `presentResult`) but MUST be JSON-serializable: `Session.append`
-   * runtime-validates all event data with `isJsonValue`, so a non-serializable
-   * `meta` is rejected at the source, and the durable log reproduces the
-   * identical card on replay. Absent
-   * unless the tool attaches one (e.g. `dsh-tool-fs` carries its result-time
-   * contextual diff here).
+   * 已完成工具调用的面向模型结果、可选的内部失败标识与面向用户的原因，以及
+   * 可选的工具私有 `meta` 展示载荷。原因保持在面向模型的消息之外。`meta` 对
+   * 核心不透明（产生它的工具拥有其结构并在 `presentResult` 中读回），但必须
+   * 可 JSON 序列化：`Session.append` 用 `isJsonValue` 对所有事件数据做运行时
+   * 校验，因此不可序列化的 `meta` 在源头被拒绝，持久日志在回放时重现完全相
+   * 同的卡片。除非工具附加了 `meta`，否则不存在（例如 `dsh-tool-fs` 在此携
+   * 带其结果时间的上下文 diff）。
    */
   'tool/result': {
     turn: number
     step: number
     message: ToolResultMessage
     /**
-     * Optional failure identity and raw user-facing reason, outside model content;
-     * allowed only when the message has `isError: true`.
+     * 可选的失败标识与原始面向用户的原因，位于模型内容之外；
+     * 仅当消息带有 `isError: true` 时允许。
      */
     error?: { name: string; code: string; reason?: string }
     meta?: JsonValue
   }
   /**
-   * Full header for the next request, appended inside its step before dispatch.
-   * It is log-only; the latest snapshot reconstructs the request header.
+   * 下一个请求的完整 header，在其 step 内、派发前追加。
+   * 它仅存在于日志；最新快照重建请求 header。
    */
   'request/header': {
     header: EpochHeader
     reason: RequestHeaderReason
-    /** This request begins a distinct model-message series, independently of the header reason. */
+    /** 该请求开启了一个独立区分的模型消息序列，与 header 原因无关。 */
     startsSeries?: true
   }
   /**
-   * Route metadata for the next request, logged only when the route, capacity,
-   * or system prompt update mode changes. It does not participate in request
-   * reconstruction or header equality. Prompt admission uses the bound prepared
-   * call's capability, not this snapshot from an earlier request.
+   * 下一个请求的路由元数据，仅在路由、容量或系统提示词更新模式变化时记录。
+   * 它不参与请求重建或 header 相等性比较。提示词接纳使用绑定的已准备调用的
+   * 能力，而非这个来自更早请求的快照。
    */
   'request/context': RequestContext
   /**
-   * Separates inherited or restored history from later lifecycle-owned work.
-   * This log-only marker need not be at {@link Session.firstLiveSeq}: a fork
-   * seed can already contain its tagged marker and child-owned synthetic
-   * closers before construction.
+   * 把继承或恢复的历史与后续生命周期持有的工作分开。该仅存于日志的标记不必
+   * 位于 {@link Session.firstLiveSeq}：分叉 seed 可以在构造之前就已包含其带
+   * 标记 marker 与子级自有的合成收尾事件。
    *
-   * A fresh fork child owns one `{ inherited: true }` marker at its exact
-   * inherited-prefix cut, even when that prefix ends in an ancestor marker.
-   * `buildForkSeed` appends that marker before any synthetic closers; the
-   * `Session` constructor supplies it when given only the inherited prefix.
-   * The last tagged marker is the current Session's cut; untagged markers
-   * keep ordinary restore and replay lifecycle boundaries.
+   * 新分叉子级在其确切的继承前缀切点处拥有一个 `{ inherited: true }` marker，
+   * 即使该前缀以祖先 marker 结尾。`buildForkSeed` 在任何合成收尾事件之前追
+   * 加该 marker；`Session` 构造器在只给定继承前缀时补上它。最后一个带标记
+   * marker 是当前 Session 的切点；不带标记的 marker 保留普通的恢复与回放生
+   * 命周期边界。
    *
-   * Only the `Session` constructor and `buildForkSeed` may create this marker.
-   * Session append does not reject other writers, so a plugin appending one
-   * would silently classify every live bracket before it as seed history.
+   * 只有 `Session` 构造器与 `buildForkSeed` 可以创建该 marker。Session 追加
+   * 不拒绝其他写入者，因此插件追加一个会把其之前的所有活跃括号静默归类为
+   * seed 历史。
    *
-   * An owner of a standalone open/close bracket (`compaction/start` …
-   * `compaction/end`) reads it because seed history and live work are otherwise
-   * byte-identical: an unmatched opening marker before this event belongs to
-   * an ended lifecycle, whatever ended it. NOT a liveness signal about other
-   * writers — a concurrently live session holds its own boundary elsewhere,
-   * so tolerating concurrent writers needs a signal beyond the log.
+   * 独立开/闭括号（`compaction/start` … `compaction/end`）的所有者读取它，
+   * 因为 seed 历史与活跃工作在其他方面字节级相同：该事件之前一个未配对的开
+   * marker 属于已结束的生命周期，无论其如何结束。它不是关于其他写入者存活
+   * 状态的信号——并发活跃的 session 在别处持有自己的边界，因此容忍并发写入
+   * 者需要日志之外的信号。
    */
   'session/end-seed': { inherited?: true }
 }
 
-/** The appendable event-type keys of {@link SessionEventMap}, plugin-merged extensions included. */
+/** {@link SessionEventMap} 的可追加事件类型键，包括插件合并的扩展。 */
 export type SessionEventType = keyof SessionEventMap
 
 /**
- * The subset of {@link SessionEventType} values whose events produce LLM
- * messages and are eligible to appear on the ordered surface. Only these
- * event types may carry {@link SurfaceOp}; system, user, and tool events may also cite
- * earlier sources through {@link SessionEvent.sourceEventSeqs}.
+ * {@link SessionEventType} 值中其事件产生 LLM 消息并有资格出现在有序 surface
+ * 上的子集。只有这些事件类型可以携带 {@link SurfaceOp}；system、user 与 tool
+ * 事件还可以通过 {@link SessionEvent.sourceEventSeqs} 引用更早的来源。
  */
 export type SurfaceEventType =
   | 'system/message'
@@ -444,70 +411,64 @@ export type SurfaceEventType =
   | 'assistant/message'
   | 'tool/result'
 
-/** A message-producing event carrying its required surface operation. */
+/** 携带其必需 surface 操作的产消息事件。 */
 export type SurfaceEvent = SessionEvent<SurfaceEventType>
 
 /**
- * How a session event entered the ordered surface. Only valid on
- * {@link SurfaceEventType} events.
+ * session 事件进入有序 surface 的方式。仅对 {@link SurfaceEventType} 事件有效。
  *
- * - `'append'`: added to the tail — normal path for user/assistant/tool
- *   messages.
- * - `{ op: 'replace', startSeq, endSeq }`: replaces surface nodes from `startSeq`
- *   (inclusive) through `endSeq` (inclusive) with this node. Both must exist as
- *   surface nodes in the current surface. `startSeq === endSeq` replaces a single
- *   node. The node's {@link SessionEvent.sourceEventSeqs} must include every
- *   shadowed surface node. Used by compaction; any surface-replacing producer
- *   may use it.
+ * - `'append'`：追加到尾部——user/assistant/tool 消息的正常路径。
+ * - `{ op: 'replace', startSeq, endSeq }`：用本节点替换 `startSeq`（含）至
+ *   `endSeq`（含）之间的 surface 节点。两者都必须作为 surface 节点存在于当前
+ *   surface。`startSeq === endSeq` 替换单个节点。节点的
+ *   {@link SessionEvent.sourceEventSeqs} 必须包含每个被遮蔽的 surface 节点。
+ *   由压缩使用；任何替换 surface 的生产者也可使用。
  */
 export type SurfaceOp =
   | 'append'
   | { op: 'replace'; startSeq: SessionSeq; endSeq: SessionSeq }
 
 /**
- * Surface placement and cited source-event seqs for {@link Session.append}. Required on
- * message-producing events and forbidden on log-only events.
+ * {@link Session.append} 的 surface 放置与引用的来源事件 seq。产消息事件必填，
+ * 仅存于日志的事件禁止。
  */
 export type SurfaceIntent<T extends SurfaceEventType = SurfaceEventType> = {
   surfaceOp: SurfaceOp
 } & (T extends 'assistant/message' ? {
-  /** Assistant messages embed their provider stream instead of citing source events. */
+  /** assistant 消息内嵌其 provider 流，而非引用来源事件。 */
   sourceEventSeqs?: never
 } : {
-  /** Complete non-empty set of known earlier source-event seqs. */
+  /** 已知更早来源事件 seq 的完整非空集合。 */
   sourceEventSeqs?: SessionSeq[]
 })
 
 /**
- * One immutable entry in the session log.
+ * session 日志中的一个不可变条目。
  *
- * A proper discriminated union over `type` (not independent `type`/`data`
- * unions), so `switch (event.type)` narrows `event.data` without casts.
+ * 按 `type` 构成的正规可辨识联合（不是独立的 `type`/`data` 联合），因此
+ * `switch (event.type)` 无需转型即可收窄 `event.data`。
  *
- * The {@link sourceEventSeqs} and {@link surfaceOp} fields are conditional:
- * they only exist on {@link SurfaceEventType} variants (`system/message`, `user/message`,
- * `assistant/message`, `tool/result`).
- * Non-surface events (boundary markers, attempts, errors) never carry
- * surface metadata — the compiler enforces this at `Session.append()`
- * call sites.
+ * {@link sourceEventSeqs} 与 {@link surfaceOp} 字段是条件性的：
+ * 它们只存在于 {@link SurfaceEventType} 变体（`system/message`、`user/message`、
+ * `assistant/message`、`tool/result`）上。
+ * 非 surface 事件（边界标记、尝试、错误）从不携带
+ * surface 元数据——编译器在 `Session.append()`
+ * 调用点强制这一点。
  */
 export type SessionEvent<T extends SessionEventType = SessionEventType> = {
   [K in SessionEventType]: {
     type: K
-    /** Monotonic sequence number within the session. */
+    /** session 内的单调递增序号。 */
     seq: SessionSeq
-    /** Unix epoch milliseconds. */
+    /** Unix 纪元毫秒。 */
     time: number
     data: SessionEventMap[K]
     /**
-     * Marks an event a reader may safely skip when it does not recognize
-     * `type`. Absent means required: a reader meeting an unrecognized type
-     * without this marker MUST refuse to reconstruct the session instead of
-     * silently dropping the event, because an unrecognized required event may
-     * change how the rest of the log is interpreted. A writer sets `true` only
-     * on purely informational records whose loss cannot affect reconstruction;
-     * defaulting to required means a forgotten marker over-refuses (an
-     * inconvenience) rather than silently resuming a gutted session.
+     * 标记读取方在不识别 `type` 时可以安全跳过的事件。缺省意味着必需：读取
+     * 方遇到没有此标记的未识别类型时必须拒绝重建 session，而不是静默丢弃该
+     * 事件，因为未识别的必需事件可能改变日志其余部分的解读方式。写入者仅对
+     * 纯信息性记录设置 `true`，其丢失不会影响重建；默认为必需意味着遗忘的标
+     * 记导致过度拒绝（一种不便），而非静默恢复一个被掏空的 session。
      */
     ignorable?: true
   } & (K extends SurfaceEventType ? SurfaceIntent<K> : {
@@ -517,46 +478,43 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 }[T]
 
 /**
- * Event type of an experimental plugin record: `plugin:` followed by
- * slash-separated segments of lowercase letters, digits, `.`, `_`, and `-`,
- * each starting with a letter or digit. A record type is never a
- * {@link SessionEventMap} member.
+ * 实验性插件记录的事件类型：`plugin:` 后跟以斜杠分隔的段，段由小写字母、数
+ * 字、`.`、`_` 与 `-` 组成，每段以字母或数字开头。记录类型绝不是
+ * {@link SessionEventMap} 成员。
  */
 export type PluginRecordType = `plugin:${string}`
 
 /**
- * Payloads written by experimental packages, keyed by their `plugin:` record
- * names. Packages augment this map to type writes and enter the current plugin
- * record catalog; these declarations do not enter {@link SessionEventMap} or
- * released persistence schemas. Stored records still require owner validation.
+ * 实验性包写入的载荷，以其 `plugin:` 记录名为键。包扩展此 map 以获得写入类
+ * 型并进入当前插件记录目录；这些声明不进入 {@link SessionEventMap} 或已发布
+ * 的持久化 schema。存储的记录仍需要所有者验证。
  */
 export interface PluginRecordMap {}
 
 /**
- * One committed experimental plugin record, read from the log by
- * `pluginRecordOf`. The record's owner validates `data` before use, because a
- * restored record carries whatever JSON an earlier build of its owner wrote,
- * or a V3 event that a format migration renamed into the `plugin:` namespace held.
+ * 一条已提交的实验性插件记录，通过 `pluginRecordOf` 从日志读取。记录的所有
+ * 者在使用前验证 `data`，因为恢复的记录携带其所有者早期构建写入的任意 JSON，
+ * 或格式迁移重命名进 `plugin:` 命名空间的 V3 事件所持有的内容。
  */
 export interface PluginRecord {
-  /** The record type, chosen by the owning plugin. */
+  /** 记录类型，由所属插件选择。 */
   readonly type: PluginRecordType
-  /** The record's position in the Session log. */
+  /** 记录在 Session 日志中的位置。 */
   readonly seq: SessionSeq
-  /** Unix epoch milliseconds at append. */
+  /** 追加时的 Unix 纪元毫秒。 */
   readonly time: number
-  /** The JSON payload as committed. */
+  /** 按提交原样的 JSON 载荷。 */
   readonly data: unknown
 }
 
 declare module '@deepseek-ai/dsh-typert-protocol' {
   interface TypertResourceMap {
-    /** One Session; the Session Controller registers its default `sessionId` wire field. */
+    /** 一个 Session；Session Controller 注册其默认的 `sessionId` wire 字段。 */
     session: TypertResource<SessionId>
   }
 
   interface RemoteErrorDetailsMap {
-    /** The named Session does not exist; produced by every layer that resolves a SessionId. */
+    /** 所指名的 Session 不存在；由解析 SessionId 的每一层产生。 */
     'session/not-found': { readonly sessionId: SessionId }
   }
 }

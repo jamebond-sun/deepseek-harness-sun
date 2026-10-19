@@ -1,8 +1,7 @@
 /**
- * The `turn` family of the Workspace registry's archive admission: whether a
- * Session's own Agent is inside a turn, and its cancel when the Session is
- * archived with its work. Installed by the registry's constructor, so it
- * answers for every Agent the registry publishes.
+ * Workspace 注册表 archive 准入的 `turn` 家族：Session 自身的 Agent 是否
+ * 处于一个 turn 中，以及当 Session 连同其工作被归档时的取消。由注册表的
+ * 构造函数安装，因此它为注册表发布的每个 Agent 作答。
  *
  * @module @deepseek-ai/dsh-agent
  */
@@ -13,15 +12,14 @@ import type { SessionActivity } from '@deepseek-ai/dsh-workspace'
 import type { Agent } from './types.ts'
 
 /**
- * Answer `workspace/session-activity` with the `turn` family while the
- * Session's Agent is running (a turn waiting for an approval or an answer
- * included), and `workspace/session-stop` by cancelling that turn the way
- * the user's own stop does — `agent.cancel({ kind: 'user' })`, but without
- * the stop button's `keepInbox`, so queued input is discarded with a logged
- * inbox splice instead of waking the archived Session later. Nothing is
- * awaited to settlement. Both listeners live as long as `ctx`'s fiber.
- * @param ctx - the registry's registration context.
- * @param lookup - the registry's live-Agent lookup by Session id.
+ * 当 Session 的 Agent 正在运行（包括等待审批或答复的 turn）时，以 `turn`
+ * 家族回答 `workspace/session-activity`；并以用户自己停止的方式 ——
+ * `agent.cancel({ kind: 'user' })`，但不带停止按钮的 `keepInbox` —— 取消
+ * 该 turn 来回答 `workspace/session-stop`，因此排队的输入被丢弃并记录
+ * inbox splice，而不是稍后唤醒已归档的 Session。没有任何东西被等待到
+ * 结算。两个监听器的存活期都与 `ctx` 的 fiber 相同。
+ * @param ctx - 注册表的注册上下文。
+ * @param lookup - 注册表按 Session id 的活跃 Agent 查找。
  */
 export function installTurnArchiveAdmission(ctx: Context, lookup: (sessionId: SessionId) => Agent | undefined): void {
   ctx.on('workspace/session-activity', async ({ sessionId }, next) => {

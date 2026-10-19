@@ -1,9 +1,8 @@
 /**
- * The `ctx.jobs` client service: reference-counted streams over the `job`
- * namespace — one `job.list` roster stream per watched session and one
- * `job.follow` stream per observed job — so overlapping viewers share a
- * stream, rosters resume whole after a reconnect, and observations resume
- * from the model's cursor, plus the human kill passthrough over `job.kill`.
+ * `ctx.jobs` 的 client 服务：`job` 命名空间之上的引用计数流——每个被监视
+ * session 一条 `job.list` roster 流、每个被观察 job 一条 `job.follow` 流
+ * ——使重叠的观看者共享一条流，roster 在重连后整体恢复，观察从模型的游标
+ * 恢复；外加经 `job.kill` 透传的人工 kill。
  * @module @deepseek-ai/dsh-api-job-controller/client/service
  */
 
@@ -15,67 +14,66 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { JobKillRequest, JobKillValue, JobFollowFrame, JobFollowRequest, JobListFrame, JobListRequest } from '../types.ts'
 import type { ClientJobsModel, JobsSource } from './model.ts'
 
-/** The generated `job` namespace face the stream runners drive. */
+/** 流运行器驱动的生成的 `job` 命名空间面。 */
 export interface JobRemote {
   /**
-   * Open one roster generation.
-   * @param request - the session whose visible set to mirror.
-   * @param signal - generation cancellation.
-   * @returns the whole-set frame sequence of one generation.
+   * 打开一次 roster 生成。
+   * @param request - 要镜像其可见集合的 session。
+   * @param signal - 本次生成的取消信号。
+   * @returns 一次生成的整集帧序列。
    */
   list(request: JobListRequest, signal?: AbortSignal): AsyncIterable<JobListFrame>
   /**
-   * Open one observation generation.
-   * @param request - target job, owning session, and optional resume offset.
-   * @param signal - generation cancellation.
-   * @returns the frame sequence of one generation.
+   * 打开一次观察生成。
+   * @param request - 目标 job、拥有 session 与可选的恢复偏移量。
+   * @param signal - 本次生成的取消信号。
+   * @returns 一次生成的帧序列。
    */
   follow(request: JobFollowRequest, signal?: AbortSignal): AsyncIterable<JobFollowFrame>
   /**
-   * Kill one job on the human's behalf.
-   * @param request - the session whose list carries the job, and the job id.
-   * @returns the registry's admission, or the business/transport failure.
+   * 代表人类 kill 一个 job。
+   * @param request - 其列表携带该 job 的 session，以及 job id。
+   * @returns registry 的受理结果，或业务/传输失败。
    */
   kill(request: JobKillRequest): Promise<RemoteResult<JobKillValue>>
 }
 
-/** Remote faces the runners drive: the Gateway stream factory and the `job` namespace. */
+/** 运行器驱动的 Remote 面：Gateway 流工厂与 `job` 命名空间。 */
 export interface JobsRemote {
   readonly $stream: ClientRemote['$stream']
   readonly job: JobRemote
 }
 
-/** The client jobs service face. */
+/** client jobs 服务面。 */
 export interface IJobs {
-  /** Rosters and per-job observation state. */
+  /** roster 与每 job 的观察状态。 */
   readonly state: JobsSource
   /**
-   * Keep one session's roster current; reference-counted, so two watchers of
-   * the same session share one stream and the rows leave with the last.
-   * @param sessionId - the session whose visible jobs to mirror.
-   * @returns stop function releasing this watcher's reference.
+   * 使一个 session 的 roster 保持最新；引用计数，因此同一 session 的两个
+   * 监视者共享一条流，行随最后一个离开。
+   * @param sessionId - 要镜像其可见 job 的 session。
+   * @returns 释放该监视者引用的停止函数。
    */
   watchRows(sessionId: SessionId): () => void
   /**
-   * Start observing one job's live output; reference-counted, so two viewers
-   * of the same job share one stream.
-   * @param sessionId - owning session used for the fenced read; undefined for an unowned job.
-   * @param id - job to observe.
-   * @returns stop function releasing this observer's reference.
+   * 开始观察一个 job 的实时输出；引用计数，因此同一 job 的两个观看者共享
+   * 一条流。
+   * @param sessionId - 围栏读取所用的拥有 session；无主 job 则为 undefined。
+   * @param id - 要观察的 job。
+   * @returns 释放该观察者引用的停止函数。
    */
   observe(sessionId: SessionId | undefined, id: JobId): () => void
   /**
-   * Kill one background job from a session's job list. Pure RPC passthrough:
-   * row state converges through the roster stream, and the caller (the
-   * job-list control) owns error presentation.
-   * @param sessionId - session whose job list carries the job.
-   * @param id - the job row's registry id.
-   * @returns the registry's admission, or the business/transport failure.
+   * 从一个 session 的 job 列表 kill 一个后台 job。纯 RPC 透传：行状态经由
+   * roster 流收敛，错误呈现由调用方（job 列表控件）负责。
+   * @param sessionId - 其 job 列表携带该 job 的 session。
+   * @param id - 该 job 行的 registry id。
+   * @returns registry 的受理结果，或业务/传输失败。
    */
   kill(sessionId: SessionId, id: JobId): Promise<RemoteResult<JobKillValue>>
 }
 
-/** One reference-counted stream. */
+/** 一条引用计数的流。 */
 interface StreamEntry {
   refs: number
   stopped: boolean
@@ -84,21 +82,21 @@ interface StreamEntry {
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
-    /** React-free client job rosters and observation control. */
+    /** 不依赖 React 的 client job roster 与观察控制。 */
     jobs: IJobs
   }
 }
 
-/** Owns the bare jobs snapshot and the per-session and per-job streams. */
+/** 持有裸 jobs 快照以及每 session 与每 job 的流。 */
 export class ClientJobs extends Service implements IJobs {
   readonly state: JobsSource
   private readonly rowsEntries = new Map<string, StreamEntry>()
   private readonly observations = new Map<string, StreamEntry>()
 
   /**
-   * @param ctx - client root Context.
-   * @param remote - the Gateway stream factory plus the generated `job` namespace, both resolved by the caller.
-   * @param model - shared client jobs model.
+   * @param ctx - client 根 Context。
+   * @param remote - Gateway 流工厂与生成的 `job` 命名空间，均由调用方解析。
+   * @param model - 共享的 client jobs 模型。
    */
   constructor(
     ctx: Context,
@@ -112,10 +110,9 @@ export class ClientJobs extends Service implements IJobs {
       this.rowsEntries.clear()
       this.observations.clear()
       for (const entry of open) entry.stopped = true
-      // Cordis awaits an async disposer, so the fiber stays unloading until
-      // every carrier iterator has closed and a successor plugin instance
-      // cannot overlap one. A carrier whose teardown fails is stopped all the
-      // same; its failure has no consumer here.
+      // Cordis 会等待异步释放器，因此 fiber 保持卸载中，直到每一条载体迭代
+      // 器都关闭，后继插件实例才无法与之重叠。清理失败的载体同样会被停止；
+      // 其失败在这里没有消费方。
       await Promise.allSettled(open.map(entry => entry.dispose()))
     }, 'job-controller.client.streams')
   }
@@ -142,7 +139,7 @@ export class ClientJobs extends Service implements IJobs {
     )
   }
 
-  /** Share the live entry under `key` or start one, and hand back its release. */
+  /** 共享 `key` 下的现存条目或启动一个，并交还其释放函数。 */
   private acquire(
     entries: Map<string, StreamEntry>,
     key: string,
@@ -160,10 +157,9 @@ export class ClientJobs extends Service implements IJobs {
   }
 
   /**
-   * Release closures bind the exact entry they were minted for, never the
-   * map's current occupant: a later acquire on the same key may have replaced
-   * a stopped entry, and decrementing or disposing through the key alone
-   * would tear down that newer stream's references.
+   * 释放闭包绑定它们铸造时的确切条目，而不是映射的当前占用者：同一 key 上
+   * 稍后的获取可能已替换掉一个已停止的条目，仅凭 key 递减或释放会拆毁那条
+   * 更新的流的引用。
    */
   private releaser(entries: Map<string, StreamEntry>, key: string, entry: StreamEntry, cleared: () => void): () => void {
     let released = false
@@ -175,9 +171,8 @@ export class ClientJobs extends Service implements IJobs {
       if (entries.get(key) === entry) entries.delete(key)
       entry.stopped = true
       void entry.dispose().then(() => {
-        // Clear the state only while no successor holds the key: a re-acquire
-        // inside the dispose round-trip already refilled the model, and a
-        // stale clear would blank it for good.
+        // 仅在没有后继者持有该 key 时清除状态：释放往返期间的重新获取已经
+        // 重新填充了模型，一次过期的清除会把它永久清空。
         if (entries.has(key)) return
         cleared()
       })
@@ -189,10 +184,9 @@ export class ClientJobs extends Service implements IJobs {
     const stream = this.remote.$stream<JobListFrame>({
       name,
       open: signal => this.remote.job.list({ sessionId }, signal),
-      // The roster has no natural end while it is watched: an end after the
-      // first frame is a carrier interruption (a Host reload closes the
-      // generation) and the next generation's whole set loses nothing. An end
-      // before the first frame is terminal.
+      // roster 在被监视期间没有自然终点：第一帧之后的结束是载体中断（Host
+      // 重载会关闭该生成），下一次生成的整集不丢失任何内容。第一帧之前的
+      // 结束是终结性的。
       ended: accepted => accepted
         ? new RemoteStreamCarrierError(`${name} ended before release`)
         : new Error(`${name} ended before its first frame`),
@@ -209,8 +203,8 @@ export class ClientJobs extends Service implements IJobs {
           item.accept()
         }
       } catch {
-        // A terminal stream failure leaves nothing current to show; the model
-        // drops the roster rather than keeping a stale set on screen.
+        // 流的终结性失败不留下任何可显示的当前内容；模型丢弃 roster，而不
+        // 是在屏幕上保留过期集合。
         if (!entry.stopped) this.model.rowsDropped(sessionId)
       } finally {
         entry.stopped = true
@@ -235,9 +229,8 @@ export class ClientJobs extends Service implements IJobs {
           signal,
         )
       },
-      // A premature end after the anchor is retryable (a Host reload closes the
-      // generation); resuming from the cursor loses nothing. An end before the
-      // anchor is terminal.
+      // 锚点之后的过早结束可重试（Host 重载会关闭该生成）；从游标恢复不
+      // 丢失任何内容。锚点之前的结束是终结性的。
       ended: accepted => accepted
         ? new RemoteStreamCarrierError(`${name} ended before settlement`)
         : new Error(`${name} ended before its anchor`),
@@ -260,8 +253,7 @@ export class ClientJobs extends Service implements IJobs {
             this.model.observeOutput(id, frame)
             continue
           }
-          // Terminal status: leave the loop before the generation end is
-          // classified, then close the stream for good.
+          // 终结 status：在生成结束被归类之前离开循环，然后永久关闭流。
           this.model.observeSettled(id)
           break
         }

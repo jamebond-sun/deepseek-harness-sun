@@ -1,13 +1,13 @@
-/** Shell selection and executable verification use the target execution provider. */
+/** shell 选择与可执行文件验证使用目标执行提供方。 */
 import type { SubprocessRuntime } from '@deepseek-ai/dsh-subprocess'
 import type { TerminalShell } from './types.ts'
 
 /**
- * Resolve the configured shell or the execution environment's default shell.
- * @param subprocess - target execution provider.
- * @param configured - optional profile overriding the environment's default shell.
- * @param signal - resolution cancellation.
- * @returns one verified shell; a declared default that cannot resolve rejects.
+ * 解析配置的 shell 或执行环境的默认 shell。
+ * @param subprocess - 目标执行提供方。
+ * @param configured - 可选配置，用于覆盖环境的默认 shell。
+ * @param signal - 解析取消。
+ * @returns 一个已验证的 shell；声明的默认 shell 无法解析时拒绝。
  */
 export async function resolveShell(
   subprocess: SubprocessRuntime, configured: TerminalShell | undefined, signal: AbortSignal,
@@ -35,13 +35,13 @@ function shellKind(path: string): string {
 }
 
 /**
- * List verified candidates after the configured or environment-default shell, one per executable name ignoring case and `.exe`.
- * PATH lookup can reach the default through another directory, such as `/usr/bin/bash` for `/bin/bash` on merged-`/usr` systems.
- * @param subprocess - target execution provider.
- * @param configured - optional default profile.
- * @param candidates - executable names or paths permitted for shell selection.
- * @param signal - discovery cancellation.
- * @returns installed shells with the default first, keeping the earliest entry per name; transport failures reject.
+ * 列出排在配置的或环境默认 shell 之后的已验证候选，每个可执行名一个（忽略大小写与 `.exe`）。
+ * PATH 查找可能经由另一个目录命中默认 shell，例如合并 `/usr` 的系统上以 `/usr/bin/bash` 对应 `/bin/bash`。
+ * @param subprocess - 目标执行提供方。
+ * @param configured - 可选的默认配置。
+ * @param candidates - 允许用于 shell 选择的可执行名称或路径。
+ * @param signal - 发现取消。
+ * @returns 已安装的 shell（默认在最前），每个名称保留最早的条目；传输失败时拒绝。
  */
 export async function discoverShells(
   subprocess: SubprocessRuntime, configured: TerminalShell | undefined,

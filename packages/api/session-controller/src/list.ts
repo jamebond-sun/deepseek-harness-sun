@@ -1,4 +1,4 @@
-/** Cold-safe Session list and search projection. */
+/** 冷安全的 Session 列表与搜索投影。 */
 
 import { performance } from 'node:perf_hooks'
 import { scheduler } from 'node:timers/promises'
@@ -39,10 +39,10 @@ const imageLimitsSchema = z.object({
 }) as unknown as z.ZodType<ImageAttachmentLimits>
 
 /**
- * Advance the Session-list metadata projection by one committed event.
- * @param state - metadata before the event.
- * @param event - next committed Session event.
- * @returns the original or advanced metadata value.
+ * 按一个已提交事件推进 Session 列表元数据投影。
+ * @param state - 事件之前的元数据。
+ * @param event - 下一个已提交的 Session 事件。
+ * @returns 原始或推进后的元数据值。
  */
 export function applySessionListMetadata(
   state: SessionListMetadata,
@@ -58,10 +58,10 @@ export function applySessionListMetadata(
 }
 
 /**
- * Return the longest prefix containing at most `maximum` Unicode code points.
- * @param value - source text.
- * @param maximum - maximum number of Unicode code points.
- * @returns the source text or its longest allowed prefix.
+ * 返回最多包含 `maximum` 个 Unicode 码点的最长前缀。
+ * @param value - 源文本。
+ * @param maximum - Unicode 码点最大数量。
+ * @returns 源文本或其最长允许前缀。
  */
 export function truncateUnicodeCodePoints(value: string, maximum: number): string {
   let count = 0
@@ -74,11 +74,11 @@ export function truncateUnicodeCodePoints(value: string, maximum: number): strin
   return value
 }
 
-/** Owns list projection registration, bounded cold summaries, and authorized search. */
+/** 拥有列表投影注册、有界冷摘要与经授权的搜索。 */
 export class ApiSessionList {
   /**
-   * @param ctx - Host context carrying Session, query, persistence, and projection services.
-   * @param workSliceMs - Resolved positive integral list-work budget in milliseconds.
+   * @param ctx - 携带 Session、查询、持久化与投影服务的 Host 上下文。
+   * @param workSliceMs - 解析后的正整数列表工作预算（毫秒）。
    */
   constructor(private readonly ctx: Context, private readonly workSliceMs: number) {
     ctx.sessionProjections.register<'sessionListMetadata', SessionListMetadata>({
@@ -105,9 +105,9 @@ export class ApiSessionList {
   }
 
   /**
-   * Build one current attached-Session summary.
-   * @param session - attached Session to summarize.
-   * @returns current list metadata and available projections.
+   * 构建一个当前已附加 Session 的摘要。
+   * @param session - 要摘要的已附加 Session。
+   * @returns 当前列表元数据与可用投影。
    */
   summaryFor(session: Session): SessionSummary {
     const projections = this.projectionsFor(session.header, session)
@@ -125,9 +125,9 @@ export class ApiSessionList {
   }
 
   /**
-   * Read every visible attached and persisted Session without activating an Agent.
-   * @param signal - optional cancellation for persistence reads and summary generation.
-   * @returns visible Session summaries ordered by activity.
+   * 读取所有可见的已附加与已持久化 Session，不激活 Agent。
+   * @param signal - 持久化读取与摘要生成的可选取消。
+   * @returns 按活动排序的可见 Session 摘要。
    */
   async list(signal?: AbortSignal): Promise<SessionSummary[]> {
     signal?.throwIfAborted()
@@ -173,7 +173,7 @@ export class ApiSessionList {
       agentAvailable: false,
       ...(formatStatus === undefined ? {} : { formatStatus }),
       running: false,
-      // A large, metadata-less, or inaccessible cache miss remains unknown and visible.
+      // 过大、无元数据或不可访问的缓存未命中仍为未知且可见。
       blank: metadata?.blank ?? false,
       ...listFields(header),
       ...(projections === undefined ? {} : { projections }),
@@ -181,10 +181,10 @@ export class ApiSessionList {
   }
 
   /**
-   * Search current visible message content without activating any matching Session.
-   * @param query - literal message-content query.
-   * @param signal - cancellation for list and search reads.
-   * @returns authorized bounded Session search results.
+   * 搜索当前可见的消息内容，不激活任何匹配的 Session。
+   * @param query - 字面消息内容查询。
+   * @param signal - 列表与搜索读取的取消。
+   * @returns 经授权的有界 Session 搜索结果。
    */
   async search(query: string, signal: AbortSignal): Promise<SessionSearchValue> {
     const normalizedQuery = normalizeSearchQuery(query)
@@ -294,13 +294,13 @@ export class ApiSessionList {
   ): SessionProjectionHints | undefined {
     try {
       if (session !== undefined) {
-        // The live registry computed the block for this Session: its watermark
-        // shares the sequence space of the Session's baselines and frames.
+        // 活跃注册表为该 Session 计算了此块：其水位线
+        // 与该 Session 的基线和帧共享同一序列空间。
         return hintsOf('sequenced', this.ctx.sessionProjections.cachedSnapshot(session))
       }
-      // A cold row reads the persisted cache by header alone; the cache serves
-      // seeded and unseeded lifecycles alike because a listing never seeds a
-      // fold. The watermark is the stored record's own.
+      // 冷行仅凭 header 读取持久化缓存；缓存同等地服务已播种与
+      // 未播种的生命周期，因为列表从不播种折叠。
+      // 水位线是所存记录自身的。
       const cache = this.ctx.get('sessionProjectionCache')
       return hintsOf('cached', cache?.cachedSnapshot(header) ?? cache?.cachedPredecessorTitle(header))
     } catch (error) {
@@ -313,18 +313,18 @@ export class ApiSessionList {
 }
 
 /**
- * Wrap one projection block as Session-list hints of the named sequence space.
- * @param kind - which sequence space the block's watermark belongs to.
- * @param block - the block, or `undefined` when no source served one.
- * @returns the hints, or `undefined` when the block is absent or carries no value.
+ * 将一个投影块包装为指定序列空间的 Session 列表提示。
+ * @param kind - 该块的水位线所属的序列空间。
+ * @param block - 该块，或在没有来源提供时为 `undefined`。
+ * @returns 提示，或在该块不存在或不携带值时为 `undefined`。
  */
 function hintsOf(
   kind: SessionProjectionHints['kind'],
   block: ProjectionSnapshot | undefined,
 ): SessionProjectionHints | undefined {
   if (block === undefined || Object.keys(block.values).length === 0) return undefined
-  // Listing hints contain every wire value the source currently holds but
-  // remain partial: missing cells and cache rows are never materialized here.
+  // 列表提示包含来源当前持有的每一个 wire 值，但仍是部分的：
+  // 缺失的单元格与缓存行绝不会在此物化。
   return { kind, asOfSeq: block.asOfSeq, values: block.values as SessionProjectionValues }
 }
 

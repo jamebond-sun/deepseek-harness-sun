@@ -1,4 +1,4 @@
-/** Deterministic cached image versions for model requests. */
+/** 面向模型请求的确定性缓存图像版本。 */
 
 import { createHash, randomUUID } from 'node:crypto'
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
@@ -22,7 +22,7 @@ import {
 import { detectImage, encodedAlphaIsCompatible, probeImage } from './image.ts'
 import { requireSharp } from './sharp.ts'
 
-/** Transform version included in every cache and upload-index identity. */
+/** 包含在每个缓存与上传索引标识中的变换版本。 */
 export const REQUEST_IMAGE_TRANSFORM_VERSION = 'request-image-v6'
 
 interface EncodedRequestImage {
@@ -71,10 +71,10 @@ function descriptor(attachment: ImageAttachmentRef, target: ImageRequestTarget):
 }
 
 /**
- * Complete deterministic identity for one attachment and route-chosen request target.
- * @param attachment - provider-independent durable normalized attachment reference.
- * @param target - route-chosen dimensions and byte target.
- * @returns branded digest over every request transform input.
+ * 一个附件与路由所选请求目标的完整确定性标识。
+ * @param attachment - 与提供方无关的持久归一化附件引用。
+ * @param target - 路由所选的尺寸与字节目标。
+ * @returns 覆盖全部请求变换输入的 branded 摘要。
  */
 export function requestImageVariantId(
   attachment: ImageAttachmentRef,
@@ -83,7 +83,7 @@ export function requestImageVariantId(
   return ImageVariantId(`sha256:${digest(descriptor(attachment, target))}`)
 }
 
-/** Resize by the source long edge only, so the encoder derives the short edge as the route predicts. */
+/** 仅按源长边缩放，使编码器按路由预测的方式推导短边。 */
 function pipeline(attachment: StoredImageAttachment, target: ImageRequestTarget): Sharp {
   const byWidth = attachment.ref.width >= attachment.ref.height
   return sourcePipeline(attachment)
@@ -169,12 +169,12 @@ async function writeCached(path: string, data: Uint8Array): Promise<void> {
 }
 
 /**
- * Generate or reuse one request image below the local attachment cache root.
- * @param root - absolute attachment cache root; variants use its `request-images` child.
- * @param attachment - verified normalized attachment bytes and reference.
- * @param target - exact route-chosen dimensions and byte target; a target above the source keeps the source size.
- * @param signal - optional cancellation for cache I/O and image transformation.
- * @returns verified request bytes and deterministic variant identity.
+ * 在本地附件缓存根目录下生成或复用一张请求图像。
+ * @param root - 绝对的附件缓存根目录；变体使用其 `request-images` 子目录。
+ * @param attachment - 已校验的归一化附件字节与引用。
+ * @param target - 确切的路由所选尺寸与字节目标；目标大于源尺寸时保持源尺寸。
+ * @param signal - 可选的取消信号，作用于缓存 I/O 与图像变换。
+ * @returns 校验通过的请求字节与确定性变体标识。
  */
 export async function readRequestImageFile(
   root: string,

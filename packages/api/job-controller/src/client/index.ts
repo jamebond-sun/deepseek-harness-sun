@@ -1,9 +1,8 @@
 /**
- * Job Controller client half: installs `ctx.jobs` (rosters, observations, and
- * the human kill) over the generated `job` Remote namespace. The plugin resolves both Remote faces it drives while its
- * own context is current, because stream (re)opens run on caller stacks — a
- * React event, a carrier retry — whose dynamic context has not declared
- * `remote.job`.
+ * Job Controller 的 client 半部：在生成的 `job` Remote 命名空间之上安装
+ * `ctx.jobs`（roster、观察与人工 kill）。插件在自己的上下文仍然有效时解析
+ * 它驱动的两个 Remote 面，因为流的（重）打开运行在调用方栈上——一次 React
+ * 事件、一次载体重试——其动态上下文尚未声明 `remote.job`。
  * @module @deepseek-ai/dsh-api-job-controller/client
  */
 
@@ -13,23 +12,22 @@ import { ClientJobsModel } from './model.ts'
 import { ClientJobs } from './service.ts'
 
 export type { JobsSnapshot, ObservedJob } from './model.ts'
-// The `ctx.jobs` contract. Its module also carries the Context augmentation
-// that declares `ctx.jobs`, which reaches consumers only through this export:
-// declaration emit drops the value import above.
+// `ctx.jobs` 的契约。其模块还携带声明 `ctx.jobs` 的 Context 扩充，消费方
+// 只能通过这个导出拿到它：声明产物会丢弃上面的值导入。
 export type { IJobs } from './service.ts'
 export type {
   JobChunk, JobKillRequest, JobKillValue, JobFollowFrame, JobFollowRequest, JobListFrame, JobListRequest, JobView,
 } from '../types.ts'
 
-/** Required Client Remote services. */
+/** 必需的 Client Remote 服务。 */
 export const inject = ['remote', 'remote.job']
 
 /**
- * Install the client jobs service.
- * @param ctx - Client root Context.
+ * 安装 client jobs 服务。
+ * @param ctx - Client 根 Context。
  */
 export function apply(ctx: Context): void {
-  // Read the namespace now, not inside `open`: see the module JSDoc.
+  // 现在就读取命名空间，而不是在 `open` 内部：见模块 JSDoc。
   const { remote } = ctx
   const { job } = remote
   new ClientJobs(ctx, { $stream: options => remote.$stream(options), job }, new ClientJobsModel())

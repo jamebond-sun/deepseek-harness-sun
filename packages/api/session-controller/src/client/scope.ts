@@ -1,45 +1,45 @@
-/** Client scope generations route local events independently of Host Agent residency. */
+/** Client scope 代际独立于 Host Agent 常驻地路由本地事件。 */
 import { Context as CordisContext } from '@deepseek-ai/cordis'
 import type { Context, Fiber } from '@deepseek-ai/cordis'
 import type { ClientRemote } from '@deepseek-ai/dsh-api-gateway/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { TypertRemoteScopeApi } from '@deepseek-ai/dsh-typert-protocol'
 
-/** Client Cordis Context carrying one Agent identity and its scoped Remote namespaces. */
+/** 携带一个 Agent 身份及其作用域 Remote 命名空间的 Client Cordis Context。 */
 export type AgentContext = Omit<Context, 'remote'> & {
   readonly remote: ClientRemote & TypertRemoteScopeApi<'agent'>
 }
 
-/** Context tag written by {@link createScope}. */
+/** 由 {@link createScope} 写入的 context 标签。 */
 const kScope = Symbol('dsh.client.scope')
 
 interface ScopeIdentity {
   readonly sessionId: SessionId
 }
 
-/** A minted Agent scope and its disposal boundary. */
+/** 一个铸出的 Agent scope 及其释放分界。 */
 export interface AgentScopeHandle {
   /**
-   * Tagged context: scope-owned registrations and scoped dispatch both go
-   * through it (passing it as the dispatch subject routes to this generation's
-   * tagged listeners plus every untagged one).
+   * 已打标签的 context：scope 持有的注册与作用域分发都经由它
+   * （把它作为分发主体传入，会路由到本代际的已打标签监听器
+   * 加上所有未打标签的监听器）。
    */
   ctx: AgentContext
-  /** Backing fiber (dispose tears down every scope-owned registration). */
+  /** 支撑 fiber（dispose 会清理每个 scope 持有的注册）。 */
   fiber: Fiber
 }
 
-/** Shared no-op plugin backing each Agent scope fiber. */
+/** 支撑每个 Agent scope fiber 的共享 no-op 插件。 */
 function agentScope(): void {}
 
 /**
- * Mint an Agent scope under `ctx`: a no-op plugin fiber whose context
- * carries the agent tag and the dispatch filter — untagged listeners are
- * admitted globally, tagged listeners only for the same Client generation.
- * Registrations through the returned ctx dispose with the fiber.
- * @param ctx - client root context the scope fiber mounts under.
- * @param key - durable Session identity carried by this generation.
- * @returns the tagged context and its backing fiber.
+ * 在 `ctx` 下铸出一个 Agent scope：一个 no-op 插件 fiber，其 context
+ * 携带 agent 标签与分发过滤器 —— 未打标签的监听器被全局接纳，
+ * 已打标签的监听器仅对相同的 Client 代际生效。
+ * 经由返回的 ctx 做出的注册随 fiber 释放。
+ * @param ctx - scope fiber 挂载其下的 client 根 context。
+ * @param key - 本代际携带的持久化 Session 身份。
+ * @returns 已打标签的 context 及其支撑 fiber。
  */
 export function createScope(ctx: Context, key: SessionId): AgentScopeHandle {
   const fiber = ctx.plugin(agentScope)
@@ -58,18 +58,18 @@ export function createScope(ctx: Context, key: SessionId): AgentScopeHandle {
 }
 
 /**
- * Read the nearest agent tag inherited by a context.
- * @param ctx - any client context.
- * @returns its agent identity (the session id), or undefined for root contexts.
+ * 读取一个 context 继承的最近 agent 标签。
+ * @param ctx - 任意 client context。
+ * @returns 其 agent 身份（session id），或在根 context 上返回 undefined。
  */
 export function scopeOf(ctx: Context): SessionId | undefined {
   return scopeIdentityOf(ctx)?.sessionId
 }
 
 /**
- * Read the exact generation identity inherited by a Client Context.
- * @param ctx - scoped or root Client Context.
- * @returns the generation identity, or undefined for an unscoped Context.
+ * 读取一个 Client Context 继承的精确代际身份。
+ * @param ctx - 作用域或根 Client Context。
+ * @returns 代际身份，或在未打 scope 的 Context 上返回 undefined。
  */
 export function scopeIdentityOf(ctx: Context): ScopeIdentity | undefined {
   return (ctx as Context & { [kScope]?: ScopeIdentity })[kScope]

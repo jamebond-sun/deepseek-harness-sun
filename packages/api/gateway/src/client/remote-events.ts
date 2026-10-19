@@ -1,4 +1,4 @@
-/** Client owner for forwarded Remote Event subscriptions and deliveries. */
+/** 转发 Remote Event 订阅与交付的 Client 所有者。 */
 
 import type { Context } from '@deepseek-ai/cordis'
 import type {
@@ -28,17 +28,17 @@ import {
   type RemoteEventResult,
 } from '../stream-protocol.ts'
 
-/** Open the Gateway-internal forwarded-event stream on the selected carrier. */
+/** 在选定的载体上打开 Gateway 内部转发事件流。 */
 export type RemoteEventStreamOpener = (
   endpoint: string,
   payload: unknown,
   signal: AbortSignal,
 ) => AsyncIterable<unknown>
 
-/** One subscribed listener after its event-specific signature is erased. */
+/** 抹去事件特定签名之后的一个已订阅监听器。 */
 type RemoteEventListener = (this: Context, ...args: unknown[]) => unknown
 
-/** Untyped access used only for instance-private Cordis event keys. */
+/** 仅用于实例私有 Cordis 事件键的非类型化访问。 */
 interface PrivateEventContext {
   on(name: string, listener: RemoteEventListener): () => boolean
   parallel(name: string, ...args: unknown[]): Promise<void>
@@ -50,25 +50,25 @@ interface PrivateEventContext {
   ): unknown
 }
 
-/** Transport outcome after one Client listener chain either claims or delegates. */
+/** 一个 Client 监听器链认领或委托之后的传输结果。 */
 type RemoteEventReplyOutcome =
   | { readonly kind: 'result'; readonly value: unknown }
   | { readonly kind: 'next' }
   | { readonly kind: 'rejected'; readonly error: ReturnType<typeof projectRemoteEventRejection> }
 
-/** Private end-of-chain marker that cannot collide with a JSON listener result. */
+/** 私有的链尾标记，不会与 JSON 监听器结果冲突。 */
 const REMOTE_EVENT_NEXT = Symbol('api-gateway.remote-event.next')
 
-/** Own Cordis registrations, generation pumping, waterfall dispatch, and HTTP replies. */
+/** 持有 Cordis 注册、代泵送、瀑布分发与 HTTP 回复。 */
 export class ClientRemoteEvents {
   private readonly eventPrefix = `internal/api-gateway/remote-event/${randomUUID()}/`
   private readonly unregisterGeneration: () => void
   private activeGeneration: Promise<void> | undefined
 
   /**
-   * @param ownerCtx - Client Gateway root used for Agent Context resolution.
-   * @param connection - Connection carrier used for HTTP result calls.
-   * @param openStream - selected in-process or WebSocket stream opener.
+   * @param ownerCtx - 用于 Agent 上下文解析的 Client Gateway 根。
+   * @param connection - 用于 HTTP 结果调用的 Connection 载体。
+   * @param openStream - 选定的进程内或 WebSocket 流打开器。
    */
   constructor(
     private readonly ownerCtx: Context,
@@ -79,11 +79,11 @@ export class ClientRemoteEvents {
   }
 
   /**
-   * Register one typed Remote Event listener in its calling fiber.
-   * @param callerCtx - fiber Context owning the registration.
-   * @param event - selected forwarded event.
-   * @param listener - listener derived from that event's declaration.
-   * @returns disposer for this exact registration.
+   * 在调用方的 fiber 中注册一个类型化 Remote Event 监听器。
+   * @param callerCtx - 拥有该注册的 fiber 上下文。
+   * @param event - 选定的转发事件。
+   * @param listener - 由该事件声明派生的监听器。
+   * @returns 此确切注册的释放器。
    */
   subscribe<Event extends TypertRemoteEvent>(
     callerCtx: Context,
@@ -97,13 +97,13 @@ export class ClientRemoteEvents {
     return () => { dispose() }
   }
 
-  /** Withdraw the generation source and wait for active listener work to quiesce. */
+  /** 撤回代源，并等待活跃的监听器工作归于静止。 */
   async dispose(): Promise<void> {
     this.unregisterGeneration()
     await Promise.allSettled([this.activeGeneration])
   }
 
-  /** Track the current generation so plugin disposal waits for listener work to stop. */
+  /** 跟踪当前代，使插件释放等待监听器工作停止。 */
   private readonly runGeneration: ConnectionGenerationSource = (signal, ready) => {
     const tracked = this.pumpEvents(signal, ready).finally(() => {
       if (this.activeGeneration === tracked) this.activeGeneration = undefined
@@ -112,14 +112,14 @@ export class ClientRemoteEvents {
     return tracked
   }
 
-  /** Deliver one notification through Cordis while containing listener failures. */
+  /** 通过 Cordis 交付一条通知，同时遏制监听器失败。 */
   private deliver(frame: RemoteEventEmitFrame): void {
     void privateEvents(this.ownerCtx)
       .parallel(this.eventKey(frame.event), ...frame.args)
       .catch((error: unknown) => { this.reportError(frame.event, error) })
   }
 
-  /** Run one Connection generation over the forwarded-event logical stream. */
+  /** 在转发事件逻辑流上运行一个 Connection 代。 */
   private async pumpEvents(
     signal: AbortSignal,
     ready: (host: ConnectionHostInfo) => void,
@@ -237,7 +237,7 @@ export class ClientRemoteEvents {
       agent: target,
       signal,
     }
-    // Cancellation reaches the handler, whose Context remains owned until it settles.
+    // 取消会到达处理方，其上下文在尘埃落定之前保持被持有状态。
     const value = await privateEvents(target).waterfall(
       target,
       this.eventKey(frame.event),
@@ -261,7 +261,7 @@ export class ClientRemoteEvents {
   }
 }
 
-/** Validate and return one generation's Client identity and Host facts. */
+/** 校验并返回一个代的 Client 身份与 Host 事实。 */
 function parseRemoteEventReady(value: unknown): {
   readonly clientId: RemoteEventClientId
   readonly host: ConnectionHostInfo
@@ -278,7 +278,7 @@ function parseRemoteEventReady(value: unknown): {
   return { clientId: value.clientId, host: { home: value.host.home } }
 }
 
-/** Validate one untrusted value from the Gateway-internal forwarded-event stream. */
+/** 校验来自 Gateway 内部转发事件流的一个不受信任的值。 */
 function parseRemoteEventFrame(value: unknown): Exclude<RemoteEventDownlinkFrame, { type: 'ready' }> {
   if (!isRemoteEventRecord(value)) invalidRemoteEventFrame()
   if (value.type === 'cancel'

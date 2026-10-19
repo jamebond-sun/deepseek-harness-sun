@@ -1,4 +1,4 @@
-/** Standard ACP session configuration over one Agent's model selection. */
+/** 基于单个 Agent 模型选择的标准 ACP 会话配置。 */
 
 import type { Context } from '@deepseek-ai/cordis'
 import type { SessionConfigOption, SessionConfigValueId } from '@agentclientprotocol/sdk'
@@ -7,7 +7,7 @@ import { ReasoningEffortId, type LlmCallConfig, type LlmRuntime } from '@deepsee
 
 const MODEL_CONFIG_ID = 'model'
 const REASONING_CONFIG_ID = 'reasoning_effort'
-// DSH reasoning effort ids are non-empty, so the empty opaque ACP value is a disjoint provider-default choice.
+// DSH 的 reasoning effort id 非空，因此空的不透明 ACP 值与它们不相交，可用于表示“提供方默认”选项。
 const PROVIDER_DEFAULT_REASONING_VALUE = ''
 
 interface ModelChoice {
@@ -20,7 +20,7 @@ interface ConfigState {
   options: SessionConfigOption[]
 }
 
-/** Caller-correctable session configuration failure. */
+/** 可由调用方纠正的会话配置失败。 */
 export class AcpModelConfigError extends Error {
   constructor(message: string) {
     super(message)
@@ -28,9 +28,9 @@ export class AcpModelConfigError extends Error {
   }
 }
 
-/** Project and mutate one Agent's provider/model/reasoning selection through ACP config options. */
+/** 通过 ACP 配置选项投影并修改单个 Agent 的提供方/模型/推理选择。 */
 export class AcpModelControl {
-  /** Scoped selection reference consumed by Agent request assembly. */
+  /** 由 Agent 请求装配消费的作用域模型选择引用。 */
   readonly selection: ModelSelectionRef
   private tail = Promise.resolve()
   private selected: ModelSelection | undefined
@@ -52,53 +52,53 @@ export class AcpModelControl {
   }
 
   /**
-   * Install request/prompt consistency listeners in the unpublished Agent scope.
-   * @param agentCtx - Agent scope that consumes this selection.
+   * 在未发布的 Agent 作用域中安装请求/提示词一致性监听器。
+   * @param agentCtx - 消费此模型选择的 Agent 作用域。
    */
   install(agentCtx: Context): void {
     installModelSelection(agentCtx, this.selection)
   }
 
   /**
-   * Snapshot the selection attached to the next accepted ACP prompt.
-   * @returns a detached future selection, or undefined when listeners supply the route.
+   * 快照附加到下一个被接受的 ACP 提示词上的模型选择。
+   * @returns 脱离的、面向未来的模型选择；当监听器提供路由时返回 undefined。
    */
   snapshot(): ModelSelection | undefined {
     return this.selected === undefined ? undefined : { ...this.selected }
   }
 
   /**
-   * Pin one admitted ACP message's selection for every step in its turn.
-   * @param turn - admitted Agent turn.
-   * @param selection - exact prompt-admission selection.
+   * 将一条已准入 ACP 消息的模型选择固定到其轮次的每个步骤。
+   * @param turn - 已准入的 Agent 轮次。
+   * @param selection - 提示词准入时的精确模型选择。
    */
   pinTurn(turn: number, selection: ModelSelection): void {
     this.turnSelection = { turn, selection: { ...selection } }
   }
 
   /**
-   * Release only the exact completed turn's routing override.
-   * @param turn - completed Agent turn.
+   * 仅释放精确匹配的已完成轮次的路由覆盖。
+   * @param turn - 已完成的 Agent 轮次。
    */
   releaseTurn(turn: number): void {
     if (this.turnSelection?.turn === turn) this.turnSelection = undefined
   }
 
   /**
-   * Return the complete standard config-option state after prior mutations settle.
-   * @param signal - optional catalog and exact-model cancellation.
-   * @returns all current standard configuration options.
+   * 在先前的修改结算之后返回完整的标准配置选项状态。
+   * @param signal - 可选的模型目录与精确模型查询取消信号。
+   * @returns 当前所有标准配置选项。
    */
   options(signal?: AbortSignal): Promise<SessionConfigOption[]> {
     return this.serialize(async () => (await this.state(signal)).options)
   }
 
   /**
-   * Set one advertised option and return the complete resulting option state.
-   * @param configId - standard option id.
-   * @param value - opaque selected value returned by a previous option state.
-   * @param signal - optional catalog and exact-model cancellation.
-   * @returns all standard options after the serialized mutation.
+   * 设置一个已声明的选项，并返回完整的最终选项状态。
+   * @param configId - 标准选项 id。
+   * @param value - 由先前选项状态返回的不透明选中值。
+   * @param signal - 可选的模型目录与精确模型查询取消信号。
+   * @returns 串行化修改之后的所有标准选项。
    */
   set(configId: string, value: unknown, signal?: AbortSignal): Promise<SessionConfigOption[]> {
     return this.serialize(async () => {
@@ -133,14 +133,14 @@ export class AcpModelControl {
     })
   }
 
-  /** Keep concurrent client mutations in receive order without wedging after rejection. */
+  /** 让并发客户端修改保持接收顺序，且在被拒绝后不会卡死。 */
   private serialize<T>(operation: () => Promise<T>): Promise<T> {
     const result = this.tail.then(operation)
     this.tail = result.then(() => undefined, () => undefined)
     return result
   }
 
-  /** Build detached model choices and the dependent reasoning option. */
+  /** 构建脱离的模型候选项以及依赖它的 reasoning 选项。 */
   private async state(signal?: AbortSignal): Promise<ConfigState> {
     const selected = this.selected
     if (selected === undefined) return { choices: new Map(), options: [] }
@@ -220,7 +220,7 @@ export class AcpModelControl {
     return { choices, options }
   }
 
-  /** Validate an exact route and retain only Agent-owned selection fields. */
+  /** 校验精确路由，仅保留 Agent 拥有的模型选择字段。 */
   private async resolveSelection(selection: ModelSelection, signal?: AbortSignal): Promise<ModelSelection> {
     const resolved: LlmCallConfig = await this.llm.resolveCallConfig(selection, signal)
     return {
@@ -231,7 +231,7 @@ export class AcpModelControl {
   }
 }
 
-/** Opaque ACP selector value carrying the full route identity. */
+/** 携带完整路由标识的不透明 ACP 选择器值。 */
 function modelValue(provider: string, model: string): SessionConfigValueId {
   return JSON.stringify([provider, model])
 }

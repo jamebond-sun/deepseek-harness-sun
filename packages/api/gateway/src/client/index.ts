@@ -1,7 +1,7 @@
 /**
- * Client projection of generated Typert Remote descriptors. Contributions
- * install traced `remote.<namespace>` services; no JavaScript Proxy
- * participates in method lookup, invocation, or type exposure.
+ * 生成的 Typert Remote 描述符的 Client 投影。贡献安装可追踪的
+ * `remote.<namespace>` 服务；方法查找、调用或类型暴露均不经过
+ * JavaScript Proxy。
  */
 
 import { Service } from '@deepseek-ai/cordis'
@@ -91,7 +91,7 @@ interface LoaderReadiness {
   await(): Promise<unknown>
 }
 
-/** One descriptor's mounted variants, for the group disposer to unwind. */
+/** 一个描述符已挂载的变体，供组释放器逐一撤销。 */
 interface InstalledMethod {
   readonly descriptor: InvocationDescriptor
   readonly token: MountToken
@@ -99,44 +99,44 @@ interface InstalledMethod {
   scoped: boolean
 }
 
-/** Typed Remote service augmented by generated direct namespaces and Gateway stream supervision. */
+/** 由生成的直接命名空间与 Gateway 流监督增强的类型化 Remote 服务。 */
 export interface ClientRemote extends TypertClientRemote {
   /**
-   * Create an independently cancellable, reconnecting logical stream.
-   * Requires interactions=answer; passive Clients use generated stream methods.
-   * @param options - domain-owned opener and generation-end classification.
-   * @returns a single-consumer stream annotated with physical generation ids.
+   * 创建一个可独立取消、可重连的逻辑流。
+   * 需要 interactions=answer；被动 Client 使用生成的流方法。
+   * @param options - 领域自有的打开器与代结束分类。
+   * @returns 一个标注了物理代 id 的单消费方流。
    */
   $stream<Item>(options: RemoteStreamOptions<Item>): RemoteStream<Item>
   /**
-   * Fixed Host facts as plain reads: no store, no subscription, no generation
-   * counter. `home` stays undefined until the first ready frame and reflects
-   * the latest one afterwards.
+   * 作为普通读取的固定 Host 事实：无存储、无订阅、
+   * 无代计数器。`home` 在首个就绪帧之前保持 undefined，
+   * 之后反映最新的一个。
    */
   readonly $host: RemoteHostFacts
 }
 
-/** The fixed Host facts exposed on `ctx.remote.$host`. */
+/** 暴露在 `ctx.remote.$host` 上的固定 Host 事实。 */
 export interface RemoteHostFacts {
-  /** Host home directory from the ready frame, undefined before it. */
+  /** 来自就绪帧的 Host 主目录，在此之前为 undefined。 */
   readonly home: string | undefined
-  /** Whether the carrier connects to the local Host. */
+  /** 载体是否连接到本地 Host。 */
   readonly isLoopback: boolean
 }
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
-    /** Generated Remote namespaces selected by the Client assembly. */
+    /** 由 Client 组装选定的生成 Remote 命名空间。 */
     remote: ClientRemote
   }
 }
 
-/** Required Client services: the Typert registry and the existing Connection carrier. */
+/** 必需的 Client 服务：Typert 注册表与现有的 Connection 载体。 */
 export const inject = ['typert', 'connection']
 
 /**
- * Install the typed Client Remote service.
- * @param ctx - Client Cordis root.
+ * 安装类型化的 Client Remote 服务。
+ * @param ctx - Client Cordis 根。
  */
 export function apply(ctx: Context): void {
   new ClientRemoteService(ctx)
@@ -167,8 +167,8 @@ class ClientRemoteService extends Service implements ClientRemote {
         (endpoint, payload, signal) => this.openRemoteStream(endpoint, payload, signal),
       )
     }
-    // API callers retain a lifecycle socket even when they do not receive events.
-    // HTTP dispatch never waits for this independent connection attempt.
+    // 即使 API 调用方不接收事件，也保留一个生命周期套接字。
+    // HTTP 分发从不等待这次独立的连接尝试。
     if (connection.rpc.open === undefined) this.streams.start()
     let disposed = false
     let loop: ReturnType<ConnectionHandle['start']> | undefined
@@ -201,9 +201,9 @@ class ClientRemoteService extends Service implements ClientRemote {
   }
 
   get $host(): RemoteHostFacts {
-    // Identity-stable: readers (useSyncExternalStore snapshots, memo inputs)
-    // compare by reference, so a fresh object is minted only when the fact
-    // itself changed. isLoopback is fixed for the page lifetime.
+    // 身份稳定：读取方（useSyncExternalStore 快照、memo 输入）
+    // 按引用比较，因此只有事实本身变化时才会铸造新对象。
+    // isLoopback 在页面生命周期内固定不变。
     const home = this.connection.generation.getSnapshot()?.host.home
     if (this.hostFacts === undefined || this.hostFacts.home !== home) {
       this.hostFacts = { home, isLoopback: this.connection.isLoopback }
@@ -229,7 +229,7 @@ class ClientRemoteService extends Service implements ClientRemote {
     return this.events.subscribe(this.ctx, event, listener)
   }
 
-  /** Open one Remote stream and normalize a worker-local carrier's structural failures. */
+  /** 打开一个 Remote 流，并规范化 worker 本地载体的结构性失败。 */
   private openRemoteStream(
     endpoint: string,
     payload: unknown,
@@ -324,14 +324,14 @@ class ClientRemoteService extends Service implements ClientRemote {
   }
 
   /**
-   * Mount one namespace's descriptor group with no visibility gap: a fresh
-   * namespace installs its whole group synchronously inside its fiber's
-   * apply, so a plugin parked on the namespace service never observes it
-   * without the methods the same contribution carries; an existing namespace
-   * takes the group in one synchronous step.
-   * @param name - Remote namespace.
-   * @param descriptors - Every contribution descriptor naming that namespace.
-   * @returns disposer unmounting the group and the namespace once empty.
+   * 以无可见性间隙地挂载一个命名空间的描述符组：
+   * 全新命名空间在其 fiber 的 apply 中同步安装整组，
+   * 因此停在命名空间服务上的插件绝不会观察到缺少
+   * 同一贡献所携带方法的它；已存在的命名空间则在
+   * 一个同步步骤中接纳该组。
+   * @param name - Remote 命名空间。
+   * @param descriptors - 命名该命名空间的每个贡献描述符。
+   * @returns 卸载该组并在清空后卸载命名空间的释放器。
    */
   private async installNamespace(
     name: string,
@@ -372,8 +372,8 @@ class ClientRemoteService extends Service implements ClientRemote {
           name,
           (direct, scoped, caller, args) => this.invokeMethod(direct, scoped, caller, args),
         )
-        // Same synchronous window as the service registration: a dependent the
-        // new service unparks runs only after the methods exist.
+        // 与服务注册相同的同步窗口：被新服务解除停靠的
+        // 依赖项只会在方法存在之后运行。
         installed = installMethods(service, descriptors)
       },
     })
@@ -464,16 +464,16 @@ class ClientRemoteService extends Service implements ClientRemote {
         : result.value
       return { ok: true, value }
     } catch (error) {
-      // Carrier throws (offline or abort) are outcomes of the call, not assembly
-      // faults, so they join the same error branch. A caller-aborted call is a
-      // cancellation even when the local throw wins the race against the wire
-      // round-trip, so it gets the same code the Host would have produced.
+      // 载体抛出（离线或中止）是调用的结果而非组装故障，因此
+      // 它们进入同一个错误分支。调用方中止的调用是一次取消，
+      // 即使本地抛出在与线上往返的竞速中获胜也是如此，因此
+      // 它获得 Host 本会产生的同一代码。
       if (prepared.signal.aborted) return cancelledFailure(endpoint, error)
       return carrierFailure(endpoint, error)
     }
   }
 
-  /** Open the logical stream now and hand back its handle; `send()` before the first read queues behind the `open` frame. */
+  /** 立即打开逻辑流并交回其句柄；首次读取之前的 `send()` 会排在 `open` 帧之后。 */
   private invokeStream(
     descriptor: InvocationDescriptor,
     projection: ScopedProjection | undefined,
@@ -547,11 +547,11 @@ class ClientRemoteService extends Service implements ClientRemote {
 }
 
 /**
- * The handle a generated stream method returns: one generation of one logical
- * stream. The downlink is iterated once; `send`/`end` feed the uplink queue the
- * carrier pump drains; `dispose` aborts the generation and returns the carrier
- * iterator, which sends `cancel` unless a terminal frame arrived, drops what was
- * buffered, and ends the iteration quietly.
+ * 生成的流方法返回的句柄：一个逻辑流的一个代。下行只被迭代
+ * 一次；`send`/`end` 将条目送入载体泵抽干的上行队列；
+ * `dispose` 中止该代并归还载体迭代器，除非已有终结帧抵达，
+ * 它会发出 `cancel`、丢弃已缓冲的内容，
+ * 并安静地结束迭代。
  */
 class ClientStreamHandle implements RemoteStreamHandle<unknown, unknown> {
   private readonly downlink: AsyncIterator<unknown>
@@ -567,10 +567,10 @@ class ClientStreamHandle implements RemoteStreamHandle<unknown, unknown> {
     private readonly token: MountToken,
   ) {
     this.downlink = downlink[Symbol.asyncIterator]()
-    // The carrier opens the logical stream on the first pull; pulling now puts
-    // the `open` frame on the wire before any `send()`. The first read is kept
-    // for the consumer, and a failure waits for it instead of surfacing here;
-    // it also terminates the stream, so the queue closes and `send()` throws.
+    // 载体在首次拉取时打开逻辑流；现在拉取会把 `open` 帧放到
+    // 线上，先于任何 `send()`。首次读取保留给消费方，失败会等
+    // 待它而不是在此处浮现；这也会终止流，因此队列关闭且
+    // `send()` 抛出。
     this.primed = this.downlink.next()
     void this.primed.catch(() => { this.uplink.close() })
   }
@@ -589,8 +589,8 @@ class ClientStreamHandle implements RemoteStreamHandle<unknown, unknown> {
     this.disposed = true
     this.uplink.close()
     this.generation.abort(new Error(`client api: ${this.endpoint} stream disposed`))
-    // Returning the carrier iterator reaches its `finally` even while nobody
-    // reads the downlink, so `cancel` goes out now and the pump stops.
+    // 归还载体迭代器会到达其 `finally`，即使没有人读取下行，
+    // 因此 `cancel` 现在发出且泵停止。
     void Promise.resolve(this.downlink.return?.()).catch(() => undefined)
   }
 
@@ -600,7 +600,7 @@ class ClientStreamHandle implements RemoteStreamHandle<unknown, unknown> {
     const iteration = this.iterate()
     return {
       next: () => iteration.next(),
-      // A return before the first read ends a generator that never started, so its `finally` would not dispose.
+      // 首次读取之前的 return 会结束一个从未启动的生成器，因此其 `finally` 不会释放。
       return: (value?: unknown) => {
         this.dispose()
         return iteration.return(value)
@@ -621,7 +621,7 @@ class ClientStreamHandle implements RemoteStreamHandle<unknown, unknown> {
       if (this.disposed) return
       throw error
     } finally {
-      // Ending early is a dispose; a terminated stream accepts no more uplink.
+      // 提前结束就是一次释放；已终止的流不再接受上行。
       this.dispose()
       await this.downlink.return?.()
     }
@@ -718,11 +718,11 @@ class RemoteNamespaceService extends Service {
 }
 
 /**
- * Install one descriptor group on a namespace service, unwinding the partial
- * group when a descriptor is refused.
- * @param service - Namespace service taking the methods.
- * @param descriptors - Descriptor group of one contribution.
- * @returns per-descriptor records for the group disposer.
+ * 在命名空间服务上安装一个描述符组，当某个描述符被拒绝时
+ * 回退已安装的部分组。
+ * @param service - 接收这些方法的命名空间服务。
+ * @param descriptors - 一个贡献的描述符组。
+ * @returns 供组释放器使用的逐描述符记录。
  */
 function installMethods(
   service: RemoteNamespaceService,
@@ -817,27 +817,27 @@ function requireStrictCodec(codec: TypertCodec, endpoint: string, field: string)
   }
 }
 
-/** The namespace retired before or during the call, so no request outcome exists. */
+/** 命名空间在调用之前或期间已退役，因此不存在请求结果。 */
 function withdrawn(endpoint: string): Extract<RemoteResult<never>, { readonly ok: false }> {
   return internalFailure(`client api: Remote method ${endpoint} is no longer mounted`)
 }
 
 /**
- * The error branch a carrier throw (offline, transport fault) folds into: `gateway/internal` naming the endpoint and
- * the thrown message. Exported so a stand-in for this face folds identically.
- * @param endpoint - `<namespace>/<method>` that was called.
- * @param error - what the carrier threw.
- * @returns the failed result.
+ * 载体抛出（离线、传输故障）折入的错误分支：`gateway/internal`
+ * 命名端点与被抛出的消息。导出它使此 face 的替身可以同样折入。
+ * @param endpoint - 被调用的 `<namespace>/<method>`。
+ * @param error - 载体抛出的内容。
+ * @returns 失败的结果。
  */
 export function carrierFailure(endpoint: string, error: unknown): Extract<RemoteResult<never>, { readonly ok: false }> {
   return internalFailure(`client api: ${endpoint} failed: ${error instanceof Error ? error.message : String(error)}`)
 }
 
 /**
- * The error branch a call aborted by its caller folds into: `gateway/cancelled` with the carrier's throw as `cause`.
- * @param endpoint - `<namespace>/<method>` that was called.
- * @param cause - what the carrier threw when the signal aborted.
- * @returns the failed result.
+ * 被其调用方中止的调用折入的错误分支：`gateway/cancelled` 并以载体的抛出作为 `cause`。
+ * @param endpoint - 被调用的 `<namespace>/<method>`。
+ * @param cause - 信号中止时载体抛出的内容。
+ * @returns 失败的结果。
  */
 export function cancelledFailure(endpoint: string, cause: unknown): Extract<RemoteResult<never>, { readonly ok: false }> {
   return {
@@ -851,21 +851,21 @@ function internalFailure(message: string): Extract<RemoteResult<never>, { readon
 }
 
 /**
- * Whether a caught value is a Remote failure this face delivered or threw.
- * The one consumer-facing discrimination point: marked instances carry their
- * Host code; anything else is a local fault the caller should let crash.
- * @param error - a caught value.
- * @returns true when the value narrows to RemoteFailure.
+ * 捕获的值是否为该 face 交付或抛出的 Remote 失败。
+ * 唯一面向消费方的判别点：带标记的实例携带其 Host 代码；
+ * 其余任何值都是调用方应任其崩溃的本地故障。
+ * @param error - 捕获的值。
+ * @returns 当值收窄为 RemoteFailure 时为 true。
  */
 export function isRemoteFailure(error: unknown): error is RemoteFailure {
   return remoteErrorOf(error) !== undefined
 }
 
 /**
- * Rebuild the wire failure as a local RemoteError instance so the error branch
- * carries a real Error and `throw result.error` keeps throw semantics. The code
- * is passed through verbatim without runtime validation: a code outside this
- * Client's merged map still surfaces as-is, so a newer Host stays readable.
+ * 将线上失败重建为本地 RemoteError 实例，使错误分支携带真正的
+ * Error 且 `throw result.error` 保持 throw 语义。代码逐字透传而
+ * 不做运行时校验：超出此 Client 合并映射之外的代码仍按原样
+ * 浮现，因此较新的 Host 仍可被读取。
  */
 function rebuiltFailure(error: { code: string; message: string; details: object }): RemoteFailure {
   return new RemoteError(error.code as never, error.message, error.details as never)
@@ -877,7 +877,7 @@ type MarkedConnectionStreamFailure = Error & {
     | { readonly kind: 'carrier' }
 }
 
-/** Preserve Gateway error classes across a worker transport's separately bundled page half. */
+/** 在 worker 传输单独打包的页面半侧之间保留 Gateway 错误类。 */
 async function *normalizeConnectionStream(source: AsyncIterable<unknown>): AsyncGenerator {
   try {
     yield * source

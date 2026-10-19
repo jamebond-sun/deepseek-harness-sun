@@ -1,4 +1,4 @@
-/** Host Workspace Remote owner: explicit commands and reconnect-safe state. */
+/** Host Workspace Remote 属主：显式命令与重连安全的状态。 */
 
 import { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
@@ -33,25 +33,25 @@ import type {
 export type * from './types.ts'
 export { DirectoryPickerController } from './directory-picker.ts'
 
-/** First-use directory policy for the Host account. */
+/** Host 账户的首次使用目录策略。 */
 export interface Config {
-  /** Override the system Documents directory with a fully qualified path. */
+  /** 以完全限定路径覆盖系统 Documents 目录。 */
   documentsDirectory?: string
-  /** Maximum duration of the operating system's Documents lookup. */
+  /** 操作系统 Documents 查询的最长时长（毫秒）。 */
   documentsLookupTimeoutMs?: number
 }
 
-/** Directory policy after schema defaults have been applied. */
+/** 应用 schema 默认值后的目录策略。 */
 type ResolvedConfig = Config & { documentsLookupTimeoutMs: number }
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
-    /** Host Workspace business API and Remote namespace owner. */
+    /** Host Workspace 业务 API 与 Remote 命名空间属主。 */
     workspaceController: WorkspaceController
   }
 }
 
-/** Host service backing the generated `ctx.remote.workspace` namespace. */
+/** 支撑生成的 `ctx.remote.workspace` 命名空间的 Host 服务。 */
 export class WorkspaceController extends TypertRemoteService {
   static inject = ['remoteAccess', 'typert', 'workspaceRegistry']
 
@@ -65,8 +65,8 @@ export class WorkspaceController extends TypertRemoteService {
   private readonly feed: WorkspaceFeed
 
   /**
-   * @param ctx - Host context containing the Workspace registry.
-   * @param config - first-use directory policy.
+   * @param ctx - 包含 Workspace 注册表的 Host 上下文。
+   * @param config - 首次使用目录策略。
    */
   constructor(ctx: Context, config: Config = {}) {
     super(ctx, 'workspaceController', { namespace: 'workspace' })
@@ -75,17 +75,17 @@ export class WorkspaceController extends TypertRemoteService {
     if (this.config.documentsDirectory !== undefined) validateDocumentsDirectory(this.config.documentsDirectory)
     this.commands = new WorkspaceCommands(ctx)
     this.feed = new WorkspaceFeed(ctx)
-    // This package is the Loader entry for both Remote owners it hosts: the
-    // directory-picking seam is abstract and never an entry itself. The child
-    // stays pending until a picking backend is composed, so a host without one
-    // registers no picking namespace instead of answering an unservable verb.
+    // 本包是其承载的两个 Remote 属主的 Loader 入口：目录选择接缝是
+    // 抽象的，自身从不是入口。该子插件保持挂起，直到组合出选择
+    // 后端，因此没有选择后端的 Host 不注册选择命名空间，
+    // 而不是应答一个无法服务的动词。
     ctx.plugin(DirectoryPickerController)
   }
 
   /**
-   * Create or idempotently resolve one Workspace over an existing directory.
-   * @param request - directory path to register.
-   * @returns the Workspace and whether this call created it.
+   * 在一个现有目录上创建或幂等地解析一个 Workspace。
+   * @param request - 要注册的目录路径。
+   * @returns Workspace 以及本次调用是否创建了它。
    */
   @Remote('create')
   create(request: WorkspaceCreateRequest): Promise<WorkspaceCreateValue> {
@@ -93,12 +93,11 @@ export class WorkspaceController extends TypertRemoteService {
   }
 
   /**
-   * Initialize or reuse the default Workspace during first-use startup. The
-   * directory name is fixed, so the Host never renames or relocates an
-   * existing default; its initial title is that same name, which browser
-   * consumers label in the reader's language.
-   * @param signal - caller lifetime; cancels native directory lookup.
-   * @returns the durable Workspace, or undefined when first-use initialization is ineligible; creates no Session or message.
+   * 在首次使用启动期间初始化或复用默认 Workspace。目录名是固定的，
+   * 因此 Host 从不重命名或迁移已有的默认项；其初始标题就是该名称，
+   * 浏览器消费方以阅读者语言为其显示标签。
+   * @param signal - 调用方生命周期；取消原生目录查询。
+   * @returns 持久 Workspace，首次使用初始化不符合条件时为 undefined；不创建任何 Session 或消息。
    */
   @Remote('initializeDefault')
   async initializeDefault(signal: AbortSignal): Promise<WorkspaceValue | undefined> {
@@ -112,9 +111,9 @@ export class WorkspaceController extends TypertRemoteService {
   }
 
   /**
-   * Rename one Workspace to a unique non-blank title.
-   * @param request - Workspace identity and proposed title.
-   * @returns the updated Workspace projection.
+   * 将一个 Workspace 重命名为唯一的非空标题。
+   * @param request - Workspace 身份与拟用标题。
+   * @returns 更新后的 Workspace 投影。
    */
   @Remote('rename')
   rename(request: WorkspaceRenameRequest): Promise<WorkspaceValue> {
@@ -122,9 +121,9 @@ export class WorkspaceController extends TypertRemoteService {
   }
 
   /**
-   * Remove one Workspace registration while retaining files and Sessions.
-   * @param request - Workspace identity to remove.
-   * @returns deletion confirmation.
+   * 移除一个 Workspace 注册，同时保留其文件与 Session。
+   * @param request - 要移除的 Workspace 身份。
+   * @returns 删除确认。
    */
   @Remote('delete')
   delete(request: WorkspaceDeleteRequest): Promise<WorkspaceDeleteValue> {
@@ -132,9 +131,9 @@ export class WorkspaceController extends TypertRemoteService {
   }
 
   /**
-   * Move one Workspace within the registry display order.
-   * @param request - moved Workspace and optional anchor.
-   * @returns the complete resulting Workspace order.
+   * 在注册表展示顺序中移动一个 Workspace。
+   * @param request - 被移动的 Workspace 与可选锚点。
+   * @returns 变更后的完整 Workspace 顺序。
    */
   @Remote('insertBefore')
   insertBefore(request: WorkspaceInsertBeforeRequest): Promise<WorkspaceOrderValue> {
@@ -142,9 +141,9 @@ export class WorkspaceController extends TypertRemoteService {
   }
 
   /**
-   * Move one accounted Session within a Workspace.
-   * @param request - Workspace, Session, and optional anchor identities.
-   * @returns the updated Workspace projection.
+   * 在一个 Workspace 内移动一个已归入的 Session。
+   * @param request - Workspace、Session 与可选锚点身份。
+   * @returns 更新后的 Workspace 投影。
    */
   @Remote('insertSessionBefore')
   insertSessionBefore(request: WorkspaceInsertSessionBeforeRequest): Promise<WorkspaceValue> {
@@ -152,9 +151,9 @@ export class WorkspaceController extends TypertRemoteService {
   }
 
   /**
-   * Hide one known Session from Workspace grouping surfaces.
-   * @param request - Session identity to archive.
-   * @returns the complete resulting archive set.
+   * 在 Workspace 分组界面隐藏一个已知 Session。
+   * @param request - 要归档的 Session 身份。
+   * @returns 变更后的完整归档集合。
    */
   @Remote('archiveSession')
   archiveSession(request: WorkspaceArchiveSessionRequest): Promise<WorkspaceArchiveValue> {
@@ -162,9 +161,9 @@ export class WorkspaceController extends TypertRemoteService {
   }
 
   /**
-   * Restore one archived Session to Workspace grouping surfaces.
-   * @param request - Session identity to unarchive.
-   * @returns the complete resulting archive set.
+   * 将一个已归档 Session 恢复到 Workspace 分组界面。
+   * @param request - 要取消归档的 Session 身份。
+   * @returns 变更后的完整归档集合。
    */
   @Remote('unarchiveSession')
   unarchiveSession(request: WorkspaceUnarchiveSessionRequest): Promise<WorkspaceArchiveValue> {
@@ -172,9 +171,9 @@ export class WorkspaceController extends TypertRemoteService {
   }
 
   /**
-   * Surface one known unarchived Session ahead of unpinned Sessions.
-   * @param request - Session identity to pin.
-   * @returns the complete resulting pin set, most recently pinned first.
+   * 将一个已知未归档 Session 置于未置顶 Session 之前。
+   * @param request - 要置顶的 Session 身份。
+   * @returns 变更后的完整置顶集合，最近置顶的在前。
    */
   @Remote('pinSession')
   pinSession(request: WorkspacePinSessionRequest): Promise<WorkspacePinValue> {
@@ -182,9 +181,9 @@ export class WorkspaceController extends TypertRemoteService {
   }
 
   /**
-   * Remove one Session's pin without changing its saved Session order.
-   * @param request - Session identity to unpin.
-   * @returns the complete resulting pin set, most recently pinned first.
+   * 移除一个 Session 的置顶，而不改变其已保存的 Session 顺序。
+   * @param request - 要取消置顶的 Session 身份。
+   * @returns 变更后的完整置顶集合，最近置顶的在前。
    */
   @Remote('unpinSession')
   unpinSession(request: WorkspaceUnpinSessionRequest): Promise<WorkspacePinValue> {
@@ -192,15 +191,14 @@ export class WorkspaceController extends TypertRemoteService {
   }
 
   /**
-   * Stream a complete Workspace baseline followed by ordered increments. A
-   * non-owner receives only the Workspaces and Sessions `allows()` admits.
-   * When a delivered Workspace is no longer admitted at its next change or
-   * the next order change, the stream sends a `replace` frame with the
-   * complete filtered state instead of a `remove`, because a Client never
-   * resurrects a removed Workspace; a `remove` frame reports a deletion and
-   * reaches only a Client that received that Workspace.
-   * @param signal - generation cancellation.
-   * @returns baseline followed by ordered Workspace increments.
+   * 流式发送完整 Workspace 基线，随后是有序增量。非属主只收到
+   * `allows()` 允许的 Workspace 与 Session。当一个已交付的 Workspace
+   * 在其下次变更或下次顺序变更时不再被允许，流会发送携带完整
+   * 过滤状态的 `replace` 帧而非 `remove`，因为 Client 从不复活
+   * 已移除的 Workspace；`remove` 帧报告一次删除，且只会到达
+   * 接收过该 Workspace 的 Client。
+   * @param signal - 生成取消。
+   * @returns 基线，随后是有序 Workspace 增量。
    */
   @Remote({ mode: 'stream' })
   async *follow(signal: AbortSignal): AsyncIterable<WorkspaceFollowFrame> {
@@ -208,9 +206,9 @@ export class WorkspaceController extends TypertRemoteService {
     const visible = (workspaceId: WorkspaceId): boolean => access.allows({ kind: 'workspace', id: workspaceId })
     const sessions = (sessionIds: readonly SessionId[]): SessionId[] =>
       sessionIds.filter(sessionId => access.allows({ kind: 'session', id: sessionId }))
-    /** Workspaces this generation has delivered and not yet removed. */
+    /** 本生成已交付且尚未移除的 Workspace。 */
     const delivered = new Set<WorkspaceId>()
-    /** The admitted part of `value`; it becomes the delivered set. */
+    /** `value` 中被允许的部分；它成为已交付集合。 */
     const filtered = (value: WorkspaceBaseline): WorkspaceBaseline => {
       const items = value.items.filter(item => visible(item.workspaceId))
       delivered.clear()
@@ -252,7 +250,7 @@ export class WorkspaceController extends TypertRemoteService {
         case 'pinned':
           yield { type: 'pinned', pinnedSessionIds: sessions(frame.pinnedSessionIds) }
           break
-        /* v8 ignore next -- closed follow-frame union. */
+        /* v8 ignore next -- 封闭的 follow 帧联合。 */
         default:
           assertNever(frame)
       }
@@ -260,7 +258,7 @@ export class WorkspaceController extends TypertRemoteService {
   }
 }
 
-/* v8 ignore next 3 -- closed-union backstop. */
+/* v8 ignore next 3 -- 封闭联合的兜底。 */
 function assertNever(value: never): never {
   throw new Error(`unreachable Workspace follow frame: ${JSON.stringify(value)}`)
 }

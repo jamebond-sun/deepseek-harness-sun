@@ -1,4 +1,4 @@
-/** Durable model-selection intent and request-use projection. */
+/** 持久化的模型选择意图与请求使用投影。 */
 
 import type { Context } from '@deepseek-ai/cordis'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
@@ -27,10 +27,10 @@ const modelSelectionProjectionSchema = z.object({
 }) as z.ZodType<ModelSelectionProjection>
 
 /**
- * Advance durable model-selection state by one Session event.
- * @param state - selection state before the event.
- * @param event - next committed Session event.
- * @returns the original or advanced selection state.
+ * 按一个 Session 事件推进持久化模型选择状态。
+ * @param state - 事件之前的选择状态。
+ * @param event - 下一个已提交的 Session 事件。
+ * @returns 原始或推进后的选择状态。
  */
 function applyModelSelectionProjection(
   state: ModelSelectionProjectionState,
@@ -75,8 +75,8 @@ function sameSelection(left: ModelSelection | null, right: ModelSelection | null
 }
 
 /**
- * Register the durable model-selection projection when the registry is present.
- * @param ctx - Session Controller context.
+ * 当注册表存在时注册持久化模型选择投影。
+ * @param ctx - Session Controller 上下文。
  */
 export function installModelSelectionProjection(ctx: Context): void {
   ctx.sessionProjections.register(modelSelectionProjection)

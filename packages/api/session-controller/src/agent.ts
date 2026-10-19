@@ -1,4 +1,4 @@
-/** Agent activation, composition, and model-selection policy owned by API Session. */
+/** 由 API Session 拥有的 Agent 激活、组合与模型选择策略。 */
 
 import { randomUUID } from 'node:crypto'
 import { mkdir } from 'node:fs/promises'
@@ -18,18 +18,18 @@ import { RemoteError, remoteErrorOf } from '@deepseek-ai/dsh-typert-protocol'
 import type {} from '@deepseek-ai/dsh-typert-registry'
 import type { ModelSelection } from './types.ts'
 
-/** Cold Session identity absent from persistence. */
+/** 持久化中不存在的冷 Session 标识。 */
 export class ApiSessionNotFound extends Error {}
 
-/** Session identity whose lifecycle belongs to subagent routing. */
+/** 其生命周期属于 subagent 路由的 Session 标识。 */
 export class ApiSessionSubagentOwnership extends Error {
-  /** @param sessionId - identity reserved to subagent routing. */
+  /** @param sessionId - 保留给 subagent 路由的标识。 */
   constructor(readonly sessionId: SessionId) {
     super(`session "${sessionId}" is a subagent session; use subagent delivery`)
   }
 }
 
-/** Explicit-id creation attempted to adopt a Session under another cwd. */
+/** 显式 id 创建试图将一个 Session 收养到另一个 cwd 下。 */
 export class ApiSessionCwdConflict extends Error {
   constructor(
     readonly sessionId: SessionId,
@@ -44,7 +44,7 @@ export class ApiSessionCwdConflict extends Error {
   }
 }
 
-/** Reuse of a Session named an Agent preset while the deployment composes no preset roster. */
+/** 在部署未组合预设名册时，复用一个命名了 Agent 预设的 Session。 */
 export class ApiSessionPresetConflict extends Error {
   constructor(
     readonly sessionId: SessionId,
@@ -54,43 +54,43 @@ export class ApiSessionPresetConflict extends Error {
   }
 }
 
-/** A blank Session chosen for reuse started a turn before this Host acquired its writer. */
+/** 被选中复用的空白 Session 在本 Host 获得其写入者之前开始了一个回合。 */
 class ApiSessionStartedSinceObserved extends Error {}
 
-/** Placement and Agent preset for one Session created for a new conversation. */
+/** 为新对话创建的一个 Session 的位置与 Agent 预设。 */
 export interface ApiSessionCreateRequest {
-  /** Blank Session to reuse, or the identity of a new Session when none is stored under it. */
+  /** 待复用的空白 Session；当该标识下未存储任何 Session 时作为新 Session 的标识。 */
   readonly sessionId?: SessionId
-  /** Directory the Session owns. */
+  /** Session 拥有的目录。 */
   readonly cwd: string
-  /** Preset the Session runs; the configured default when omitted. */
+  /** Session 运行的预设；省略时使用配置的默认值。 */
   readonly agentPreset?: string
   /**
-   * Placement rule the caller owns, such as Workspace membership and archive state.
-   * @param sessionId - existing Session named by the request.
-   * @returns whether that Session may be reused.
+   * 调用方拥有的位置规则，例如 Workspace 成员关系与归档状态。
+   * @param sessionId - 请求所命名的既有 Session。
+   * @returns 该 Session 是否可以被复用。
    */
   readonly reusable: (sessionId: SessionId) => boolean
 }
 
-/** The Session one creation request created or reused. */
+/** 一次创建请求创建或复用的 Session。 */
 export interface ApiSessionCreated {
-  /** Live Agent of the Session. */
+  /** 该 Session 的活跃 Agent。 */
   readonly agent: Agent
-  /** Preset the Session ran when the request finished, before a later request for the same identity; absent without a roster. */
+  /** 请求结束时该 Session 运行的预设，先于对同一标识的后续请求；无名册时缺失。 */
   readonly agentPreset: string | undefined
 }
 
-/** Resolved preset and pre-publication Agent setup for one create or resume. */
+/** 一次创建或恢复的已解析预设与发布前 Agent 安装。 */
 interface ApiSessionComposition {
   readonly agentPreset?: string
   readonly setup: AgentSetup
 }
 
-/** Failures produced while resolving one ordinary Session identity to its live Agent. */
+/** 将一个普通 Session 标识解析到其活跃 Agent 时产生的失败。 */
 export type ApiSessionAgentError = RemoteError<'session/not-found' | 'session/agent-busy' | 'session/writer-held' | 'gateway/internal'>
 
-/** Result of resolving one ordinary Session identity to its live Agent. */
+/** 将一个普通 Session 标识解析到其活跃 Agent 的结果。 */
 export type ApiSessionAgentResult =
   | { readonly agent: Agent }
   | { readonly error: ApiSessionAgentError }
@@ -101,11 +101,11 @@ type InstalledSelection = ModelSelectionRef & {
 }
 
 /**
- * Test whether generic Session routing must leave an identity to subagent routing.
- * @param ctx - Host context carrying the Agent ownership registry.
- * @param session - attached or live Session whose ownership is tested.
- * @param agent - live Agent when one exists for the Session.
- * @returns whether subagent routing owns the Session identity.
+ * 测试通用 Session 路由是否必须把一个标识留给 subagent 路由。
+ * @param ctx - 携带 Agent 所有权注册表的 Host 上下文。
+ * @param session - 被测试所有权的已附加或活跃 Session。
+ * @param agent - 该 Session 存在时的活跃 Agent。
+ * @returns subagent 路由是否拥有该 Session 标识。
  */
 export function hasApiSessionSubagentOwner(
   ctx: Context,
@@ -120,9 +120,9 @@ export function hasApiSessionSubagentOwner(
 }
 
 /**
- * Build the stable caller-facing subagent ownership rejection.
- * @param sessionId - Session identity owned by subagent routing.
- * @returns a stable Session-domain failure.
+ * 构建稳定的面向调用方的 subagent 所有权拒绝。
+ * @param sessionId - 由 subagent 路由拥有的 Session 标识。
+ * @returns 一个稳定的 Session 域失败。
  */
 export function apiSessionSubagentOwnershipError(sessionId: SessionId): ApiSessionAgentError {
   return new RemoteError(
@@ -133,11 +133,11 @@ export function apiSessionSubagentOwnershipError(sessionId: SessionId): ApiSessi
 }
 
 /**
- * Inspect one cold Session without repairing, resuming, or publishing it.
- * @param ctx - Host context carrying Session persistence.
- * @param sessionId - durable Session identity.
- * @param signal - optional cancellation for persistence reads.
- * @returns the persisted header and complete event prefix.
+ * 检查一个冷 Session，不修复、恢复或发布它。
+ * @param ctx - 携带 Session 持久化的 Host 上下文。
+ * @param sessionId - 持久化 Session 标识。
+ * @param signal - 持久化读取的可选取消。
+ * @returns 持久化 header 与完整事件前缀。
  */
 export async function inspectApiSession(
   ctx: Context,
@@ -166,14 +166,14 @@ export async function inspectApiSession(
   }
 }
 
-/** Owns every operation that may create, resume, or configure a Web Agent. */
+/** 拥有可能创建、恢复或配置 Web Agent 的每个操作。 */
 export class ApiSessionAgentController {
   private readonly resumes = new Map<SessionId, Promise<Agent>>()
   private readonly claims = new Map<SessionId, Promise<void>>()
   private readonly selections = new WeakMap<Agent, InstalledSelection>()
   private readonly imageAdmissionChains = new WeakMap<Agent, Promise<void>>()
 
-  /** @param ctx - Host context carrying Agent, model, persistence, and Typert services. */
+  /** @param ctx - 携带 Agent、模型、持久化与 Typert 服务的 Host 上下文。 */
   constructor(private readonly ctx: Context) {
     ctx.typert.lookups.configure('agent', async (sessionId: SessionId) => {
       const found = await this.resolveAgent(sessionId)
@@ -193,18 +193,18 @@ export class ApiSessionAgentController {
   }
 
   /**
-   * Resolve or resume one ordinary Session, deduplicating concurrent resumes.
-   * @param sessionId - ordinary Session identity.
-   * @returns the live Agent or a stable Session-domain failure.
+   * 解析或恢复一个普通 Session，对并发恢复去重。
+   * @param sessionId - 普通 Session 标识。
+   * @returns 活跃 Agent 或稳定的 Session 域失败。
    */
   async resolveAgent(sessionId: SessionId): Promise<ApiSessionAgentResult> {
     return this.resolve(sessionId)
   }
 
   /**
-   * Resolve one ordinary Session from an already-retained exact observation.
-   * @param observation - Host-owned observation whose preparation stays pinned through setup.
-   * @returns the live Agent or a stable Session-domain failure.
+   * 从一个已保留的精确观察解析一个普通 Session。
+   * @param observation - Host 拥有的观察，其准备工作在安装完成前保持固定。
+   * @returns 活跃 Agent 或稳定的 Session 域失败。
    */
   async resolveObservedAgent(observation: SessionObservation): Promise<ApiSessionAgentResult> {
     return this.resolve(observation.header.id, observation)
@@ -228,8 +228,8 @@ export class ApiSessionAgentController {
     }
     try {
       const agent = await resume
-      // A shared resume can publish an identity that subagent routing adopts
-      // before every waiter observes it; apply the live ownership policy again.
+      // 共享的恢复可能会发布一个标识，而 subagent 路由可能在每个
+      // 等待者观察到它之前就已采用；再次应用活跃所有权策略。
       const published = this.liveAgent(sessionId)
       return published ?? { agent }
     } catch (error: unknown) {
@@ -259,21 +259,19 @@ export class ApiSessionAgentController {
   }
 
   /**
-   * Create a Session for a new conversation, reusing the named blank Session
-   * while it is still reusable. A reused Session runs the requested preset, or
-   * the configured default when the request names none; the preset it recorded
-   * is not resolved, and a change is logged as `agent-preset/selected` before
-   * the Agent is published. A named Session that has started a turn, fails the
-   * caller's placement rule, or is written by another owner stays unchanged,
-   * and a new Session is created instead. Requests naming one identity run in
-   * arrival order, including their preset resolution, and check the named
-   * Session's directory and ownership before resolving the preset.
-   * @param request - optional Session to reuse, directory, preset, and placement rule.
-   * @returns the reused or created Session and the preset it ran when this request finished.
-   * @throws ApiSessionCwdConflict when the named Session belongs to another directory.
-   * @throws ApiSessionSubagentOwnership when subagent routing owns the named Session.
-   * @throws RemoteError `agent-preset/not-found` or `agent-preset/invalid` for the requested or default preset.
-   * @throws ApiSessionPresetConflict when no roster is composed and the request names a preset for a reused Session.
+   * 为新对话创建 Session，在命名的空白 Session 仍可复用时复用它。
+   * 被复用的 Session 运行请求的预设，或当请求未命名时使用配置的
+   * 默认值；其已记录的预设不会被重新解析，变更会在 Agent 发布
+   * 之前记录为 `agent-preset/selected`。已开始回合、未通过调用方
+   * 位置规则或正被其他拥有者写入的命名 Session 保持不变，
+   * 而是创建一个新 Session。命名同一标识的请求按到达顺序运行，
+   * 包括其预设解析，并在解析预设之前检查命名 Session 的目录与所有权。
+   * @param request - 可选的待复用 Session、目录、预设与位置规则。
+   * @returns 被复用或创建的 Session，以及本请求结束时它运行的预设。
+   * @throws ApiSessionCwdConflict 当命名的 Session 属于另一个目录时。
+   * @throws ApiSessionSubagentOwnership 当 subagent 路由拥有该命名 Session 时。
+   * @throws RemoteError 对请求的或默认的预设返回 `agent-preset/not-found` 或 `agent-preset/invalid`。
+   * @throws ApiSessionPresetConflict 当未组合名册而请求为一个被复用的 Session 命名预设时。
    */
   async createSession(request: ApiSessionCreateRequest): Promise<ApiSessionCreated> {
     const named = request.sessionId
@@ -282,9 +280,9 @@ export class ApiSessionAgentController {
   }
 
   /**
-   * Install or return the Session-local model selection used by prompt assembly.
-   * @param agent - live Agent that owns the selection.
-   * @returns the installed mutable selection reference.
+   * 安装或返回提示词组装所使用的 Session 本地模型选择。
+   * @param agent - 拥有该选择的活跃 Agent。
+   * @returns 已安装的可变选择引用。
    */
   selectionFor(agent: Agent): InstalledSelection {
     const installed = this.selections.get(agent)
@@ -306,8 +304,8 @@ export class ApiSessionAgentController {
         return {
           provider: logged.provider,
           model: logged.model,
-          // An effort the adapter defaulted is not a conversation choice: restoring
-          // it as one would make an unchanged default read as a request change.
+          // 由适配器默认的力度不是对话选择：将其作为选择恢复
+          // 会让未变化的默认值被读作请求变更。
           ...(logged.reasoningEffort === undefined
             || loggedHeader.adapterDefaults?.reasoningEffort === true
             ? {}
@@ -332,9 +330,9 @@ export class ApiSessionAgentController {
   }
 
   /**
-   * Commit and cache one validated selection for the next prompt assembly.
-   * @param agent - live Agent that owns the selection.
-   * @param selection - validated selection to record and apply.
+   * 提交并缓存一个已验证的选择，供下一次提示词组装使用。
+   * @param agent - 拥有该选择的活跃 Agent。
+   * @param selection - 要记录并应用的已验证选择。
    */
   selectForNextRequest(agent: Agent, selection: AgentModelSelection): void {
     agent.session.append('model/selection', selection)
@@ -342,12 +340,12 @@ export class ApiSessionAgentController {
   }
 
   /**
-   * Let a matching durable request header retire the execution cache.
-   * @param agent - live Agent whose request was recorded.
-   * @param provider - provider route used by the request.
-   * @param model - provider-owned model used by the request.
-   * @param reasoningEffort - adapter-owned effort used by the request.
-   * @returns whether the pending selection was consumed.
+   * 让匹配的持久化请求 header 使执行缓存失效。
+   * @param agent - 其请求被记录的活跃 Agent。
+   * @param provider - 请求使用的提供方路由。
+   * @param model - 请求使用的提供方拥有的模型。
+   * @param reasoningEffort - 请求使用的适配器拥有的力度。
+   * @returns 待处理选择是否被消费。
    */
   consumeSelection(
     agent: Agent,
@@ -359,19 +357,19 @@ export class ApiSessionAgentController {
   }
 
   /**
-   * Read the current Agent preset from the Session projection.
-   * @param session - live Session whose projection state is available.
-   * @returns the current preset, or undefined when the capability is absent.
+   * 从 Session 投影读取当前 Agent 预设。
+   * @param session - 其投影状态可用的活跃 Session。
+   * @returns 当前预设，或该能力缺失时为 undefined。
    */
   presetForSession(session: Session): string | undefined {
     return this.ctx.sessionProjections.stateOf(session, 'agentPreset') ?? undefined
   }
 
   /**
-   * Serialize image admission and model selection for one Agent.
-   * @param agent - live Agent that owns the serialization chain.
-   * @param operation - asynchronous operation admitted after prior work settles.
-   * @returns the operation result or rejection.
+   * 为一个 Agent 串行化图片接纳与模型选择。
+   * @param agent - 拥有该串行化链的活跃 Agent。
+   * @param operation - 在先前工作落定之后被接纳的异步操作。
+   * @returns 操作结果或拒绝。
    */
   serializeImageAdmission<Value>(agent: Agent, operation: () => Promise<Value>): Promise<Value> {
     const result = (this.imageAdmissionChains.get(agent) ?? Promise.resolve()).then(operation)
@@ -380,9 +378,9 @@ export class ApiSessionAgentController {
   }
 
   /**
-   * Resolve the preset id and pre-publication Agent setup for a create or resume.
-   * @param presetId - requested preset or the configured default when omitted.
-   * @returns the resolved preset identity and Agent setup callback.
+   * 为一次创建或恢复解析预设 id 与发布前 Agent 安装。
+   * @param presetId - 请求的预设，或省略时使用配置的默认值。
+   * @returns 已解析的预设标识与 Agent 安装回调。
    */
   async composeAgent(presetId: string | undefined): Promise<ApiSessionComposition> {
     const presets = this.ctx.get('agentPresets')
@@ -455,7 +453,7 @@ export class ApiSessionAgentController {
     }
   }
 
-  /** @returns the reused Session, a new Session under `sessionId` when none is stored, or a new Session under a minted identity. */
+  /** @returns 被复用的 Session；当该标识下没有存储时为 `sessionId` 下的新 Session，否则为新生成标识下的新 Session。 */
   private async claim(sessionId: SessionId, request: ApiSessionCreateRequest): Promise<Agent> {
     const attached = this.ctx.sessions.get(sessionId)
     const live = this.ctx.agents.get(sessionId)
@@ -499,14 +497,14 @@ export class ApiSessionAgentController {
     } catch (error: unknown) {
       if (error instanceof ApiSessionStartedSinceObserved) return this.createMinted(request.cwd, composition)
       if (!(error instanceof Error) || error.name !== 'SessionAlreadyOwnedError') throw error
-      // Another resume in this process may hold the writer for the Agent it published.
+      // 本进程中的另一次恢复可能持有它所发布 Agent 的写入者。
       return this.ctx.agents.get(sessionId) === undefined
         ? this.createMinted(request.cwd, composition)
         : this.claim(sessionId, request)
     }
   }
 
-  /** @returns the live blank Session under the requested preset, or undefined when it cannot be reused. */
+  /** @returns 所请求预设下的活跃空白 Session，或在其不能被复用时为 undefined。 */
   private async reuseLive(
     live: Agent,
     request: ApiSessionCreateRequest,
@@ -527,7 +525,7 @@ export class ApiSessionAgentController {
     return live
   }
 
-  /** Setup that re-checks blankness under the acquired writer, then records a preset change before publication. */
+  /** 在获取写入者后重新检查空白状态、并在发布前记录预设变更的安装。 */
   private reuseSetup(composition: ApiSessionComposition): AgentSetup {
     return async (agentCtx, agent) => {
       if (!this.isBlank(agent.session)) throw new ApiSessionStartedSinceObserved()
@@ -540,13 +538,13 @@ export class ApiSessionAgentController {
     }
   }
 
-  /** Whether no turn has started, by the predicate the preset registry's `select` enforces. */
+  /** 是否尚未开始任何回合，采用预设注册表 `select` 强制执行的判定。 */
   private isBlank(session: Session): boolean {
     const boundary = this.ctx.sessionProjections.stateOf(session, 'turnBoundary')
     return boundary === undefined || (boundary.openTurnStartSeq === null && boundary.lastTurn === 0)
   }
 
-  /** Without a roster, reuse cannot apply a named preset. */
+  /** 没有名册时，复用无法应用命名预设。 */
   private assertPresetApplicable(sessionId: SessionId, requested: string | undefined): void {
     if (requested === undefined || this.ctx.get('agentPresets') !== undefined) return
     throw new ApiSessionPresetConflict(sessionId, requested)
@@ -587,9 +585,9 @@ export class ApiSessionAgentController {
   }
 
   /**
-   * Read the current Agent preset from an all-projections observation.
-   * @param observation - exact Session observation carrying its projection snapshot.
-   * @returns the current preset, or undefined when the capability is absent.
+   * 从全投影观察读取当前 Agent 预设。
+   * @param observation - 携带其投影快照的精确 Session 观察。
+   * @returns 当前预设，或该能力缺失时为 undefined。
    */
   presetForObservation(observation: SessionObservation): string | undefined {
     if (observation.projections === undefined) {

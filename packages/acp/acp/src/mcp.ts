@@ -1,4 +1,4 @@
-/** Standard ACP MCP-server declarations translated into Agent-scoped DSH MCP clients. */
+/** 将标准 ACP MCP 服务器声明转换为 Agent 作用域的 DSH MCP 客户端。 */
 
 import type { Context } from '@deepseek-ai/cordis'
 import { createHash } from 'node:crypto'
@@ -9,7 +9,7 @@ import * as McpClient from '@deepseek-ai/dsh-mcp-client'
 
 const VALID_SERVER_NAME = /^[A-Za-z0-9_-]{1,32}$/
 
-/** Caller-correctable MCP declaration failure. */
+/** 可由调用方纠正的 MCP 声明失败。 */
 export class AcpMcpConfigError extends Error {
   constructor(message: string) {
     super(message)
@@ -18,10 +18,10 @@ export class AcpMcpConfigError extends Error {
 }
 
 /**
- * Validate and mount one session's complete standard MCP server list before Agent publication.
- * @param agentCtx - unpublished Agent scope that owns the MCP clients and tools.
- * @param servers - stable ACP stdio or HTTP server declarations.
- * @param sessionCwd - canonical primary workspace used by stdio servers.
+ * 在 Agent 发布之前，校验并挂载单个会话的完整标准 MCP 服务器列表。
+ * @param agentCtx - 拥有 MCP 客户端与工具的未发布 Agent 作用域。
+ * @param servers - 稳定的 ACP stdio 或 HTTP 服务器声明。
+ * @param sessionCwd - stdio 服务器使用的规范主工作区。
  */
 export async function mountAcpMcpServers(
   agentCtx: Context,
@@ -32,7 +32,7 @@ export async function mountAcpMcpServers(
   for (const config of configs) await agentCtx.plugin(McpClient, config)
 }
 
-/** Convert the stable stdio/HTTP ACP transports and reject every other transport. */
+/** 转换稳定的 stdio/HTTP ACP 传输，并拒绝其他所有传输。 */
 function resolveMcpConfigs(servers: readonly McpServer[], sessionCwd: string): McpClient.Config[] {
   const names = new Set<string>()
   return servers.map((server, index) => {
@@ -73,14 +73,14 @@ function resolveMcpConfigs(servers: readonly McpServer[], sessionCwd: string): M
   })
 }
 
-/** Convert ordered ACP name/value entries without silently accepting duplicate keys. */
+/** 转换有序的 ACP 名称/值条目，不静默接受重复键。 */
 function entriesToRecord(
   entries: readonly { name: string; value: string }[],
   field: string,
   kind: 'environment' | 'header',
 ): Record<string, string> {
-  // Valid environment and header names include "__proto__"; a null prototype
-  // keeps that entry as data instead of invoking Object.prototype's setter.
+  // 合法的环境变量名与 header 名可以包含 "__proto__"；使用 null 原型
+  // 可让该条目保持为数据，而不会触发 Object.prototype 的 setter。
   const result = Object.create(null) as Record<string, string>
   const names = new Set<string>()
   for (const entry of entries) {
@@ -107,7 +107,7 @@ function entriesToRecord(
   return result
 }
 
-/** Produce a stable DSH tool namespace from ACP's human-readable server name. */
+/** 根据 ACP 中人类可读的服务器名生成稳定的 DSH 工具命名空间。 */
 function normalizeServerName(name: string): string {
   if (name.trim().length === 0 || /[\u0000-\u001f\u007f]/.test(name)) {
     throw new AcpMcpConfigError('mcpServers contains an invalid server name')
@@ -121,7 +121,7 @@ function normalizeServerName(name: string): string {
   return `${slug}_${digest}`.slice(0, 32)
 }
 
-/** Require the stable Streamable HTTP transport URL schemes. */
+/** 要求使用稳定的 Streamable HTTP 传输 URL scheme。 */
 function assertHttpUrl(value: string, field: string): void {
   try {
     const url = new URL(value)
@@ -131,12 +131,12 @@ function assertHttpUrl(value: string, field: string): void {
   }
 }
 
-/** Map the existing MCP provider's schema error into ACP invalid params. */
+/** 将现有 MCP 提供方的 schema 错误映射为 ACP 无效参数错误。 */
 function validateClientConfig(index: number, parse: () => McpClient.Config): McpClient.Config {
   try {
     return parse()
   } catch (error: unknown) {
-    /* v8 ignore next -- Schemastery validation rejects with Error instances. */
+    /* v8 ignore next -- Schemastery 校验以 Error 实例拒绝。 */
     const detail = error instanceof Error ? error.message : String(error)
     throw new AcpMcpConfigError(`mcpServers[${index}] is invalid: ${detail}`)
   }

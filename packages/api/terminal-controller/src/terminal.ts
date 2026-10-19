@@ -1,4 +1,4 @@
-/** One PTY, a bounded terminal emulator and its detachable browser followers. */
+/** 一个 PTY、一个有界终端模拟器，及其可分离的浏览器跟随端。 */
 import { assertNever } from '@deepseek-ai/dsh-util-values'
 import { RemoteError, remoteErrorOf, type RemoteUplinkWindow } from '@deepseek-ai/dsh-typert-protocol'
 import type { Terminal as HeadlessTerminal } from '@xterm/headless'
@@ -12,7 +12,7 @@ import type { TerminalEnvironment, TerminalInput, TerminalFrame, TerminalRetenti
 const requireHeadless = createLazyRequire<typeof import('@xterm/headless')>('@xterm/headless', import.meta.url)
 const requireSerialize = createLazyRequire<typeof import('@xterm/addon-serialize')>('@xterm/addon-serialize', import.meta.url)
 
-/** Process lifetime is independent of follower and component lifetimes. */
+/** 进程生命周期独立于跟随端与组件的生命周期。 */
 export class BrowserTerminal {
   private readonly screen: HeadlessTerminal
   private readonly serializer: Serializer
@@ -20,17 +20,17 @@ export class BrowserTerminal {
   private sequence = 0
   private operations: Promise<unknown> = Promise.resolve()
   private readonly drained: Promise<void>
-  /** Provider completion precedes output drainage and the published exit state. */
+  /** 提供方完成先于输出排空与已发布的退出状态。 */
   private exited = false
   private closing: Promise<void> | undefined
   private retention: TerminalRetention | undefined
   private controller: TerminalFollower | undefined
 
   /**
-   * @param handle - allocated terminal process range.
-   * @param info - initial metadata.
-   * @param scrollback - maximum retained scrollback rows.
-   * @param maxBufferedBytes - per-follower queue cap.
+   * @param handle - 已分配的终端进程范围。
+   * @param info - 初始元数据。
+   * @param scrollback - 保留的回滚行数上限。
+   * @param maxBufferedBytes - 每个跟随端的队列上限。
    */
   constructor(
     private readonly handle: SubprocessTerminalHandle,
@@ -47,11 +47,11 @@ export class BrowserTerminal {
   }
 
   /**
-   * Start monitoring after this allocation is committed to its Session owner.
-   * @param policy - validated Host timing policy.
-   * @param closing - closes the id before any asynchronous termination.
-   * @param closed - removes the exact successfully terminated owner record.
-   * @param failed - diagnostic sink for background cleanup failure.
+   * 在此分配提交给其 Session 拥有者之后开始监控。
+   * @param policy - 已验证的 Host 时序策略。
+   * @param closing - 在任何异步终止之前关闭该 id。
+   * @param closed - 移除恰好成功终止的那条拥有者记录。
+   * @param failed - 后台清理失败时的诊断接收器。
    */
   monitor(policy: TerminalRetentionPolicy, closing: () => void, closed: () => void, failed: (error: unknown) => void): void {
     this.retention = new TerminalRetention(policy, () => this.handle.inspectActivity(), async () => {
@@ -62,9 +62,9 @@ export class BrowserTerminal {
   }
 
   /**
-   * Retain this committed process independently of output attachment.
-   * @param signal - physical window stream lifetime.
-   * @returns its hold acknowledgement and lifetime.
+   * 在独立于输出连接的前提下保留此已提交进程。
+   * @param signal - 物理窗口流的生命周期。
+   * @returns 其持有确认与生命周期。
    */
   retain(signal: AbortSignal): AsyncIterable<TerminalRetentionFrame> {
     if (this.retention === undefined) throw new Error('Terminal has not been committed')
@@ -72,12 +72,12 @@ export class BrowserTerminal {
   }
 
   /**
-   * Attach with exclusive input control; older attachments keep receiving output.
-   * @param input - Gateway-decoded commands; returning its iterator must interrupt pending reads.
-   * @param limits - input byte and PTY dimension limits validated at the Remote boundary.
-   * @param signal - attachment cancellation; never terminates the process.
-   * @param inputWindow - carrier frame capacity; absent for a carrier without an encoded-frame inbox limit.
-   * @returns a screen baseline, output, per-attachment state and ordered command acknowledgements.
+   * 以独占输入控制的方式连接；较早的连接继续接收输出。
+   * @param input - Gateway 解码后的命令；返回其迭代器必须中断挂起的读取。
+   * @param limits - 在 Remote 边界验证的输入字节与 PTY 尺寸限制。
+   * @param signal - 连接取消；绝不终止进程。
+   * @param inputWindow - 载体帧容量；没有编码帧收件箱限制的载体则缺省。
+   * @returns 屏幕基线、输出、每次连接的状态与有序的命令确认。
    */
   async *attach(input: AsyncIterable<TerminalInput>, limits: Pick<TerminalEnvironment, 'maxInputBytes' | 'maxCols' | 'maxRows'>, signal: AbortSignal, inputWindow?: RemoteUplinkWindow): AsyncIterable<TerminalFrame> {
     signal.throwIfAborted()
@@ -104,7 +104,7 @@ export class BrowserTerminal {
         this.controller = undefined
         this.broadcastState()
       }
-      // Gateway's uplink return wakes pending reads before attachment cleanup joins the input pump.
+      // Gateway 的上行流 return 会在连接清理等待输入泵结束之前唤醒挂起的读取。
       await uplink.return?.()
       await commands
     }
@@ -135,7 +135,7 @@ export class BrowserTerminal {
               this.info = { ...this.info, cols: command.cols, rows: command.rows }
               this.broadcastState()
               break
-            /* v8 ignore next -- the Gateway codec validates this closed union. */
+            /* v8 ignore next -- Gateway 编解码器会校验这个封闭联合类型。 */
             default: assertNever(command)
           }
         })
@@ -160,8 +160,8 @@ export class BrowserTerminal {
   }
 
   /**
-   * Publish a display name to every attached view.
-   * @param title - validated user title.
+   * 向每个已连接的视图发布显示名称。
+   * @param title - 已验证的用户标题。
    */
   rename(title: string): void {
     this.info = { ...this.info, title }
@@ -169,16 +169,16 @@ export class BrowserTerminal {
   }
 
   /**
-   * Terminate the complete provider-owned process range before releasing its screen.
-   * @returns after process cleanup and final output drainage; failures remain retryable.
+   * 在释放屏幕之前终止提供方拥有的完整进程范围。
+   * @returns 进程清理与最终输出排空完成后返回；失败仍可重试。
    */
   close(): Promise<void> {
     return this.retention?.close() ?? this.closeProcess()
   }
 
   /**
-   * Stop unattended cleanup scheduling and await final process cleanup.
-   * @returns after terminal and monitor quiescence.
+   * 停止无人值守的清理调度，并等待最终进程清理完成。
+   * @returns 终端与监控都静止后返回。
    */
   dispose(): Promise<void> { return this.retention?.dispose() ?? this.closeProcess() }
 
@@ -205,7 +205,7 @@ export class BrowserTerminal {
 
   private enqueue<T>(operation: () => T | Promise<T>): Promise<T> {
     const pending = this.operations.then(operation)
-    this.operations = pending.catch(() => { /* The caller owns this operation's failure; later cleanup must still run. */ })
+    this.operations = pending.catch(() => { /* 调用方拥有此次操作的失败；后续清理仍必须运行。 */ })
     return pending
   }
 
@@ -214,7 +214,7 @@ export class BrowserTerminal {
     const outcome = this.handle.done.then((value) => { this.exited = true; return { value } }, (error: unknown) => ({ error }))
     try {
       for await (const chunk of this.handle.output) {
-        // Node Readable's iterator is untyped; this provider explicitly emits Buffer chunks.
+        // Node Readable 的迭代器没有类型；此提供方显式产出 Buffer 块。
         const data = decoder.decode(chunk as Buffer, { stream: true })
         await this.output(data)
       }

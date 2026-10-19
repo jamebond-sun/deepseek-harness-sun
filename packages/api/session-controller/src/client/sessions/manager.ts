@@ -1,4 +1,4 @@
-/** Host catalog, durable projection caches, and explicitly retained Client instances. */
+/** Host 目录、持久化投影缓存与显式持有的 Client 实例。 */
 
 import type { SubagentAddress } from '@deepseek-ai/dsh-subagent/client'
 import { SessionSeq, type SessionId, type SessionSeqCursor } from '@deepseek-ai/dsh-session/types'
@@ -17,9 +17,9 @@ import { assertNever } from '@deepseek-ai/dsh-util-values'
 import type { RemoteFailure, RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import type { SessionListEntry, TitledSessionSummary } from './lineage.ts'
 import { flattenLineage } from './lineage.ts'
-// Type-only merge edge: the title domain's client-namespace outlet declares
-// the 'title' projection key this manager projects into list rows (and any
-// useProjection('title') consumer reads). Zero value imports by construction.
+// 纯类型合并边：标题领域的 client 命名空间出口声明了本 manager
+// 投影进列表行的 'title' 投影键（以及任何 useProjection('title')
+// 消费方读取的键）。按构造零值导入。
 import type {} from '@deepseek-ai/dsh-session-title/client'
 import { Notifier } from './notifier.ts'
 import { ProjectionValueStore } from './projection-store.ts'
@@ -32,33 +32,33 @@ function sessionSeqCursor(value: number): SessionSeqCursor {
 }
 
 /**
- * List arrival lifecycle, orthogonal to the pull-activity `state` axis:
- * `pending` (no successful pull yet — an empty items array means "nothing
- * arrived", not "nothing exists") → `ready` (at least one pull landed).
- * Monotone: `ready` never steps back — later pull failures and reconnect
- * re-pulls ride the `state`/`error` axis, which is where failure is modeled
- * (no `error` phase here; that would duplicate `state`).
+ * 列表到达生命周期，与拉取活跃度的 `state` 轴正交：
+ * `pending`（尚无成功拉取 —— 空的 items 数组意味着"没有到达"，
+ * 而不是"不存在任何会话"）→ `ready`（至少一次拉取已落地）。
+ * 单调：`ready` 绝不回退 —— 之后的拉取失败与重连重新拉取
+ * 走 `state`/`error` 轴，失败就建模在那里（此处没有 `error`
+ * 相位；那会重复 `state`）。
  */
 export type SessionListPhase = 'pending' | 'ready'
 
-/** Request-local content hit returned to sidebar search consumers. */
+/** 返回给侧栏搜索消费方的请求局部内容命中。 */
 export interface SessionSearchResultItem {
   sessionId: SessionId
   snippet: string
 }
 
-/** Immutable session-list snapshot for useSessionList. */
+/** 供 useSessionList 使用的不可变 session 列表快照。 */
 export interface SessionListSnapshot {
   items: readonly SessionListEntry[]
   state: 'idle' | 'loading' | 'error'
-  /** Arrival lifecycle (see {@link SessionListPhase}); `state` stays the pull-activity axis. */
+  /** 到达生命周期（见 {@link SessionListPhase}）；`state` 仍是拉取活跃度轴。 */
   phase: SessionListPhase
   error: RemoteFailure | null
   projectionsBySession: Readonly<Record<SessionId, SessionProjectionSnapshot>>
 
 }
 
-/** Shared projection values and the lifecycle of their explicit baseline read. */
+/** 共享投影值与其显式基线读取的生命周期。 */
 export interface SessionProjectionSnapshot {
   readonly values: Readonly<Partial<SessionProjectionMap>>
   readonly state: 'idle' | 'loading' | 'ready' | 'migration-required' | 'error'
@@ -77,35 +77,34 @@ type SessionListMutation =
   | { kind: 'remove'; sessionId: SessionId }
   | { kind: 'status'; sessionId: SessionId; running: boolean; agentAvailable: boolean }
   | { kind: 'activity'; sessionId: SessionId; updatedAt: number }
-  /** Local first-send flip: the sender clears blank without waiting for a host frame. */
+  /** 本地首次发送翻转：发送方不等 host 帧就清除 blank。 */
   | { kind: 'engaged'; sessionId: SessionId }
 
-/** Instance cluster + frame entry + the session list. */
+/** 实例集群 + 帧入口 + session 列表。 */
 export class SessionManager {
   private readonly sessions = new Map<SessionId, Session>()
-  /** In-flight Session disposals remain here after instances leave `sessions`, so manager disposal can await quiescence. */
+  /** 进行中的 Session 释放在实例离开 `sessions` 后仍留在此处，使 manager 释放可等待静息。 */
   private readonly sessionDisposals = new Set<Promise<void>>()
   /**
-   * Accepted/running presentation must survive a later empty-history list
-   * response. Host-asserted running is recorded even before a row, instance, or
-   * address holds the identity — the listing that would hold it may not have
-   * landed yet — while the client-local acceptance callback requires a current
-   * holder, because it can arrive from a replaced or already-dropped Session.
+   * 已接纳/running 的呈现状态必须在稍后的空历史列表响应中存活。
+   * Host 断言的 running 在任何行、实例或地址持有该身份之前就被记录
+   * —— 本应持有它的列表可能尚未落地 —— 而客户端本地接纳回调需要
+   * 当前持有者，因为它可能来自已被替换或已丢弃的 Session。
    */
   private readonly engagedSessions = new Set<SessionId>()
   private disposed = false
-  /** Per-session projection value stores, retained independently of instance arrival (the
-   *  title-snapshot precedent, generalized): push frames land here whether or not the Session
-   *  is instantiated (list rows read the 'title' key), and an instantiated Session adopts the
-   *  same store so history-baseline seeding and frames converge on one row set. */
+  /** 每 session 的投影值存储，独立于实例到达而保持（
+   *  title-snapshot 先例的泛化）：推送帧无论 Session 是否实例化都落在此处
+   *  （列表行读取 'title' 键），而实例化的 Session 采纳
+   *  同一存储，使历史基线播种与帧汇聚到同一行集合。 */
   private readonly projectionStores = new Map<SessionId, ProjectionValueStore>()
   private summaries: SessionSummary[] = []
   private listState: 'idle' | 'loading' | 'error' = 'idle'
-  /** Arrival phase; the pending → ready edge fires on the first successful pull (see SessionListPhase). */
+  /** 到达相位；pending → ready 边沿在首次成功拉取时触发（见 SessionListPhase）。 */
   private listPhase: SessionListPhase = 'pending'
   private listError: RemoteFailure | null = null
   private listInflight: Promise<void> | null = null
-  /** Active list request's mutation log; its identity also fences completion after reconnect. */
+  /** 活跃列表请求的变更日志；其身份也在重连后守护完成。 */
   private listMutations: SessionListMutation[] | null = null
   private readonly addresses = new Map<SessionId, SubagentAddress>()
   private readonly projectionLoads = new Map<SessionId, ProjectionLoad>()
@@ -113,24 +112,24 @@ export class SessionManager {
 
 
   private listSnapshotCache: SessionListSnapshot
-  /** Entry-identity cache (reference stability): list rebuilds reuse the previous entry
-   *  object when every field matches — wire refreshes mint all-new summary objects, so identity
-   *  must be recovered by value or every SessionListItem memo misses on every refresh. */
+  /** 条目身份缓存（引用稳定性）：当每个字段都匹配时，列表重建复用
+   *  先前的条目对象 —— wire 刷新铸造全新 summary 对象，因此必须按值
+   *  恢复身份，否则每个 SessionListItem 的 memo 在每次刷新都失效。 */
   private entryCache = new Map<SessionId, SessionListEntry>()
   private itemsCache: readonly SessionListEntry[] = []
   private readonly notifier = new Notifier(() => {
     this.listSnapshotCache = this.buildListSnapshot()
   })
 
-  /** @param remote - generated Remote namespaces used by catalog and history readers. */
+  /** @param remote - 目录与历史读取器使用的生成 Remote 命名空间。 */
   constructor(private readonly remote: SessionRemotes) {
     this.listSnapshotCache = this.buildListSnapshot()
   }
 
   /**
-   * Resolve an acquisition target without materializing a Session.
-   * @param target - known identity or durable direct-parent address.
-   * @returns the resolved identity with its explicit or catalog-derived history route installed.
+   * 解析一个获取目标而不物化 Session。
+   * @param target - 已知身份或持久化直接父级地址。
+   * @returns 解析出的身份，并安装其显式或目录派生的历史路由。
    */
   resolveTarget(target: SessionTarget): SessionId {
     const id = typeof target === 'string' ? target : target.childSessionId
@@ -152,10 +151,10 @@ export class SessionManager {
   }
 
   /**
-   * Resolve an address for breadcrumb navigation without retaining transport authority.
-   * @param sessionId - possible child id in received Session metadata.
-   * @returns A retained address, then a catalog address, then an unknown-mode address
-   *   from a listed subagent header; undefined without that evidence.
+   * 为面包屑导航解析一个地址，而不持有传输层权威。
+   * @param sessionId - 收到的 Session 元数据中可能的子级 id。
+   * @returns 持有中的地址，然后是目录地址，再是从已列出
+   *   subagent 头部得到的未知模式地址；没有该证据时返回 undefined。
    */
   subagentAddress(sessionId: SessionId): SubagentAddress | undefined {
     const retained = this.addresses.get(sessionId)
@@ -180,13 +179,13 @@ export class SessionManager {
     }
   }
 
-  // ---- Instance management ----
+  // ---- 实例管理 ----
 
   /**
-   * Withdraw an exact Client instance before running its teardown callbacks.
-   * @param sessionId - identity to withdraw.
-   * @param expected - instance being released; a replacement is left untouched.
-   * @returns completion of the detached instance's stream teardown.
+   * 在运行清理回调之前撤回一个精确的 Client 实例。
+   * @param sessionId - 要撤回的身份。
+   * @param expected - 正在释放的实例；替换实例保持不动。
+   * @returns 已分离实例的流清理完成。
    */
   drop(sessionId: SessionId, expected: Session): Promise<void> {
     const session = this.sessions.get(sessionId)
@@ -198,8 +197,8 @@ export class SessionManager {
   }
 
   /**
-   * Stop catalog requests and dispose every resident Session.
-   * @returns once catalog requests and every Session stream have stopped.
+   * 停止目录请求并释放每个常驻 Session。
+   * @returns 在目录请求与每个 Session 流都停止之后。
    */
   async dispose(): Promise<void> {
     this.disposed = true
@@ -234,19 +233,19 @@ export class SessionManager {
   }
 
   /**
-   * Lazy build: return the existing instance or construct one (no auto-open —
-   * the reference allocator opens history after binding the scope).
-   * New instances reconcile retained metadata before returning.
-   * @param sessionId - the session to get.
-   * @returns the resident instance.
+   * 惰性构建：返回既有实例或构造一个（不自动打开 ——
+   * 引用分配器在绑定 scope 之后打开历史）。
+   * 新实例在返回前调和已保持的元数据。
+   * @param sessionId - 要获取的 session。
+   * @returns 常驻实例。
    */
   get(sessionId: SessionId): Session {
     let session = this.sessions.get(sessionId)
     if (session === undefined) {
       session = this.createSession(sessionId)
       this.sessions.set(sessionId, session)
-      // Sync the running and blank bits from the list snapshot into the new
-      // instance (consistency when the list precedes open).
+      // 把列表快照中的 running 与 blank 位同步进新
+      // 实例（列表先于打开时的一致性）。
       const summary = this.summaries.find(s => s.sessionId === sessionId)
       if (summary !== undefined) {
         session.handleBlank(this.effectiveBlank(summary))
@@ -256,12 +255,12 @@ export class SessionManager {
         const child = address === undefined ? undefined : this.projectionStores.get(address.parentSessionId)?.values().subagentCatalog
           ?.find(entry => entry.id === sessionId)
         if (child !== undefined && child.mode !== 'external') {
-          // A catalogued child exists only after its delegated session has
-          // durable history, even though child rows do not carry `blank`.
+          // 已编目子级只有在其受委派 session 拥有
+          // 持久化历史之后才存在，尽管子级行不携带 `blank`。
           session.handleBlank(false)
           session.handleRunning(false)
         } else {
-          // Retained metadata may have notified before this Session existed.
+          // 已保持元数据可能在本 Session 存在之前通知过。
           session.handleBlank(true)
         }
       }
@@ -279,11 +278,11 @@ export class SessionManager {
         address,
         ...parentAvailable === undefined ? {} : { parentAvailable },
       }),
-      // The sender's local first-send flip mirrors into the list row so the
-      // session surfaces (lists filter on blank) before any host frame lands.
+      // 发送方的本地首次发送翻转镜像进列表行，使 session 展示面
+      // （列表按 blank 过滤）在任何 host 帧落地之前可见。
       onEngaged: (engaged) => {
         if (this.disposed || !this.retainedIds(this.summaries).has(engaged.sessionId)) return
-        // An identity already on the ledger needs no second row mutation.
+        // 已在账本上的身份不需要第二次行变更。
         if (!this.engagedSessions.has(engaged.sessionId)) {
           this.engagedSessions.add(engaged.sessionId)
           this.recordMutation({ kind: 'engaged', sessionId: engaged.sessionId })
@@ -299,10 +298,10 @@ export class SessionManager {
   }
 
   /**
-   * Identities an engagement may still belong to: the given list rows, resident
-   * Session instances, and retained child addresses.
-   * @param summaries - list rows of the caller's snapshot.
-   * @returns the retained identity set.
+   * 一次接可能仍归属的身份：给定列表行、常驻
+   * Session 实例与已持有的子级地址。
+   * @param summaries - 调用方快照的列表行。
+   * @returns 已保持的身份集合。
    */
   private retainedIds(summaries: readonly SessionSummary[]): Set<SessionId> {
     const retained = new Set(summaries.map(summary => summary.sessionId))
@@ -312,22 +311,22 @@ export class SessionManager {
   }
 
   /**
-   * Forget one engagement that no retained identity holds.
-   * @param sessionId - identity whose engagement may be dropped.
-   * @param retained - identities from {@link retainedIds} for the caller's snapshot.
+   * 遗忘一次没有任何已保持身份持有的接纳。
+   * @param sessionId - 其接可能被丢弃的身份。
+   * @param retained - 调用方快照的 {@link retainedIds} 身份。
    */
   private pruneEngagement(sessionId: SessionId, retained: ReadonlySet<SessionId>): void {
     if (!retained.has(sessionId)) this.engagedSessions.delete(sessionId)
   }
 
-  /** Resident per-session projection store (create-on-demand; outlives instantiation). */
+  /** 常驻的每 session 投影存储（按需创建；生命周期长于实例化）。 */
   private projectionStore(sessionId: SessionId): ProjectionValueStore {
     let store = this.projectionStores.get(sessionId)
     if (store === undefined) {
       store = new ProjectionValueStore()
       const projections = store
       store.subscribeAny(() => {
-        // Newer history or control metadata corrects a resident Session's stale list hint.
+        // 更新的历史或控制元数据纠正常驻 Session 的过期列表提示。
         if (projections.values().sessionListMetadata?.blank === false) {
           this.sessions.get(sessionId)?.handleBlank(false)
         }
@@ -339,9 +338,9 @@ export class SessionManager {
   }
 
   /**
-   * Read projections without starting migration; retry failed or migration-deferred reads.
-   * @param sessionId - Session to inspect without opening its conversation.
-   * @returns completion of the current or newly started read.
+   * 读取投影而不启动迁移；重试失败或因迁移被推迟的读取。
+   * @param sessionId - 要检查的 Session，不打开其会话内容。
+   * @returns 当前读取或新启动读取的完成。
    */
   refreshProjections(sessionId: SessionId): Promise<void> {
     const existing = this.projectionInflight.get(sessionId)
@@ -370,7 +369,7 @@ export class SessionManager {
                 assertNever(value, 'session projections result')
             }
           } else if (store.values() === initialValues) {
-            // A later frame proves existence independently of an earlier missing read.
+            // 后来的帧独立于较早的缺失读取证明存在。
             store.clear()
           }
           this.projectionLoads.set(sessionId, {
@@ -407,9 +406,9 @@ export class SessionManager {
     }
   }
 
-  // ---- List API ----
+  // ---- 列表 API ----
 
-  /** Full refresh via session.list (single-flight within one Host generation). */
+  /** 经由 session.list 的完整刷新（单个 Host 代际内单飞）。 */
   refreshList(): Promise<void> {
     if (this.listInflight !== null) return this.listInflight
     this.listState = 'loading'
@@ -426,7 +425,7 @@ export class SessionManager {
           const baseline: SessionSummary[] = this.listPhase === 'pending'
             ? [...result.value.items]
             : mergeOrderedBaseline(established, result.value.items, summary => summary.sessionId)
-          // A removal supersedes running observed in the pull, including after re-addition.
+          // 一次移除取代拉取中观察到的 running，包括重新添加之后。
           const removedSincePull = new Set<SessionId>()
           for (const mutation of mutations) {
             if (mutation.kind === 'remove') removedSincePull.add(mutation.sessionId)
@@ -436,23 +435,23 @@ export class SessionManager {
           }
           const summaries = mutations.reduce(applyMutation, baseline)
           this.summaries = summaries
-          // A full list can remove identities without a removal frame.
+          // 完整列表可以在没有移除帧的情况下移除身份。
           const retained = this.retainedIds(summaries)
           for (const sessionId of this.engagedSessions) this.pruneEngagement(sessionId, retained)
           this.listState = 'idle'
           this.listPhase = 'ready'
           this.updateParentAvailability()
-          // Resident Sessions and list rows share one display blank, reconciled with the metadata projection.
+          // 常驻 Session 与列表行共享一个展示 blank，并与元数据投影调和。
           for (const s of this.summaries) {
             const session = this.sessions.get(s.sessionId)
             if (session === undefined) continue
             session.handleBlank(this.effectiveBlank(s))
             session.handleRunning(s.running)
           }
-          // Land each row's projection block in the per-session value store
-          // (cold titles surface without opening the session). A list block is
-          // partial — only the keys its source holds — so an absent key never
-          // clears; how the present keys merge depends on the block's kind.
+          // 把每行的投影块落进每 session 的值存储
+          // （冷标题无需打开 session 即可呈现）。列表块是
+          // 部分的 —— 只有其来源持有的键 —— 因此缺席的键绝不
+          // 清除；当前键如何合并取决于块的 kind。
           for (const s of result.value.items) {
             if (s.projections !== undefined) this.applyListBlock(s.sessionId, s.projections)
           }
@@ -477,11 +476,11 @@ export class SessionManager {
   }
 
   /**
-   * Search visible session message content without adding transient query
-   * state to the list snapshot.
-   * @param query - non-blank literal phrase.
-   * @param signal - cancellation for superseded UI queries.
-   * @returns the Host result or a folded transport error.
+   * 搜索可见的 session 消息内容，而不向列表快照添加瞬态
+   * 查询状态。
+   * @param query - 非空字面短语。
+   * @param signal - 被取代 UI 查询的取消信号。
+   * @returns Host 结果或折叠后的传输层错误。
    */
   async search(
     query: string,
@@ -499,11 +498,11 @@ export class SessionManager {
   }
 
   /**
-   * Contract session.create; on success merge into summaries immediately (no
-   * wait for the next refresh). A created session is blank by definition
-   * (entity birth precedes the first message).
-   * @param opts - target workspace or working directory, an optional blank Session to reuse, and an optional Agent preset.
-   * @returns the create result, naming the Session the Host created or reused.
+   * 对应 contract session.create；成功时立即合并进 summaries（
+   * 不等待下一次刷新）。创建的 session 按定义是空白的
+   * （实体诞生先于第一条消息）。
+   * @param opts - 目标 workspace 或工作目录、可选的待复用空白 Session，以及可选的 Agent preset。
+   * @returns 创建结果，指明 Host 创建或复用的 Session。
   */
   async create(
     opts: {
@@ -528,9 +527,9 @@ export class SessionManager {
       } })
     } else {
       const publishedSessionId = workspaceAttachSessionId(result.error)
-      // Publication precedes attachment. The error's id is a real Session,
-      // so expose it immediately as Ungrouped while the caller keeps the
-      // prompt buffer and decides whether to retry attachment.
+      // 发布先于附接。错误里的 id 是一个真实 Session，
+      // 因此立即把它暴露为 Ungrouped，调用方保留提示词缓冲并
+      // 决定是否重试附接。
       if (publishedSessionId !== undefined) {
         this.recordMutation({ kind: 'placeholder', summary: { agentAvailable: true,
           sessionId: publishedSessionId,
@@ -544,14 +543,14 @@ export class SessionManager {
   }
 
   /**
-   * Contract session.fork; on success merge the child into summaries
-   * immediately (same synchronous-addressability guarantee as create).
-   * Blankness starts provisionally true so the authoritative Host summary can
-   * preserve it or lower it after an exact cut before the first `turn/start`;
-   * lineage rides parentSessionId. A child published before Workspace
-   * attachment fails is also reconciled into the list.
-   * @param opts - source session, optional exact inclusive boundary seq, and permission to start migration.
-   * @returns the fork result (the child session id).
+   * 对应 contract session.fork；成功时立即把子级合并进
+   * summaries（与 create 相同的同步可寻址性保证）。
+   * 空白初始暂定为 true，让权威的 Host 摘要得以保留它，或在
+   * 首个 `turn/start` 之前的精确切割后把它降低；谱系经由
+   * parentSessionId 承载。在 Workspace 附接失败之前已发布的子级
+   * 也会被调和进列表。
+   * @param opts - 源 session、可选的精确包含边界 seq，以及启动迁移的许可。
+   * @returns 分叉结果（子级 session id）。
    */
   async fork(
     opts: { sessionId: SessionId; atSeq?: SessionSeq; allowMigration?: boolean },
@@ -576,10 +575,10 @@ export class SessionManager {
   }
 
   /**
-   * Rename a Session and update its title projection without opening its history.
-   * @param sessionId - Session to rename.
-   * @param title - raw title text for Host normalization.
-   * @returns the accepted title and event position, or the Remote failure.
+   * 重命名一个 Session 并更新其标题投影，而不打开其历史。
+   * @param sessionId - 要重命名的 Session。
+   * @param title - 供 Host 规范化的原始标题文本。
+   * @returns 已接纳标题与事件位置，或 Remote 失败。
    */
   async rename(sessionId: SessionId, title: string): Promise<RemoteResult<SessionRenameValue>> {
     const result = await this.remote.session.rename({ sessionId, title })
@@ -590,15 +589,15 @@ export class SessionManager {
   }
 
   /**
-   * Merge a Host summary, replacing live state and filling missing metadata.
-   * Local create/fork placeholders only fill metadata on an existing row.
+   * 合并一个 Host 摘要，替换实时状态并填充缺失元数据。
+   * 本地 create/fork 占位只填充既有行的元数据。
    */
   private mergeSummary(summary: SessionSummary): void {
     this.recordMutation({ kind: 'upsert', summary })
     this.updateParentAvailability()
   }
 
-  /** Apply immediately and retain for replay when a list response is in flight. */
+  /** 立即应用并在列表响应进行中时保留以供重放。 */
   private recordMutation(mutation: SessionListMutation): void {
     if (this.disposed) return
     this.listMutations?.push(mutation)
@@ -606,20 +605,20 @@ export class SessionManager {
     this.notifier.markDirty()
   }
 
-  // ---- Subscription API (for useSessionList) ----
+  // ---- 订阅 API（供 useSessionList 使用） ----
 
   /**
-   * uSES subscription entry for useSessionList.
-   * @param listener - change callback.
-   * @returns the unsubscribe function.
+   * useSessionList 的 uSES 订阅入口。
+   * @param listener - 变更回调。
+   * @returns 取消订阅函数。
    */
   subscribe(listener: () => void): () => void {
     return this.notifier.subscribe(listener)
   }
 
   /**
-   * Cached list snapshot (rebuilt lazily when dirty with no listeners).
-   * @returns the cached reference (stable until the next flush).
+   * 缓存的列表快照（脏且无监听器时惰性重建）。
+   * @returns 缓存的引用（直到下一次刷新前保持稳定）。
    */
   getListSnapshot(): SessionListSnapshot {
     this.notifier.ensureFresh()
@@ -627,19 +626,19 @@ export class SessionManager {
   }
 
   /**
-   * Read cached projection values for a Session that may exist only in a loaded subagent catalog.
-   * @param sessionId - Session whose control or history baseline supplied projections.
-   * @returns current values, or undefined before any projection store exists.
+   * 读取一个可能仅存在于已加载 subagent 目录中的 Session 的缓存投影值。
+   * @param sessionId - 其控制或历史基线供出了投影的 Session。
+   * @returns 当前值，或在任何投影存储存在前返回 undefined。
    */
   projectionValues(sessionId: SessionId): Readonly<Partial<SessionProjectionMap>> | undefined {
     return this.projectionStores.get(sessionId)?.values()
   }
 
-  // ---- Live control and Host-event sinks ----
+  // ---- 实时控制与 Host 事件槽 ----
 
   /**
-   * Apply a complete control baseline or one later replacement frame.
-   * @param frame - baseline or live control replacement from Session Controller.
+   * 应用完整的控制基线或一个稍后的替换帧。
+   * @param frame - 来自 Session Controller 的基线或实时控制替换。
    */
   handleControlFrame(frame: SessionControlFrame): void {
     if (frame.type === 'baseline') {
@@ -661,8 +660,8 @@ export class SessionManager {
   }
 
   /**
-   * Apply one Session-list addition forwarded through `ctx.remote.$on`.
-   * @param summary - current Host summary for the added Session.
+   * 应用一条经 `ctx.remote.$on` 转发的 Session 列表新增。
+   * @param summary - 新增 Session 的当前 Host 摘要。
    */
   handleSessionAdded(summary: SessionSummary): void {
     this.mergeSummary(summary)
@@ -672,12 +671,12 @@ export class SessionManager {
   }
 
   /**
-   * Merge one list-surface projection block by the sequence space it declares.
-   * A `sequenced` block came from the Host's live registry for an attached
-   * Session, so each key lands under higher-seq-wins against that Session's
-   * baselines and frames. A `cached` block was viewed from the persisted
-   * checkpoint by a header-only listing: its watermark is not comparable with
-   * this connection's seqs, so it only fills keys no sequenced row holds.
+   * 按列表层投影块声明的序列空间合并一个块。
+   * `sequenced` 块来自 Host 对已附接 Session 的实时注册表，
+   * 因此每个键按更高 seq 优先落地，与该 Session 的基线和帧比较。
+   * `cached` 块来自仅头部的列表对持久化检查点的一次视图：
+   * 其水位线与本连接的 seq 不可比较，因此只填充没有
+   * sequenced 行持有的键。
    */
   private applyListBlock(sessionId: SessionId, block: SessionProjectionHints): void {
     const store = this.projectionStore(sessionId)
@@ -696,8 +695,8 @@ export class SessionManager {
   }
 
   /**
-   * Apply one Session removal forwarded through `ctx.remote.$on`.
-   * @param sessionId - removed Session identity.
+   * 应用一条经 `ctx.remote.$on` 转发的 Session 移除。
+   * @param sessionId - 被移除的 Session 身份。
    */
   handleSessionRemoved(sessionId: SessionId): void {
     const durableSubagent = this.subagentAddress(sessionId) !== undefined
@@ -723,9 +722,9 @@ export class SessionManager {
   }
 
   /**
-   * Apply one live Agent running-state change.
-   * @param sessionId - Session whose Agent state changed.
-   * @param running - current Agent running state.
+   * 应用一次实时 Agent running 状态变更。
+   * @param sessionId - 其 Agent 状态变更的 Session。
+   * @param running - 当前 Agent running 状态。
    */
   handleSessionStatus(sessionId: SessionId, running: boolean): void {
     if (!this.disposed && running) this.engagedSessions.add(sessionId)
@@ -735,28 +734,28 @@ export class SessionManager {
   }
 
   /**
-   * Advance Session-list activity from one user-authored durable message.
-   * @param sessionId - Session whose activity changed.
-   * @param updatedAt - durable message timestamp.
+   * 从一条用户编写的持久化消息推进 Session 列表活跃度。
+   * @param sessionId - 其活跃度变更的 Session。
+   * @param updatedAt - 持久化消息时间戳。
    */
   handleSessionActivity(sessionId: SessionId, updatedAt: number): void {
     this.recordMutation({ kind: 'activity', sessionId, updatedAt })
   }
 
   /**
-   * Surface one live Agent failure on an already-materialized Session.
-   * @param sessionId - Session whose Agent failed.
-   * @param message - caller-visible failure description.
+   * 把一次实时 Agent 失败呈现在已物化的 Session 上。
+   * @param sessionId - 其 Agent 失败的 Session。
+   * @param message - 调用方可见的失败描述。
    */
   handleSessionError(sessionId: SessionId, message: string): void {
     this.sessions.get(sessionId)?.handleAgentError(message)
   }
 
   /**
-   * Repair one re-established Host-event generation with queryable baselines.
-   * Discard old projection cuts before new queries, including cold Sessions
-   * absent from the process-local control baseline.
-   * Opened Session follow streams resume independently through API Gateway.
+   * 用可查询基线修复一个重建的 Host 事件代际。
+   * 在新查询之前丢弃旧的投影切口，包括不在进程本地
+   * 控制基线中的冷 Session。
+   * 已打开的 Session 跟随流经由 API Gateway 独立恢复。
    */
   handleConnected(): void {
     for (const store of this.projectionStores.values()) store.clear()
@@ -776,15 +775,15 @@ export class SessionManager {
 
   private buildListSnapshot(): SessionListSnapshot {
     const merged: TitledSessionSummary[] = this.summaries.map((summary) => {
-      // List rows read the generic 'title' projection key (host-computed unit
-      // value; there is no dedicated title frame).
+      // 列表行读取通用的 'title' 投影键（host 计算的单元
+      // 值；没有专用的标题帧）。
       const projectionStore = this.projectionStores.get(summary.sessionId)
       const title = projectionStore?.get('title')
       const projectionValues = projectionStore?.values()
       const metadata = projectionValues?.sessionListMetadata
       return {
         ...summary,
-        // Cached list hints can precede a history opening or control update.
+        // 缓存的列表提示可能先于历史打开或控制更新。
         blank: this.effectiveBlank(summary) && metadata?.blank !== false,
         updatedAt: Math.max(summary.updatedAt, metadata?.lastPromptAt ?? 0),
         ...(typeof title === 'string' && title !== '' ? { title } : {}),
@@ -824,7 +823,7 @@ export class SessionManager {
   }
 }
 
-/** Apply one list mutation without deriving display order. */
+/** 应用一个列表变更而不推导展示顺序。 */
 function applyMutation(summaries: readonly SessionSummary[], mutation: SessionListMutation): SessionSummary[] {
   switch (mutation.kind) {
     case 'upsert':
@@ -833,8 +832,8 @@ function applyMutation(summaries: readonly SessionSummary[], mutation: SessionLi
       if (existing === undefined) return [mutation.summary, ...summaries]
       const filled: SessionSummary = {
         ...existing,
-        // Blank only lowers: a stale true (session-added racing the local
-        // first send) never re-hides an already-surfaced session.
+        // blank 只能降低：过期的 true（session-added 与本地
+        // 首次发送竞速）绝不会重新隐藏已呈现的 session。
         blank: existing.blank && mutation.summary.blank,
         ...(mutation.kind === 'upsert' ? {
           agentAvailable: mutation.summary.agentAvailable,
@@ -857,7 +856,7 @@ function applyMutation(summaries: readonly SessionSummary[], mutation: SessionLi
     case 'remove':
       return summaries.filter(summary => summary.sessionId !== mutation.sessionId)
     case 'status':
-      // Running converts display state; it does not establish durable history.
+      // running 转换展示状态；它不确立持久化历史。
       return summaries.map(summary => summary.sessionId === mutation.sessionId
         && (summary.running !== mutation.running
           || summary.agentAvailable !== mutation.agentAvailable || (mutation.running && summary.blank))
@@ -875,7 +874,7 @@ function applyMutation(summaries: readonly SessionSummary[], mutation: SessionLi
   }
 }
 
-/** Temporary source-plane bridge while the Host contract and client project build independently. */
+/** Host contract 与 client 投影独立构建期间的临时 source-plane 桥。 */
 function workspaceAttachSessionId(error: RemoteFailure): SessionId | undefined {
   return error.code === 'session/workspace-attach-failed' ? error.details.sessionId : undefined
 }

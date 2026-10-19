@@ -1,4 +1,4 @@
-/** Session-specific adapters for Gateway-owned Remote stream lifecycles. */
+/** 针对 Gateway 持有的 Remote 流生命周期的 Session 专用适配器。 */
 
 import type {} from '@deepseek-ai/dsh-api-session-controller/remote'
 import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
@@ -34,19 +34,19 @@ export {
   SESSION_SEARCH_SNIPPET_MAX_CODE_POINTS,
 } from '../types.ts'
 
-/** Pagination fields bound to an already-addressed Session journal. */
+/** 绑定到一个已寻址 Session 日志的分页字段。 */
 export type ClientSessionPageRequest = Omit<SessionPageRequest, 'address' | 'throughSeq'>
 
-/** Complete generated `ctx.remote.session` namespace. */
+/** 完整的生成 `ctx.remote.session` 命名空间。 */
 export type SessionRemote = ClientRemote['session']
 
-/** Opening metadata carried only by a follow snapshot, never by loadOlder pages. */
+/** 仅由跟随快照携带、绝不由 loadOlder 页携带的打开元数据。 */
 interface SessionJournalPage extends SessionPage {
   readonly projections?: SessionProjectionBaseline
   readonly assistantStream?: SessionAssistantStreamBaseline
 }
 
-/** One complete publication from the Session journal stream. */
+/** Session 日志流的一次完整发布。 */
 export type SessionJournalChange =
   | {
     readonly type: 'replace' | 'prepend'
@@ -80,37 +80,37 @@ function toSessionJournalChange(
 type SessionControlBaselineFrame = Extract<SessionControlFrame, { type: 'baseline' }>
 type SessionControlDeltaFrame = Exclude<SessionControlFrame, SessionControlBaselineFrame>
 
-/** Gateway-owned control snapshot stream configured for Session frames. */
+/** 为 Session 帧配置的 Gateway 持有控制快照流。 */
 export type SessionControlStream = RemoteSnapshotStream<
   SessionControlBaselineFrame,
   SessionControlDeltaFrame
 >
 
-/** Domain sinks used by the Host-wide Session control stream. */
+/** 全局 Session 控制流使用的领域槽。 */
 export interface SessionControlStreamOptions {
-  /** Apply a complete baseline or one later update. */
+  /** 应用完整基线或一个稍后的更新。 */
   readonly accept: (frame: SessionControlFrame) => void
-  /** Observe a retryable carrier loss before reconnection. */
+  /** 在重连之前观察一次可重试的载体丢失。 */
   readonly carrierFailed?: (error: RemoteStreamCarrierError) => void
-  /** Publish a terminal business or protocol failure. */
+  /** 发布一次终结性的业务或协议失败。 */
   readonly failed: (error: unknown) => void
 }
 
-/** Domain sinks used by one addressed Session event journal. */
+/** 一个已寻址 Session 事件日志使用的领域槽。 */
 export interface SessionEventStreamOptions {
-  /** Apply one complete event-window change. */
+  /** 应用一次完整的事件窗口变更。 */
   readonly publish: (change: SessionJournalChange) => void
-  /** Observe a retryable carrier loss before reconnection. */
+  /** 在重连之前观察一次可重试的载体丢失。 */
   readonly carrierFailed?: (error: RemoteStreamCarrierError) => void
-  /** Publish a terminal stream, page, or protocol failure after opening. */
+  /** 在打开之后发布一次终结性的流、页或协议失败。 */
   readonly failed: (error: unknown) => void
 }
 
 /**
- * Create the Host-wide Session control snapshot stream.
- * @param remote - generated Session namespace and Gateway stream factory.
- * @param options - Session state destinations.
- * @returns an unstarted stream owned by the Client Session runtime.
+ * 创建全局 Session 控制快照流。
+ * @param remote - 生成的 Session 命名空间与 Gateway 流工厂。
+ * @param options - Session 状态目的地。
+ * @returns 一个未启动的、由 Client Session 运行时拥有的流。
  */
 export function createSessionControlStream(
   remote: SessionRemotes,
@@ -133,7 +133,7 @@ export function createSessionControlStream(
   })
 }
 
-/** Gateway-owned event journal bound to one ordinary or direct-subagent Session address. */
+/** 绑定到一个普通或直接子级 subagent Session 地址的 Gateway 持有事件日志。 */
 export class SessionEventStream extends RemoteJournalStream<
   SessionJournalPage,
   SessionHistoryRecord,
@@ -142,9 +142,9 @@ export class SessionEventStream extends RemoteJournalStream<
   SessionAssistantStreamFrame
 > {
   /**
-   * @param remote - generated Session namespace and Gateway stream factory.
-   * @param address - durable ordinary-Session or direct-subagent address.
-   * @param options - Session event-window destinations.
+   * @param remote - 生成的 Session 命名空间与 Gateway 流工厂。
+   * @param address - 持久化的普通 Session 或直接子级 subagent 地址。
+   * @param options - Session 事件窗口目的地。
    */
   constructor(
     private readonly remote: SessionRemotes,

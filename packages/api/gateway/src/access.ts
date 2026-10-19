@@ -1,7 +1,7 @@
 /**
- * Resource resolution for non-owner access decisions: the resources one call
- * or one forwarded event touches, read from Typert-validated arguments before
- * any lookup or Context resolves them.
+ * 用于非 owner 访问决策的资源解析：一次调用或一个转发事件
+ * 所触及的资源，在任何查找或上下文解析它们之前，
+ * 从 Typert 校验过的参数中读取。
  * @module @deepseek-ai/dsh-api-gateway/src/access
  */
 
@@ -14,28 +14,28 @@ import type {
 
 const GLOBAL: readonly RemoteAccessResource[] = Object.freeze([Object.freeze({ kind: 'global' })])
 
-/** Resource ids one source produced for a kind, or `invalid` for a malformed value. */
+/** 一个源为某个种类产出的资源 id，值格式错误时为 `invalid`。 */
 type ResourceIds = readonly unknown[] | 'invalid'
 
 /**
- * Resolve the resources one call touches. For each resource kind, a
- * `resources` reader of the method wins; otherwise every lookup parameter
- * whose provider declares the kind contributes its wire resource id, and so
- * does the Context identity of a Context method whose Host adapter declares
- * the kind; otherwise the kind's default field registered in
- * `typert.resources` is read from a top-level argument or, failing that,
- * from the first object argument.
- * @param typert - registry holding default fields, lookup providers, and Host Context adapters.
- * @param readers - the method's `resources` readers, or `undefined` when it declares none.
- * @param descriptor - receiver, parameter order, lookups, and cancellation slot of the method.
- * @param args - named arguments matched to the descriptor's field set: JSON
- *   arguments as their Typert codecs validated them, lookup and Context
- *   identities as wire values.
- * @param signal - value placed in the cancellation slot of the positional arguments.
- * @returns the touched resources, the global resource alone when none;
- *   `undefined` when the resources are invalid: a reader throws or returns
- *   an empty list, a default field holds an array, or a resource id is not a
- *   non-empty string.
+ * 解析一次调用所触及的资源。对每种资源种类：
+ * 方法的 `resources` 读取器优先；
+ * 否则，其提供方声明了该种类的每个查找参数贡献其
+ * wire 资源 id，Host 适配器声明了该种类的 Context 方法的上下文
+ * 身份同样如此；否则，从顶层参数读取该种类注册在
+ * `typert.resources` 中的默认字段，
+ * 读取失败时再从首个对象参数读取。
+ * @param typert - 持有默认字段、查找提供方与 Host 上下文适配器的注册表。
+ * @param readers - 方法的 `resources` 读取器，方法未声明时为 `undefined`。
+ * @param descriptor - 方法的接收者、参数顺序、查找与取消槽位。
+ * @param args - 与描述符字段集匹配的具名参数：JSON 参数保持其
+ *   Typert 编解码器校验后的形态，
+ *   查找与上下文身份保持 wire 值。
+ * @param signal - 放入位置参数取消槽位的值。
+ * @returns 触及的资源，没有时仅为全局资源；
+ *   资源无效时为 `undefined`：读取器抛出异常或返回空列表、
+ *   默认字段是数组，
+ *   或资源 id 不是非空字符串。
  */
 export function callResources(
   typert: Pick<TypertRegistryContract, 'contexts' | 'lookups' | 'resources'>,
@@ -44,11 +44,11 @@ export function callResources(
   args: Readonly<Record<string, unknown>>,
   signal: AbortSignal,
 ): readonly RemoteAccessResource[] | undefined {
-  // Each later source replaces an earlier one for its kind and keeps the kind's position.
+  // 每个后来的源替换其种类上较早的源，并保留该种类的位置。
   const sources = new Map<string, () => ResourceIds>()
   for (const { kind, field } of typert.resources.entries()) {
     sources.set(kind, () => {
-      // A default field names exactly one resource id; only a reader may return several.
+      // 默认字段恰好指名一个资源 id；只有读取器可以返回多个。
       const id = defaultFieldId(descriptor, args, field)
       return Array.isArray(id) ? 'invalid' : id === undefined ? [] : [id]
     })
@@ -74,14 +74,14 @@ export function callResources(
 }
 
 /**
- * Resolve the resources one forwarded event notification touches. An event
- * carries every resource it declares, so a reader returning `undefined`
- * makes the notification invalid instead of a global one.
- * @param readers - the event entry's declared readers, or `undefined` when it declares none.
- * @param args - the event's validated JSON arguments, passed to each reader as its positional arguments.
- * @returns the global resource alone without readers, including an empty
- *   reader set; otherwise the touched resources; `undefined` when the
- *   resources are invalid: a resource id is missing or malformed.
+ * 解析一个转发事件通知所触及的资源。事件携带其声明的全部资源，
+ * 因此读取器返回 `undefined` 会使通知无效，
+ * 而不是视为全局资源。
+ * @param readers - 事件条目声明的读取器，未声明时为 `undefined`。
+ * @param args - 事件校验后的 JSON 参数，作为位置参数传给每个读取器。
+ * @returns 没有读取器（包括空读取器集合）时仅为全局资源；
+ *   否则为触及的资源；资源无效时为 `undefined`：
+ *   资源 id 缺失或格式错误。
  */
 export function eventResources(
   readers: Readonly<Record<string, TypertResourceReader>> | undefined,
@@ -97,10 +97,10 @@ export function eventResources(
 }
 
 /**
- * The resource ids lookup parameters and the Context identity name, per
- * resource kind: the Context identity first, then lookup parameters in order.
- * An optional lookup parameter the call omits names no resource id; the
- * Context identity is required.
+ * 按资源种类给出查找参数与上下文身份指名的资源 id：
+ * 上下文身份在前，随后按顺序是查找参数。
+ * 调用省略的可选查找参数不指名资源 id；
+ * 上下文身份是必需的。
  */
 function lookupResources(
   typert: Pick<TypertRegistryContract, 'contexts' | 'lookups'>,
@@ -129,13 +129,13 @@ function lookupResources(
   return ids
 }
 
-/** Run one reader with spread positional arguments: `undefined` yields `absent`, a list names several and must not be empty. */
+/** 以展开的位置参数运行一个读取器：`undefined` 产出 `absent`，列表指名多个且不得为空。 */
 function read(reader: TypertResourceReader, args: readonly unknown[], absent: ResourceIds): ResourceIds {
   let value: unknown
   try {
     value = reader(...args)
   } catch {
-    // Any reader error means it cannot name its resources, so they are invalid.
+    // 读取器的任何错误都意味着它无法指名其资源，因此这些资源无效。
     return 'invalid'
   }
   if (value === undefined) return absent
@@ -143,18 +143,18 @@ function read(reader: TypertResourceReader, args: readonly unknown[], absent: Re
   return value.length === 0 ? 'invalid' : value
 }
 
-/** Append one kind's resource ids; false when any is malformed. */
+/** 追加一个种类的资源 id；任一格式错误则返回 false。 */
 function collect(resources: RemoteAccessResource[], kind: string, ids: ResourceIds): boolean {
   if (ids === 'invalid') return false
   for (const id of ids) {
     if (typeof id !== 'string' || id.length === 0) return false
-    // Kinds come from registrations, lookups, Context adapters, and reader keys, all typed by the merged resource map.
+    // 种类来自注册、查找、上下文适配器与读取器键，全部由合并的资源映射约束类型。
     resources.push({ kind, id } as RemoteAccessResource)
   }
   return true
 }
 
-/** The default field: a top-level argument, else that field of the first object argument. */
+/** 默认字段：顶层参数，否则为首个对象参数上的该字段。 */
 function defaultFieldId(
   descriptor: Pick<InvocationDescriptor, 'parameters'>,
   args: Readonly<Record<string, unknown>>,

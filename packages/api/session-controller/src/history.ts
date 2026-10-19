@@ -1,4 +1,4 @@
-/** Cold Session history pagination and live-event source. */
+/** 冷 Session 历史分页与实时事件来源。 */
 
 import type { Context } from '@deepseek-ai/cordis'
 import { Deque } from '@deepseek-ai/dsh-deque'
@@ -38,14 +38,14 @@ import { SessionAssistantStreamAccumulator } from './assistant-stream.ts'
 const DEFAULT_MAX_MESSAGES = 50
 const MESSAGE_TYPES = new Set(['user/message', 'assistant/message'])
 
-/** Implements cold-safe history operations delegated by the Session Controller. */
+/** 实现 Session Controller 委托的冷安全历史操作。 */
 export class SessionHistoryController {
   private readonly closeFollowers = new Set<() => void>()
   private readonly assistantStreams = new Map<SessionId, SessionAssistantStreamAccumulator>()
 
   /**
-   * @param ctx - Host context carrying Session query and projection services.
-   * @param promote - starts ordinary Session activation after snapshot delivery.
+   * @param ctx - 携带 Session 查询与投影服务的 Host 上下文。
+   * @param promote - 在快照投递之后启动普通 Session 激活。
    */
   constructor(
     private readonly ctx: Context,
@@ -69,10 +69,10 @@ export class SessionHistoryController {
   }
 
   /**
-   * Read one message-aligned history page without activating an Agent.
-   * @param request - durable address and backwards-page cursor.
-   * @param signal - caller cancellation for persistence reads.
-   * @returns a contiguous event page.
+   * 读取一个按消息对齐的历史页，不激活 Agent。
+   * @param request - 持久化地址与向后页游标。
+   * @param signal - 持久化读取的调用方取消。
+   * @returns 一个连续的事件页。
    */
   async page(request: SessionPageRequest, signal: AbortSignal): Promise<SessionPage> {
     validatePageRequest(request)
@@ -112,10 +112,10 @@ export class SessionHistoryController {
   }
 
   /**
-   * Follow events appended after an initial cursor on one durable address.
-   * @param request - durable address and last committed sequence already held by the caller.
-   * @param signal - stream cancellation owned by the Remote carrier.
-   * @returns a complete opening snapshot followed by gap-free durable events and opted-in assistant frames.
+   * 跟随一个持久化地址上在初始游标之后追加的事件。
+   * @param request - 持久化地址与调用方已持有的最后已提交序列。
+   * @param signal - 由 Remote 载体拥有的流取消。
+   * @returns 完整的开场快照，其后是无间隙的持久化事件与选择加入的 assistant 帧。
    */
   async *follow(request: SessionFollowRequest, signal: AbortSignal): AsyncIterable<SessionFollowFrame> {
     validateHistoryWindow(request)
@@ -150,9 +150,9 @@ export class SessionHistoryController {
     }, { global: true })
     const disposeCreated = this.ctx.on('session/created', (session) => {
       if (session.id !== target) return
-      // Constructor seed events have no session/event notification. Normally
-      // only the end-seed suffix is new; if persistence advanced after the
-      // opening observation, replay everything beyond that snapshot cursor.
+      // 构造函数种子事件没有 session/event 通知。通常只有
+      // 末尾种子后缀是新的；如果持久化在开场观察之后又前进了，
+      // 则重放该快照游标之后的所有内容。
       // oxlint-disable-next-line typescript/no-deprecated -- Existing Session history read; migration deferred.
       const suffix = session.snapshotEvents(snapshotCursor === undefined
         ? session.firstLiveSeq
@@ -185,10 +185,9 @@ export class SessionHistoryController {
       const assistantStream = request.assistantStream === true
         ? this.assistantStreams.get(target)?.snapshot() ?? { revision: 0 }
         : undefined
-      // The accumulator snapshot and this watermark are synchronous. Frames
-      // through the cut are represented or superseded by that baseline,
-      // including larger revisions from a retired Agent; later revision
-      // resets reach Client continuity validation.
+      // 累加器快照与此水位线是同步的。切点之前的帧
+      // 由该基线表示或取代，包括来自已退役 Agent 的更大修订；
+      // 更晚的修订重置会交给客户端连续性验证处理。
       const assistantStreamOrdinalCut = assistantStreamOrdinal
       yield {
         type: 'snapshot',
@@ -297,7 +296,7 @@ function projectionBlock(
 ): SessionProjectionBaseline {
   return {
     asOfSeq: snapshot.asOfSeq,
-    // Projection definitions validate whole JSON values before snapshot publication.
+    // 投影定义在快照发布之前验证完整的 JSON 值。
     values: snapshot.values as SessionProjectionValues,
   }
 }
@@ -426,7 +425,7 @@ function paginate(
   return { events: events.slice(cut, end), hasMore: cut > 0 }
 }
 
-/** Translate current logical Session metadata to the browser wire. */
+/** 将当前逻辑 Session 元数据转换为浏览器 wire 形式。 */
 function wireHeader(header: SessionHeader): SessionWireHeader {
   return { ...header }
 }
@@ -434,12 +433,12 @@ function wireHeader(header: SessionHeader): SessionWireHeader {
 function entryFor(event: SessionEvent): SessionEventEntry {
   return {
     type: 'event',
-    // Session.append validates and freezes event data as JSON before publication.
+    // Session.append 在发布之前将事件数据验证并冻结为 JSON。
     event: event as unknown as SessionWireEvent,
   }
 }
 
-/** Encode one bounded logical page without changing its pagination cut. */
+/** 编码一个有界的逻辑页，不改变其分页切点。 */
 function pageRecords(events: readonly SessionEvent[]): SessionHistoryRecord[] {
   return events.map(entryFor)
 }

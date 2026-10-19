@@ -1,18 +1,17 @@
-/** Per-job observation generations: anchor, coalesced output, terminal status. */
+/** 每 job 的观察生成：锚点、合并后的输出、终结 status。 */
 
 import type { JobId } from '@deepseek-ai/dsh-jobs/brand'
 import type { JobChunk, JobRegistry, JobStatus, JobView } from '@deepseek-ai/dsh-jobs'
 import type { JobFollowFrame, JobFollowRequest } from './types.ts'
 import { OutputWaiter, sleep } from './wake.ts'
 
-/** Cadence and framing bounds for one observation generation. */
+/** 一次观察生成的节奏与组帧上限。 */
 export interface ObserveJobOptions {
-  /** Coalescing window after a wake before reading, in milliseconds. */
+  /** wake 之后到读取之前的合并窗口，单位毫秒。 */
   readonly flushMs: number
   /**
-   * Soft byte budget per `output` frame. Accumulated chunks flush once the
-   * budget is met; one chunk larger than the budget ships whole (the
-   * registry's retention cap is the hard bound on any single chunk).
+   * 每个 `output` 帧的软字节预算。累计 chunk 一达到预算就冲刷；超过预算的
+   * 单个 chunk 整块发送（registry 的保留上限是任何单个 chunk 的硬上限）。
    */
   readonly maxFrameBytes: number
 }
@@ -22,21 +21,18 @@ function isTerminal(status: JobStatus): boolean {
 }
 
 /**
- * Stream one job's retained output from an absolute offset: one `opened`
- * anchor, coalesced `output` frames as the ring advances, then one terminal
- * `status` after the settled job is drained, after which the generation
- * closes normally. A removal announced mid-generation (the owner's teardown)
- * closes it with the removed job's terminal projection instead of a failed
- * read. Reads are non-consuming — the model-facing cursor and
- * notice state never observe them; reconnecting callers resume by passing
- * the last frame's `next` as `from`. The request's session is the fenced
- * read's caller: the registry rejects a job the session cannot see and an
- * unknown job.
- * @param registry - the live job registry.
- * @param request - target job, owning session, and optional resume offset.
- * @param options - cadence and framing bounds.
- * @param signal - generation cancellation owned by the Remote stream carrier.
- * @returns the observation frame sequence for one generation.
+ * 从绝对偏移量开始流式输出一个 job 的保留输出：一个 `opened` 锚点，随环形
+ * 缓冲推进而来的合并 `output` 帧，然后在落定的 job 排空之后一个终结
+ * `status`，此后生成正常关闭。生成中途宣布的移除（owner 的清理）会以被
+ * 移除 job 的终结投影关闭它，而不是以一次失败的读取。读取是非消费性的
+ * ——面向模型的游标与通知状态从不观察它们；重连的调用方把上一帧的
+ * `next` 作为 `from` 传入即可恢复。请求中的 session 是围栏读取的调用方：
+ * registry 会拒绝该 session 看不到的 job 与未知的 job。
+ * @param registry - 活动中的 job registry。
+ * @param request - 目标 job、拥有 session 与可选的恢复偏移量。
+ * @param options - 节奏与组帧上限。
+ * @param signal - 由 Remote 流载体持有的本次生成取消信号。
+ * @returns 一次生成的观察帧序列。
  */
 export async function* observeJobOutput(
   registry: JobRegistry,
@@ -48,16 +44,15 @@ export async function* observeJobOutput(
     throw new Error(`invalid observe offset: expected a non-negative safe integer, got ${JSON.stringify(request.from)}`)
   }
   signal.throwIfAborted()
-  // The brand is nominal typing only; the wire boundary stamps it here rather
-  // than value-importing the registry package's constructor.
+  // 品牌仅作名义类型用；wire 边界在此加盖品牌，而不是值导入 registry 包
+  // 的构造函数。
   const id = String(request.jobId) as JobId
   const waiter = new OutputWaiter()
-  // A removal announced during the generation: the owner's teardown settled
-  // and dropped the record, so the projection it announced is the last word
-  // and the read after the flush window would only find an unknown id.
+  // 生成期间宣布的移除：owner 的清理已落定并删除了记录，因此它宣布的投影
+  // 就是最终结论，而冲刷窗口之后的读取只会找到未知 id。
   let removed: JobView | undefined
-  // Subscribe before the first read so an append between the anchor read and
-  // the wait cannot be missed.
+  // 在首次读取前订阅，这样锚点读取与等待之间的
+  // 追加就不会被错过。
   const unsubscribe = registry.events.subscribe({ owners: 'all' }, (event) => {
     const changed = event.type === 'output' ? event.id : event.job.id
     if (changed !== id) return
@@ -84,7 +79,7 @@ export async function* observeJobOutput(
         return
       }
       await waiter.wait(signal)
-      // Let a burst accumulate so producer chatter becomes bounded frames.
+      // 让突发累积，使生产者的嘈杂输出成为有界帧。
       await sleep(options.flushMs, signal)
     }
   } finally {
@@ -92,7 +87,7 @@ export async function* observeJobOutput(
   }
 }
 
-/** Split one read into frames along the soft per-frame byte budget. */
+/** 按每帧软字节预算把一次读取切分为多帧。 */
 function* outputFrames(
   chunks: readonly JobChunk[],
   next: number,

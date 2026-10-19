@@ -1,7 +1,6 @@
 /**
- * Durable projection state for the two loop-owned surface messages the system
- * prompt plugin forms: the system prompt (surface node 0 and any in-history
- * replacement) and the dynamic runtime-context snapshot.
+ * 系统提示词插件形成的两个循环拥有的表面消息的持久投影状态：
+ * 系统提示词（表面节点 0 及任何历史内替换）和动态运行时上下文快照。
  * @module @deepseek-ai/dsh-agent-loop/runtime-context
  */
 
@@ -28,44 +27,43 @@ function textOf(message: Message): string | undefined {
   return message.content.length === 1 && block?.type === 'text' ? block.text : undefined
 }
 
-/** One uncommitted system-prompt surface operation for request admission or reconciliation. */
+/** 一个未提交的系统提示词表面操作，用于请求接纳或对账。 */
 export interface SystemPromptCommit {
-  /** Rendered prompt or empty content: an empty head records no prompt; empty tails are dormant. */
+  /** 已渲染的提示词或空内容：空头不记录提示词；空尾部处于休眠。 */
   message: SystemMessage
-  /** `append` for a new system node, otherwise a replacement of one surviving system node. */
+  /** 新系统节点用 `append`，否则替换一个仍存活的系统节点。 */
   intent: SurfaceIntent<'system/message'>
 }
 
-/** The request-series facts one prompt decision is made under. */
+/** 单个提示词决策所依据的请求序列事实。 */
 export interface SystemPromptDecisionInput {
-  /** Whether the prepared route for this attempt reads a later `system` message as the effective prompt. */
+  /** 本次尝试的准备路由是否读取后续的 `system` 消息作为有效提示词。 */
   inHistory: boolean
   /**
-   * Whether prompt admission must consolidate: a pre-step listener declared a
-   * new series, the surface changed since the last request, or assembled tools
-   * changed on a route without tool-update support.
+   * 提示词接纳是否必须合并：pre-step 监听器声明了新序列、
+   * 表面自上次请求以来发生了变化，或在不支持工具更新的路由上
+   * 组装的工具发生了变化。
    */
   startsSeries: boolean
 }
 
-/** Committed events from the newest backward; the restore scans stop at the first match. */
+/** 从最新向后的已提交事件；恢复扫描在首个匹配处停止。 */
 function eventsNewestFirst(session: Session): readonly SessionEvent[] {
   // oxlint-disable-next-line typescript/no-deprecated -- Existing Session history read; migration deferred.
   return session.snapshotEvents().toReversed()
 }
 
 /**
- * Decides how a rendered system prompt reaches the surface without owning the
- * commit. The first prompt, even empty, reserves surface node 0.
- * A capable continuing series appends changed nonempty text after the
- * cached history. An incapable route, broken series, or cleared prompt instead
- * normalizes the first system node and empties later active nodes. Dormant empty
- * tails do not supply effective text or require repeated replacements.
+ * 决定已渲染的系统提示词如何到达表面，而不拥有提交。
+ * 第一个提示词即使为空也会保留表面节点 0。
+ * 具备能力的延续序列会在缓存的历史之后追加已变化的非空文本。
+ * 无能力的路由、断裂的序列或已清空的提示词则改为将第一个系统节点规范化
+ * 并清空后续活跃节点。休眠的空尾部不提供有效文本，也不需要重复替换。
  */
 export class SystemPromptProjection {
   constructor(private readonly session: Session) {}
 
-  /** The surviving `system/message` nodes in surface order. */
+  /** 按表面顺序排列的仍存活的 `system/message` 节点。 */
   private systemNodes(): { seq: SessionSeq; text: string | undefined }[] {
     const nodes: { seq: SessionSeq; text: string | undefined }[] = []
     for (const seq of this.session.surface.nodes) {
@@ -80,10 +78,10 @@ export class SystemPromptProjection {
   }
 
   /**
-   * Reconcile effective text and retained nodes with the prepared route and series.
-   * @param rendered - the fully rendered system prompt; `''` when none is active.
-   * @param input - the route capability and series facts for this step.
-   * @returns ordered per-node updates; an empty list means no update is needed.
+   * 将有效文本和保留节点与准备好的路由和序列对账。
+   * @param rendered - 完整渲染的系统提示词；未激活任何提示词时为 `''`。
+   * @param input - 本步骤的路由能力和序列事实。
+   * @returns 按顺序排列的逐节点更新；空列表表示无需更新。
    */
   project(rendered: string, input: SystemPromptDecisionInput): SystemPromptCommit[] {
     const nodes = this.systemNodes()
@@ -110,15 +108,15 @@ export class SystemPromptProjection {
   }
 }
 
-/** Tracks the last retained runtime-context snapshot without owning its commit. */
+/** 跟踪最近保留的运行时上下文快照，而不拥有其提交。 */
 export class RuntimeContextProjection {
-  /** `undefined` means no snapshot ever existed; `null` means none is retained. */
+  /** `undefined` 表示从未存在过快照；`null` 表示没有保留任何快照。 */
   private retained: { seq: SessionSeq; text: string | undefined } | null | undefined
 
   /**
-   * Restore projection state once, then follow authoritative session events.
-   * @param ctx - agent-scoped event context.
-   * @param session - session receiving projected messages.
+   * 恢复一次投影状态，然后跟随权威的会话事件。
+   * @param ctx - agent 范围的事件上下文。
+   * @param session - 接收投影消息的会话。
    */
   constructor(ctx: Context, session: Session) {
     const surface = new Set(session.surface.nodes)
@@ -144,10 +142,10 @@ export class RuntimeContextProjection {
   }
 
   /**
-   * Create an uncommitted snapshot only when the retained value differs.
-   * @param current - fully rendered dynamic context.
-   * @param sections - named contributions that formed the current snapshot.
-   * @returns a candidate user message, or `undefined` when no update is needed.
+   * 仅当保留值不同时创建未提交的快照。
+   * @param current - 完整渲染的动态上下文。
+   * @param sections - 构成当前快照的具名贡献。
+   * @returns 候选的用户消息，无需更新时为 `undefined`。
    */
   project(current: string, sections: readonly ContextSnapshotSection[]): UserMessage | undefined {
     if (this.retained === undefined && current.length === 0) return
@@ -155,7 +153,7 @@ export class RuntimeContextProjection {
     if (this.retained?.text === snapshot) return
     return createUserMessage({
       content: [{ type: 'text', text: snapshot }],
-      // The cleared marker has no contributions left to attribute.
+      // 已清空标记没有剩余需要归属的贡献。
       source: sections.length === 0
         ? { kind: SOURCE }
         : { kind: SOURCE, form: 'snapshot', sections },

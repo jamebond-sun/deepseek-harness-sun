@@ -1,4 +1,4 @@
-/** Shared projection of the live LLM registry into the browser model catalog. */
+/** 将活跃 LLM 注册表共享投影到浏览器模型目录。 */
 
 import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
@@ -12,10 +12,10 @@ import type {
 } from './types.ts'
 
 /**
- * Build the browser model catalog without requiring a Session.
- * @param ctx - Host context carrying the live LLM registry.
- * @param defaultSelection - deployment default used before a Session selects a model.
- * @returns successful non-empty provider groups and isolated provider failures.
+ * 在不需要 Session 的情况下构建浏览器模型目录。
+ * @param ctx - 携带活跃 LLM 注册表的 Host 上下文。
+ * @param defaultSelection - 在 Session 选择模型之前使用的部署默认值。
+ * @returns 成功的非空提供方分组与相互隔离的提供方失败。
  */
 export async function buildModelCatalog(
   ctx: Context,
@@ -72,10 +72,10 @@ export async function buildModelCatalog(
 }
 
 /**
- * Check a GUI selection against the current available provider catalog.
- * @param ctx - Host LLM registry.
- * @param selection - stored or explicitly requested selection.
- * @returns whether the exact model is currently advertised as available.
+ * 将 GUI 选择与当前可用的提供方目录进行核对。
+ * @param ctx - Host LLM 注册表。
+ * @param selection - 已存储或显式请求的选择。
+ * @returns 该精确模型当前是否被声明为可用。
  */
 export async function modelAvailable(ctx: Context, selection: ModelSelection): Promise<boolean> {
   if (!ctx.llm.listProviders().some(provider => provider.id === selection.provider)) return false
@@ -90,9 +90,9 @@ export async function modelAvailable(ctx: Context, selection: ModelSelection): P
 }
 
 /**
- * Check configured provider API-key references independently of model availability.
- * @param ctx - Host registry, settings, and credential services.
- * @returns whether any API-key provider has a configured credential.
+ * 独立于模型可用性检查已配置的提供方 API 密钥引用。
+ * @param ctx - Host 注册表、设置与凭据服务。
+ * @returns 是否有任何 API 密钥提供方配置了凭据。
  */
 export async function hasProviderApiKey(ctx: Context): Promise<boolean> {
   const settings = ctx.get('settings')

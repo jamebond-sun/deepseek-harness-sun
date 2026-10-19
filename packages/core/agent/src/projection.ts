@@ -3,7 +3,7 @@ import type {} from '@deepseek-ai/dsh-session-projection'
 
 declare module '@deepseek-ai/dsh-session-projection/types' {
   interface SessionProjectionStateMap {
-    /** The agent session's open/last turn and step boundary facts (whole value). */
+    /** agent session 的打开/最新 turn 与 step 边界事实（整值）。 */
     turnBoundary: TurnBoundaryProjection
   }
 }

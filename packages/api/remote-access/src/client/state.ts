@@ -1,17 +1,17 @@
 /**
- * React-free Client access state: the latest `remoteAccess/follow` snapshot
- * and identity-stable boolean sources per resource and action.
+ * 不依赖 React 的 Client 访问状态：最新的 `remoteAccess/follow` 快照，
+ * 以及按资源与动作划分的身份稳定布尔源。
  * @module @deepseek-ai/dsh-api-remote-access/src/client/state
  */
 
 import type { HostObservable } from '@deepseek-ai/dsh-client-ui-slots'
 import type { RemoteAccessFrame, RemoteAccessGrant, RemoteAccessResource } from '../types.ts'
 
-/** Actions allowed per resource identity, for one declared resource kind. */
+/** 一个已声明资源种类下、按资源身份划分的允许动作。 */
 type KindGrants = ReadonlyMap<string, ReadonlySet<string>>
 
 type AccessSnapshot =
-  /** No baseline, or a non-owner snapshot stream failed: every answer is false. */
+  /** 无 baseline，或非 owner 快照流已失败：每个回答均为 false。 */
   | { readonly kind: 'closed' }
   | { readonly kind: 'owner' }
   | {
@@ -26,14 +26,14 @@ const CLOSED: AccessSnapshot = Object.freeze({ kind: 'closed' })
 const OWNER_SNAPSHOT: AccessSnapshot = Object.freeze({ kind: 'owner' })
 const GLOBAL_KEY = '\u0000global'
 
-/** The opening frame of a snapshot generation. */
+/** 一个快照代的开场帧。 */
 export type Baseline = Extract<RemoteAccessFrame, { type: 'baseline' }>
 
 /**
- * Validate the opening baseline an index injection row assigned to the page.
- * @param value - the injected global; `undefined` when the page carries none.
- * @returns the baseline, or `undefined` when none was injected.
- * @throws TypeError when the injected value is not a baseline frame.
+ * 校验 index 注入行赋给页面的开场 baseline。
+ * @param value - 注入的全局值；页面未携带时为 `undefined`。
+ * @returns baseline，未注入任何值时为 `undefined`。
+ * @throws 注入值不是 baseline 帧时抛出 TypeError。
  */
 export function parseInjectedBaseline(value: unknown): Baseline | undefined {
   if (value === undefined) return undefined
@@ -62,14 +62,13 @@ function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
 }
 
 /**
- * Snapshot owner for one Client generation. Sources are cached per
- * `(kind, id, action)` so Hook bindings keep their identity; each source
- * computes its boolean from the current snapshot.
+ * 一个 Client 代的快照持有者。源按 `(kind, id, action)` 缓存，
+ * 使 Hook 绑定保持其身份；每个源都从当前快照计算其布尔值。
  */
 export class ClientAccessState {
   private snapshot: AccessSnapshot = CLOSED
 
-  /** @param initial - the page's injected opening baseline; without one every answer is false until a baseline arrives. */
+  /** @param initial - 页面注入的开场 baseline；没有它时每个回答均为 false，直到 baseline 到达。 */
   constructor(initial?: Baseline) {
     if (initial !== undefined) this.replace(initial)
   }
@@ -77,28 +76,28 @@ export class ClientAccessState {
   private readonly sources = new Map<string, HostObservable<boolean>>()
 
   /**
-   * Answer for one action on the global resource.
-   * @param action - endpoint action the caller may invoke.
-   * @returns identity-stable boolean source.
+   * global 资源上一个动作的回答。
+   * @param action - 调用方可发起的端点动作。
+   * @returns 身份稳定的布尔源。
    */
   global(action: string): HostObservable<boolean> {
     return this.cached(GLOBAL_KEY, '', action)
   }
 
   /**
-   * Answer for one action on one resource of a declared kind.
-   * @param kind - declared resource kind.
-   * @param id - resource identity.
-   * @param action - endpoint action the caller may invoke.
-   * @returns identity-stable boolean source.
+   * 一个已声明种类的资源上一个动作的回答。
+   * @param kind - 已声明的资源种类。
+   * @param id - 资源身份。
+   * @param action - 调用方可发起的端点动作。
+   * @returns 身份稳定的布尔源。
    */
   resource(kind: string, id: string, action: string): HostObservable<boolean> {
     return this.cached(kind, id, action)
   }
 
   /**
-   * Replace the snapshot from one generation's opening frame.
-   * @param frame - owner or non-owner baseline.
+   * 以一代的开场帧替换快照。
+   * @param frame - owner 或非 owner 的 baseline。
    */
   replace(frame: Baseline): void {
     if (frame.owner) {
@@ -107,7 +106,7 @@ export class ClientAccessState {
     }
     let global: ReadonlySet<string> = new Set()
     const resources = new Map<string, Map<string, ReadonlySet<string>>>()
-    // The baseline is unpublished, so its maps are filled in place.
+    // baseline 尚未发布，因此其映射就地填充。
     for (const { resource, actions } of frame.grants) {
       if (resource.kind === 'global') {
         global = new Set(actions)
@@ -124,8 +123,8 @@ export class ClientAccessState {
   }
 
   /**
-   * Apply one increment of the current generation.
-   * @param frame - `upsert` or `remove`.
+   * 应用当前代的一个增量。
+   * @param frame - `upsert` 或 `remove`。
    */
   update(frame: Exclude<RemoteAccessFrame, { type: 'baseline' }>): void {
     const current = this.snapshot
@@ -143,12 +142,12 @@ export class ClientAccessState {
     }
   }
 
-  /** Whether the current snapshot is the owner's, whose answers never depend on the stream. */
+  /** 当前快照是否为 owner 的快照，其回答从不依赖流。 */
   get owner(): boolean {
     return this.snapshot.kind === 'owner'
   }
 
-  /** The stream failed terminally: the owner keeps every answer; a non-owner's answers become false. */
+  /** 流已终态失败：owner 保留每个回答；非 owner 的回答变为 false。 */
   unavailable(): void {
     if (this.snapshot.kind !== 'owner') this.publish(CLOSED)
   }

@@ -1,69 +1,67 @@
 /**
- * Enforced JSON Schema subset shared by tool outputs, generated PTC mode
- * types, subagents, and workflows. The subset accepts any JSON root, an
- * annotation-only schema for unconstrained JSON, one scalar `type`, object
- * `properties`/`required`/boolean `additionalProperties`, array `items`,
- * type-correct scalar `enum`/`const`, and exact-one `oneOf`.
+ * 工具输出、生成的 PTC 模式类型、subagent 与工作流共享的受强制 JSON Schema
+ * 子集。该子集接受任意 JSON 根、用于无约束 JSON 的仅注解模式、单个标量
+ * `type`、对象的 `properties`/`required`/布尔 `additionalProperties`、数组的
+ * `items`、类型正确的标量 `enum`/`const`，以及恰好匹配一个的 `oneOf`。
  *
- * Unsupported or misplaced keywords reject rather than being accepted without
- * enforcement. Consumers that require an object root apply
- * {@link assertObjectJsonSchema} before accepting input.
+ * 不支持或放错位置的关键字会被拒绝，而不是不经强制就接受。需要对象根的
+ * 消费方在接受输入前应用 {@link assertObjectJsonSchema}。
  * @module dsh-tools/json-schema
  */
 
 import { HarnessError } from '@deepseek-ai/dsh-llm'
 import { assertNever, isJsonValue, type JsonValue } from '@deepseek-ai/dsh-util-values'
 
-/** Scalar JSON values supported by `enum` and `const`. */
+/** `enum` 与 `const` 支持的标量 JSON 值。 */
 export type JsonSchemaScalar = string | number | boolean | null
 
-/** Single-type keywords accepted by the enforced subset. */
+/** 受强制子集接受的单类型关键字。 */
 export type JsonSchemaType = 'object' | 'array' | 'string' | 'number' | 'integer' | 'boolean' | 'null'
 
-/** Scalar-only schema types accepted by literal constraints. */
+/** 字面量约束接受的仅标量模式类型。 */
 type JsonSchemaScalarType = Exclude<JsonSchemaType, 'object' | 'array'>
 
 /**
- * One raw JSON Schema node in the enforced subset. The optional fields express
- * the external wire schema; {@link assertSupportedJsonSchema} rejects invalid
- * combinations before a caller treats the node as trusted.
+ * 受强制子集中的一个原始 JSON Schema 节点。可选字段表达外部 wire 模式；
+ * {@link assertSupportedJsonSchema} 在调用方将节点视为可信之前拒绝无效
+ * 组合。
  */
 export interface JsonSchemaNode {
-  /** Omit with no constraints for any JSON value, or use `oneOf`. */
+  /** 无任何约束时省略，接受任意 JSON 值；或使用 `oneOf`。 */
   type?: JsonSchemaType
-  /** Exactly one branch must validate; at least two branches are required. */
+  /** 必须恰好有一个分支通过校验；至少需要两个分支。 */
   oneOf?: JsonSchemaNode[]
-  /** Nested property schemas (`type: 'object'` only). */
+  /** 嵌套属性模式（仅 `type: 'object'`）。 */
   properties?: Record<string, JsonSchemaNode>
-  /** Required property names; each must appear in `properties`. */
+  /** 必填属性名；每个都必须出现在 `properties` 中。 */
   required?: string[]
-  /** `false` rejects undeclared keys; absent/`true` follows JSON Schema's open default. */
+  /** `false` 拒绝未声明的键；缺省或 `true` 遵循 JSON Schema 的开放默认。 */
   additionalProperties?: boolean
-  /** Item schema (`type: 'array'` only); absent accepts any JSON item. */
+  /** 项模式（仅 `type: 'array'`）；缺省则接受任意 JSON 项。 */
   items?: JsonSchemaNode
-  /** Allowed values for a scalar node. */
+  /** 标量节点允许的值。 */
   enum?: JsonSchemaScalar[]
-  /** The single allowed value for a scalar node. */
+  /** 标量节点唯一允许的值。 */
   const?: JsonSchemaScalar
-  /** Annotation, ignored for validation. */
+  /** 注解，校验时忽略。 */
   description?: string
-  /** Annotation, ignored for validation. */
+  /** 注解，校验时忽略。 */
   title?: string
-  /** Annotation, ignored for validation but required to be lossless JSON. */
+  /** 注解，校验时忽略，但必须为无损 JSON。 */
   default?: JsonValue
-  /** Annotation, ignored for validation but required to be lossless JSON. */
+  /** 注解，校验时忽略，但必须为无损 JSON。 */
   examples?: JsonValue
 }
 
-/** A consumer-constrained object-rooted schema. */
+/** 消费方约束的以对象为根的模式。 */
 export type ObjectJsonSchema = JsonSchemaNode & { type: 'object' }
 
 /**
- * Thrown when a raw schema falls outside the enforced subset. `violations`
- * lists every offending path instead of stopping at the first author error.
+ * 原始模式超出受强制子集时抛出。`violations` 列出每个违规路径，而不是在
+ * 第一个作者错误处停止。
  */
 export class JsonSchemaError extends HarnessError {
-  /** Individual schema violations in walk order. */
+  /** 按遍历顺序排列的各个模式违规。 */
   readonly violations: string[]
 
   constructor(violations: string[]) {
@@ -87,7 +85,7 @@ const ANNOTATION_KEYWORDS = new Set(['description', 'title', 'default', 'example
 const SCHEMA_TYPES: readonly JsonSchemaType[] = ['object', 'array', 'string', 'number', 'integer', 'boolean', 'null']
 
 /* jscpd:ignore-start -- this realm boundary mirrors the session-owned lossless-JSON intrinsic test */
-/** Whether a realm-owned intrinsic prototype is backed by its native constructor. */
+/** 某 realm 拥有的内在原型是否由其原生构造函数支撑。 */
 function hasIntrinsicConstructor(prototype: object, name: 'Array' | 'Object'): boolean {
   const descriptor = Object.getOwnPropertyDescriptor(prototype, 'constructor')
   const constructor: unknown = descriptor?.value
@@ -101,16 +99,15 @@ function hasIntrinsicConstructor(prototype: object, name: 'Array' | 'Object'): b
   }
 }
 
-/** Whether a candidate is one realm's intrinsic `Object.prototype`. */
+/** 候选值是否是某个 realm 的内在 `Object.prototype`。 */
 function isIntrinsicObjectPrototype(value: object): boolean {
   return Object.getPrototypeOf(value) === null && hasIntrinsicConstructor(value, 'Object')
 }
 
 /**
- * Test for a realm-agnostic plain JSON record without accepting arrays or
- * exotic objects.
- * @param value - candidate record from any JavaScript realm.
- * @returns Whether the value has a plain-object prototype chain.
+ * 测试与 realm 无关的普通 JSON 记录，不接受数组或奇异对象。
+ * @param value - 来自任何 JavaScript realm 的候选记录。
+ * @returns 该值是否具有普通对象原型链。
  */
 export function isPlainJsonRecord(value: unknown): value is Record<string, unknown> {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
@@ -123,7 +120,7 @@ export function isPlainJsonRecord(value: unknown): value is Record<string, unkno
   }
 }
 
-/** Whether an array uses one realm's intrinsic `Array.prototype`. */
+/** 数组是否使用某个 realm 的内在 `Array.prototype`。 */
 function hasPlainArrayPrototype(value: unknown[]): boolean {
   const prototype: unknown = Object.getPrototypeOf(value)
   if (!Array.isArray(prototype) || !hasIntrinsicConstructor(prototype, 'Array')) return false
@@ -134,7 +131,7 @@ function hasPlainArrayPrototype(value: unknown[]): boolean {
 }
 /* jscpd:ignore-end */
 
-/** Return whether a record contains only own enumerable string keys. */
+/** 返回记录是否只包含自有可枚举字符串键。 */
 function hasOnlyEnumerableStringKeys(value: object): boolean {
   try {
     return Reflect.ownKeys(value)
@@ -145,18 +142,18 @@ function hasOnlyEnumerableStringKeys(value: object): boolean {
 }
 
 /**
- * Test for an ordinary schema record whose keys survive JSON projection.
- * @param value - candidate record from any JavaScript realm.
- * @returns Whether the record has an intrinsic prototype and only own enumerable string keys.
+ * 测试键能在 JSON 投影后存留的普通模式记录。
+ * @param value - 来自任何 JavaScript realm 的候选记录。
+ * @returns 该记录是否具有内在原型且只含自有可枚举字符串键。
  */
 export function isJsonSchemaRecord(value: unknown): value is Record<string, unknown> {
   return isPlainJsonRecord(value) && hasOnlyEnumerableStringKeys(value)
 }
 
 /**
- * Test for a dense ordinary array with no JSON-invisible decorations.
- * @param value - candidate array from any JavaScript realm.
- * @returns Whether the array is intrinsic, dense, and undecorated.
+ * 测试稠密且没有 JSON 不可见装饰的普通数组。
+ * @param value - 来自任何 JavaScript realm 的候选数组。
+ * @returns 该数组是否为内在、稠密且无装饰。
  */
 export function isPlainJsonArray(value: unknown): value is unknown[] {
   if (!Array.isArray(value)) return false
@@ -171,12 +168,12 @@ export function isPlainJsonArray(value: unknown): value is unknown[] {
   }
 }
 
-/** Lossless finite JSON number, excluding negative zero. */
+/** 无损的有限 JSON 数字，排除负零。 */
 function isJsonNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && !Object.is(value, -0)
 }
 
-/** Whether a scalar is valid for one declared schema type. */
+/** 标量对声明的某个模式类型是否有效。 */
 function scalarMatches(type: JsonSchemaScalarType, value: unknown): value is JsonSchemaScalar {
   switch (type) {
     case 'string': return typeof value === 'string'
@@ -189,17 +186,17 @@ function scalarMatches(type: JsonSchemaScalarType, value: unknown): value is Jso
   }
 }
 
-/** Deferred work for the stack-safe raw-schema walk. */
+/** 栈安全的原始模式遍历的延迟工作。 */
 type SchemaWalkTask =
   | { kind: 'enter'; node: unknown; path: string }
   | { kind: 'leave'; node: object }
   | { kind: 'one-of-tail'; node: Record<string, unknown>; path: string }
   | { kind: 'object-tail'; node: Record<string, unknown>; path: string; properties: unknown }
 
-/** Keywords that are invalid beside `oneOf`. */
+/** 在 `oneOf` 旁无效的关键字。 */
 const ONE_OF_SIBLING_KEYWORDS = ['properties', 'required', 'additionalProperties', 'items', 'enum', 'const'] as const
 
-/** Validate object-only fields after its property schemas have been visited. */
+/** 在属性模式被访问后校验仅限对象的字段。 */
 function checkObjectSchemaTail(
   node: Record<string, unknown>,
   path: string,
@@ -223,7 +220,7 @@ function checkObjectSchemaTail(
   }
 }
 
-/** Collect every violation for one raw schema tree without using the JavaScript call stack. */
+/** 为一个原始模式树收集所有违规，不使用 JavaScript 调用栈。 */
 function checkSchemaNode(root: unknown, rootPath: string, violations: string[], seen: Set<object>): void {
   const tasks: SchemaWalkTask[] = [{ kind: 'enter', node: root, path: rootPath }]
   for (let task = tasks.pop(); task !== undefined; task = tasks.pop()) {
@@ -376,11 +373,10 @@ function checkSchemaNode(root: unknown, rootPath: string, violations: string[], 
 }
 
 /**
- * Assert that an arbitrary raw schema uses only the enforced subset.
- * Annotation-only schemas are accepted as the standard unconstrained-JSON
- * form; callers that require an object root use {@link assertObjectJsonSchema}.
- * @param schema - untrusted raw JSON Schema.
- * @returns Assertion that the schema belongs to the supported subset.
+ * 断言任意原始模式只使用受强制的子集。仅注解模式作为标准的无约束 JSON
+ * 形式被接受；需要对象根的调用方使用 {@link assertObjectJsonSchema}。
+ * @param schema - 不受信任的原始 JSON Schema。
+ * @returns 模式属于受支持子集的断言。
  */
 export function assertSupportedJsonSchema(schema: unknown): asserts schema is JsonSchemaNode {
   const violations: string[] = []
@@ -389,10 +385,9 @@ export function assertSupportedJsonSchema(schema: unknown): asserts schema is Js
 }
 
 /**
- * Assert the enforced subset plus the object-root constraint retained by
- * subagent and workflow structured outputs.
- * @param schema - untrusted caller-supplied schema.
- * @returns Assertion that the schema belongs to the supported subset and has an object root.
+ * 断言受强制子集，加上 subagent 与工作流结构化输出保留的对象根约束。
+ * @param schema - 不受信任的调用方提供的模式。
+ * @returns 模式属于受支持子集且以对象为根的断言。
  */
 export function assertObjectJsonSchema(schema: unknown): asserts schema is ObjectJsonSchema {
   const violations: string[] = []
@@ -404,7 +399,7 @@ export function assertObjectJsonSchema(schema: unknown): asserts schema is Objec
   if (violations.length > 0) throw new JsonSchemaError(violations)
 }
 
-/** Safely test the lossless JSON boundary when a getter may throw. */
+/** 在 getter 可能抛出时安全地测试无损 JSON 边界。 */
 function safelyIsJsonValue(value: unknown): boolean {
   try {
     return isJsonValue(value)
@@ -413,24 +408,24 @@ function safelyIsJsonValue(value: unknown): boolean {
   }
 }
 
-/** Root-aware diagnostic path for the parameter validator's empty sentinel. */
+/** 参数校验器空哨兵的根感知诊断路径。 */
 function diagnosticPath(path: string): string {
   return path === '' ? 'arguments' : path
 }
 
-/** Append one object property without a leading dot at an implicit root. */
+/** 在隐式根处追加对象属性，不加前导点。 */
 function propertyPath(path: string, key: string): string {
   return path === '' ? key : `${path}.${key}`
 }
 
-/** One child evaluation deferred by a container or exact-one union frame. */
+/** 由容器或恰好匹配一个的联合帧延迟的一个子项求值。 */
 interface ValueChild {
   readonly node: JsonSchemaNode
   readonly value: unknown
   readonly path: string
 }
 
-/** Explicit call frame for stack-safe schema-value validation. */
+/** 栈安全的模式值校验的显式调用帧。 */
 interface ValueFrame {
   readonly node: JsonSchemaNode
   readonly value: unknown
@@ -445,17 +440,17 @@ interface ValueFrame {
   matches: number
 }
 
-/** The generic exception-containment diagnostic owned by one valid schema node. */
+/** 由一个有效模式节点拥有的通用异常遏制诊断。 */
 function losslessValueViolation(path: string): string[] {
   return [`"${diagnosticPath(path)}" must be a lossless JSON value`]
 }
 
-/** Append diagnostics without spreading a potentially wide child result as call arguments. */
+/** 追加诊断，不把可能很宽的子结果展开为调用参数。 */
 function appendViolations(target: string[], source: readonly string[]): void {
   for (const violation of source) target.push(violation)
 }
 
-/** Initialize one validation frame with empty aggregation state. */
+/** 以空聚合状态初始化一个校验帧。 */
 function valueFrame(node: JsonSchemaNode, value: unknown, path: string): ValueFrame {
   return {
     node,
@@ -471,7 +466,7 @@ function valueFrame(node: JsonSchemaNode, value: unknown, path: string): ValueFr
   }
 }
 
-/** Validate one scalar node after its primitive type check. */
+/** 在原始类型检查之后校验一个标量节点。 */
 function checkScalarValue(node: JsonSchemaNode, value: unknown, path: string): string[] {
   const allowed = Object.hasOwn(node, 'enum') ? node.enum : undefined
   if (allowed !== undefined && !allowed.includes(value as JsonSchemaScalar)) {
@@ -483,7 +478,7 @@ function checkScalarValue(node: JsonSchemaNode, value: unknown, path: string): s
   return []
 }
 
-/** Validate one trusted schema/value pair with explicit frames rather than recursive calls. */
+/** 用显式帧而非递归调用校验一对受信任的模式/值。 */
 function checkValue(schema: JsonSchemaNode, value: unknown, path: string): string[] {
   const frames: ValueFrame[] = [valueFrame(schema, value, path)]
   let rootResult: string[] | undefined
@@ -644,12 +639,12 @@ function checkValue(schema: JsonSchemaNode, value: unknown, path: string): strin
 }
 
 /**
- * Validate a candidate value against an asserted raw schema. The function is
- * total for arbitrary values and returns path-qualified violations.
- * @param schema - a schema accepted by {@link assertSupportedJsonSchema}.
- * @param value - the candidate JSON value.
- * @param path - root label used in diagnostics.
- * @returns All violations in walk order; empty means valid.
+ * 针对已断言的原始模式校验候选值。该函数对任意值是全函数，返回带路径
+ * 限定的违规。
+ * @param schema - {@link assertSupportedJsonSchema} 接受的模式。
+ * @param value - 候选 JSON 值。
+ * @param path - 诊断中使用的根标签。
+ * @returns 按遍历顺序的所有违规；为空表示有效。
  */
 export function validateJsonSchemaValue(schema: JsonSchemaNode, value: unknown, path = 'value'): string[] {
   return checkValue(schema, value, path)

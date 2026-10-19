@@ -1,4 +1,4 @@
-/** Local durable attachment backend rooted below `DSH_HOME`. @module @deepseek-ai/dsh-attachment-local */
+/** 以 `DSH_HOME` 为根的本地持久附件后端。@module @deepseek-ai/dsh-attachment-local */
 
 import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
@@ -30,57 +30,55 @@ export { commitPreparedImageFile, prepareImageFile, readImageFile, saveImageFile
 export type { PreparedImageFile } from './store.ts'
 export { readRequestImageFile, requestImageVariantId } from './request-image.ts'
 
-/** Default maximum encoded bytes for one submitted image; oversized sources are refused, not shrunk. */
+/** 单张提交图像的默认最大编码字节数；超限的源会被拒绝，而不是缩小。 */
 export const DEFAULT_MAX_IMAGE_BYTES = 20 * 1024 * 1024
-/** Default maximum images in one prompt. */
+/** 单个提示中的默认最大图像数量。 */
 export const DEFAULT_MAX_IMAGES_PER_MESSAGE = 20
-/** Default maximum aggregate image bytes in one prompt. */
+/** 单个提示中的默认最大图像字节总量。 */
 export const DEFAULT_MAX_MESSAGE_IMAGE_BYTES = 200 * 1024 * 1024
-/** Default maximum intrinsic pixels for one submitted image. */
+/** 单张提交图像的默认最大固有像素数。 */
 export const DEFAULT_MAX_IMAGE_PIXELS = 64_000_000
-/** Default per-side pixel cap for one submitted image. */
+/** 单张提交图像的默认单边像素上限。 */
 export const DEFAULT_MAX_IMAGE_DIMENSION = 8192
 /**
- * Default total-pixel budget of the stored normalized image. A larger source
- * is admitted and downscaled proportionally, so admission bounds what rides
- * every later model request without refusing ordinary large sources; extreme
- * aspect ratios keep their short-edge resolution instead of collapsing under
- * a long-edge rule.
+ * 存储归一化图像的默认总像素预算。更大的源会被准入并按比例缩小，
+ * 因此准入限制了每次后续模型请求所携带的内容，而无需拒绝普通的大图；
+ * 极端宽高比保留其短边分辨率，而不是在长边规则下坍缩。
  */
 export const DEFAULT_NORMALIZED_IMAGE_MAX_PIXELS = 2048 * 2048
-/** Default long-edge cap of the stored normalized image, applied after the total-pixel budget. */
+/** 存储归一化图像的默认长边上限，在总像素预算之后应用。 */
 export const DEFAULT_NORMALIZED_IMAGE_MAX_DIMENSION = 8192
-/** Default encoded-byte target for one stored normalized image. */
+/** 单个存储归一化图像的默认编码字节目标。 */
 export const DEFAULT_NORMALIZED_IMAGE_MAX_BYTES = 4 * 1024 * 1024
-/** Conservative default number of simultaneous native image transformations per store. */
+/** 每个存储默认同时进行的原生图像变换数的保守值。 */
 export const DEFAULT_IMAGE_COMPRESSION_CONCURRENCY = 2
-/** Maximum configurable native image transformations per store. */
+/** 每个存储可配置的最大原生图像变换数。 */
 export const MAX_IMAGE_COMPRESSION_CONCURRENCY = 8
 
-/** Local attachment backend configuration. */
+/** 本地附件后端配置。 */
 export interface Config {
-  /** Explicit harness home; omitted follows `DSH_HOME`, then `~/.dsh`. */
+  /** 显式的 harness 主目录；省略时依次遵循 `DSH_HOME` 与 `~/.dsh`。 */
   dshHome?: string
-  /** Maximum encoded bytes accepted for one submitted image. Default: 20 MiB. */
+  /** 单张提交图像接受的最大编码字节数。默认：20 MiB。 */
   maxImageBytes?: number
-  /** Maximum image count accepted in one submitted message. Default: 20. */
+  /** 单条提交消息接受的最大图像数量。默认：20。 */
   maxImagesPerMessage?: number
-  /** Maximum aggregate encoded image bytes accepted in one submitted message. Default: 200 MiB. */
+  /** 单条提交消息接受的最大图像编码字节总量。默认：200 MiB。 */
   maxMessageImageBytes?: number
-  /** Maximum intrinsic width multiplied by height accepted for one submitted image. Default: 64,000,000. */
+  /** 单张提交图像接受的最大固有宽度乘高度。默认：64,000,000。 */
   maxImagePixels?: number
-  /** Maximum intrinsic width and maximum intrinsic height accepted for one submitted image. Default: 8192px. */
+  /** 单张提交图像接受的最大固有宽度与最大固有高度。默认：8192px。 */
   maxImageDimension?: number
-  /** Total-pixel budget of the stored provider-independent normalized image. */
+  /** 存储的与提供方无关的归一化图像的总像素预算。 */
   normalizedImageMaxPixels?: number
-  /** Long-edge pixel cap of the stored provider-independent normalized image, applied after the total-pixel budget. */
+  /** 存储的与提供方无关的归一化图像的长边像素上限，在总像素预算之后应用。 */
   normalizedImageMaxDimension?: number
   /**
-   * Encoded-byte target of the stored provider-independent normalized image;
-   * the smallest quality-ladder output is kept when no quality fits.
+   * 存储的与提供方无关的归一化图像的编码字节目标；
+   * 没有质量档符合时保留质量阶梯的最小输出。
    */
   normalizedImageMaxBytes?: number
-  /** Maximum simultaneous normalization or request-image transformations in this service instance. */
+  /** 本服务实例中同时进行的归一化或请求图像变换的最大数量。 */
   imageCompressionConcurrency?: number
 }
 
@@ -143,7 +141,7 @@ class SharedRequest<T> {
   }
 }
 
-/** Persistent content-addressed local attachment store. */
+/** 持久的内容寻址本地附件存储。 */
 export class LocalAttachmentStore extends AttachmentStore {
   static Config: z<Config> = z.object({
     dshHome: z.string(),
@@ -159,12 +157,12 @@ export class LocalAttachmentStore extends AttachmentStore {
       .default(DEFAULT_IMAGE_COMPRESSION_CONCURRENCY),
   })
 
-  /** Absolute versioned storage root. */
+  /** 绝对的版本化存储根目录。 */
   readonly root: string
   readonly imageLimits: ImageAttachmentLimits
-  /** Resolved provider-independent normalization policy. */
+  /** 已解析的与提供方无关的归一化策略。 */
   readonly normalizationPolicy: Readonly<NormalizationPolicy>
-  /** Resolved instance-level compression limit. */
+  /** 已解析的实例级压缩并发限制。 */
   readonly imageCompressionConcurrency: number
   private readonly cacheRoot: string
   private readonly compression: CompressionLimiter

@@ -1,16 +1,16 @@
-/** Window holds and conservative idle reclamation for one terminal owner. */
+/** 一个终端拥有者的窗口持有与保守的空闲回收。 */
 import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
 import type { SubprocessTerminalActivity } from '@deepseek-ai/dsh-subprocess'
 import type { TerminalRetentionFrame } from './types.ts'
 
-/** Validated Host timing policy for unattended terminal cleanup. */
+/** 用于无人值守终端清理的已验证 Host 时序策略。 */
 export interface TerminalRetentionPolicy {
   readonly unattendedTimeoutMs: number
   readonly activityPollIntervalMs: number
   readonly cleanupRetryMs: number
 }
 
-/** Exactly one owner orders holds, observation, and retryable process cleanup. */
+/** 恰好一个拥有者统一安排持有、观察与可重试的进程清理。 */
 export class TerminalRetention {
   private readonly lifetime = new AbortController()
   private readonly holders = new Set<object>()
@@ -23,10 +23,10 @@ export class TerminalRetention {
   private cleanup: Promise<void> | undefined
 
   /**
-   * @param policy - deployment timing choices.
-   * @param inspect - fresh shell and owned-job observation.
-   * @param terminate - mark the identity closed, await process quiescence, and remove its owner record.
-   * @param failed - diagnostic sink for failed automatic cleanup.
+   * @param policy - 部署时序选择。
+   * @param inspect - 对 shell 与其所属作业的最新观察。
+   * @param terminate - 将标识标记为已关闭，等待进程静止，并移除其拥有者记录。
+   * @param failed - 自动清理失败时的诊断接收器。
    */
   constructor(
     private readonly policy: TerminalRetentionPolicy,
@@ -36,9 +36,9 @@ export class TerminalRetention {
   ) { this.schedule(0) }
 
   /**
-   * Hold one terminal for one physical Remote stream, independently of screen subscriptions.
-   * @param signal - transport generation lifetime.
-   * @returns acknowledgement followed by an open stream until cancellation or terminal closure.
+   * 为一条物理 Remote 流持有一个终端，独立于屏幕订阅。
+   * @param signal - 传输世代的生命周期。
+   * @returns 先返回确认，随后是保持打开的流，直到取消或终端关闭。
    */
   async *retain(signal: AbortSignal): AsyncIterable<TerminalRetentionFrame> {
     signal.throwIfAborted()
@@ -61,12 +61,12 @@ export class TerminalRetention {
     finally { release() }
   }
 
-  /** Invalidate outstanding idle observations before accepting input. */
+  /** 在接受输入之前使尚未完成的空闲观察失效。 */
   invalidate(): void { this.epoch++; this.idle = undefined }
 
   /**
-   * Start or join cleanup; failure keeps the identity closed and schedules one retry.
-   * @returns after owned process cleanup succeeds, or rejects with its failure.
+   * 启动或加入清理；失败时标识保持关闭状态，并安排一次重试。
+   * @returns 所辖进程清理成功后返回，或以其失败拒绝。
    */
   close(): Promise<void> {
     if (this.cleanup !== undefined) return this.cleanup
@@ -83,8 +83,8 @@ export class TerminalRetention {
   }
 
   /**
-   * Stop timers and streams and await both observation and final cleanup.
-   * @returns after process quiescence; cleanup failure is reported to the disposing owner.
+   * 停止计时器与流，并等待观察与最终清理都完成。
+   * @returns 进程静止后返回；清理失败会报告给正在释放的拥有者。
    */
   async dispose(): Promise<void> {
     this.disposed = true

@@ -1,8 +1,7 @@
 /**
- * React-free client job state: the roster each watched session can see, fed
- * by `job.list` frames, and per-job accumulated output views fed by
- * `job.follow` frames. Pure data plus subscriptions — transport wiring stays
- * in the client service, UI stays in slot components.
+ * 不依赖 React 的 client job 状态：每个被监视 session 能看到的 roster，由
+ * `job.list` 帧供给；以及每个 job 的累计输出视图，由 `job.follow` 帧供给。
+ * 纯数据加订阅——传输接线留在 client 服务中，UI 留在 slot 组件中。
  * @module @deepseek-ai/dsh-api-job-controller/client/model
  */
 
@@ -12,54 +11,54 @@ import type { JobView } from '@deepseek-ai/dsh-jobs/view'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { JobFollowFrame } from '../types.ts'
 
-/** Bounded per-job render tail, in UTF-16 code units. */
+/** 每 job 有界的渲染尾部，单位为 UTF-16 码元。 */
 const RENDER_TAIL_LIMIT = 128 * 1024
 
-/** One observed job's live view state. */
+/** 一个被观察 job 的实时视图状态。 */
 export interface ObservedJob {
   readonly jobId: JobId
-  /** Accumulated output tail, bounded to the render limit. */
+  /** 累计的输出尾部，限制在渲染上限内。 */
   readonly text: string
-  /** True when bytes before {@link text} were dropped (eviction, resume gap, or the render bound). */
+  /** 当 {@link text} 之前的字节被丢弃时为 true（驱逐、恢复缺口或渲染上限）。 */
   readonly gapBefore: boolean
-  /** True while the observation stream is open and the job has not settled. */
+  /** 观察流仍打开且 job 尚未落定时为 true。 */
   readonly streaming: boolean
-  /** Terminal observation failure, when the stream ended abnormally. */
+  /** 观察的终结性失败，即流异常结束时。 */
   readonly error?: string
 }
 
-/** Immutable client job state. */
+/** 不可变的 client job 状态。 */
 export interface JobsSnapshot {
   /**
-   * The jobs each watched session can see, keyed by session id. A session
-   * nobody watches, or one that sees no job, has no key, so consumers read
-   * absence rather than a sentinel.
+   * 每个被监视 session 能看到的 job，以 session id 为键。无人监视的
+   * session，或看不到任何 job 的 session，不会有键，因此消费方读到的是
+   * 缺席而不是哨兵值。
    */
   readonly rows: Readonly<Record<string, readonly JobView[]>>
-  /** Live observation state keyed by job id. */
+  /** 以 job id 为键的实时观察状态。 */
   readonly observed: Readonly<Record<string, ObservedJob>>
 }
 
-/** Bare observable source for the client job snapshot. */
+/** client job 快照的裸可观察源。 */
 export interface JobsSource {
-  /** Read the identity-stable current snapshot. */
+  /** 读取标识稳定的当前快照。 */
   getSnapshot(): JobsSnapshot
   /**
-   * Subscribe to snapshot changes.
-   * @param listener - invalidation callback.
-   * @returns unsubscribe function.
+   * 订阅快照变更。
+   * @param listener - 失效回调。
+   * @returns 取消订阅函数。
    */
   subscribe(listener: () => void): () => void
 }
 
-/** Mutable observation bookkeeping behind one {@link ObservedJob} view. */
+/** 一个 {@link ObservedJob} 视图背后的可变观察记账。 */
 interface ObservedState {
   view: ObservedJob
-  /** Resume offset for the next generation's `from`. */
+  /** 下一次生成 `from` 所用的恢复偏移量。 */
   cursor: number | undefined
 }
 
-/** Owns the per-session rosters and per-job observation state. */
+/** 持有每 session 的 roster 与每 job 的观察状态。 */
 export class ClientJobsModel implements JobsSource {
   private readonly rowsBySession = new Map<string, readonly JobView[]>()
   private readonly observedStates = new Map<string, ObservedState>()
@@ -85,10 +84,9 @@ export class ClientJobsModel implements JobsSource {
   }
 
   /**
-   * Replace one session's roster with a `rows` frame's whole set. An empty
-   * set is stored as an absent key.
-   * @param sessionId - the watched session.
-   * @param jobs - the complete visible set.
+   * 用 `rows` 帧的整集替换一个 session 的 roster。空集存储为键缺席。
+   * @param sessionId - 被监视的 session。
+   * @param jobs - 完整的可见集合。
    */
   rowsReplaced(sessionId: SessionId, jobs: readonly JobView[]): void {
     const key = String(sessionId)
@@ -101,8 +99,8 @@ export class ClientJobsModel implements JobsSource {
   }
 
   /**
-   * Drop one session's roster after its last watcher stops or its stream fails.
-   * @param sessionId - the no-longer-watched session.
+   * 在最后一个监视者停止或其流失败后丢弃一个 session 的 roster。
+   * @param sessionId - 不再被监视的 session。
    */
   rowsDropped(sessionId: SessionId): void {
     if (!this.rowsBySession.delete(String(sessionId))) return
@@ -110,25 +108,24 @@ export class ClientJobsModel implements JobsSource {
   }
 
   /**
-   * The resume offset for one job's next observation generation.
-   * @param id - observed job.
-   * @returns the last accepted `next`, or undefined for a fresh observation.
+   * 一个 job 下一次观察生成的恢复偏移量。
+   * @param id - 被观察的 job。
+   * @returns 最后接受的 `next`，全新观察则为 undefined。
    */
   cursorOf(id: JobId): number | undefined {
     return this.observedStates.get(String(id))?.cursor
   }
 
   /**
-   * Install or reset observation state when a generation's anchor arrives.
-   * @param id - observed job.
-   * @param frame - the generation's `opened` anchor.
+   * 当一个生成的锚点到达时安装或重置观察状态。
+   * @param id - 被观察的 job。
+   * @param frame - 该生成的 `opened` 锚点。
    */
   observeOpened(id: JobId, frame: Extract<JobFollowFrame, { type: 'opened' }>): void {
     const existing = this.observedStates.get(String(id))
-    // A fresh view anchored past offset zero starts after an evicted head
-    // (fresh observations anchor at the registry's earliest retained byte), so
-    // it owes the same gap mark a live observer earned from lossy reads. A
-    // resume that already accumulated text keeps its recorded gap state.
+    // 锚定在偏移零之后的全新视图，起始处位于被驱逐的头部之后（全新观察
+    // 锚定在 registry 最早保留的字节处），因此它欠下一个与实时观察者从有损
+    // 读取中挣得的相同的缺口标记。已累计文本的恢复会保留其记录的缺口状态。
     const freshPastHead = (existing === undefined || existing.view.text === '') && frame.from > 0
     const view: ObservedJob = {
       jobId: id,
@@ -141,9 +138,9 @@ export class ClientJobsModel implements JobsSource {
   }
 
   /**
-   * Append one output frame's chunks to the bounded render tail.
-   * @param id - observed job.
-   * @param frame - a coalesced `output` frame.
+   * 把一个输出帧的 chunk 追加到有界的渲染尾部。
+   * @param id - 被观察的 job。
+   * @param frame - 一个合并后的 `output` 帧。
    */
   observeOutput(id: JobId, frame: Extract<JobFollowFrame, { type: 'output' }>): void {
     const state = this.observedStates.get(String(id))
@@ -154,7 +151,7 @@ export class ClientJobsModel implements JobsSource {
       || frame.chunks.some(chunk => chunk.gapBefore === true)
     if (text.length > RENDER_TAIL_LIMIT) {
       let cut = text.length - RENDER_TAIL_LIMIT
-      // Never split a surrogate pair at the render bound.
+      // 不要在渲染上限处拆开代理对。
       const unit = text.charCodeAt(cut)
       if (unit >= 0xDC00 && unit <= 0xDFFF) cut += 1
       text = text.slice(cut)
@@ -166,9 +163,9 @@ export class ClientJobsModel implements JobsSource {
   }
 
   /**
-   * Close the live view once the terminal `status` frame arrived: the ring is
-   * drained and the roster row carries the settled projection.
-   * @param id - observed job.
+   * 终结 `status` 帧到达后关闭实时视图：环形缓冲已排空，roster 行携带落定
+   * 的投影。
+   * @param id - 被观察的 job。
    */
   observeSettled(id: JobId): void {
     const state = this.observedStates.get(String(id))
@@ -179,16 +176,15 @@ export class ClientJobsModel implements JobsSource {
   }
 
   /**
-   * Record a terminal observation failure.
-   * @param id - observed job.
-   * @param error - the stream's terminal failure.
+   * 记录一次观察的终结性失败。
+   * @param id - 被观察的 job。
+   * @param error - 该流的终结性失败。
    */
   observeFailed(id: JobId, error: unknown): void {
     const state = this.observedStates.get(String(id))
     if (state === undefined) {
-      // A failure before the anchor — a rejected request, a job gone between
-      // the click and the open — still owes the panel its notice; a later
-      // successful anchor replaces this view and resumes from no cursor.
+      // 锚点之前的失败——被拒绝的请求、job 在点击与打开之间消失——仍然
+      // 欠面板一个通知；稍后成功的锚点会替换此视图并从无游标处恢复。
       this.observedStates.set(String(id), {
         view: { jobId: id, text: '', gapBefore: false, streaming: false, error: String(error) },
         cursor: undefined,
@@ -201,8 +197,8 @@ export class ClientJobsModel implements JobsSource {
   }
 
   /**
-   * Drop observation state after the last observer stops.
-   * @param id - the no-longer-observed job.
+   * 在最后一个观察者停止后丢弃观察状态。
+   * @param id - 不再被观察的 job。
    */
   observeStopped(id: JobId): void {
     if (!this.observedStates.delete(String(id))) return

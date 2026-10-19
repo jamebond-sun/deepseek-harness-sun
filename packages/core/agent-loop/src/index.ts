@@ -1,6 +1,6 @@
 /**
- * Concrete agent-loop plugin: creates scoped ReactLoopAgents, publishes them
- * through the agent/session registries, and owns their ordered teardown.
+ * 具体 agent-loop 插件：创建带作用域的 ReactLoopAgent，通过 agent/session
+ * 注册表发布它们，并拥有它们有序的拆除。
  *
  * @module @deepseek-ai/dsh-agent-loop
  */
@@ -36,7 +36,7 @@ import { inboxProjectionDefinition } from './inbox.ts'
 import { DEFAULT_MAX_PARALLEL_TOOL_CALLS } from './constants.ts'
 import type {} from './runtime-context.ts'
 
-/** Fiber states that cannot own or serve a new lifecycle. */
+/** 不能拥有或服务新生命周期的 fiber 状态。 */
 const INACTIVE_STATES: ReadonlySet<FiberState> = new Set([
   FiberState.UNLOADING,
   FiberState.DISPOSED,
@@ -53,7 +53,7 @@ const turnBoundaryProjectionSchema: zod.ZodType<TurnBoundaryProjection> = zod.ob
   lastTurn: zod.number().int().nonnegative(),
 })
 
-/** Host projection of agent turn and step boundaries. */
+/** agent turn 和 step 边界的宿主投影。 */
 export const turnBoundaryProjectionDefinition = {
   key: 'turnBoundary',
   stateVersion: 2,
@@ -94,13 +94,13 @@ export const turnBoundaryProjectionDefinition = {
   },
 } satisfies ProjectionDefinition<'turnBoundary', TurnBoundaryProjection>
 
-/** Re-throw one collected failure as itself, or several as one `AggregateError`. */
+/** 将单个收集到的失败原样重抛，或将多个作为单个 `AggregateError` 抛出。 */
 function throwCollectedFailures(failures: readonly unknown[], message: string): void {
   if (failures.length === 1) throw failures[0]
   if (failures.length > 1) throw new AggregateError(failures, message)
 }
 
-/** Factory-level ownership: live agent teardowns plus config startup work. */
+/** 工厂级所有权：活跃 agent 的拆除加上配置启动工作。 */
 class FactoryOwnership {
   private accepting = true
   private readonly teardown = new AbortController()
@@ -110,7 +110,7 @@ class FactoryOwnership {
 
   constructor(private readonly fiber: Context['fiber']) {}
 
-  /** Aborts (reason: `agent loop is not active` error) when factory teardown begins. */
+  /** 工厂拆除开始时中止（原因为 `agent loop is not active` 错误）。 */
   get signal(): AbortSignal {
     return this.teardown.signal
   }
@@ -119,25 +119,25 @@ class FactoryOwnership {
     return this.accepting && !INACTIVE_STATES.has(this.fiber.state)
   }
 
-  /** Track one live agent's shared teardown until it has run. */
+  /** 跟踪单个活跃 agent 的共享拆除，直到它已运行。 */
   track(dispose: () => Promise<void>): () => void {
     this.liveAgents.add(dispose)
     return () => { this.liveAgents.delete(dispose) }
   }
 
-  /** Join config startup work that begins before an agent exists. */
+  /** 加入在 agent 存在之前开始的配置启动工作。 */
   trackStartup(job: Promise<void>): void {
     this.startupTasks.add(job)
     const forget = () => { this.startupTasks.delete(job) }
     void job.then(forget, forget)
   }
 
-  /** Join one public create/resume continuation; factory dispose awaits its settlement. */
+  /** 加入一个公开的 create/resume 延续；工厂 dispose 等待其落定。 */
   trackWrapper(job: Promise<unknown>): void {
     this.trackStartup(job.then(() => undefined, () => undefined))
   }
 
-  /** Resolve `task`, or stop waiting when factory teardown begins. */
+  /** 解析 `task`，或在工厂拆除开始时停止等待。 */
   async waitWhileActive(job: Promise<void>): Promise<void> {
     await Promise.race([job, this.inactive.promise])
   }
@@ -158,7 +158,7 @@ class FactoryOwnership {
   }
 }
 
-/** Await `operation`, or throw the signal's reason as soon as it aborts. */
+/** 等待 `operation`，或在信号中止时立即抛出其原因。 */
 async function raceAbort<T>(operation: PromiseLike<T> | T, signal: AbortSignal, id: SessionId): Promise<T> {
   const toAbortError = (): Error => signal.reason instanceof Error
     ? signal.reason
@@ -174,7 +174,7 @@ async function raceAbort<T>(operation: PromiseLike<T> | T, signal: AbortSignal, 
   }
 }
 
-/** Start an abortable operation and release a value that arrives after cancellation. */
+/** 启动一个可中止的操作，并释放在取消之后到达的值。 */
 async function raceAbortCall<T>(
   operation: () => PromiseLike<T> | T,
   signal: AbortSignal,
@@ -198,7 +198,7 @@ async function raceAbortCall<T>(
   }
 }
 
-/** Reject an output-token cap that cannot be represented exactly on the request wire. */
+/** 拒绝无法在请求线上精确表示的输出 token 上限。 */
 function assertAgentOptions(options: AgentOptions): void {
   if (options.maxTokens !== undefined
     && (!Number.isSafeInteger(options.maxTokens) || options.maxTokens <= 0)) {
@@ -206,20 +206,20 @@ function assertAgentOptions(options: AgentOptions): void {
   }
 }
 
-/** One session's owned write handle plus the count of events already stored through it. */
+/** 单个会话拥有的写句柄加上通过它已存储的事件计数。 */
 interface StoredSession {
   readonly handle: SessionHandle
   storedCount: number
 }
 
-/** Prepared-but-unpublished agent resources sharing one memoized teardown. */
+/** 已准备但未发布的 agent 资源，共享一个记忆化的拆除。 */
 interface PreparedAgent {
   agent: ReactLoopAgent
-  /** Aborts when the factory unloads, the caller cancels, or teardown begins — ends any setup await. */
+  /** 在工厂卸载、调用方取消或拆除开始时中止——结束任何 setup 等待。 */
   signal: AbortSignal
-  /** Enter both registries and await creation listeners. */
+  /** 进入两个注册表并等待创建监听器。 */
   publish(source: SessionStartSource): Promise<AgentHandle>
-  /** Reverse teardown: stop the machine, unregister, unwind the scope. Memoized. */
+  /** 逆向拆除：停止机器、注销、展开作用域。已记忆化。 */
   dispose(): Promise<void>
 }
 
@@ -227,23 +227,21 @@ declare module '@deepseek-ai/cordis' {
   interface Context {
     agentLoop: AgentLoop
     /**
-     * Launcher-owned exact session identities for configured agents, keyed by
-     * the agent's config `id` and set with `ctx.provide()` before any Loader
-     * entry mounts (see {@link CONFIGURED_AGENT_IDENTITIES_KEY}). A launcher
-     * owns identity because only it knows whether the session already exists,
-     * while the `cordis.yml` row keeps the model route as ordinary patchable
-     * config. An entry with no matching key keeps its configured identity.
+     * 由启动器拥有的已配置 agent 的精确会话身份，以 agent 的配置 `id` 为键，
+     * 在任何 Loader 条目挂载前通过 `ctx.provide()` 设置
+     * （见 {@link CONFIGURED_AGENT_IDENTITIES_KEY}）。身份由启动器拥有，
+     * 因为只有它知道会话是否已存在，而 `cordis.yml` 行将模型路由保留为
+     * 普通的可修补配置。没有匹配键的条目保留其配置的身份。
      */
     configuredAgentIdentities?: ConfiguredAgentIdentities
   }
   interface Events {
     /**
-     * A declarative agent entry failed before it could publish a live agent.
-     * Consumers that buffer work for the configured identity use this
-     * transient signal to reject that work instead of waiting forever. Normal
-     * factory teardown suppresses failures from the cancelled startup attempt.
-     * @param payload.sessionId - exact shared agent/session identity that failed startup.
-     * @param payload.error - persistence, setup, or publication failure.
+     * 一个声明式 agent 条目在发布活跃 agent 之前失败。
+     * 为已配置身份缓冲工作的消费方使用这个瞬态信号拒绝该工作，
+     * 而不是永远等待。正常的工厂拆除会抑制来自已取消启动尝试的失败。
+     * @param payload.sessionId - 启动失败的精确共享 agent/session 身份。
+     * @param payload.error - 持久化、setup 或发布失败。
      * @mode emit
      */
     'agent-loop/config-start-failed'(payload: { sessionId: SessionId; error: unknown }): void
@@ -253,36 +251,34 @@ declare module '@deepseek-ai/cordis' {
 export { DEFAULT_MAX_PARALLEL_TOOL_CALLS }
 
 /**
- * One launcher-selected session identity for a configured agent. `resume`
- * distinguishes rehydrating existing persisted history from creating the
- * session fresh under that exact id, which the two config keys express as
- * `resumeSessionId` and `sessionId`.
+ * 为已配置 agent 选择的一个启动器会话身份。`resume` 区分重新水化已有的
+ * 持久化历史与在该精确 id 下全新创建会话，两个配置键分别表达为
+ * `resumeSessionId` 和 `sessionId`。
  */
 export interface LauncherAgentIdentity {
-  /** Exact session id to create fresh or resume. */
+  /** 全新创建或恢复所用的精确会话 id。 */
   id: SessionId
-  /** Resume existing persisted history instead of creating the session fresh. */
+  /** 恢复已有的持久化历史，而不是全新创建会话。 */
   resume: boolean
 }
 
-/** Launcher-selected identities keyed by the configured agent's `id`. */
+/** 以已配置 agent 的 `id` 为键的启动器所选身份。 */
 export interface ConfiguredAgentIdentities extends Readonly<Record<string, LauncherAgentIdentity>> {}
 
 /**
- * Context key a launcher sets before any Loader entry mounts
- * (`ctx.provide(CONFIGURED_AGENT_IDENTITIES_KEY, identities)`) to fix
- * configured agents' session identities without a config key, so an overlay
- * repointing the row's model route cannot drop them.
+ * 启动器在任何 Loader 条目挂载前设置的上下文键
+ * （`ctx.provide(CONFIGURED_AGENT_IDENTITIES_KEY, identities)`），
+ * 用于在没有配置键的情况下固定已配置 agent 的会话身份，
+ * 使重新指向该行模型路由的 overlay 不会丢失它们。
  */
 export const CONFIGURED_AGENT_IDENTITIES_KEY = 'configuredAgentIdentities'
 
 /**
- * Apply launcher-owned identities over the configured agents, replacing both
- * identity keys for every entry the launcher named so a config-supplied
- * identity can never survive alongside a launcher-supplied one.
- * @param agents - the configured agent entries.
- * @param identities - launcher identities keyed by configured agent `id`, or `undefined`.
- * @returns the entries with launcher-owned identities applied.
+ * 将启动器拥有的身份应用到已配置 agent 上，为启动器点名的每个条目替换两个
+ * 身份键，使配置提供的身份永远不会与启动器提供的身份并存。
+ * @param agents - 已配置的 agent 条目。
+ * @param identities - 以已配置 agent `id` 为键的启动器身份，或 `undefined`。
+ * @returns 应用了启动器拥有身份的条目。
  */
 function applyLauncherIdentities(
   agents: Config['agents'],
@@ -299,27 +295,27 @@ function applyLauncherIdentities(
   })
 }
 
-/** Agent-loop plugin configuration. */
+/** agent-loop 插件配置。 */
 export interface Config {
   /**
-   * Maximum parallel-safe calls in flight per agent step. `1` is serial;
-   * omission defaults to {@link DEFAULT_MAX_PARALLEL_TOOL_CALLS}.
+   * 每个 agent 步骤中在途的最大并行安全调用数。`1` 表示串行；
+   * 省略时默认为 {@link DEFAULT_MAX_PARALLEL_TOOL_CALLS}。
    */
   maxParallelToolCalls: Volatile<number>
-  /** Agents created or resumed at plugin startup. */
+  /** 插件启动时创建或恢复的 agent。 */
   agents: (AgentOptions & {
-    /** Stable config label used in logs and as the fresh combined-id prefix. */
+    /** 用于日志的稳定配置标签，也是全新组合 id 的前缀。 */
     id: string
-    /** Optional stable identity; remounts resume its materialized history, while first use creates it fresh. */
+    /** 可选的稳定身份；重新挂载会恢复其已物化的历史，而首次使用则全新创建。 */
     sessionId?: SessionId
-    /** Optional workspace for a fresh session. */
+    /** 全新会话的可选工作区。 */
     cwd?: string
-    /** Persisted session to resume instead of creating a fresh session. */
+    /** 要恢复的持久化会话，而不是创建全新会话。 */
     resumeSessionId?: SessionId
   })[]
 }
 
-/** Reject self-contained identity conflicts before any configured agent starts. */
+/** 在任何已配置 agent 启动之前拒绝自包含的身份冲突。 */
 function validateConfiguredAgents(agents: Config['agents']): void {
   const exactIdentities = new Map<SessionId, string>()
   for (const { id, sessionId, resumeSessionId } of agents) {
@@ -337,11 +333,11 @@ function validateConfiguredAgents(agents: Config['agents']): void {
   }
 }
 
-/** Concrete agent factory and driver service. */
+/** 具体 agent 工厂和驱动服务。 */
 export class AgentLoop extends Service implements AgentFactory {
   static inject = ['agents', 'sessions', 'llm', 'tools', 'systemPrompt', 'sessionProjections']
 
-  /** Runtime schema for declarative agents. */
+  /** 声明式 agent 的运行时 schema。 */
   static Config: z<{ agents?: Config['agents']; maxParallelToolCalls?: number }, Config> = z.object({
     maxParallelToolCalls: z.number().step(1).min(1).default(DEFAULT_MAX_PARALLEL_TOOL_CALLS).volatile(),
     agents: z.array(z.object({
@@ -356,10 +352,10 @@ export class AgentLoop extends Service implements AgentFactory {
     })).default([]),
   }) as z<{ agents?: Config['agents']; maxParallelToolCalls?: number }, Config>
 
-  /** Validated configuration owned by the agent-loop service. */
+  /** 由 agent-loop 服务拥有的已验证配置。 */
   readonly config: Config
   private readonly ownership: FactoryOwnership
-  /** Plain holder prevents Cordis from re-tracing the factory's dependency context through a caller shadow. */
+  /** 普通持有器防止 Cordis 通过调用方影子重新追踪工厂的依赖上下文。 */
   private readonly runtime: { ctx: Context }
 
   constructor(ctx: Context, config: Config) {
@@ -370,8 +366,8 @@ export class AgentLoop extends Service implements AgentFactory {
       maxParallelToolCalls: config.maxParallelToolCalls,
     }
     validateConfiguredAgents(this.config.agents)
-    // Register only after every config validation above has passed, so a
-    // rejected constructor leaves no projection unit behind.
+    // 仅在上方所有配置验证都通过后注册，使被拒绝的构造函数
+    // 不会留下任何投影单元。
     const ownership = this.ownership = new FactoryOwnership(ctx.fiber)
     this.runtime = { ctx }
     ctx.effect(function* () {
@@ -379,7 +375,7 @@ export class AgentLoop extends Service implements AgentFactory {
       yield unregisterTurnBoundary
       const unregisterInbox = ctx.sessionProjections.register(inboxProjectionDefinition)
       yield unregisterInbox
-      // Cordis skips later disposers after a rejection; finally still releases projections.
+      // Cordis 在拒绝之后会跳过后续的 disposer；finally 仍会释放投影。
       yield () => ownership.dispose().finally(() => {
         unregisterInbox()
         unregisterTurnBoundary()
@@ -421,7 +417,7 @@ export class AgentLoop extends Service implements AgentFactory {
     }
   }
 
-  /** Report a contained declarative-start failure to identity-bound consumers. */
+  /** 向绑定身份的消费方报告一个已受控的声明式启动失败。 */
   private reportConfiguredStartupFailure(
     configId: string,
     action: 'restore' | 'resume',
@@ -443,7 +439,7 @@ export class AgentLoop extends Service implements AgentFactory {
     }
   }
 
-  /** Restore a materialized exact config identity on remount, or create it on first use. */
+  /** 在重新挂载时恢复已物化的精确配置身份，或在首次使用时创建它。 */
   private async restoreOrCreateConfigured(
     ownerCtx: Context,
     persistence: SessionPersistence,
@@ -458,17 +454,17 @@ export class AgentLoop extends Service implements AgentFactory {
       return
     } catch (error: unknown) {
       if (!this.ownership.isActive()) return
-      // Only a genuinely absent stored session falls back to first creation;
-      // corruption, ownership conflicts, and backend failures stay loud.
+      // 只有真正不存在的已存储会话才回退到首次创建；
+      // 损坏、所有权冲突和后端失败保持响亮报错。
       if (!(error instanceof SessionPersistenceNotFoundError)) throw error
     }
     await this.create(sessionId, agentOptions, meta)
   }
 
-  /** Wait for a draining same-id lifecycle to finish registry teardown. */
+  /** 等待正在排空的同 id 生命周期完成注册表拆除。 */
   private async waitForDrainingConfiguredIdentity(ownerCtx: Context, sessionId: SessionId): Promise<void> {
-    // Only an id still occupying a registry needs waiting for; a live healthy
-    // occupant is a collision the create/resume below will surface itself.
+    // 只有仍占据注册表的 id 才需要等待；活跃健康的占据者是一个冲突，
+    // 下面的 create/resume 会自行暴露它。
     if (ownerCtx.agents.get(sessionId) === undefined && ownerCtx.sessions.get(sessionId) === undefined) return
 
     const released = Promise.withResolvers<void>()
@@ -489,10 +485,10 @@ export class AgentLoop extends Service implements AgentFactory {
   }
 
   /**
-   * Construct the driver, scope, and one memoized reverse teardown for a new
-   * agent. The teardown is registered with the factory and the owner fiber
-   * BEFORE publication, so a mid-setup unload rolls everything back; `signal`
-   * fuses caller cancellation with lifecycle teardown for setup awaits.
+   * 为新 agent 构造驱动器、作用域和一个记忆化的逆向拆除。
+   * 拆除在发布之前注册到工厂和所有者 fiber，
+   * 因此 setup 中途的卸载会回滚一切；`signal` 将调用方取消
+   * 与生命周期拆除融合，用于 setup 等待。
    */
   private prepare(
     ownerCtx: Context,
@@ -505,9 +501,9 @@ export class AgentLoop extends Service implements AgentFactory {
   ): PreparedAgent {
     assertAgentOptions(options)
     ownerCtx.fiber.assertActive()
-    // Every caller reaches prepare() synchronously from a service method
-    // whose Cordis dispatch already requires the live factory fiber, or
-    // re-checks ownership itself after its awaits (resume's load barrier).
+    // 每个调用方都从服务方法同步到达 prepare()，该方法的 Cordis 分发
+    // 已要求活跃的工厂 fiber，或者在其等待之后自行重新检查所有权
+    // （resume 的加载屏障）。
     /* v8 ignore next -- unreachable backstop, see above */
     if (!this.ownership.isActive()) throw new Error('agent loop is not active')
     if (callerSignal?.aborted) {
@@ -517,11 +513,10 @@ export class AgentLoop extends Service implements AgentFactory {
     }
     const loopCtx = this.runtime.ctx
 
-    // Deactivation fuses three owners, each with its own reason: the caller's
-    // cancellation signal, the owner fiber's unload, and factory teardown.
-    // It is registered BEFORE any resource exists, over mutable slots, so an
-    // unload arriving while the scope is still minting finds a working
-    // disposer instead of a leak.
+    // 停用融合三个所有者，各有其原因：调用方的取消信号、所有者 fiber 的
+    // 卸载，以及工厂拆除。它注册于任何资源存在之前，基于可变槽位，
+    // 因此在作用域仍在铸造时到达的卸载会找到一个可用的
+    // disposer，而不是泄漏。
     const abort = new AbortController()
     const onCallerAbort = (): void => {
       abort.abort(callerSignal?.reason instanceof Error
@@ -538,25 +533,25 @@ export class AgentLoop extends Service implements AgentFactory {
     let disposing: Promise<void> | undefined
     let publication: ReturnType<typeof Promise.withResolvers<void>> | undefined
     const machineReady = Promise.withResolvers<void>()
-    // Reverse teardown, memoized so every racing owner awaits one quiescence:
-    // stop the machine, unwind the scope, drain and close the session's write
-    // path, leave the registries, release bookkeeping.
+    // 逆向拆除，已记忆化，使每个竞争的所有者等待同一次静默：
+    // 停止机器、展开作用域、排空并关闭会话的写路径、
+    // 离开注册表、释放记账。
     const teardown = (): Promise<void> => (disposing ??= (async () => {
       abort.abort(new Error(this.ownership.isActive()
         ? `agent "${id}" lifecycle disposed`
         : 'agent loop is not active'))
       callerSignal?.removeEventListener('abort', onCallerAbort)
       this.ownership.signal.removeEventListener('abort', onFactoryTeardown)
-      // Teardown failures are collected, never swallowed: registry, scope,
-      // and ownership cleanup always run to quiescence, then the memoized
-      // disposal rejects with what failed so every racing owner observes it.
+      // 拆除失败会被收集，绝不被吞掉：注册表、作用域和所有权的清理
+      // 总是运行到静默，然后记忆化的释放以失败内容拒绝，
+      // 使每个竞争的所有者都能观察到它。
       const failures: unknown[] = []
       try {
-        // Creation listeners retain the session and scope through their awaits.
+        // 创建监听器在其等待期间保留会话和作用域。
         if (publication !== undefined) await publication.promise
-        // Disposal IS a disposed-cause cancel followed by quiescence. New work
-        // sent after this point is the sender's bug — the registries are about
-        // to drop the agent, so nothing should still hold it.
+        // 释放就是一次 disposed 原因的取消加静默。在此之后发送的新工作
+        // 是发送方的 bug——注册表即将丢弃该 agent，
+        // 因此不应再有东西持有它。
         /* v8 ignore next -- Cordis effect teardown waits for synchronous setup before observing the machine slot. */
         if (machine === undefined) await machineReady.promise
         /* v8 ignore next -- setup failure untracks this disposer before resolving without a machine. */
@@ -572,10 +567,9 @@ export class AgentLoop extends Service implements AgentFactory {
       } catch (error: unknown) {
         failures.push(error)
       }
-      // Close drains events already routed into the handle. The backend's
-      // live-event listeners must stay mounted through driver shutdown to
-      // receive all closing events. A failed final drain is retained here
-      // rather than logged away.
+      // 关闭会排空已路由进句柄的事件。后端的活跃事件监听器必须在驱动器
+      // 关闭期间保持挂载，以接收所有关闭中的事件。失败的最终排空在此保留，
+      // 而不是被日志吞掉。
       try {
         await handle?.close()
       } catch (error: unknown) {
@@ -603,8 +597,8 @@ export class AgentLoop extends Service implements AgentFactory {
       unfollowOwner = ownerCtx.effect(function* () {
         const created = machine = new ReactLoopAgent(loopCtx, id, options, session)
         machineReady.resolve()
-        // Adopt the scope on its original fiber so it cannot unload before teardown.
-        // A loop already unloading during minting owns the provisional scope itself.
+        // 在其原始 fiber 上收养作用域，使它无法在拆除之前卸载。
+        // 在铸造期间已经在卸载的循环自行拥有临时作用域。
         if (!INACTIVE_STATES.has(loopCtx.fiber.state)) {
           unfollowScope = loopCtx.effect(function* () {
             yield created.scope.rawDispose
@@ -632,9 +626,9 @@ export class AgentLoop extends Service implements AgentFactory {
 
     const assertLive = (): void => {
       if (!abort.signal.aborted) return
-      // Every fused abort source carries an Error reason: onCallerAbort and
-      // raceAbort wrap non-Error caller reasons, and the factory/lifecycle
-      // owners abort with constructed Errors.
+      // 每个融合的中止来源都携带 Error 原因：onCallerAbort 和
+      // raceAbort 会包装非 Error 的调用方原因，而工厂/生命周期
+      // 所有者以构造的 Error 中止。
       /* v8 ignore next -- unreachable String() arm, see above */
       throw abort.signal.reason instanceof Error ? abort.signal.reason : new Error(String(abort.signal.reason))
     }
@@ -669,21 +663,20 @@ export class AgentLoop extends Service implements AgentFactory {
       }
     } catch (error: unknown) {
       machineReady.resolve()
-      // Rollback swallows a disposal rejection: the setup failure is primary.
+      // 回滚吞掉释放拒绝：setup 失败才是主要的。
       void dispose().catch(() => {})
       throw error
     }
   }
 
   /**
-   * Create an agent and session under one caller-supplied identity, owned by
-   * the accessing fiber. Constructor-driven config calls mint a fresh combined
-   * id before entering this boundary. When a persistence backend is mounted,
-   * the session's durable identity and any seed are stored before publication.
-   * @param id - shared agent/session identity.
-   * @param options - concrete loop options.
-   * @param meta - optional fresh-session workspace metadata.
-   * @returns the published running agent.
+   * 在一个调用方提供的身份下创建 agent 和会话，由访问的 fiber 拥有。
+   * 构造函数驱动的配置调用在进入此边界之前铸造全新的组合 id。
+   * 当挂载了持久化后端时，会话的持久身份和任何种子在发布之前存储。
+   * @param id - 共享的 agent/session 身份。
+   * @param options - 具体的循环选项。
+   * @param meta - 可选的全新会话工作区元数据。
+   * @returns 已发布的运行中 agent。
    */
   async create(id: SessionId, options: AgentOptions = {}, meta: Pick<SessionHeader, 'cwd'> = {}): Promise<Agent> {
     using preparation = SessionPreparation.create(this.runtime.ctx.sessions.prepare(id, { meta }))
@@ -702,15 +695,14 @@ export class AgentLoop extends Service implements AgentFactory {
   }
 
   /**
-   * Take a fresh session's write ownership when persistence is mounted.
-   * Nothing is appended here: the constructor seed (which never re-emits
-   * through `session/event`) is stored by `appendUnstoredSuffix` at the
-   * publication commit point, so a failed or cancelled validation or setup
-   * closes an unmaterialized handle and leaves no stored residue — the same
-   * id can be created again.
-   * @param session - the unpublished session to store.
-   * @param signal - optional cancellation forwarded to the backend create.
-   * @returns the owned handle and stored cursor, or `undefined` without a backend.
+   * 在挂载持久化时接管全新会话的写所有权。
+   * 这里不追加任何内容：构造函数种子（它从不通过 `session/event`
+   * 重新发出）由 `appendUnstoredSuffix` 在发布提交点存储，因此失败或
+   * 取消的验证或 setup 会关闭一个未物化的句柄，不留下任何已存储的残留——
+   * 同一个 id 可以再次创建。
+   * @param session - 要存储的未发布会话。
+   * @param signal - 转发给后端 create 的可选取消。
+   * @returns 拥有的句柄和已存储游标，无后端时为 `undefined`。
    */
   private async createStoredSession(session: Session, signal?: AbortSignal): Promise<StoredSession | undefined> {
     const persistence = this.runtime.ctx.get('sessionPersistence')
@@ -723,29 +715,28 @@ export class AgentLoop extends Service implements AgentFactory {
   }
 
   /**
-   * Durably store the session events appended since the last stored cursor.
-   * Pre-publication appends (constructor seed markers, setup-window events
-   * such as delegation policy records) never re-emit through `session/event`,
-   * so publication must flush them through the handle before live events
-   * start routing into it.
-   * @param stored - the session's owned handle and stored cursor, if any.
-   * @param session - the unpublished session whose suffix is stored.
+   * 持久存储自上次已存储游标以来追加的会话事件。
+   * 发布前的追加（构造函数种子标记、setup 窗口内的事件如委派策略记录）
+   * 从不通过 `session/event` 重新发出，因此发布必须在活跃事件开始
+   * 路由进入之前通过句柄刷新它们。
+   * @param stored - 会话拥有的句柄和已存储游标（如有）。
+   * @param session - 其后缀要被存储的未发布会话。
    */
   private async appendUnstoredSuffix(stored: StoredSession | undefined, session: Session): Promise<void> {
     if (stored === undefined) return
     // oxlint-disable-next-line typescript/no-deprecated -- Existing Session history read; migration deferred.
     const suffix = session.snapshotEvents(SessionLogOffset(stored.storedCount))
     if (suffix.length > 0) await stored.handle.append(suffix)
-    // Advance by what was stored, not to `session.seq`: an event appended
-    // during the await must stay unstored for the next flush.
+    // 按已存储的数量推进，而不是推进到 `session.seq`：在等待期间追加的
+    // 事件必须保持未存储状态，留给下一次刷新。
     stored.storedCount += suffix.length
   }
 
   /**
-   * Create an owned agent on a caller-supplied session id.
-   * @param ownerCtx - caller context that structurally owns the lifecycle.
-   * @param options - identities, optional live parent, session seed/metadata, loop options, setup, and cancellation.
-   * @returns the published handle.
+   * 在调用方提供的会话 id 上创建拥有的 agent。
+   * @param ownerCtx - 在结构上拥有该生命周期的调用方上下文。
+   * @param options - 身份、可选的活跃父级、会话种子/元数据、循环选项、setup 和取消。
+   * @returns 已发布的句柄。
    */
   async createAgent(ownerCtx: Context, options: CreateAgentOptions): Promise<AgentHandle> {
     const preparation = SessionPreparation.create(this.runtime.ctx.sessions.prepare(options.sessionId, {
@@ -756,8 +747,8 @@ export class AgentLoop extends Service implements AgentFactory {
     const published = (async () => {
       let stored: StoredSession | undefined
       try {
-        // raceAbortCall normalizes a pre-aborted or mid-create abort and
-        // closes a handle that finishes creating after abandonment.
+        // raceAbortCall 将预先中止或创建中途的中止规范化，
+        // 并关闭在被放弃之后才完成创建的句柄。
         stored = options.signal === undefined
           ? await this.createStoredSession(preparation.session)
           : await raceAbortCall(
@@ -786,7 +777,7 @@ export class AgentLoop extends Service implements AgentFactory {
     return published
   }
 
-  /** Prepare one Agent around an acquired Session, run setup, and publish it. */
+  /** 围绕已获取的 Session 准备一个 Agent，运行 setup，并发布它。 */
   private async setupAndPublish(
     ownerCtx: Context,
     id: SessionId,
@@ -821,24 +812,24 @@ export class AgentLoop extends Service implements AgentFactory {
         try {
           return await initialize()
         } catch (error: unknown) {
-          // Teardown owns inbox cleanup and may already have removed its projection.
+          // 拆除拥有收件箱清理，并且可能已移除其投影。
           prepared.agent.cancel({ kind: 'disposed' }, { keepInbox: true })
           throw error
         }
       })
     } catch (error: unknown) {
-      // Rollback swallows a disposal rejection (a failing final handle close):
-      // the setup failure is the primary error the caller must see.
+      // 回滚吞掉释放拒绝（失败的最终句柄关闭）：
+      // setup 失败是调用方必须看到的主要错误。
       await prepared.dispose().catch(() => {})
       throw error
     }
   }
 
   /**
-   * Resume an owned agent from the configured persistence service.
-   * @param ownerCtx - caller context that owns load, setup, and the live lifecycle.
-   * @param options - persisted identity, optional live parent, loop options, setup, and cancellation.
-   * @returns the published handle.
+   * 从配置的持久化服务恢复拥有的 agent。
+   * @param ownerCtx - 拥有加载、setup 和活跃生命周期的调用方上下文。
+   * @param options - 持久化身份、可选的活跃父级、循环选项、setup 和取消。
+   * @returns 已发布的句柄。
    */
   async resume(ownerCtx: Context, options: ResumeAgentOptions): Promise<AgentHandle> {
     const persistence = this.runtime.ctx.get('sessionPersistence')
@@ -848,7 +839,7 @@ export class AgentLoop extends Service implements AgentFactory {
     return this.resumeWith(ownerCtx, persistence, options)
   }
 
-  /** Resume through an explicit persistence handle used by the deferred config path. */
+  /** 通过延迟配置路径使用的显式持久化句柄进行恢复。 */
   private resumeWith(
     ownerCtx: Context,
     persistence: SessionPersistence,
@@ -856,9 +847,8 @@ export class AgentLoop extends Service implements AgentFactory {
   ): Promise<AgentHandle> {
     const id = options.resumeSessionId
     const published = (async () => {
-      // The open and read may outlive their owner: race them against caller
-      // cancellation, owner-fiber unload, and factory teardown so a
-      // never-settling backend cannot pin the identity.
+      // 打开和读取可能比其所有者更长寿：将它们与调用方取消、所有者 fiber
+      // 卸载和工厂拆除竞争，使永不落定的后端无法钉住该身份。
       const ownerAbort = new AbortController()
       const unfollowOwner = ownerCtx.effect(() => () => {
         ownerAbort.abort(new Error(`agent "${id}" setup aborted: owner disposed during setup`))
@@ -873,18 +863,17 @@ export class AgentLoop extends Service implements AgentFactory {
       let preparation: SessionPreparation | undefined
       try {
         try {
-          // Taking write ownership FIRST excludes a concurrent resume of the
-          // same id (in this process, a live agent's handle holds the claim).
+          // 先取得写所有权可以排除同一 id 的并发恢复
+          // （在此进程中，活跃 agent 的句柄持有该声明）。
           handle = await raceAbortCall(
             () => persistence.open(id, 'write', { signal: fused }),
             fused,
             id,
             (abandoned) => { void abandoned.close() },
           )
-          // Semantic crash repair is the agent layer's job: persistence hands
-          // back the physically valid log; an interrupted final turn receives
-          // synthetic closers (missing tool errors, step/end, turn/end) that
-          // are appended through the same handle as an ordinary batch.
+          // 语义崩溃修复是 agent 层的职责：持久化交还物理有效的日志；
+          // 被中断的最终 turn 会收到合成闭合器（缺失的工具错误、step/end、
+          // turn/end），它们像普通批次一样通过同一句柄追加。
           const coldRead = await handle.read(0, undefined, { signal: fused })
           fused.throwIfAborted()
           const persisted = coldRead.events

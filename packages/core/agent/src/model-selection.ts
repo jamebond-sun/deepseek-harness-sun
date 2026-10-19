@@ -1,5 +1,5 @@
 /**
- * Agent-scoped model selection shared by runtime entry points.
+ * 由运行时入口点共享的 agent 作用域模型选择。
  * @module @deepseek-ai/dsh-agent/model-selection
  */
 
@@ -18,21 +18,21 @@ declare module '@deepseek-ai/dsh-llm' {
   }
 }
 
-/** Complete provider, model, and optional reasoning effort selected for one live Agent. */
+/** 为一个活跃 Agent 选定的完整提供方、模型与可选推理投入度。 */
 export interface ModelSelection {
-  /** Registered provider route. */
+  /** 已注册的提供方路由。 */
   provider: string
-  /** Provider-owned model id. */
+  /** 提供方拥有的模型 id。 */
   model: string
-  /** Adapter-owned reasoning effort, or provider/default behavior when absent. */
+  /** 适配器拥有的推理投入度；缺省时为提供方/默认行为。 */
   reasoningEffort?: ReasoningEffortId
 }
 
-/** Mutable model selection plus the value captured for the current step. */
+/** 可变的模型选择，加上为当前 step 捕获的值。 */
 export interface ModelSelectionRef {
-  /** Model selected for the next step that enters prompt assembly. */
+  /** 为下一个进入提示词组装的 step 选定的模型。 */
   current: ModelSelection | undefined
-  /** Selection captured when the current step entered prompt assembly. */
+  /** 当前 step 进入提示词组装时捕获的选择。 */
   assembled: ModelSelection | undefined
 }
 
@@ -61,22 +61,18 @@ function modelSwitchNotice(previous: ModelSelection, selected: ModelSelection) {
 }
 
 /**
- * Couple one mutable selection to Agent-scoped prompt assembly and request routing.
- * Prompt assembly snapshots the selected model before delegating, then applies
- * its provider/model pair and effort to request config so a
- * concurrent switch takes effect on a later step instead of splitting the two
- * surfaces. An absent selected effort clears any inherited effort, restoring
- * the selected model's provider/default behavior.
+ * 将一个可变选择与 Agent 作用域的提示词组装及请求路由耦合。提示词组装在
+ * 委托之前快照所选模型，然后将其 provider/model 对与投入度应用到请求配置，
+ * 使并发的切换在后续 step 上生效，而不是把两个侧面割裂。缺失的所选投入度
+ * 会清除任何继承的投入度，恢复所选模型的提供方/默认行为。
  *
- * A provider/model change appends a durable user-role notice to the next
- * admitted request. It compares the assembled selection with the latest
- * request header; effort-only changes and empty no-request decisions add no
- * notice. Failure before header persistence repeats the notice on the next
- * request.
+ * provider/model 变更会向下一个准入请求追加一条持久的 user 角色通知。
+ * 它将已组装的选择与最新请求头比较；仅投入度的变更和空的无请求决策
+ * 不追加通知。请求头持久化之前的失败会在下一个请求上重复该通知。
  *
- * @param agentCtx - The selected Agent's scoped context.
- * @param selection - Mutable selection owned by the calling entry point.
- * @returns Disposer for all scoped waterfall listeners.
+ * @param agentCtx - 所选 Agent 的作用域上下文。
+ * @param selection - 由调用入口点拥有的可变选择。
+ * @returns 所有作用域 waterfall 监听器的释放器。
  */
 export function installModelSelection(agentCtx: Context, selection: ModelSelectionRef): () => void {
   const disposeAssembly = agentCtx.on('system-prompt/assemble', async (_assembly, _context, next) => {
@@ -115,7 +111,7 @@ export function installModelSelection(agentCtx: Context, selection: ModelSelecti
     async ({ agent, messages, signal, step }, next): Promise<PreStepDecision> => {
       const decision = await next()
       if (decision.kind === 'reject' || signal.aborted) return decision
-      // The loop skips an empty first step and an emptied offered continuation.
+      // 循环会跳过空的第一个 step 以及被清空的已提议延续。
       if (decision.messages.length === 0 && (step === 1 || messages.length > 0)) return decision
       const selected = selection.assembled
       const previous = agent.session.requestHeader()?.config

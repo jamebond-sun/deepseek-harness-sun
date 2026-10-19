@@ -1,6 +1,6 @@
 /**
- * Host directory-picking Remote owner: capability gating, cancellation, and the
- * stable wire failure vocabulary over the `ctx.directoryPicker` seam.
+ * Host 目录选择 Remote 属主：`ctx.directoryPicker` 接缝之上的
+ * 能力门控、取消，以及稳定的 wire 失败词汇。
  */
 
 import { Context } from '@deepseek-ai/cordis'
@@ -9,8 +9,8 @@ import { DirectoryPickerError } from '@deepseek-ai/dsh-host-directory-picker'
 import type {
   DirectoryPickerCapabilities, DirectoryPickerErrorCode,
 } from '@deepseek-ai/dsh-host-directory-picker'
-// The seam owns the listing declaration; the generator requires the reference
-// site to name that package rather than this package's re-export of it.
+// 该接缝拥有列表声明；生成器要求引用处指向那个包，
+// 而不是本包对它的重新导出。
 import type { DirectoryListing } from '@deepseek-ai/dsh-host-directory-picker/types'
 import { Remote, RemoteError, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import type { RemoteErrorCode } from '@deepseek-ai/dsh-typert-protocol'
@@ -26,30 +26,29 @@ const createDirectoryRequestSchema = z.object({
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
-    /** Host directory-picking Remote namespace owner. */
+    /** Host 目录选择 Remote 命名空间属主。 */
     directoryPickerController: DirectoryPickerController
   }
 }
 
 /**
- * Host service backing the generated `ctx.remote.directoryPicker` namespace. The
- * seam it exports is abstract and therefore never a Loader entry of its own, so
- * this controller carries the wire verbs: one composed backend serves either the
- * native chooser or the browse primitives, and a verb the composition cannot
- * serve is refused rather than approximated.
+ * 支撑生成的 `ctx.remote.directoryPicker` 命名空间的 Host 服务。其导出的
+ * 接缝是抽象的，因此从不是独立的 Loader 入口，所以该控制器承载
+ * wire 动词：一个组合后端要么服务原生选择器，要么服务浏览原语，
+ * 组合无法服务的动词会被拒绝而非近似替代。
  */
 export class DirectoryPickerController extends TypertRemoteService {
   static inject = ['directoryPicker']
 
-  /** @param ctx - Host context carrying the composed directory-picking backend. */
+  /** @param ctx - 携带组合目录选择后端的 Host 上下文。 */
   constructor(ctx: Context) {
     super(ctx, 'directoryPickerController', { namespace: 'directoryPicker' })
   }
 
   /**
-   * Open the host's OS chooser for a Remote caller.
-   * @param signal - caller lifetime; abort terminates the chooser.
-   * @returns the chosen absolute path, or null when the operator cancels.
+   * 打开宿主机的 OS 选择器，供 Remote 调用方使用。
+   * @param signal - 调用方生命周期；中止会终止选择器。
+   * @returns 所选绝对路径，操作者取消时为 null。
    */
   @Remote('pick')
   async pick(signal: AbortSignal): Promise<string | null> {
@@ -62,11 +61,11 @@ export class DirectoryPickerController extends TypertRemoteService {
   }
 
   /**
-   * List one directory level for a Remote caller's in-app browser.
-   * @param path - absolute directory to list; absent lists the home directory.
-   * @param signal - caller lifetime; abort stops the backend's scan instead of
-   *   letting it outlive a disconnected caller.
-   * @returns the level's listing with its ancestry.
+   * 为 Remote 调用方的应用内浏览器列出一个目录层级。
+   * @param path - 要列出的绝对目录；缺省时列出主目录。
+   * @param signal - 调用方生命周期；中止会停止后端的扫描，
+   *   而不是让它活得比已断开的调用方更久。
+   * @returns 该层级的列表及其祖先链。
    */
   @Remote('list')
   async list(path: string | undefined, signal: AbortSignal): Promise<DirectoryListing> {
@@ -79,10 +78,10 @@ export class DirectoryPickerController extends TypertRemoteService {
   }
 
   /**
-   * Create one child directory for a Remote caller's in-app browser.
-   * @param path - absolute existing parent directory.
-   * @param name - single non-blank path segment.
-   * @returns the created directory's absolute path.
+   * 为 Remote 调用方的应用内浏览器创建一个子目录。
+   * @param path - 存在的绝对父目录。
+   * @param name - 单个非空路径段。
+   * @returns 所创建目录的绝对路径。
    */
   @Remote('createDirectory')
   async createDirectory(path: string, name: string): Promise<string> {
@@ -102,7 +101,7 @@ export class DirectoryPickerController extends TypertRemoteService {
     }
   }
 
-  /** Resolve the capability one wire verb needs, or refuse with the kind this backend serves. */
+  /** 解析一个 wire 动词所需的能力，否则以本后端服务的种类拒绝。 */
   private requireCapability<Kind extends keyof DirectoryPickerCapabilities>(
     kind: Kind,
     method: string,
@@ -120,9 +119,9 @@ export class DirectoryPickerController extends TypertRemoteService {
 }
 
 /**
- * Wire code answered for each seam browse failure. The seam's closed codes are
- * its own local vocabulary, so this controller owns the projection onto the
- * `directory-picker/*` codes a Remote caller discriminates on.
+ * 每种接缝浏览失败所应答的 wire code。接缝的封闭 code 是其自身的
+ * 本地词汇，因此由本控制器负责投影到 Remote 调用方用以区分的
+ * `directory-picker/*` code。
  */
 const BROWSE_FAILURE_CODES = {
   'directory-unreadable': 'directory-picker/unreadable',
@@ -131,10 +130,10 @@ const BROWSE_FAILURE_CODES = {
 } as const satisfies Record<DirectoryPickerErrorCode, RemoteErrorCode>
 
 /**
- * Classify a browse-primitive rejection: the seam's own closed codes carry the
- * path they are about, and anything else stays an infrastructure failure.
- * @param error - the primitive's rejection.
- * @returns the failure to throw across the Remote boundary.
+ * 对浏览原语的拒绝分类：接缝自身的封闭 code 携带其所指的路径，
+ * 其余一切保持为基础设施失败。
+ * @param error - 原语的拒绝。
+ * @returns 跨 Remote 边界抛出的失败。
  */
 function browseFailure(error: unknown): RemoteError {
   if (error instanceof DirectoryPickerError) {
@@ -149,14 +148,13 @@ function browseFailure(error: unknown): RemoteError {
 }
 
 /**
- * Classify a cancellable primitive's rejection. An abort is the caller's own
- * timeout or disconnect, not a backend failure, so it answers `gateway/cancelled`
- * before the business classification runs.
- * @param error - the primitive's rejection.
- * @param signal - the caller lifetime the primitive ran under.
- * @param cancelled - operator-facing text for the abort outcome.
- * @param failed - prefix for a non-seam failure, when the verb has no closed codes.
- * @returns the failure to throw across the Remote boundary.
+ * 对可取消原语的拒绝分类。中止是调用方自己的超时或断开，
+ * 不是后端失败，因此在业务分类运行之前以 `gateway/cancelled` 应答。
+ * @param error - 原语的拒绝。
+ * @param signal - 原语运行所处的调用方生命周期。
+ * @param cancelled - 面向操作者的中止结果文案。
+ * @param failed - 非接缝失败的前缀，用于没有封闭 code 的动词。
+ * @returns 跨 Remote 边界抛出的失败。
  */
 function cancellableFailure(
   error: unknown,

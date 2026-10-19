@@ -1,4 +1,4 @@
-/** Session Controller events available to a Remote Event assembly. */
+/** Remote Event 组装可用的 Session Controller 事件。 */
 type SessionControllerRemoteEvent =
   | 'api-session/activity'
   | 'api-session/added'

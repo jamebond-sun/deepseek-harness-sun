@@ -1,8 +1,8 @@
-/** A bounded output queue for one Remote stream generation. */
+/** 一条 Remote 流世代的有界输出队列。 */
 import { Deque } from '@deepseek-ai/dsh-deque'
 import type { TerminalFrame } from './types.ts'
 
-/** Slow followers fail explicitly; a later attachment recovers from the screen. */
+/** 缓慢的跟随端会显式失败；稍后的连接可从屏幕恢复。 */
 export class TerminalFollower {
   private readonly queue = new Deque<{ frame: TerminalFrame; bytes: number }>()
   private bytes = 0
@@ -11,15 +11,15 @@ export class TerminalFollower {
   private finished = false
   private failure: Error | undefined
 
-  /** Whether this attachment still accepts input and output. */
+  /** 此连接是否仍接受输入与输出。 */
   get active(): boolean { return !this.closed && !this.finished }
 
-  /** @param maxBytes - maximum queued UTF-8 bytes for this follower. */
+  /** @param maxBytes - 此跟随端可入队的 UTF-8 字节数上限。 */
   constructor(private readonly maxBytes: number) {}
 
   /**
-   * Queue a frame or fail this follower when its byte limit is exceeded.
-   * @param frame - next ordered frame.
+   * 将一帧入队；超出字节上限时使此跟随端失败。
+   * @param frame - 下一个有序帧。
    */
   push(frame: TerminalFrame): void {
     if (this.closed || this.finished) return
@@ -34,8 +34,8 @@ export class TerminalFollower {
   }
 
   /**
-   * Fail this attachment without stopping its terminal; failures after finish or close are ignored.
-   * @param error - input or output failure reported to the attached consumer.
+   * 使此连接失败而不停止其终端；finish 或 close 之后的失败被忽略。
+   * @param error - 报告给所连接消费方的输入或输出失败。
    */
   fail(error: Error): void {
     if (!this.active) return
@@ -43,13 +43,13 @@ export class TerminalFollower {
     this.close()
   }
 
-  /** Finish after delivering every queued frame, including the final exit state. */
+  /** 在交付完每个已入队帧（包括最终退出状态）之后结束。 */
   finish(): void {
     this.finished = true
     this.wake?.()
   }
 
-  /** Stop this follower without stopping its terminal. */
+  /** 停止此跟随端而不停止其终端。 */
   close(): void {
     this.closed = true
     this.queue.clear()
@@ -58,9 +58,9 @@ export class TerminalFollower {
   }
 
   /**
-   * Drain until detached or failed.
-   * @param signal - Remote generation cancellation.
-   * @returns ordered terminal frames.
+   * 持续排空，直到分离或失败。
+   * @param signal - Remote 世代取消。
+   * @returns 有序的终端帧。
    */
   async *read(signal: AbortSignal): AsyncIterable<TerminalFrame> {
     const abort = (): void => { this.close() }

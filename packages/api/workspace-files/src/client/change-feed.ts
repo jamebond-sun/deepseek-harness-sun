@@ -1,13 +1,12 @@
 /**
- * One Host `changes` subscription per Session and requested path, shared by
- * that target's open resources.
+ * 每个 Session 与请求路径一个 Host `changes` 订阅，由该目标的
+ * 打开资源共享。
  *
- * The Host reports invalidations from filesystem watches and instrumented writes.
- * The feed opens the target stream when the first follower
- * arrives, hands each frame to the followers of its path, and disposes the
- * stream when the last follower leaves. A follower buffers target changes
- * until `stat` supplies its Host absolute path, then filters queued and live
- * frames by that path, with `\\` normalized to `/`.
+ * Host 报告来自文件系统 watch 与插桩写入的失效。第一个 follower
+ * 到达时该变更流打开目标流，把每一帧交给该路径的 follower，
+ * 最后一个 follower 离开时释放流。follower 缓冲目标变更，
+ * 直到 `stat` 给出其 Host 绝对路径，然后按该路径过滤排队与
+ * 实时帧，`\\` 归一化为 `/`。
  */
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { WorkspaceFileChange, WorkspaceFileWatchFrame } from '../types.ts'
@@ -15,15 +14,15 @@ import type { SupervisedStream, WorkspaceFilesRemote } from './remote.ts'
 import type { WorkspaceFileEdit, WorkspaceFileNotice } from './types.ts'
 
 /**
- * The follower key of one absolute path.
- * @param path - an absolute path from a Host stat or change frame.
- * @returns the path with `\\` normalized to `/`.
+ * 一个绝对路径的 follower 键。
+ * @param path - 来自 Host stat 或变更帧的绝对路径。
+ * @returns `\\` 归一化为 `/` 后的路径。
  */
 function keyOf(path: string): string {
   return path.replace(/\\/g, '/')
 }
 
-/** Notices of one follower, delivered in order and pulled by its consumer. */
+/** 一个 follower 的通知，按序投递并由其消费方拉取。 */
 class Follower implements AsyncIterable<WorkspaceFileNotice> {
   private readonly pending: Array<{ readonly key: string; readonly notice: WorkspaceFileNotice }> = []
   private readonly started = Promise.withResolvers<boolean>()
@@ -32,47 +31,46 @@ class Follower implements AsyncIterable<WorkspaceFileNotice> {
   private hostKey: string | undefined
 
   /**
-   * Resolves true after the Host acknowledges its subscription, or false if
-   * this follower ends before acknowledgement.
+   * Host 确认其订阅后兑现为 true；该 follower 在确认前结束时为 false。
    */
   readonly ready = this.started.promise
 
   /**
-   * @param leave - unregisters this follower and its abort listener.
+   * @param leave - 注销本 follower 及其 abort 监听器。
    */
   constructor(private readonly leave: () => void) {}
 
   /**
-   * Select the Host path for queued and future changes.
-   * @param absolutePath - the successful stat's absolute path.
+   * 为排队与后续变更选定 Host 路径。
+   * @param absolutePath - 成功 stat 的绝对路径。
    */
   bind(absolutePath: string): void {
     this.hostKey = keyOf(absolutePath)
   }
 
-  /** The Host acknowledged an active subscription and resolved workspace root. */
+  /** Host 已确认订阅生效并解析了 workspace 根。 */
   start(): void {
     this.started.resolve(true)
   }
 
   /**
-   * Queue one notice.
-   * @param notice - what the consumer receives next.
-   * @param key - normalized Host path for the change.
+   * 将一个通知排队。
+   * @param notice - 消费方接下来收到的内容。
+   * @param key - 该变更归一化后的 Host 路径。
    */
   push(notice: WorkspaceFileNotice, key: string): void {
     this.pending.push({ key, notice })
     this.wake?.()
   }
 
-  /** Deliver what is queued, then finish. */
+  /** 投递已排队的内容，然后结束。 */
   end(): void {
     this.ended = true
     this.started.resolve(false)
     this.wake?.()
   }
 
-  /** Unregister even when the consumer has not started pulling notices. */
+  /** 即使消费方尚未开始拉取通知也执行注销。 */
   dispose(): void {
     this.leave()
   }
@@ -96,7 +94,7 @@ class Follower implements AsyncIterable<WorkspaceFileNotice> {
   }
 }
 
-/** The stream and followers of one Session and requested path. */
+/** 一个 Session 与请求路径的流及其 follower。 */
 class SessionFeed {
   private readonly followers = new Set<Follower>()
   private readonly stream: SupervisedStream<WorkspaceFileWatchFrame>
@@ -105,11 +103,11 @@ class SessionFeed {
   private acknowledged = false
 
   /**
-   * @param remote - the Remote face carrying `workspaceFiles.changes`.
-   * @param sessionId - the Session whose filesystem this feed observes.
-   * @param path - target path submitted to the Host.
-   * @param after - the previous feed of this target still closing, if any; the stream opens once it has settled.
-   * @param onClose - called once when the stream is gone, whatever the cause, with the dispose that is closing it.
+   * @param remote - 携带 `workspaceFiles.changes` 的 Remote 接口面。
+   * @param sessionId - 本变更流观察其文件系统的 Session。
+   * @param path - 提交给 Host 的目标路径。
+   * @param after - 该目标上一个仍在关闭中的变更流（如有）；流在其结束后打开。
+   * @param onClose - 流消失时调用一次，无论原因，传入正在关闭它的释放操作。
    */
   constructor(
     remote: WorkspaceFilesRemote,
@@ -120,21 +118,21 @@ class SessionFeed {
   ) {
     this.stream = remote.$stream<WorkspaceFileWatchFrame>({
       name: `workspace file changes of ${sessionId}`,
-      // A predecessor still closing finishes first, so one target never has
-      // two Host streams open at once.
+      // 仍在关闭中的前继先完成，因此一个目标绝不会同时打开
+      // 两个 Host 流。
       open: (signal) => {
         this.started = false
         return openAfter(after, () => remote.workspaceFiles.changes(sessionId, path, signal))
       },
-      // A normal end means the Host closed the target's feed.
+      // 正常结束意味着 Host 关闭了该目标的变更流。
       ended: () => new Error(`workspace file changes of ${sessionId} ended`),
     })
     void this.pump()
   }
 
   /**
-   * Register one resource address before its Host path is known.
-   * @param follower - receives changes and binds its path after stat.
+   * 在 Host 路径已知之前注册一个资源地址。
+   * @param follower - 接收变更，并在 stat 之后绑定其路径。
    */
   add(follower: Follower): void {
     this.followers.add(follower)
@@ -142,8 +140,8 @@ class SessionFeed {
   }
 
   /**
-   * Unregister one follower; the last one leaving disposes the stream.
-   * @param follower - the follower to drop.
+   * 注销一个 follower；最后一个离开者释放流。
+   * @param follower - 要移除的 follower。
    */
   remove(follower: Follower): void {
     this.followers.delete(follower)
@@ -175,8 +173,8 @@ class SessionFeed {
         }
       }
     } catch {
-      // A terminal stream failure or the Host's end: followers end quietly
-      // below, and the metadata they hold stays the last known.
+      // 流的终态失败或 Host 的结束：follower 在下方安静结束，
+      // 它们持有的元数据保持为最后已知值。
     } finally {
       this.close()
     }
@@ -193,10 +191,10 @@ class SessionFeed {
 }
 
 /**
- * Open a Host stream once a predecessor has finished closing.
- * @param after - the predecessor's dispose, or nothing to wait for.
- * @param open - opens the stream.
- * @returns the stream's items.
+ * 在前继完成关闭后打开一个 Host 流。
+ * @param after - 前继的释放操作，无则不等待。
+ * @param open - 打开流。
+ * @returns 流的条目。
  */
 async function* openAfter<T>(after: Promise<void> | undefined, open: () => AsyncIterable<T>): AsyncIterable<T> {
   await after
@@ -204,9 +202,9 @@ async function* openAfter<T>(after: Promise<void> | undefined, open: () => Async
 }
 
 /**
- * The write one Host frame reports.
- * @param frame - the Host frame.
- * @returns the edit notice followers receive.
+ * Host 帧所报告的写入。
+ * @param frame - Host 帧。
+ * @returns follower 收到的变更通知。
  */
 function editOf(frame: WorkspaceFileChange): WorkspaceFileEdit {
   return 'absent' in frame ? { kind: 'absent' } : { kind: 'changed', version: frame.version }
@@ -217,37 +215,36 @@ function assertNever(frame: never): never {
 }
 
 /**
- * Per-target sharing of the Host's workspace file change streams.
+ * Host 的 workspace 文件变更流按目标的共享。
  *
- * Owned by the provider; one instance serves every session of the Client.
+ * 由提供方持有；一个实例服务 Client 的每个 session。
  */
 export class ChangeFeed {
-  /** Live feeds only: a feed removes itself when its stream closes. */
+  /** 仅含存活变更流：流关闭时变更流自行移除。 */
   private readonly sessions = new Map<string, SessionFeed>()
-  /** Streams still closing, by Session and path; a successor waits for its predecessor. */
+  /** 仍在关闭中的流，按 Session 与路径；后继等待其前继。 */
   private readonly closing = new Map<string, Promise<void>>()
 
   /**
-   * @param remote - the Remote face carrying `$stream` and `workspaceFiles.changes`.
+   * @param remote - 携带 `$stream` 与 `workspaceFiles.changes` 的 Remote 接口面。
    */
   constructor(private readonly remote: WorkspaceFilesRemote) {}
 
   /**
-   * Follow one resource in one session before its Host path is known.
+   * 在 Host 路径未知时，跟随一个 session 中的一个资源。
    *
-   * The follower is registered on call, not on first pull. Changes delivered
-   * to this Client are queued while stat is pending. The first follower starts
-   * target's local `changes` call. The iterable ends
-   * when `signal` aborts or when the target stream is gone; ending it early
-   * (`break`, `return`) unregisters the follower as well, and the last follower
-   * of a target disposes its stream. Await a true `ready` result before stat
-   * so the Host subscription is active, then bind each stat's absolute path. Until binding,
-   * any target invalidation can trigger a retry; after binding, only matching queued
-   * and live changes pass.
-   * @param sessionId - the Session providing the file's read authority.
-   * @param path - requested file path; followers share a stream only for the same Session and path.
-   * @param signal - ends the follow.
-   * @returns a single-consumer subscription with Host-path binding and explicit disposal.
+   * follower 在调用时注册，而非首次拉取时。stat 等待期间，送达本
+   * Client 的变更会排队。第一个 follower 发起该目标的本地
+   * `changes` 调用。可迭代对象在 `signal` 中止或目标流消失时结束；
+   * 提前结束（`break`、`return`）同样会注销 follower，且一个目标的
+   * 最后一个 follower 释放其流。在 stat 之前先等待 `ready` 兑现为
+   * true，使 Host 订阅生效，然后绑定每次 stat 的绝对路径。绑定前，
+   * 任何目标失效都可触发重试；绑定后，只有匹配的排队与实时变更
+   * 能通过。
+   * @param sessionId - 提供文件读权限的 Session。
+   * @param path - 请求的文件路径；仅相同 Session 与路径的 follower 共享流。
+   * @param signal - 结束跟随。
+   * @returns 带有 Host 路径绑定与显式释放的单消费方订阅。
    */
   follow(sessionId: SessionId, path: string, signal: AbortSignal): Follower {
     const feed = signal.aborted ? undefined : this.feedOf(sessionId, path)
@@ -267,9 +264,8 @@ export class ChangeFeed {
   }
 
   /**
-   * Wait for every stream that is still closing, so an owner tearing down
-   * leaves no Host stream behind.
-   * @returns resolves once no stream of this feed is closing.
+   * 等待每个仍在关闭中的流，使属主拆卸时不留任何 Host 流。
+   * @returns 本变更流没有流仍在关闭时兑现。
    */
   async settle(): Promise<void> {
     await Promise.all(this.closing.values())
@@ -281,7 +277,7 @@ export class ChangeFeed {
     if (existing !== undefined) return existing
     const feed = new SessionFeed(this.remote, sessionId, path, this.closing.get(key), (closed) => {
       this.sessions.delete(key)
-      // A dispose that rejects is still a settled close: nothing remains to wait for.
+      // 被 reject 的释放仍是已结算的关闭：不再有需要等待的东西。
       const tracked: Promise<void> = closed.then(() => undefined, () => undefined).then(() => {
         if (this.closing.get(key) === tracked) this.closing.delete(key)
       })

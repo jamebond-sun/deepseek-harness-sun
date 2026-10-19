@@ -1,8 +1,8 @@
 /**
- * Request-header reconstruction utilities over full `request/header` session
- * events. Anyone holding a session log reconstructs the {@link EpochHeader}
- * any request was built under by taking the latest canonical snapshot; the
- * loop uses the same equality helper to avoid logging unchanged headers.
+ * 面向完整 `request/header` session 事件的请求 header 重建工具。任何持有
+ * session 日志的人，通过取最新的规范快照即可重建任意请求构建时所用的
+ * {@link EpochHeader}；循环使用同一个相等性 helper 以避免记录未变化的
+ * header。
  *
  * @module dsh-session/request-header
  */
@@ -12,11 +12,10 @@ import type { ToolSchema } from '@deepseek-ai/dsh-llm'
 import type { EpochHeader, SessionEvent } from './types.ts'
 
 /**
- * Normalize a header to canonical form: an empty tool list becomes an absent
- * field, matching how requests are built. Logging, folding, and comparison use
- * this one representation.
- * @param header - the header to normalize (not mutated).
- * @returns the canonical header.
+ * 把 header 规范化：空工具列表变为缺席字段，与请求的构建方式一致。
+ * 记录、折叠与比较都使用这一种表示。
+ * @param header - 要规范化的 header（不修改）。
+ * @returns 规范 header。
  */
 export function canonicalHeader(header: EpochHeader): EpochHeader {
   const adapterDefaults = header.adapterDefaults
@@ -29,16 +28,16 @@ export function canonicalHeader(header: EpochHeader): EpochHeader {
   }
 }
 
-/** Canonical JSON equality for tool schemas assembled through the same path. */
+/** 通过同一路径组装的工具 schema 的规范 JSON 相等性。 */
 function sameSchema(a: ToolSchema, b: ToolSchema): boolean {
   return JSON.stringify(a) === JSON.stringify(b)
 }
 
 /**
- * Field-wise equality over canonical headers. Tool schemas compare in order.
- * @param a - one canonical header.
- * @param b - the other.
- * @returns whether config, adapter defaults, and tools all match.
+ * 逐字段比较规范 header。工具 schema 按顺序比较。
+ * @param a - 一个规范 header。
+ * @param b - 另一个。
+ * @returns config、adapter 默认值与工具是否全部匹配。
  */
 export function headerEquals(a: EpochHeader, b: EpochHeader): boolean {
   if (
@@ -52,13 +51,12 @@ export function headerEquals(a: EpochHeader, b: EpochHeader): boolean {
 }
 
 /**
- * Fold the header events of a log (or any prefix) into the
- * {@link EpochHeader} in force after the last snapshot. Non-header events are
- * skipped. This is the pure offline reconstruction path; the live session
- * tracks the same fold incrementally.
- * @param events - session events in log order.
- * @param from - a previously folded state to continue from.
- * @returns the latest canonical header, or undefined when none exists yet.
+ * 把日志（或任意前缀）的 header 事件折叠为最后一个快照之后生效的
+ * {@link EpochHeader}。非 header 事件被跳过。这是纯离线重建路径；活跃
+ * session 以增量方式执行同一折叠。
+ * @param events - 按日志顺序排列的 session 事件。
+ * @param from - 要延续的先前折叠状态。
+ * @returns 最新的规范 header，尚无时为 undefined。
  */
 export function foldRequestHeader(events: readonly SessionEvent[], from?: EpochHeader): EpochHeader | undefined {
   let state = from

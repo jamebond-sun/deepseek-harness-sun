@@ -1,4 +1,4 @@
-/** Session commands whose activation policy is explicit at each Remote method. */
+/** 每个 Remote 方法上激活策略均显式声明的 Session 命令。 */
 
 import { modelAvailable } from './catalog.ts'
 import { randomUUID } from 'node:crypto'
@@ -65,17 +65,17 @@ type PromptContentCandidate =
   | Extract<SessionUpdateQueueRequest['action'], { readonly kind: 'edit' }>['content'][number]
 
 /**
- * Whether prompt content carries non-whitespace text or an attachment.
- * @param content - submitted or edited prompt parts.
- * @returns false for content the Agent must not receive.
+ * 提示词内容是否携带非空白文本或附件。
+ * @param content - 提交或编辑的提示词部分。
+ * @returns 对 Agent 不应接收的内容为 false。
  */
 export function hasPromptContent(content: readonly PromptContentCandidate[]): boolean {
   return content.some(part => part.type !== 'text' || part.text.trim().length > 0)
 }
 
 /**
- * Resolve the omitted-`atSeq` default to the latest completed-turn prefix,
- * including standalone events before the next turn begins.
+ * 将省略的 `atSeq` 默认值解析为最新的已完成回合前缀，
+ * 包括下一回合开始之前的独立事件。
  */
 function latestCompletedPrefixBoundary(events: readonly SessionEvent[]): SessionSeq | undefined {
   const lastTurnEnd = events.findLast(event => event.type === 'turn/end')
@@ -89,12 +89,12 @@ function latestCompletedPrefixBoundary(events: readonly SessionEvent[]): Session
   return boundary
 }
 
-/** Implements Session business commands delegated by the Session Controller Remote service. */
+/** 实现 Session Controller Remote 服务委托的 Session 业务命令。 */
 export class SessionCommandController {
   /**
-   * @param ctx - Host context carrying Agent, model, attachment, title, and Workspace services.
-   * @param agents - sole owner of create, resume, and Session-local model selection.
-   * @param defaultCwd - project directory used when create names neither a Workspace nor a cwd.
+   * @param ctx - 携带 Agent、模型、附件、标题与 Workspace 服务的 Host 上下文。
+   * @param agents - 创建、恢复与 Session 本地模型选择的唯一拥有者。
+   * @param defaultCwd - 当 create 既未命名 Workspace 也未命名 cwd 时使用的项目目录。
    */
   constructor(
     private readonly ctx: Context,
@@ -103,10 +103,10 @@ export class SessionCommandController {
   ) {}
 
   /**
-   * Create one ordinary Session for a new conversation, reusing the named
-   * blank Session while it is an unarchived member of the requested Workspace.
-   * @param request - optional blank Session to reuse, location, and Agent preset.
-   * @returns the created or reused Session identity and its preset when configured.
+   * 为新对话创建一个普通 Session，在命名空白 Session 仍是所请求
+   * Workspace 的未归档成员时复用它。
+   * @param request - 可选的待复用空白 Session、位置与 Agent 预设。
+   * @returns 创建或复用的 Session 标识，以及配置了预设时的该预设。
    */
   async create(request: SessionCreateRequest): Promise<SessionCreateValue> {
     if (request.workspaceId !== undefined && request.cwd !== undefined) {
@@ -150,9 +150,9 @@ export class SessionCommandController {
   }
 
   /**
-   * Validate and install one Session-local model selection; save the default in the background.
-   * @param request - Session identity and requested model selection.
-   * @returns the normalized selection installed for the Session, without waiting for default persistence.
+   * 验证并安装一个 Session 本地模型选择；在后台保存默认值。
+   * @param request - Session 标识与请求的模型选择。
+   * @returns 为该 Session 安装的规范化选择，不等待默认值持久化。
    */
   async selectModel(request: SessionSelectModelRequest): Promise<SessionSelectModelValue> {
     const agent = await this.resolveAgent(request.sessionId)
@@ -192,9 +192,9 @@ export class SessionCommandController {
   }
 
   /**
-   * Normalize and append a user-owned Session title.
-   * @param request - Session identity and proposed title.
-   * @returns the accepted title and durable event sequence.
+   * 规范化并追加一个用户拥有的 Session 标题。
+   * @param request - Session 标识与建议的标题。
+   * @returns 被接受的标题与持久化事件序列。
    */
   async rename(request: SessionRenameRequest): Promise<SessionRenameValue> {
     const agent = await this.resolveAgent(request.sessionId)
@@ -218,11 +218,11 @@ export class SessionCommandController {
   }
 
   /**
-   * Create a new ordinary Session from an exact event prefix. An explicit
-   * `atSeq` is the inclusive cut; an omitted value selects the latest
-   * completed-turn prefix. An open cut receives synthetic fork closers.
-   * @param request - source Session and optional exact event boundary.
-   * @returns the new Session identity.
+   * 从一个精确事件前缀创建新的普通 Session。显式的
+   * `atSeq` 是含端点切点；省略时选择最新的已完成回合前缀。
+   * 开放切点会收到合成的分叉收尾事件。
+   * @param request - 源 Session 与可选的精确事件边界。
+   * @returns 新 Session 的标识。
    */
   async fork(request: SessionForkRequest): Promise<SessionForkValue> {
     let atSeq: ReturnType<typeof SessionSeq> | undefined
@@ -310,11 +310,11 @@ export class SessionCommandController {
   }
 
   /**
-   * Admit one prompt after Agent and attachment validation; the Remote method
-   * has already validated the content and built the durable message source.
-   * @param request - Session identity, prompt content, and delivery mode.
-   * @param source - the `user-rpc` source recorded on the accepted message.
-   * @returns acknowledgement that the Agent accepted the prompt.
+   * 在 Agent 与附件验证之后接纳一条提示词；Remote 方法
+   * 已验证内容并构建了持久化消息来源。
+   * @param request - Session 标识、提示词内容与投递模式。
+   * @param source - 记录在被接受消息上的 `user-rpc` 来源。
+   * @returns Agent 已接受该提示词的确认。
    */
   async prompt(request: SessionPromptRequest, source: MessageSource): Promise<SessionPromptValue> {
     const agent = await this.resolveAgent(request.sessionId)
@@ -370,9 +370,9 @@ export class SessionCommandController {
   }
 
   /**
-   * Read one durable image after proving the Session log references it.
-   * @param request - Session and attachment identities used for authorization.
-   * @returns the durable attachment reference and base64-encoded bytes.
+   * 在证明 Session 日志引用了该图片之后读取一张持久化图片。
+   * @param request - 用于授权的 Session 与附件标识。
+   * @returns 持久化附件引用与 base64 编码的字节。
    */
   async attachment(request: SessionAttachmentRequest): Promise<SessionAttachmentValue> {
     let source: SessionReadState
@@ -411,9 +411,9 @@ export class SessionCommandController {
   }
 
   /**
-   * Mutate one pending Inbox occurrence, restoring an ordinary cold Agent when needed.
-   * @param request - Session, queue item, and requested mutation.
-   * @returns acknowledgement that the queue mutation was applied.
+   * 变更一个待处理的收件箱条目，必要时恢复普通冷 Agent。
+   * @param request - Session、队列项与请求的变更。
+   * @returns 队列变更已应用的确认。
    */
   async updateQueue(request: SessionUpdateQueueRequest): Promise<SessionUpdateQueueValue> {
     if (request.action.kind === 'edit') {
@@ -490,9 +490,9 @@ export class SessionCommandController {
   }
 
   /**
-   * Cancel one live ordinary Agent while retaining pending inbox work.
-   * @param request - Session whose active Agent turn is cancelled.
-   * @returns acknowledgement that cancellation was requested.
+   * 取消一个活跃的普通 Agent，同时保留待处理的收件箱工作。
+   * @param request - 其活跃 Agent 回合被取消的 Session。
+   * @returns 已请求取消的确认。
    */
   cancel(request: SessionCancelRequest): SessionCancelValue {
     const agent = this.ctx.agents.get(request.sessionId)
@@ -610,7 +610,7 @@ function imageBlockIn(
   return undefined
 }
 
-/** Read only first-party declared content fields; unknown event payloads stay opaque. */
+/** 只读取第一方声明的内容字段；未知事件载荷保持不透明。 */
 function imageInEvent(
   event: SessionEvent,
   match: (ref: ImageAttachmentRef) => boolean,
@@ -622,7 +622,7 @@ function imageInEvent(
     readonly summary?: unknown
     readonly rawOutput?: unknown
   }
-  // First-party event payloads can be present without their producer plugin mounted.
+  // 第一方事件载荷可以在其生产插件未挂载的情况下存在。
   const type: string = event.type
   switch (type) {
     case 'user/message':

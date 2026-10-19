@@ -1,4 +1,4 @@
-/** Session-addressed, cold-readable skill catalog Remote. */
+/** 按 Session 寻址、冷可读的技能目录 Remote。 */
 
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-agent-preset-registry/types'
@@ -11,26 +11,26 @@ import type { SkillListRequest, SkillListValue } from './types.ts'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
-    /** Host owner of the Session-addressed `skills` Remote namespace. */
+    /** 按 Session 寻址的 `skills` Remote 命名空间的 Host 拥有者。 */
     sessionSkillCatalog: SessionSkillCatalog
   }
 }
 
-/** Host service backing `ctx.remote.skills` without activating a cold Agent. */
+/** 在不激活冷 Agent 的情况下支撑 `ctx.remote.skills` 的 Host 服务。 */
 export class SessionSkillCatalog extends TypertRemoteService {
   static inject = ['agents', 'sessionQuery', 'typert', 'workingDirectory']
 
-  /** @param ctx - Host context carrying Session reads and optional skill/preset services. */
+  /** @param ctx - 携带 Session 读取与可选技能/预设服务的 Host 上下文。 */
   constructor(ctx: Context) {
     super(ctx, 'sessionSkillCatalog', { namespace: 'skills' })
   }
 
   /**
-   * List the user-invocable skills visible to one Session composition.
-   * @param request - Session identity whose cwd and preset select the catalog view.
-   * @param signal - caller lifetime carried by the Remote transport; admitted catalog reads retain their existing completion semantics.
-   * @returns user-invocable skill metadata without loading skill bodies.
-   * @throws RemoteError when the Session cannot be inspected or no registry can serve it.
+   * 列出一个 Session 组合可见的用户可调用技能。
+   * @param request - Session 标识，其 cwd 与预设决定目录视图。
+   * @param signal - 由 Remote 传输层携带的调用方生命周期；已接纳的目录读取保留其既有的完成语义。
+   * @returns 用户可调用的技能元数据，不加载技能正文。
+   * @throws RemoteError 当 Session 无法检查或没有注册表可为其服务时。
    */
   @Remote
   async list(request: SkillListRequest, signal: AbortSignal): Promise<SkillListValue> {
@@ -90,7 +90,7 @@ export class SessionSkillCatalog extends TypertRemoteService {
     }
   }
 
-  /** Resolve a live or standing preset scope without creating an Agent. */
+  /** 在不创建 Agent 的情况下解析活跃或常备的预设 scope。 */
   private async scopeFor(
     agentPreset: string | undefined,
   ): Promise<({ key: ScopeKey } & AsyncDisposable) | undefined> {
@@ -99,7 +99,7 @@ export class SessionSkillCatalog extends TypertRemoteService {
     try {
       return await presets.acquireScope(agentPreset)
     } catch {
-      // An unknown or unusable recorded preset falls back to the global registry.
+      // 未知或不可用的已记录预设回退到全局注册表。
       return undefined
     }
   }

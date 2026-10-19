@@ -1,4 +1,4 @@
-/** Reconnect-safe Workspace baseline and increment producer. */
+/** 重连安全的 Workspace 基线与增量生产者。 */
 
 import type { Context } from '@deepseek-ai/cordis'
 import { Deque } from '@deepseek-ai/dsh-deque'
@@ -15,13 +15,13 @@ import type {
   WorkspaceView,
 } from './types.ts'
 
-/** The frames the feed produces: every follow frame except `replace`, which only access filtering sends. */
+/** 该变更流产生的帧：除 `replace` 外的每个 follow 帧，`replace` 只由访问过滤发送。 */
 type WorkspaceFeedFrame = Exclude<WorkspaceFollowFrame, { readonly type: 'replace' }>
 
 /**
- * Project one authoritative Workspace entity into its Remote value.
- * @param workspace - authoritative registry entity.
- * @returns detached Workspace projection for Remote consumers.
+ * 将一个权威 Workspace 实体投影为其 Remote 值。
+ * @param workspace - 权威注册表实体。
+ * @returns 面向 Remote 消费方的脱离态 Workspace 投影。
  */
 export function workspaceView(workspace: Workspace): WorkspaceView {
   return {
@@ -46,7 +46,7 @@ function changedWorkspaceView(workspaceId: string, value: unknown): WorkspaceVie
   }
 }
 
-/** Owns Workspace domain observation and all active follow generations. */
+/** 持有 Workspace 领域观察与所有活跃的 follow 生成。 */
 export class WorkspaceFeed {
   private readonly followers = new Set<WorkspaceFollower>()
   private knownIds: Set<string>
@@ -54,7 +54,7 @@ export class WorkspaceFeed {
   private archived: readonly string[]
   private pinned: readonly string[]
 
-  /** @param ctx - Host context containing the authoritative Workspace registry. */
+  /** @param ctx - 包含权威 Workspace 注册表的 Host 上下文。 */
   constructor(private readonly ctx: Context) {
     const baseline = ctx.workspaceRegistry.list()
     this.knownIds = new Set(baseline.map(workspace => String(workspace.id)))
@@ -69,8 +69,8 @@ export class WorkspaceFeed {
   }
 
   /**
-   * Read the complete current projection synchronously.
-   * @returns all active Workspaces plus archived and pinned Session identities.
+   * 同步读取完整的当前投影。
+   * @returns 所有活跃 Workspace，以及已归档与已置顶的 Session 身份。
    */
   baseline(): WorkspaceBaseline {
     return {
@@ -81,9 +81,9 @@ export class WorkspaceFeed {
   }
 
   /**
-   * Open one generation beginning with a complete baseline.
-   * @param signal - generation cancellation.
-   * @returns baseline followed by ordered Workspace increments.
+   * 打开一个以完整基线开始的生成。
+   * @param signal - 生成取消。
+   * @returns 基线，随后是有序 Workspace 增量。
    */
   async *follow(signal: AbortSignal): AsyncIterable<WorkspaceFeedFrame> {
     signal.throwIfAborted()
@@ -156,7 +156,7 @@ class WorkspaceFollower {
   private closed = false
 
   push(frame: WorkspaceFeedFrame): void {
-    /* v8 ignore next -- closed followers are removed before later publication can reach them. */
+    /* v8 ignore next -- 已关闭的 follower 在后续发布到达之前已被移除。 */
     if (this.closed) return
     this.frames.pushBack(frame)
     this.waiting?.()
@@ -183,13 +183,13 @@ class WorkspaceFollower {
     return new Promise((resolve) => {
       const finish = (): void => {
         signal.removeEventListener('abort', finish)
-        /* v8 ignore next -- one read owns the sole installed wait callback. */
+        /* v8 ignore next -- 唯一安装的等待回调由单次 read 持有。 */
         if (this.waiting === finish) this.waiting = undefined
         resolve()
       }
       this.waiting = finish
       signal.addEventListener('abort', finish, { once: true })
-      /* v8 ignore next -- native signals and the private queue cannot change during this synchronous setup. */
+      /* v8 ignore next -- 原生 signal 与私有队列在此同步设置期间不会变化。 */
       if (signal.aborted || this.closed || this.frames.size > 0) finish()
     })
   }

@@ -1,4 +1,4 @@
-/** Client range access and type narrowing for aligned Session history records. */
+/** 对齐的 Session 历史记录的 Client 范围访问与类型收窄。 */
 
 import type {
   SessionHistoryRecord,
@@ -6,9 +6,9 @@ import type {
 import type { SessionEventLikeEntry } from '../contract/events.ts'
 
 /**
- * Narrow aligned wire records to their Client event types without allocation.
- * @param records - validated history transport records.
- * @returns the same record array with typed inner events.
+ * 无分配地把对齐的 wire 记录收窄为它们的 Client 事件类型。
+ * @param records - 经校验的历史传输记录。
+ * @returns 同一个记录数组，内部事件带类型。
  */
 export function historyEntries(
   records: readonly SessionHistoryRecord[],
@@ -17,18 +17,18 @@ export function historyEntries(
 }
 
 /**
- * Read the first logical sequence represented by one wire record.
- * @param record - validated Session event.
- * @returns inclusive first Session sequence.
+ * 读取一条 wire 记录所表示的首个逻辑序列。
+ * @param record - 经校验的 Session 事件。
+ * @returns 包含在内的首个 Session 序列。
  */
 export function historyRecordFirstSeq(record: SessionHistoryRecord): number {
   return record.event.seq
 }
 
 /**
- * Read the final logical sequence represented by one wire record.
- * @param record - validated Session event.
- * @returns inclusive final Session sequence.
+ * 读取一条 wire 记录所表示的最后一个逻辑序列。
+ * @param record - 经校验的 Session 事件。
+ * @returns 包含在内的最后一个 Session 序列。
  */
 export function historyRecordLastSeq(record: SessionHistoryRecord): number {
   return record.event.seq

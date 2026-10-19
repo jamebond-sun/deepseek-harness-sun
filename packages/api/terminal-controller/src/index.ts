@@ -1,4 +1,4 @@
-/** Session-owned user terminals with the execution environment's system-user permissions. */
+/** Session 拥有的用户终端，具有执行环境的系统用户权限。 */
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import type { Agent } from '@deepseek-ai/dsh-agent'
@@ -18,43 +18,43 @@ export type * from './types.ts'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
-    /** Interactive user terminals, separate from the Agent terminal tool registry. */
+    /** 交互式用户终端，独立于 Agent 的终端工具注册表。 */
     terminalController: TerminalController
   }
 }
 
-/** Deployment limits and an optional shell profile. */
+/** 部署限制与可选的 shell 配置。 */
 export interface Config {
-  /** Explicit shell profile; omission uses the execution environment's default shell. */
+  /** 显式 shell 配置；省略时使用执行环境的默认 shell。 */
   readonly shell?: {
-    /** Executable path or PATH name, verified by the subprocess provider. */
+    /** 可执行文件路径或 PATH 名称，由子进程提供方验证。 */
     path: string
-    /** User-visible profile name. */
+    /** 用户可见的配置名称。 */
     name: string
-    /** Arguments passed to the interactive shell. */
+    /** 传递给交互式 shell 的参数。 */
     args: string[]
   } | undefined
-  /** Executable names or paths checked for the new-terminal shell selector. */
+  /** 为新建终端 shell 选择器检查的可执行名称或路径。 */
   readonly shellCandidates: string[]
-  /** Maximum retained terminals and pending allocations per Session. */
+  /** 每个 Session 可保留终端与待完成分配的最大数量。 */
   readonly maxTerminals: number
-  /** Maximum terminal width in columns. */
+  /** 终端最大宽度（列数）。 */
   readonly maxCols: number
-  /** Maximum terminal height in rows. */
+  /** 终端最大高度（行数）。 */
   readonly maxRows: number
-  /** Screen history rows retained for reconnecting clients. */
+  /** 为重连 client 保留的屏幕历史行数。 */
   readonly scrollback: number
-  /** Maximum queued UTF-8 frame bytes per output follower and in the Client input buffer. */
+  /** 每个输出跟随端与 Client 输入缓冲区中可入队 UTF-8 帧字节的最大值。 */
   readonly maxBufferedBytes: number
-  /** Maximum raw UTF-8 bytes per input command and across unacknowledged Client input. */
+  /** 每条输入命令及未确认 Client 输入总量的原始 UTF-8 字节上限。 */
   readonly maxInputBytes: number
-  /** Provider process-termination grace period in milliseconds. */
+  /** 提供方进程终止宽限期（毫秒）。 */
   readonly disposeGraceMs: number
-  /** Continuous confirmed idle time without window holds before reclamation; zero disables reclamation. */
+  /** 回收之前无窗口持有的连续确认空闲时长；为零则禁用回收。 */
   readonly unattendedTimeoutMs: number
-  /** Interval between unattended shell and process observations. */
+  /** 无人值守 shell 与进程观察之间的间隔。 */
   readonly activityPollIntervalMs: number
-  /** Delay before retrying failed owned terminal cleanup. */
+  /** 重试失败的所辖终端清理前的延迟。 */
   readonly cleanupRetryMs: number
 }
 
@@ -72,7 +72,7 @@ interface OwnedSession {
   readonly allocations: Map<WebTerminalId, TerminalAllocation>
 }
 
-/** Typed Remote control of transient Session-owned terminal processes. */
+/** 对瞬态 Session 拥有终端进程的类型化 Remote 控制。 */
 export class TerminalController extends TypertRemoteService {
   static inject = ['subprocess', 'sandboxPolicy', 'workingDirectory', 'typert']
   static Config: z<Config> = z.object({
@@ -96,8 +96,8 @@ export class TerminalController extends TypertRemoteService {
   private readonly lifetime = new AbortController()
 
   /**
-   * @param ctx - Host context carrying typed Remote and execution providers.
-   * @param config - validated terminal limits and optional shell profile.
+   * @param ctx - 携带类型化 Remote 与执行提供方的 Host 上下文。
+   * @param config - 已验证的终端限制与可选 shell 配置。
    */
   constructor(ctx: Context, private readonly config: Config) {
     super(ctx, 'terminalController', { namespace: 'terminal' })
@@ -110,10 +110,10 @@ export class TerminalController extends TypertRemoteService {
   }
 
   /**
-   * Read the Session's current directory and terminal limits without filesystem validation or shell lookup.
-   * @param agent - Session owner supplied by the Gateway.
-   * @param signal - request cancellation.
-   * @returns the logged current directory and terminal limits; retained terminals keep their own process directories.
+   * 读取 Session 的当前目录与终端限制，不做文件系统校验或 shell 查找。
+   * @param agent - 由 Gateway 提供的 Session 拥有者。
+   * @param signal - 请求取消。
+   * @returns 已记录的当前目录与终端限制；已保留的终端保留各自的进程目录。
    */
   @Remote
   environment(agent: Agent, signal: AbortSignal): TerminalEnvironment {
@@ -125,10 +125,10 @@ export class TerminalController extends TypertRemoteService {
   }
 
   /**
-   * Discover installed shells in the Session's execution environment.
-   * @param agent - Session owner supplied by the Gateway.
-   * @param signal - request cancellation.
-   * @returns verified profiles, with the configured or system default first.
+   * 发现 Session 执行环境中已安装的 shell。
+   * @param agent - 由 Gateway 提供的 Session 拥有者。
+   * @param signal - 请求取消。
+   * @returns 已验证的配置，配置的或系统默认的排在最前。
    */
   @Remote
   shells(agent: Agent, signal: AbortSignal): Promise<TerminalShell[]> {
@@ -137,9 +137,9 @@ export class TerminalController extends TypertRemoteService {
   }
 
   /**
-   * List retained terminals without resolving or activating an Agent.
-   * @param sessionId - displayed Session identity, including offline history.
-   * @returns terminals retained for this Host lifetime.
+   * 列出已保留的终端，无需解析或激活 Agent。
+   * @param sessionId - 展示的 Session 标识，包括离线历史。
+   * @returns 此 Host 生命周期内保留的终端。
    */
   @Remote
   list(sessionId: SessionId): WebTerminalInfo[] {
@@ -149,11 +149,11 @@ export class TerminalController extends TypertRemoteService {
   }
 
   /**
-   * Allocate a user shell once for a caller-generated identity, without Agent sandbox or approval restrictions.
-   * @param agent - Session owner supplied by the Gateway.
-   * @param request - initial dimensions and idempotency identity.
-   * @param signal - allocation cancellation; committed terminals survive disconnection.
-   * @returns the existing or newly committed terminal.
+   * 为调用方生成的标识一次性分配用户 shell，不受 Agent 沙箱或审批限制。
+   * @param agent - 由 Gateway 提供的 Session 拥有者。
+   * @param request - 初始尺寸与幂等标识。
+   * @param signal - 分配取消；已提交的终端可在断开后存活。
+   * @returns 已存在的或新提交的终端。
    */
   @Remote
   async create(agent: Agent, request: TerminalCreateRequest, signal: AbortSignal): Promise<WebTerminalInfo> {
@@ -189,11 +189,11 @@ export class TerminalController extends TypertRemoteService {
   }
 
   /**
-   * Retain an existing terminal for a window without activating its Agent or taking input control.
-   * @param sessionId - owning Session identity, including an inactive saved layout.
-   * @param id - retained Host terminal identity.
-   * @param signal - physical Remote stream cancellation.
-   * @returns a hold acknowledgement followed by an open lifetime stream.
+   * 为一个窗口保留现有终端，不激活其 Agent，也不获取输入控制。
+   * @param sessionId - 拥有该终端的 Session 标识，包括未激活的已保存布局。
+   * @param id - 已保留的 Host 终端标识。
+   * @param signal - 物理 Remote 流取消。
+   * @returns 先返回持有确认，随后是保持打开的生命周期流。
    */
   @Remote({ mode: 'stream' })
   retain(sessionId: SessionId, id: WebTerminalId, signal: AbortSignal): AsyncIterable<TerminalRetentionFrame> {
@@ -206,11 +206,11 @@ export class TerminalController extends TypertRemoteService {
   }
 
   /**
-   * Attach terminal input and output to one physical Remote stream.
-   * @param agent - Session owner supplied by the Gateway.
-   * @param id - terminal identity.
-   * @param signal - attachment cancellation; the process remains alive and input is never replayed.
-   * @returns screen recovery, output, writable state and provider-acceptance acknowledgements.
+   * 将终端输入与输出连接到一条物理 Remote 流。
+   * @param agent - 由 Gateway 提供的 Session 拥有者。
+   * @param id - 终端标识。
+   * @param signal - 连接取消；进程保持存活，输入绝不重放。
+   * @returns 屏幕恢复、输出、可写状态与提供方接受的确认。
    */
   @Remote({ mode: 'stream' })
   attach(agent: Agent, id: WebTerminalId, signal: AbortSignal): RemoteStream<TerminalFrame, TerminalInput> {
@@ -220,10 +220,10 @@ export class TerminalController extends TypertRemoteService {
   }
 
   /**
-   * Rename a terminal without changing its shell.
-   * @param agent - Session owner supplied by the Gateway.
-   * @param id - terminal identity.
-   * @param title - nonempty display title, at most 120 characters.
+   * 重命名终端而不更换其 shell。
+   * @param agent - 由 Gateway 提供的 Session 拥有者。
+   * @param id - 终端标识。
+   * @param title - 非空显示标题，最多 120 个字符。
    */
   @Remote
   rename(agent: Agent, id: WebTerminalId, title: string): void {
@@ -232,17 +232,17 @@ export class TerminalController extends TypertRemoteService {
   }
 
   /**
-   * Close an identity to future creation and kill its process range; repeated closes succeed.
-   * @param agent - Session owner supplied by the Gateway.
-   * @param id - terminal identity.
-   * @returns after provider cleanup succeeds. A failure retains the terminal for retry.
+   * 关闭一个标识使其不能再创建，并终止其进程范围；重复关闭会成功。
+   * @param agent - 由 Gateway 提供的 Session 拥有者。
+   * @param id - 终端标识。
+   * @returns 提供方清理成功后返回。失败时终端保留以待重试。
    */
   @Remote
   async close(agent: Agent, id: WebTerminalId): Promise<void> {
     const owner = this.owner(agent)
     owner.closedIds.add(id)
-    // create publishes the allocation before this wait settles; close owns it even if create then rejects.
-    await owner.pending.get(id)?.catch(() => { /* Creation reports its failure; close still owns any allocated process. */ })
+    // create 会在此等待完成之前发布分配；即使 create 随后拒绝，close 仍负责该分配。
+    await owner.pending.get(id)?.catch(() => { /* 创建过程会报告其失败；close 仍负责任何已分配的进程。 */ })
     const terminal = owner.terminals.get(id)
     if (terminal !== undefined) {
       await terminal.close()
@@ -301,7 +301,7 @@ export class TerminalController extends TypertRemoteService {
   }
 
   private execution(agent: Agent): { subprocess: Context['subprocess']; sandboxPolicy: Context['sandboxPolicy']; workingDirectory: Context['workingDirectory'] } {
-    // The Agent context selects execution providers but does not inject consumer services.
+    // Agent 上下文选择执行提供方，但不注入消费方服务。
     const subprocess = agent.ctx.get('subprocess')
     const sandboxPolicy = agent.ctx.get('sandboxPolicy')
     if (subprocess === undefined || sandboxPolicy === undefined) throw new Error('The Session execution environment requires subprocess and sandbox policy providers')
@@ -349,5 +349,5 @@ export class TerminalController extends TypertRemoteService {
   }
 }
 
-/** Browser terminal service plugin. */
+/** 浏览器终端服务插件。 */
 export default TerminalController

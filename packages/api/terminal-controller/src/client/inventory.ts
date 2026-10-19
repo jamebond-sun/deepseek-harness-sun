@@ -1,4 +1,4 @@
-/** Session-owned terminal discovery shared across view occurrences. */
+/** 跨视图出现项共享的 Session 终端发现。 */
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import type { WebTerminalId, WebTerminalInfo } from '../types.ts'
 
@@ -12,19 +12,19 @@ type LoadState = { readonly kind: 'unloaded' | 'ready' | 'disposed' }
   | { readonly kind: 'failed'; readonly error: Error }
   | Loading
 
-/** One Session's cached list, retained failures and in-flight mutation reconciliation. */
+/** 一个 Session 的缓存列表、保留的失败与进行中的变更调和。 */
 export class TerminalInventory {
   private state: LoadState = { kind: 'unloaded' }
   private items = new Map<WebTerminalId, WebTerminalInfo>()
   private readonly pending = new Set<Promise<Inventory>>()
 
-  /** @param load - fetch the Session's retained Host terminals. */
+  /** @param load - 获取该 Session 已保留的 Host 终端。 */
   constructor(private readonly load: () => Promise<RemoteResult<WebTerminalInfo[]>>) {}
 
   /**
-   * Read the cached list or join its single in-flight request.
-   * @param refresh - explicitly replace a settled result or failure; overlapping refreshes share one request.
-   * @returns current terminal metadata; failures remain cached until refresh or reset.
+   * 读取缓存的列表，或加入其唯一一个进行中的请求。
+   * @param refresh - 显式替换已落定的结果或失败；重叠的刷新共享一个请求。
+   * @returns 当前终端元数据；失败会一直缓存，直到刷新或重置。
    */
   read(refresh: boolean = false): Promise<Inventory> {
     if (this.state.kind === 'disposed') return Promise.reject(new Error('Terminal inventory disposed'))
@@ -62,8 +62,8 @@ export class TerminalInventory {
   }
 
   /**
-   * Preserve acknowledged mutations and attachment metadata across a pending list response.
-   * @param info - latest confirmed terminal metadata.
+   * 在列表响应未决期间保留已确认的变更与连接元数据。
+   * @param info - 最新确认的终端元数据。
    */
   update(info: WebTerminalInfo): void {
     if (this.state.kind === 'disposed') return
@@ -72,8 +72,8 @@ export class TerminalInventory {
   }
 
   /**
-   * Remove a terminal after confirmed closure or unavailability.
-   * @param id - terminal identity.
+   * 在确认关闭或不可用之后移除终端。
+   * @param id - 终端标识。
    */
   remove(id: WebTerminalId): void {
     if (this.state.kind === 'disposed') return
@@ -82,8 +82,8 @@ export class TerminalInventory {
   }
 
   /**
-   * Replace discovery after a connection change; never discover a Session that has not needed a list.
-   * @returns the replacement lookup, or undefined for an unused or disposed inventory.
+   * 在连接变更之后替换发现；绝不发现尚未需要过列表的 Session。
+   * @returns 替换后的查找，未使用或已释放的清单则返回 undefined。
    */
   reset(): Promise<Inventory> | undefined {
     if (this.state.kind === 'unloaded' || this.state.kind === 'disposed') return undefined
@@ -92,8 +92,8 @@ export class TerminalInventory {
   }
 
   /**
-   * Discard metadata and prevent late responses from publishing.
-   * @returns after all owned list requests settle.
+   * 丢弃元数据并阻止迟到的响应发布。
+   * @returns 其拥有的全部列表请求落定之后。
    */
   async dispose(): Promise<void> {
     this.state = { kind: 'disposed' }

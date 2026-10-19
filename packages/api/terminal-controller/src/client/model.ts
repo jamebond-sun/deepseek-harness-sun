@@ -1,4 +1,4 @@
-/** React-free browser terminal state and reconnecting Remote-stream ownership. */
+/** 不依赖 React 的浏览器终端状态与可重连 Remote 流的持有权。 */
 import { preferredShell, rememberShell } from './shell-preference.ts'
 import type { TerminalInventory } from './inventory.ts'
 import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
@@ -12,15 +12,15 @@ import type {
   WebTerminalId, WebTerminalInfo,
 } from '../types.ts'
 
-/** The generated terminal namespace's browser-facing operations. */
+/** 生成的终端命名空间中面向浏览器的操作。 */
 export type TerminalRemote = ClientRemote['terminal']
 
-/** Product error identifiers translated by the terminal UI. */
+/** 由终端 UI 翻译的产品错误标识。 */
 export type TerminalViewIssue = 'missingTerminal' | 'inputFull' | 'attachmentEnded' | 'invalidOutput' | 'terminalLimit'
 
 declare module '@deepseek-ai/dsh-typert-protocol' {
   interface RemoteErrorDetailsMap {
-    /** Client terminal failure preserved through the Remote stream supervisor. */
+    /** 经 Remote 流监督器保留的 Client 终端失败。 */
     'terminal/view': { readonly issue: TerminalViewIssue }
   }
 }
@@ -29,13 +29,13 @@ class TerminalViewError extends RemoteError<'terminal/view'> {
   constructor(issue: TerminalViewIssue, message: string = issue) { super('terminal/view', message, { issue }) }
 }
 
-/** One screen write awaiting the DOM emulator's callback. */
+/** 一次等待 DOM 模拟器回调的屏幕写入。 */
 export interface TerminalRenderFrame {
   readonly revision: number
   readonly frame: Extract<TerminalFrame, { type: 'snapshot' | 'output' }>
 }
 
-/** Observable state of one sidebar occurrence. */
+/** 一个侧边栏出现项的可观察状态。 */
 export interface TerminalViewState {
   readonly phase: 'idle' | 'loading' | 'creating' | 'connecting' | 'connected' | 'disconnected' | 'closing' | 'closed' | 'failed'
   readonly environment?: TerminalEnvironment | undefined
@@ -65,9 +65,9 @@ interface TerminalInputAttachment {
   inFlightBytes: number
 }
 
-/** A view survives DOM unmount; its process only ends on explicit close. */
+/** 视图可在 DOM 卸载后存活；其进程仅在显式关闭时结束。 */
 export class TerminalView {
-  /** Observable controls, process metadata and the next screen update awaiting acknowledgement. */
+  /** 可观察控制项、进程元数据，以及等待确认的下一个屏幕更新。 */
   readonly state: SnapshotStore<TerminalViewState> = createSnapshotStore<TerminalViewState>({ phase: 'idle', writable: false })
   private readonly lifetime = new AbortController()
   private stream: RemoteStream<TerminalFrame> | undefined
@@ -81,14 +81,14 @@ export class TerminalView {
   private readonly detaching = new Set<Promise<void>>()
 
   /**
-   * @param sessionId - Session owning the terminal.
-   * @param remote - typed terminal Remote operations.
-   * @param gateway - reconnecting stream factory.
-   * @param inventory - Session-owned terminal list shared by all views.
-   * @param id - Host terminal identity, reused when recovering an item from its Session list.
-   * @param createWhenMissing - allow allocation only for a new tab, never a listed terminal.
-   * @param shellPath - explicit shell chosen at the guide; omission uses the remembered available shell.
-   * @param retain - window hold acknowledgement required before output attachment.
+   * @param sessionId - 拥有该终端的 Session。
+   * @param remote - 类型化的终端 Remote 操作。
+   * @param gateway - 可重连流的工厂。
+   * @param inventory - 所有视图共享的 Session 终端列表。
+   * @param id - Host 终端标识；从其 Session 列表恢复条目时复用。
+   * @param createWhenMissing - 仅为新标签页允许分配，绝不针对列表中的终端。
+   * @param shellPath - 在引导处选择的显式 shell；省略时使用记住的可用 shell。
+   * @param retain - 输出连接之前所需的窗口持有确认。
    */
   constructor(
     private readonly sessionId: SessionId,
@@ -102,8 +102,8 @@ export class TerminalView {
   ) {}
 
   /**
-   * Attach the DOM lifetime, starting the chosen shell or reconnecting the saved process.
-   * @returns a detach callback that leaves the terminal process alive.
+   * 附着 DOM 生命周期，启动所选 shell 或重连已保存的进程。
+   * @returns 一个让终端进程保持存活的分离回调。
    */
   mount(): () => void {
     this.mounted = true
@@ -117,9 +117,9 @@ export class TerminalView {
   }
 
   /**
-   * Start or explicitly retry this tab, sharing Session discovery with other views.
-   * New identities allocate directly; confirmed or restored terminals cannot be replaced.
-   * @returns after environment lookup and creation or recovery settle.
+   * 启动或显式重试此标签页，与其他视图共享 Session 发现。
+   * 新标识直接分配；已确认或已恢复的终端不能被替换。
+   * @returns 环境查找与创建或恢复都落定后返回。
    */
   refresh(): Promise<void> {
     if (this.creation !== undefined) return this.creation
@@ -178,7 +178,7 @@ export class TerminalView {
     }).catch((error: unknown) => { if (!this.stopped()) this.fail(error) })
   }
 
-  /** Reattach with a fresh screen and regain input control. */
+  /** 以全新屏幕重新附着，并重新获得输入控制。 */
   connect(): void {
     const info = this.state.getSnapshot().info
     if (info === undefined || !this.mounted || this.closing !== undefined || this.lifetime.signal.aborted) return
@@ -212,8 +212,8 @@ export class TerminalView {
   }
 
   /**
-   * Release the next stream item after xterm has parsed this frame.
-   * @param revision - locally delivered render revision.
+   * 在 xterm 解析此帧之后释放下一个流条目。
+   * @param revision - 本地已交付的渲染修订号。
    */
   acknowledge(revision: number): void {
     if (this.pendingRender?.revision !== revision) return
@@ -222,8 +222,8 @@ export class TerminalView {
   }
 
   /**
-   * Queue input within the raw UTF-8 and encoded-frame budgets, waiting for carrier capacity.
-   * @param data - input from the terminal emulator; never replayed after disconnection.
+   * 在原始 UTF-8 与编码帧预算内将输入入队，等待载体容量。
+   * @param data - 来自终端模拟器的输入；断开后绝不重放。
    */
   write(data: string): void {
     const state = this.state.getSnapshot()
@@ -236,9 +236,9 @@ export class TerminalView {
   }
 
   /**
-   * Resize only from the currently writable view, ordered with keyboard input.
-   * @param cols - measured column count.
-   * @param rows - measured row count.
+   * 仅从当前可写的视图调整尺寸，与键盘输入保持有序。
+   * @param cols - 测得的列数。
+   * @param rows - 测得的行数。
    */
   resize(cols: number, rows: number): void {
     const state = this.state.getSnapshot()
@@ -285,9 +285,9 @@ export class TerminalView {
   }
 
   /**
-   * Update the Host terminal's display name.
-   * @param title - user-entered terminal title.
-   * @returns after the rename settles and its result is reflected in view state.
+   * 更新 Host 终端的显示名称。
+   * @param title - 用户输入的终端标题。
+   * @returns 重命名落定且其结果反映到视图状态之后。
    */
   async rename(title: string): Promise<void> {
     if (title.trim() === this.state.getSnapshot().title || this.lifetime.signal.aborted) return
@@ -301,15 +301,15 @@ export class TerminalView {
   }
 
   /**
-   * Explicitly terminate this view's process independently of its DOM lifetime.
-   * @returns after Host process cleanup succeeds; failures remain retryable by the owner.
+   * 独立于其 DOM 生命周期显式终止此视图的进程。
+   * @returns Host 进程清理成功后返回；失败仍可由拥有者重试。
    */
   close(): Promise<void> {
     if (this.closing !== undefined) return this.closing
     this.patch({ phase: 'closing', writable: false, error: undefined, issue: undefined })
     this.detach()
     this.closing = (async () => {
-      // Even a refused or lost creation response may leave an allocation to close.
+      // 即使创建响应被拒绝或丢失，也可能留下待关闭的分配。
       await this.creation
       valueOf(await this.remote.close(this.sessionId, this.id))
       this.inventory.remove(this.id)
@@ -320,8 +320,8 @@ export class TerminalView {
   }
 
   /**
-   * Stop Client work on plugin unload without closing Host terminals.
-   * @returns after active and previously detached stream iterators have closed.
+   * 插件卸载时停止 Client 侧工作，而不关闭 Host 终端。
+   * @returns 活动与先前分离的流迭代器都关闭之后。
    */
   async dispose(): Promise<void> {
     this.mounted = false
@@ -360,7 +360,7 @@ export class TerminalView {
         } else if (frame.type === 'snapshot') throw new TerminalViewError('invalidOutput', 'Unexpected terminal screen snapshot')
         if (frame.type === 'ack') {
           const attachment = this.attachment
-          /* v8 ignore next -- the physical opener retains its handle until this consumer advances. */
+          /* v8 ignore next -- 物理打开方会保留其句柄，直到此消费方推进。 */
           if (attachment === undefined) throw new TerminalViewError('invalidOutput', 'Terminal acknowledgement has no attachment')
           const pending = attachment.pending.get(frame.sequence)
           if (frame.sequence !== attachment.acknowledged + 1 || pending === undefined) throw new TerminalViewError('invalidOutput', 'Terminal input acknowledgement is out of order')

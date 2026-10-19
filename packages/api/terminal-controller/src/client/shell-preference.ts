@@ -1,9 +1,9 @@
-/** Browser-local shell preference; Host discovery decides whether the saved path is usable. */
+/** 浏览器本地的 shell 偏好；Host 发现已保存路径是否可用。 */
 const KEY = 'dsh.terminal.shell'
 
 /**
- * Read the browser preference.
- * @returns the last selected shell path, or null when storage is unavailable.
+ * 读取浏览器偏好。
+ * @returns 上次选择的 shell 路径；存储不可用时为 null。
  */
 export function preferredShell(): string | null {
   try { return typeof localStorage === 'undefined' ? null : localStorage.getItem(KEY) }
@@ -11,10 +11,10 @@ export function preferredShell(): string | null {
 }
 
 /**
- * Remember the selected shell without making storage a startup dependency.
- * @param path - verified executable path offered by the Host.
+ * 记住所选的 shell，而不让存储成为启动依赖。
+ * @param path - Host 提供的已验证可执行路径。
  */
 export function rememberShell(path: string): void {
   try { if (typeof localStorage !== 'undefined') localStorage.setItem(KEY, path) }
-  catch (_storageUnavailable) { /* Private browsing or quota failure leaves this launch usable. */ }
+  catch (_storageUnavailable) { /* 隐私浏览或配额失败仍让本次启动可用。 */ }
 }

@@ -1,6 +1,6 @@
 /**
- * Remote namespaces the Session cluster calls. One parameter for one concept:
- * the generated surface a Session and its manager reach the Host through.
+ * Session 集群调用的 Remote 命名空间。一个参数对应一个概念：
+ * Session 及其 manager 到达 Host 所经由的生成接口面。
  *
  * @module @deepseek-ai/dsh-api-session-controller/client/sessions/remotes
  */
@@ -14,7 +14,7 @@ import type {
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import type { SessionRemote } from '../transport.ts'
 
-/** Narrow Commands namespace consumed by a Client Session. */
+/** Client Session 消费的窄化 Commands 命名空间。 */
 export interface SessionCommandsRemote {
   execute(
     agentId: SessionId,
@@ -24,7 +24,7 @@ export interface SessionCommandsRemote {
   ): Promise<RemoteResult<object | undefined>>
 }
 
-/** Narrow subagent namespace consumed by a Client Session and its manager. */
+/** Client Session 及其 manager 消费的窄化 subagent 命名空间。 */
 export interface SessionSubagentsRemote {
   prompt(
     request: SubagentPromptRequest,
@@ -37,7 +37,7 @@ export interface SessionSubagentsRemote {
   ): Promise<RemoteResult<SubagentInterruptReceipt>>
 }
 
-/** Generated Remote namespaces consumed by the Client Session object layer. */
+/** Client Session 对象层消费的生成 Remote 命名空间。 */
 export interface SessionRemotes {
   readonly $stream: ClientRemote['$stream']
   readonly commands: SessionCommandsRemote

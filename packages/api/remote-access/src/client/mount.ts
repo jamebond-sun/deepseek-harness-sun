@@ -1,8 +1,8 @@
 /**
- * Client access mount: follows the calling Peer's access snapshot, provides
- * the `remoteAccess` Client service, and publishes the global-resource `useRemoteAccess` Hook.
- * The entry module supplies the generated `remoteAccess` contribution, so
- * specs mount a fake one.
+ * Client 访问挂载：跟随调用方 Peer 的访问快照，提供
+ * `remoteAccess` Client 服务，并发布 global 资源的 `useRemoteAccess` Hook。
+ * 入口模块提供生成的 `remoteAccess` 贡献，因此
+ * spec 挂载一个假的。
  * @module @deepseek-ai/dsh-api-remote-access/src/client/mount
  */
 
@@ -14,50 +14,50 @@ import {
 } from '@deepseek-ai/dsh-api-gateway/client'
 import type {} from '@deepseek-ai/dsh-api-remote-access/remote'
 import type { HostObservable, RootStandardSourceContribution } from '@deepseek-ai/dsh-client-ui-slots'
-// Type-only: the SlotRegistry (`ctx.slots`) merge.
+// 仅类型：SlotRegistry（`ctx.slots`）的合并。
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type { TypertRemoteContribution, TypertRemoteMap, TypertResourceKind } from '@deepseek-ai/dsh-typert-protocol'
 import type { RemoteAccessFrame } from '../types.ts'
 import { ClientAccessState, type Baseline } from './state.ts'
 
-/** Every endpoint the Client Remote namespaces declare. */
+/** Client Remote 命名空间声明的每个端点。 */
 export type RemoteEndpoint = Extract<keyof TypertRemoteMap, string>
 
-/** Client access answers over the calling Peer's snapshot; it never issues a request. */
+/** 基于调用方 Peer 快照的 Client 访问回答；它从不发起请求。 */
 export interface ClientRemoteAccess {
   /**
-   * Whether the current Peer may call `action` on one resource.
-   * True for the owner; false without a baseline and after a non-owner
-   * stream fails; otherwise whether the resource's grant lists the action.
-   * @param kind - resource kind declared in `TypertResourceMap`.
-   * @param id - resource identity.
-   * @param action - endpoint action the caller would invoke.
-   * @returns identity-stable boolean source for this `(kind, id, action)`.
+   * 当前 Peer 可否在一个资源上调用 `action`。
+   * owner 为 true；无 baseline 以及非 owner 流失败后为
+   * false；否则取决于该资源的授予是否列出该动作。
+   * @param kind - `TypertResourceMap` 中声明的资源种类。
+   * @param id - 资源身份。
+   * @param action - 调用方将发起的端点动作。
+   * @returns 此 `(kind, id, action)` 的身份稳定布尔源。
    */
   source(kind: TypertResourceKind, id: string, action: string): HostObservable<boolean>
 }
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
-    /** Client access answers for the calling Peer. */
+    /** 面向调用方 Peer 的 Client 访问回答。 */
     remoteAccess: ClientRemoteAccess
   }
 }
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface GlobalStandardProps {
-    /** Whether the current Peer may call `action` on the global resource. */
+    /** 当前 Peer 可否在 global 资源上调用 `action`。 */
     useRemoteAccess: (action: RemoteEndpoint) => boolean
   }
 }
 
 type IncrementFrame = Exclude<RemoteAccessFrame, { type: 'baseline' }>
 
-/** The `remoteAccess` Client service over one snapshot owner. */
+/** 构建于一个快照持有者之上的 `remoteAccess` Client 服务。 */
 class ClientRemoteAccessService extends Service implements ClientRemoteAccess {
   /**
-   * @param ctx - Client Context the service is provided on.
-   * @param state - snapshot owner answering every source.
+   * @param ctx - 提供本服务的 Client 上下文。
+   * @param state - 回答每个源的快照持有者。
    */
   constructor(ctx: Context, private readonly state: ClientAccessState) {
     super(ctx, 'remoteAccess')
@@ -69,14 +69,14 @@ class ClientRemoteAccessService extends Service implements ClientRemoteAccess {
 }
 
 /**
- * Mount the `remoteAccess` namespace, follow the access snapshot, provide the
- * `remoteAccess` Client service, and publish the global-resource `useRemoteAccess` Hook.
- * Answers start from the page's injected baseline, or false without one,
- * and follow the stream's frames from then on.
- * @param ctx - Client root Context injecting `remote` and `slots`.
- * @param contribution - generated `remoteAccess` Remote contribution.
- * @param initial - the page's injected opening baseline, read before the stream connects.
- * @returns disposer that withdraws the namespace after the stream stops.
+ * 挂载 `remoteAccess` 命名空间，跟随访问快照，提供
+ * `remoteAccess` Client 服务，并发布 global 资源的 `useRemoteAccess` Hook。
+ * 回答从页面注入的 baseline 开始，没有则为 false，
+ * 此后跟随流的帧。
+ * @param ctx - 注入 `remote` 与 `slots` 的 Client 根上下文。
+ * @param contribution - 生成的 `remoteAccess` Remote 贡献。
+ * @param initial - 页面注入的开场 baseline，在流连接之前读取。
+ * @returns 流停止后撤下该命名空间的释放器。
  */
 export async function mountAccess(
   ctx: Context,
@@ -101,9 +101,9 @@ export async function mountAccess(
 }
 
 /**
- * Create the reconnecting access snapshot stream. A carrier loss keeps the
- * last snapshot while the stream reconnects; a terminal failure keeps the
- * owner's answers and turns a non-owner's answers false.
+ * 创建可重连的访问快照流。carrier 丢失时流重连期间保留
+ * 最后一个快照；终态失败时保留 owner 的回答，
+ * 并把非 owner 的回答变为 false。
  */
 function createAccessStream(
   remote: ClientRemote,
@@ -123,7 +123,7 @@ function createAccessStream(
     replace: (frame) => { state.replace(frame) },
     update: (frame) => { state.update(frame) },
     failed: (error) => {
-      // Only a non-owner's answers turn false after a terminal failure, so only its report names the recovery.
+      // 终态失败后只有非 owner 的回答变为 false，因此只有其报告指名恢复方式。
       if (state.owner) logger.error('access snapshot stream failed; owner access answers are unaffected', error)
       else logger.error('access snapshot stream failed; reload the page to reconnect', error)
       state.unavailable()

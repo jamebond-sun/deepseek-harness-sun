@@ -1,4 +1,4 @@
-/** Workspace command implementation and stable Remote failure mapping. */
+/** Workspace 命令实现与稳定的 Remote 失败映射。 */
 
 import type { Context } from '@deepseek-ai/cordis'
 import type { Workspace } from '@deepseek-ai/dsh-workspace'
@@ -30,17 +30,17 @@ import type {
   WorkspaceValue,
 } from './types.ts'
 
-/** Implements Workspace mutations against the authoritative registry. */
+/** 针对权威注册表实现 Workspace 变更。 */
 export class WorkspaceCommands {
   private operationTail = Promise.resolve()
 
-  /** @param ctx - Host context containing the Workspace registry. */
+  /** @param ctx - 包含 Workspace 注册表的 Host 上下文。 */
   constructor(private readonly ctx: Context) {}
 
   /**
-   * Create or resolve one Workspace over an existing directory.
-   * @param request - directory path to register.
-   * @returns the Workspace and whether this call created it.
+   * 在一个现有目录上创建或解析一个 Workspace。
+   * @param request - 要注册的目录路径。
+   * @returns Workspace 以及本次调用是否创建了它。
    */
   create(request: WorkspaceCreateRequest): Promise<WorkspaceCreateValue> {
     return this.enqueue(async () => {
@@ -64,9 +64,9 @@ export class WorkspaceCommands {
   }
 
   /**
-   * Rename one Workspace after serializing title ownership checks.
-   * @param request - Workspace identity and proposed title.
-   * @returns the updated Workspace projection.
+   * 在串行化标题占用检查之后重命名一个 Workspace。
+   * @param request - Workspace 身份与拟用标题。
+   * @returns 更新后的 Workspace 投影。
    */
   rename(request: WorkspaceRenameRequest): Promise<WorkspaceValue> {
     const title = request.title.trim()
@@ -91,9 +91,9 @@ export class WorkspaceCommands {
   }
 
   /**
-   * Delete one Workspace registration without deleting its directory or Sessions.
-   * @param request - Workspace identity to remove.
-   * @returns deletion confirmation.
+   * 删除一个 Workspace 注册，而不删除其目录或 Session。
+   * @param request - 要移除的 Workspace 身份。
+   * @returns 删除确认。
    */
   delete(request: WorkspaceDeleteRequest): Promise<WorkspaceDeleteValue> {
     return this.enqueue(async () => {
@@ -105,9 +105,9 @@ export class WorkspaceCommands {
   }
 
   /**
-   * Move one Workspace within the durable registry order.
-   * @param request - moved Workspace and optional anchor.
-   * @returns the complete resulting Workspace order.
+   * 在持久注册表顺序中移动一个 Workspace。
+   * @param request - 被移动的 Workspace 与可选锚点。
+   * @returns 变更后的完整 Workspace 顺序。
    */
   async insertBefore(request: WorkspaceInsertBeforeRequest): Promise<WorkspaceOrderValue> {
     try {
@@ -125,9 +125,9 @@ export class WorkspaceCommands {
   }
 
   /**
-   * Move one accounted Session within a Workspace's manual order.
-   * @param request - Workspace, Session, and optional anchor identities.
-   * @returns the updated Workspace projection.
+   * 在一个 Workspace 的手动顺序中移动一个已归入的 Session。
+   * @param request - Workspace、Session 与可选锚点身份。
+   * @returns 更新后的 Workspace 投影。
    */
   async insertSessionBefore(request: WorkspaceInsertSessionBeforeRequest): Promise<WorkspaceValue> {
     const workspace = this.requireWorkspace(request.workspaceId)
@@ -152,12 +152,11 @@ export class WorkspaceCommands {
   }
 
   /**
-   * Add one known Session to the registry-global archive set. Without
-   * `stopActivity` a Session with running work is refused as
-   * `workspace/session-active` with the activity the registry's providers
-   * reported; with it, the providers stop that work first.
-   * @param request - Session identity to archive and whether to stop its work.
-   * @returns the complete resulting archive set.
+   * 将一个已知 Session 加入注册表全局归档集合。不传 `stopActivity`
+   * 时，有运行中工作的 Session 以 `workspace/session-active` 被拒绝，
+   * 并附带注册表提供方报告的活动；传入时，提供方先停止该工作。
+   * @param request - 要归档的 Session 身份，以及是否停止其工作。
+   * @returns 变更后的完整归档集合。
    */
   async archiveSession(request: WorkspaceArchiveSessionRequest): Promise<WorkspaceArchiveValue> {
     try {
@@ -183,11 +182,10 @@ export class WorkspaceCommands {
   }
 
   /**
-   * Drop one Session from the registry-global archive set. An id that is not
-   * archived is not an error: the call is idempotent, so a lost race with
-   * another surface resolves as a no-op.
-   * @param request - Session identity to unarchive.
-   * @returns the complete resulting archive set.
+   * 将一个 Session 从注册表全局归档集合移除。未归档的 id 不是错误：
+   * 该调用是幂等的，因此与其他界面的竞争失败表现为无操作。
+   * @param request - 要取消归档的 Session 身份。
+   * @returns 变更后的完整归档集合。
    */
   async unarchiveSession(request: WorkspaceUnarchiveSessionRequest): Promise<WorkspaceArchiveValue> {
     await this.ctx.workspaceRegistry.unarchiveSession(request.sessionId)
@@ -195,9 +193,9 @@ export class WorkspaceCommands {
   }
 
   /**
-   * Add one known unarchived Session to the registry-global pin set.
-   * @param request - Session identity to pin.
-   * @returns the complete resulting pin set, most recently pinned first.
+   * 将一个已知未归档 Session 加入注册表全局置顶集合。
+   * @param request - 要置顶的 Session 身份。
+   * @returns 变更后的完整置顶集合，最近置顶的在前。
    */
   async pinSession(request: WorkspacePinSessionRequest): Promise<WorkspacePinValue> {
     try {
@@ -215,11 +213,10 @@ export class WorkspaceCommands {
   }
 
   /**
-   * Drop one Session from the registry-global pin set. An id that is not
-   * pinned is not an error: the call is idempotent, so a lost race with
-   * another surface resolves as a no-op.
-   * @param request - Session identity to unpin.
-   * @returns the complete resulting pin set, most recently pinned first.
+   * 将一个 Session 从注册表全局置顶集合移除。未置顶的 id 不是错误：
+   * 该调用是幂等的，因此与其他界面的竞争失败表现为无操作。
+   * @param request - 要取消置顶的 Session 身份。
+   * @returns 变更后的完整置顶集合，最近置顶的在前。
    */
   async unpinSession(request: WorkspaceUnpinSessionRequest): Promise<WorkspacePinValue> {
     await this.ctx.workspaceRegistry.unpinSession(request.sessionId)

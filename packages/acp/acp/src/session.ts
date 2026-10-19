@@ -1,4 +1,4 @@
-/** One standard ACP session's Agent, configuration, prompt, update, and teardown lifecycle. */
+/** 一个标准 ACP 会话的 Agent、配置、提示词、更新与销毁生命周期。 */
 
 import type { Context } from '@deepseek-ai/cordis'
 import {
@@ -19,15 +19,15 @@ import { mountAcpMcpServers } from './mcp.ts'
 import { AcpModelControl } from './model-control.ts'
 import { assistantUpdates, toolCallUpdate, toolResultUpdate } from './updates.ts'
 
-/** Subagent completion and teardown without depending on the subagent package. */
+/** 子 agent 的完成与销毁，且不依赖 subagent 包。 */
 interface SubagentLifecycle {
-  /** Dispose subagent descendants below exact host-owned parents child-first. */
+  /** 按子优先顺序销毁精确的宿主父级之下的 subagent 后代。 */
   drainDescendants(parents: readonly Agent[]): Promise<void>
-  /** Observe currently managed descendants without closing future admission. */
+  /** 观察当前受管理的后代，但不关闭未来的准入。 */
   waitForChildren(parent: Agent): Promise<boolean>
 }
 
-/** Inputs shared by fresh and resumed ACP session construction. */
+/** 新建与恢复 ACP 会话时共用的输入。 */
 interface AcpSessionBuildOptions {
   cwd: string
   mcpServers: readonly McpServer[]
@@ -37,12 +37,12 @@ interface AcpSessionBuildOptions {
   notify: (notification: SessionNotification) => Promise<void>
 }
 
-/** Fresh ACP session construction inputs. */
+/** 新建 ACP 会话的构造输入。 */
 export interface CreateAcpSessionOptions extends AcpSessionBuildOptions {
   sessionId: SessionId
 }
 
-/** Persisted ACP session construction inputs. */
+/** 恢复已持久化 ACP 会话的构造输入。 */
 export interface ResumeAcpSessionOptions extends AcpSessionBuildOptions {
   sessionId: SessionId
 }
@@ -64,17 +64,17 @@ interface InflightPrompt {
   agentError: Error | undefined
 }
 
-/** Standard invalid-parameter failure with protocol-safe detail. */
+/** 带协议安全详情的标准无效参数失败。 */
 function invalidParams(detail: string): RequestError {
   return RequestError.invalidParams(undefined, detail)
 }
 
-/** Standard internal failure with protocol-safe detail. */
+/** 带协议安全详情的标准内部失败。 */
 function internalError(detail: string): RequestError {
   return RequestError.internalError(undefined, detail)
 }
 
-/** Restore the latest logged route before falling back to deployment config. */
+/** 在回退到部署配置之前，恢复最近记录的路由。 */
 function selectionFor(
   logged: {
     config: { provider: string; model: string; reasoningEffort?: ModelSelection['reasoningEffort'] }
@@ -94,12 +94,11 @@ function selectionFor(
 }
 
 /**
- * Per-session ACP module. It owns the unpublished Agent composition, selected
- * route, one-prompt admission slot, ordered standard updates, and memoized
- * quiescent teardown.
+ * 单个会话的 ACP 模块。它拥有未发布的 Agent 组合、所选路由、
+ * 单个提示词的准入槽位、有序的标准更新以及记忆化的停稳式销毁。
  */
 export class AcpSession {
-  /** The exact top-level Agent owned by this ACP session. */
+  /** 此 ACP 会话拥有的精确顶层 Agent。 */
   readonly agent: Agent
   private readonly modelControl: AcpModelControl
   private outputTail = Promise.resolve()
@@ -121,10 +120,10 @@ export class AcpSession {
   private readonly disposeAgent: () => Promise<void>
 
   /**
-   * Compose a fresh Agent and all requested MCP clients before publication.
-   * @param ctx - ACP plugin context with Agent, LLM, and persistence services.
-   * @param options - fresh session identity, workspace, route, MCP, and notifier.
-   * @returns the fully composed per-session module.
+   * 在发布之前组合全新的 Agent 以及所有请求的 MCP 客户端。
+   * @param ctx - 带 Agent、LLM 与持久化服务的 ACP 插件上下文。
+   * @param options - 新会话的标识、工作区、路由、MCP 与通知器。
+   * @returns 完全组合好的按会话模块。
    */
   static async create(ctx: Context, options: CreateAcpSessionOptions): Promise<AcpSession> {
     const modelControl = new AcpModelControl(ctx.llm, options.fallbackSelection)
@@ -142,10 +141,10 @@ export class AcpSession {
   }
 
   /**
-   * Restore a persisted Agent and compose the request's fresh MCP connections.
-   * @param ctx - ACP plugin context with Agent, LLM, and persistence services.
-   * @param options - persisted identity, workspace, fallback route, MCP, and notifier.
-   * @returns the restored per-session module.
+   * 恢复已持久化的 Agent，并组合本次请求的新 MCP 连接。
+   * @param ctx - 带 Agent、LLM 与持久化服务的 ACP 插件上下文。
+   * @param options - 已持久化的标识、工作区、回退路由、MCP 与通知器。
+   * @returns 恢复后的按会话模块。
    */
   static async resume(ctx: Context, options: ResumeAcpSessionOptions): Promise<AcpSession> {
     let modelControl: AcpModelControl | undefined
@@ -162,7 +161,7 @@ export class AcpSession {
         await mountAcpMcpServers(agentCtx, options.mcpServers, options.cwd)
       },
     })
-    /* v8 ignore start -- a fulfilled Agent resume necessarily ran setup to completion. */
+    /* v8 ignore start -- 成功完成的 Agent 恢复必然已把 setup 运行到结束。 */
     if (modelControl === undefined) {
       await handle.dispose()
       throw internalError('session/resume did not compose model selection')
@@ -172,27 +171,27 @@ export class AcpSession {
   }
 
   /**
-   * Whether this module owns an exact Agent reference.
-   * @param agent - Agent observed on a scoped runtime event.
-   * @returns true only for this session's owned Agent.
+   * 此模块是否拥有精确的 Agent 引用。
+   * @param agent - 在作用域运行时事件中观察到的 Agent。
+   * @returns 仅当它是本会话拥有的 Agent 时为 true。
    */
   owns(agent: Agent): boolean {
     return this.agent === agent
   }
 
   /**
-   * Whether this module owns an exact Session reference.
-   * @param session - Session observed on a durable event.
-   * @returns true only for this session's owned Session.
+   * 此模块是否拥有精确的 Session 引用。
+   * @param session - 在持久化事件中观察到的 Session。
+   * @returns 仅当它是本会话拥有的 Session 时为 true。
    */
   ownsSession(session: Session): boolean {
     return this.agent.session === session
   }
 
   /**
-   * Return the complete standard model configuration state.
-   * @param signal - optional request cancellation.
-   * @returns provider-grouped model and exact-model reasoning options.
+   * 返回完整的标准模型配置状态。
+   * @param signal - 可选的请求取消信号。
+   * @returns 按提供方分组的模型选项，以及精确模型的推理选项。
    */
   configOptions(signal?: AbortSignal): Promise<SessionConfigOption[]> {
     this.assertActive()
@@ -200,18 +199,18 @@ export class AcpSession {
   }
 
   /**
-   * Apply one standard configuration option to later ACP turns.
-   * @param configId - advertised standard option id.
-   * @param value - selected standard option value.
-   * @param signal - optional request cancellation.
-   * @returns the complete resulting option state.
+   * 将一个标准配置选项应用到后续 ACP 轮次。
+   * @param configId - 已声明的标准选项 id。
+   * @param value - 选中的标准选项值。
+   * @param signal - 可选的请求取消信号。
+   * @returns 完整的最终选项状态。
    */
   setConfig(configId: string, value: unknown, signal?: AbortSignal): Promise<SessionConfigOption[]> {
     this.assertActive()
     return this.modelControl.set(configId, value, signal)
   }
 
-  /** Resolve topology state off-chain, then serialize its notification without blocking execution updates. */
+  /** 在更新链之外解析拓扑状态，然后串行发送其通知，且不阻塞执行更新。 */
   topologyChanged(): void {
     if (this.closing !== undefined) return
     void this.modelControl.options()
@@ -223,13 +222,13 @@ export class AcpSession {
             sessionId: this.agent.session.id,
             update: { sessionUpdate: 'config_option_update', configOptions },
           }))
-          /* v8 ignore start -- the bridge notifier contains transport failure. */
+          /* v8 ignore start -- bridge 通知器会收敛传输失败。 */
           .catch((error: unknown) => {
             this.ctx.logger.warn(`acp: config-option update failed: ${errorChain(error)}`)
           })
         /* v8 ignore stop */
       })
-      /* v8 ignore start -- option discovery contains per-provider failure. */
+      /* v8 ignore start -- 选项发现会收敛每个提供方的失败。 */
       .catch((error: unknown) => {
         this.ctx.logger.warn(`acp: config-option update failed: ${errorChain(error)}`)
       })
@@ -237,11 +236,11 @@ export class AcpSession {
   }
 
   /**
-   * Admit one prompt and settle after the root, descendants, and updates finish.
-   * @param params - standard ACP prompt request for this session.
-   * @param imageEnabled - connection capability advertised at initialization.
-   * @param requestSignal - JSON-RPC request cancellation signal.
-   * @returns the correlated standard stop reason after ordered updates drain.
+   * 准入一个提示词，并在根 Agent、后代与更新全部完成后结算。
+   * @param params - 本会话的标准 ACP 提示词请求。
+   * @param imageEnabled - 初始化时声明的连接能力。
+   * @param requestSignal - JSON-RPC 请求取消信号。
+   * @returns 有序更新 drain 之后，与本次请求关联的标准停止原因。
    */
   async prompt(
     params: PromptRequest,
@@ -272,7 +271,7 @@ export class AcpSession {
     this.inflight = inflight
     const onRequestAbort = (): void => { this.cancelPrompt('ACP prompt request cancelled') }
     requestSignal?.addEventListener('abort', onRequestAbort, { once: true })
-    /* v8 ignore next -- the SDK dispatches a live signal, then notifies abort through its listener. */
+    /* v8 ignore next -- SDK 分发的是活跃信号，随后通过其监听器通知 abort。 */
     if (requestSignal?.aborted === true) onRequestAbort()
     try {
       let admissionFailure: unknown
@@ -334,7 +333,7 @@ export class AcpSession {
     }
   }
 
-  /** Cancel the active prompt, or autonomous work when no ACP prompt exists. */
+  /** 取消当前活跃的提示词；没有 ACP 提示词时取消自主工作。 */
   cancel(): void {
     const inflight = this.inflight
     this.cancelPrompt('ACP prompt cancelled')
@@ -342,9 +341,9 @@ export class AcpSession {
   }
 
   /**
-   * Process one durable event and enqueue its standard ACP projections.
-   * @param session - exact event-owning Session.
-   * @param event - committed durable event.
+   * 处理一个持久化事件，并将其标准 ACP 投影加入队列。
+   * @param session - 精确的事件所属 Session。
+   * @param event - 已提交的持久化事件。
    */
   onSessionEvent(session: Session, event: SessionEvent): void {
     if (event.type === 'turn/start' && this.inflight?.turn !== undefined) {
@@ -369,7 +368,7 @@ export class AcpSession {
         const previous = this.outputTail
         this.outputTail = previous
           .then(() => this.notify({ sessionId: this.agent.session.id, update: toolCallUpdate(event) }))
-          /* v8 ignore start -- the bridge notifier contains transport rejection. */
+          /* v8 ignore start -- bridge 通知器会收敛传输拒绝。 */
           .catch((error: unknown) => {
             this.ctx.logger.warn(`acp: tool-call update delivery failed: ${errorChain(error)}`)
           })
@@ -381,7 +380,7 @@ export class AcpSession {
             sessionId: this.agent.session.id,
             update: await toolResultUpdate(this.ctx, event),
           }))
-          /* v8 ignore start -- supplemental-content conversion failure is contained and cannot fail Agent work. */
+          /* v8 ignore start -- 补充内容转换失败已被收敛，不会让 Agent 工作失败。 */
           .catch((error: unknown) => {
             this.ctx.logger.warn(`acp: tool-result update delivery failed: ${errorChain(error)}`)
           })
@@ -398,9 +397,9 @@ export class AcpSession {
   }
 
   /**
-   * Correlate an accepted user message with its Agent turn and pinned route.
-   * @param message - claimed durable inbox message.
-   * @param turn - allocated Agent turn.
+   * 将已接受的用户消息与其 Agent 轮次及固定路由关联起来。
+   * @param message - 已认领的持久化 inbox 消息。
+   * @param turn - 已分配的 Agent 轮次。
    */
   onInboxClaimed(message: UserMessage, turn: number): void {
     if (this.inflight !== undefined && this.inflight.messageId === message.id) this.inflight.turn = turn
@@ -410,39 +409,39 @@ export class AcpSession {
   }
 
   /**
-   * Correlate an Agent interval failure with the active ACP prompt.
-   * @param error - original same-process failure.
+   * 将 Agent 活动区间内的失败与当前活跃的 ACP 提示词关联起来。
+   * @param error - 原始的进程内失败。
    */
   onAgentError(error: unknown): void {
     const inflight = this.inflight
     if (inflight === undefined || !inflight.messageQueued) return
-    // A later committed turn/end supersedes this live failure. Failed turn
-    // start/end appends have no terminal record and keep the failure observable.
+    // 之后提交的 turn/end 会取代这个仍在活动中的失败。轮次 start/end 追加失败时
+    // 没有终态记录，失败因此保持可见。
     inflight.agentError = new Error(errorChain(error))
     this.settleAfterQuiescence(inflight)
   }
 
   /**
-   * Complete cancelled activity without following a later root driver.
-   * @param status - the emitted transition, which may precede a reentrant wake.
+   * 完成已取消的活动，但不跟随之后启动的根驱动。
+   * @param status - 已发出的状态转换，它可能先于一次重入唤醒。
    */
   onAgentStatus(status: AgentStatus): void {
     const inflight = this.inflight
     if (inflight === undefined || !inflight.messageQueued || !inflight.admissionController.signal.aborted) return
-    // Maintenance remains publicly idle; its next running transition belongs
-    // to work released after the maintenance task finished.
+    // 维护操作对外仍处于空闲；它接下来的 running 转换属于维护任务结束后
+    // 才放行的工作。
     if (status === 'idle' || inflight.cancelStartedIdle) inflight.cancellationDone.resolve(this.outputTail)
   }
 
-  /** Await every update queued before this call. */
+  /** 等待本次调用之前排队的每个更新。 */
   drainUpdates(): Promise<void> {
     return this.outputTail
   }
 
   /**
-   * Cancel, drain, flush, and dispose this session once.
-   * @param detail - cancellation detail for any prompt still in admission.
-   * @returns the shared quiescent teardown promise.
+   * 一次性完成本会话的取消、drain、flush 与释放。
+   * @param detail - 仍处于准入阶段的提示词所使用的取消详情。
+   * @returns 共享的停稳式销毁 Promise。
    */
   close(detail: string): Promise<void> {
     if (this.closing !== undefined) return this.closing
@@ -477,7 +476,7 @@ export class AcpSession {
       }
       this.pendingSelections.clear()
       if (failures.length === 1) throw failures[0]
-      /* v8 ignore start -- independent teardown failures can aggregate only under multiple simultaneous provider faults. */
+      /* v8 ignore start -- 只有多个提供方同时故障时，独立的销毁失败才可能聚合。 */
       if (failures.length > 1) {
         throw new AggregateError(failures, `ACP session teardown failed: ${failures.map(errorChain).join('; ')}`)
       }
@@ -504,7 +503,7 @@ export class AcpSession {
     this.agent.cancel({ kind: 'user' })
     if (firstCancellation) {
       const done = inflight.cancellationDone
-      // Plugin disposal can detach status observers before this activity retires.
+      // 插件释放可能在此活动结束之前就移除状态观察者。
       void this.agent.whenIdle().then(() => { done.resolve(this.outputTail) }, done.reject)
     }
   }
@@ -531,7 +530,7 @@ export class AcpSession {
         }
         if (isCancelled()) await cancelled
       }
-      /* v8 ignore next -- this prompt owns the slot until this exact settlement clears it. */
+      /* v8 ignore next -- 此提示词在自身的精确结算清除槽位之前一直拥有该槽位。 */
       if (this.inflight !== inflight) return
       this.inflight = undefined
       if (inflight.admissionController.signal.aborted) {
@@ -555,7 +554,7 @@ export class AcpSession {
         inflight.resolve(turnEndToStopReason(end))
       }
     })()
-      /* v8 ignore start -- admissionDone only resolves; idle/output gates contain their own failures. */
+      /* v8 ignore start -- admissionDone 只会 resolve；idle/output 门各自收敛自身失败。 */
       .catch((error: unknown) => {
         if (this.inflight !== inflight) return
         this.inflight = undefined

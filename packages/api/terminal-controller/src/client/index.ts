@@ -1,4 +1,4 @@
-/** Client terminal model service; views are keyed independently from Host terminal identities. */
+/** Client 终端模型服务；视图的键独立于 Host 终端标识。 */
 import { Service, type Context } from '@deepseek-ai/cordis'
 import { remoteErrorOf } from '@deepseek-ai/dsh-typert-protocol'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
@@ -18,27 +18,27 @@ export type { TerminalView, TerminalViewState, TerminalViewIssue, TerminalRender
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
-    /** React-free browser terminal views and explicit process cleanup. */
+    /** 不依赖 React 的浏览器终端视图与显式进程清理。 */
     webTerminals: ClientTerminals
   }
 }
 
-/** Host-discovered shell menu with the browser's remembered available choice. */
+/** Host 发现的 shell 菜单，附带浏览器记住的可用选择。 */
 export interface TerminalLaunchShells {
   readonly shells: readonly TerminalShell[]
   readonly selectedShell: string | undefined
 }
 
-/** A failed background close that can be retried without restoring its tab. */
+/** 可在不恢复其标签页的情况下重试的后台关闭失败。 */
 export interface TerminalCloseFailure {
   readonly id: WebTerminalId
   readonly title: string
   readonly message: string
 }
 
-/** Session and occurrence lookup, independent tab and terminal identities and background cleanup. */
+/** Session 与出现项查找、独立的标签页与终端标识，以及后台清理。 */
 export class ClientTerminals extends Service {
-  /** Failed cleanup tasks; successful and in-progress closes have no visible notification. */
+  /** 失败的清理任务；成功与进行中的关闭没有可见通知。 */
   readonly closeFailures: SnapshotStore<readonly TerminalCloseFailure[]> = createSnapshotStore<readonly TerminalCloseFailure[]>([])
   private readonly requests = new TerminalCloseRequests()
   private readonly closing = new Map<WebTerminalId, Promise<void>>()
@@ -52,8 +52,8 @@ export class ClientTerminals extends Service {
   private openTabs: readonly { sessionId: SessionId; tabId: string; contentId: string }[] = []
 
   /**
-   * @param ctx - Client root Context with Gateway and terminal Remote namespace.
-   * @param remote - generated terminal namespace.
+   * @param ctx - 携带 Gateway 与终端 Remote 命名空间的 Client 根上下文。
+   * @param remote - 生成的终端命名空间。
    */
   constructor(ctx: Context, private readonly remote: TerminalRemote) {
     super(ctx, 'webTerminals')
@@ -84,13 +84,13 @@ export class ClientTerminals extends Service {
   }
 
   /**
-   * Return the stable model for one sidebar occurrence.
-   * @param sessionId - owning Session.
-   * @param key - sidebar occurrence key.
-   * @param contentId - globally unique content identity; layout-local tab ids are not persistence keys.
-   * @param terminalId - existing Host identity when restoring a listed terminal; otherwise reuse the saved content identity.
-   * @param shellPath - explicit shell for a new terminal; restored terminals retain their own shell.
-   * @returns its observable state and terminal commands.
+   * 返回一个侧边栏出现项的稳定模型。
+   * @param sessionId - 拥有该出现项的 Session。
+   * @param key - 侧边栏出现项键。
+   * @param contentId - 全局唯一的内容标识；布局局部的标签页 id 不是持久化键。
+   * @param terminalId - 恢复列表中已有终端时的现有 Host 标识；否则复用已保存的内容标识。
+   * @param shellPath - 新终端的显式 shell；恢复的终端保留各自的 shell。
+   * @returns 其可观察状态与终端命令。
    */
   view(sessionId: SessionId, key: string, contentId: string, terminalId?: WebTerminalId, shellPath?: string): TerminalView {
     let views = this.views.get(sessionId)
@@ -119,10 +119,10 @@ export class ClientTerminals extends Service {
   }
 
   /**
-   * Discover available launch choices on demand without allocating a PTY.
-   * @param sessionId - target Session.
-   * @param signal - the menu request lifetime.
-   * @returns installed shells and the currently usable browser preference.
+   * 按需发现可用的启动选择，不分配 PTY。
+   * @param sessionId - 目标 Session。
+   * @param signal - 菜单请求的生命周期。
+   * @returns 已安装的 shell 与当前可用的浏览器偏好。
    */
   async launchShells(sessionId: SessionId, signal: AbortSignal): Promise<TerminalLaunchShells> {
     const result = await this.remote.shells(sessionId, signal)
@@ -132,17 +132,17 @@ export class ClientTerminals extends Service {
   }
 
   /**
-   * Remember the guide selection before allocating its terminal tab.
-   * @param path - shell selected from Host discovery.
+   * 在分配其终端标签页之前记住引导选择。
+   * @param path - 从 Host 发现中选择的 shell。
    */
   selectShell(path: string): void { rememberShell(path) }
 
   /**
-   * Save a close intent and release the tab immediately; cleanup outlives DOM unmount and reload.
-   * @param sessionId - owning Session.
-   * @param key - sidebar occurrence key, including an inactive restored tab.
-   * @param contentId - globally unique content identity whose binding is removed.
-   * @param terminalId - restored identity if the tab has no model yet.
+   * 保存关闭意图并立即释放标签页；清理比 DOM 卸载与刷新更持久。
+   * @param sessionId - 拥有该出现项的 Session。
+   * @param key - 侧边栏出现项键，包括未激活的已恢复标签页。
+   * @param contentId - 要移除其绑定的全局唯一内容标识。
+   * @param terminalId - 标签页尚无模型时的已恢复标识。
    */
   close(sessionId: SessionId, key: string, contentId: string, terminalId?: WebTerminalId): void {
     const views = this.views.get(sessionId)
@@ -160,8 +160,8 @@ export class ClientTerminals extends Service {
   }
 
   /**
-   * Reconcile this window's open terminal occurrences, including dormant saved Sessions.
-   * @param tabs - terminal-kind membership supplied by the sidebar layout owner.
+   * 调和此窗口打开的终端出现项，包括休眠的已保存 Session。
+   * @param tabs - 由侧边栏布局拥有者提供的终端类成员关系。
    */
   retainTabs(tabs: readonly { sessionId: SessionId; tabId: string; contentId: string }[]): void {
     this.openTabs = tabs
@@ -209,10 +209,10 @@ export class ClientTerminals extends Service {
   }
 
   /**
-   * Read shared Session discovery without a live view or unfinished close.
-   * @param sessionId - Session being displayed.
-   * @param refresh - explicitly replace settled discovery, including a previous failure.
-   * @returns terminals available for opening as recovered tabs.
+   * 读取共享的 Session 发现，不依赖活动视图或未完成的关闭。
+   * @param sessionId - 正在展示的 Session。
+   * @param refresh - 显式替换已落定的发现结果，包括先前的失败。
+   * @returns 可作为恢复标签页打开的终端。
    */
   async recover(sessionId: SessionId, refresh: boolean = false): Promise<WebTerminalInfo[]> {
     const available = await this.inventory(sessionId).read(refresh)
@@ -222,8 +222,8 @@ export class ClientTerminals extends Service {
   }
 
   /**
-   * Retry a saved close request without reopening its tab.
-   * @param id - failed terminal identity.
+   * 重试已保存的关闭请求，而不重新打开其标签页。
+   * @param id - 失败的终端标识。
    */
   retryClose(id: WebTerminalId): void {
     const record = this.requests.pending().find(item => item.id === id)
@@ -258,12 +258,12 @@ export class ClientTerminals extends Service {
   }
 }
 
-/** Required Client transport and terminal namespace. */
+/** 所需的 Client 传输与终端命名空间。 */
 export const inject = ['remote', 'remote.terminal', 'connection']
 
 /**
- * Install the Client terminal models.
- * @param ctx - Client root Context.
+ * 安装 Client 终端模型。
+ * @param ctx - Client 根上下文。
  */
 export function apply(ctx: Context): void {
   new ClientTerminals(ctx, ctx.remote.terminal)

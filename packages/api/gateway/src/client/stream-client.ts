@@ -1,4 +1,4 @@
-/** Client owner for the Gateway multiplexed Remote stream socket. */
+/** Gateway 多路复用 Remote 流套接字的 Client 所有者。 */
 import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
 import type { ConnectionWebSocket } from '@deepseek-ai/dsh-client-connection/client'
 
@@ -11,11 +11,11 @@ import {
 import { Deque } from '@deepseek-ai/dsh-deque'
 import { randomUUID } from '@deepseek-ai/dsh-util-crypto'
 
-/** Physical Remote stream socket failure that may be retried by a domain transport. */
+/** 可由领域传输重试的物理 Remote 流套接字失败。 */
 export class RemoteStreamCarrierError extends Error {
   /**
-   * @param message - physical carrier failure description.
-   * @param options - optional causal error.
+   * @param message - 物理载体失败的描述。
+   * @param options - 可选的原因错误。
    */
   constructor(message: string, options?: ErrorOptions) {
     super(message, options)
@@ -30,13 +30,13 @@ interface SocketWaiter {
 }
 
 interface UplinkPump {
-  /** Settles once the pump has stopped sending. */
+  /** 泵停止发送后即完成。 */
   readonly done: Promise<void>
-  /** Interrupt the pump, including a read blocked on the caller's iterator, and release the iterator. */
+  /** 中断泵（包括阻塞在调用方迭代器上的读取），并释放该迭代器。 */
   stop(): void
 }
 
-/** One open logical stream: its downlink frames and, once the `open` frame is out, its uplink pump. */
+/** 一个打开的逻辑流：其下行帧，以及 `open` 帧发出后的上行泵。 */
 interface LogicalStream {
   readonly inbox: StreamInbox
   pump: UplinkPump | undefined
@@ -45,9 +45,9 @@ interface LogicalStream {
 const UPLINK_DONE: IteratorReturnResult<undefined> = { value: undefined, done: true }
 
 /**
- * Keep one physical WebSocket and share it among independently cancellable
- * Remote streams. A carrier that supplies an in-process stream opener never
- * starts one.
+ * 维持一个物理 WebSocket，并在可独立取消的 Remote 流之间共享。
+ * 提供进程内流打开器的载体
+ * 绝不启动一个。
  */
 export class RemoteStreamMuxClient {
   private socket: ConnectionWebSocket | undefined
@@ -62,15 +62,15 @@ export class RemoteStreamMuxClient {
   private failure: RemoteStreamCarrierError | undefined
 
   /**
-   * @param openSocket - selected authenticated carrier; omission uses the browser socket.
-   * @param waitForReconnect - answering Clients wait for Connection to replace a lost socket; passive Clients fail later opens immediately.
+   * @param openSocket - 选定的已认证载体；省略时使用浏览器套接字。
+   * @param waitForReconnect - 应答型 Client 等待 Connection 更换丢失的套接字；被动 Client 使后续打开立即失败。
    */
   constructor(
     private readonly openSocket: (path: string) => ConnectionWebSocket = () => new WebSocket(remoteStreamUrl()),
     private readonly waitForReconnect = false,
   ) {}
 
-  /** Ensure a physical attempt exists, following the current attempt once if needed. */
+  /** 确保存在一个物理尝试，必要时跟随当前尝试一次。 */
   start(): void {
     if (this.disposed) return
     this.running = true
@@ -80,7 +80,7 @@ export class RemoteStreamMuxClient {
     else void pending.then(() => { this.maintain() })
   }
 
-  /** Cancel the current socket or retry wait and start a fresh attempt immediately. */
+  /** 取消当前套接字或重试等待，并立即开始全新的尝试。 */
   reconnect(): void {
     if (!this.running || this.disposed) return
     const failure = new RemoteStreamCarrierError('api gateway: Remote stream reconnect requested')
@@ -99,16 +99,16 @@ export class RemoteStreamMuxClient {
   }
 
   /**
-   * Open one logical stream on the persistent physical connection.
-   * After an established socket is lost, answering Clients wait for Connection
-   * to reconnect or for their signal to abort; passive Clients reject immediately.
-   * An initial socket failure rejects both modes.
-   * @param endpoint - Typert Remote stream endpoint.
-   * @param payload - endpoint request encoded on the wire.
-   * @param signal - cancellation for this logical stream.
-   * @param uplink - the Client's items: each is sent as an `item` frame, its end as `end`; its `return()`
-   * runs when the stream finishes, and its failure cancels the stream and fails the downlink.
-   * @returns Host items until completion, cancellation, or failure.
+   * 在持久物理连接上打开一个逻辑流。
+   * 已建立的套接字丢失后，应答型 Client 等待 Connection 重连或其信号中止；
+   * 被动 Client 立即拒绝。
+   * 初始套接字失败对两种模式都拒绝。
+   * @param endpoint - Typert Remote 流端点。
+   * @param payload - 编码到 wire 上的端点请求。
+   * @param signal - 此逻辑流的取消信号。
+   * @param uplink - Client 的条目：每条作为一个 `item` 帧发送，结束作为 `end`；其 `return()`
+   * 在流结束时运行，其失败会取消流并使下行失败。
+   * @returns Host 的条目，直至完成、取消或失败。
    */
   async *open(
     endpoint: string,
@@ -153,17 +153,17 @@ export class RemoteStreamMuxClient {
       if (opened && !terminal && carrier?.readyState === 1) {
         this.send(carrier, { type: 'cancel', streamId })
       }
-      // The old generation's pump has stopped before a supervisor reopens the next one.
+      // 旧的代的泵已在监管器重新打开下一个之前停止。
       if (stream.pump !== undefined) await stream.pump.done
     }
   }
 
   /**
-   * Send the caller's uplink items on this generation's socket. `stop()`
-   * interrupts a pump blocked on `uplink.next()` and releases the iterator: a
-   * handle's queue closes at once, so `send()` throws from then on, and any
-   * other iterator's `return()` is invoked without being awaited because a
-   * generator blocked in `next()` only completes it once it yields.
+   * 在此代的套接字上发送调用方的上行条目。`stop()`
+   * 中断阻塞在 `uplink.next()` 上的泵并释放迭代器：句柄的队列
+   * 立即关闭，因此从那时起 `send()` 抛出，而任何其他迭代器的
+   * `return()` 会被调用但不被等待，因为阻塞在 `next()` 中的
+   * 生成器只有让出时才能完成它。
    */
   private pumpUplink(
     socket: ConnectionWebSocket,
@@ -187,7 +187,7 @@ export class RemoteStreamMuxClient {
         while (true) {
           const stoppingBeforeRead = state.stopping
           if (stoppingBeforeRead) return
-          // A stop promise belongs to one read, not the whole uplink history.
+          // 停止 promise 属于单次读取，而不是整个上行历史。
           stopped = Promise.withResolvers<IteratorReturnResult<undefined>>()
           const next = await Promise.race([uplinkIterator.next(), stopped.promise])
           stopped = undefined
@@ -218,9 +218,9 @@ export class RemoteStreamMuxClient {
   }
 
   /**
-   * Permanently stop the carrier, close the physical socket, and fail every
-   * active logical stream.
-   * @returns once the connection attempt and every physical socket have closed.
+   * 永久停止载体，关闭物理套接字，
+   * 并使每个活跃逻辑流失败。
+   * @returns 连接尝试与每个物理套接字都已关闭之后。
    */
   async close(): Promise<void> {
     if (!this.disposed) {
@@ -250,8 +250,8 @@ export class RemoteStreamMuxClient {
         socket.removeEventListener('open', opened)
         socket.removeEventListener('message', received)
         this.cancelCandidate = undefined
-        // Node ws emits error when a connecting socket is closed. Keep its
-        // error listener until close even after rejecting the attempt.
+        // Node ws 在连接中的套接字关闭时会发出 error。即使已拒绝该尝试，
+        // 也将 error 监听器保留到 close。
         if (socket.readyState < 2) socket.close()
         reject(error)
       }
@@ -315,7 +315,7 @@ export class RemoteStreamMuxClient {
         },
         reject: (error) => {
           cleanup()
-          // AbortSignal.reason belongs to the caller and may intentionally be a non-Error sentinel.
+          // AbortSignal.reason 属于调用方，且可能有意为非 Error 的哨兵值。
           // oxlint-disable-next-line typescript/prefer-promise-reject-errors
           reject(error)
         },
@@ -333,7 +333,7 @@ export class RemoteStreamMuxClient {
       const stream = this.streams.get(frame.streamId)
       if (stream === undefined) return
       stream.inbox.push(frame)
-      // A terminal frame ends the uplink now, not on the consumer's next read.
+      // 终止帧现在就结束上行，而不是等到消费方的下一次读取。
       if (frame.type !== 'item') stream.pump?.stop()
     } catch (error) {
       const failure = new RemoteStreamCarrierError('api gateway: invalid Remote stream frame', { cause: error })
@@ -423,10 +423,10 @@ class StreamInbox {
 }
 
 /**
- * Uplink items a stream handle queues for its carrier: the mux pump or the
- * in-process Host decoder iterates it as the stream's uplink. `end()` is the
- * Client half-close; `close()` marks the stream terminated, after which
- * `push()` throws. One consumer reads it, one read at a time.
+ * 流句柄为其载体排队的上行条目：多路复用泵或进程内 Host 解码器
+ * 将其作为流的上行来迭代。`end()` 是 Client 半关闭；`close()`
+ * 标记流已终止，此后 `push()` 抛出。一个消费方读取它，
+ * 且一次只有一个读取。
  */
 export class ClientUplinkQueue implements AsyncIterable<unknown>, AsyncIterator<unknown> {
   private readonly items = new Deque<unknown>()
@@ -434,13 +434,13 @@ export class ClientUplinkQueue implements AsyncIterable<unknown>, AsyncIterator<
   private closed = false
   private wake: (() => void) | undefined
 
-  /** @param endpoint - canonical Remote endpoint named by failures. */
+  /** @param endpoint - 失败中指名的规范 Remote 端点。 */
   constructor(private readonly endpoint: string) {}
 
   /**
-   * Queue one item for the carrier.
-   * @param item - item the Host validates against the method's uplink codec.
-   * @throws {Error} after `end()` or once the stream has terminated.
+   * 为载体排队一个条目。
+   * @param item - 由 Host 依据方法上行编解码器校验的条目。
+   * @throws {Error} 在 `end()` 之后或流已终止之后抛出。
    */
   push(item: unknown): void {
     if (this.closed) throw new Error(`client api: ${this.endpoint} stream has terminated`)
@@ -449,14 +449,14 @@ export class ClientUplinkQueue implements AsyncIterable<unknown>, AsyncIterator<
     this.signal()
   }
 
-  /** Half-close: the carrier reads the queued items, then `end`. Idempotent; ignored after termination. */
+  /** 半关闭：载体读取排队的条目，然后是 `end`。幂等；终止后忽略。 */
   end(): void {
     if (this.ended || this.closed) return
     this.ended = true
     this.signal()
   }
 
-  /** The carrier stopped reading: the logical stream terminated or was disposed. Idempotent. */
+  /** 载体已停止读取：逻辑流已终止或被释放。幂等。 */
   close(): void {
     if (this.closed) return
     this.closed = true
@@ -469,9 +469,9 @@ export class ClientUplinkQueue implements AsyncIterable<unknown>, AsyncIterator<
   }
 
   /**
-   * Take the next queued item, waiting for one; ends after `end()` or `close()`.
-   * @returns the next item, or the end of the uplink.
-   * @throws {Error} when a read is already pending.
+   * 取出下一个排队的条目，必要时等待；在 `end()` 或 `close()` 之后结束。
+   * @returns 下一个条目，或上行的结束。
+   * @throws {Error} 已有一个读取挂起时抛出。
    */
   async next(): Promise<IteratorResult<unknown>> {
     while (true) {
@@ -484,8 +484,8 @@ export class ClientUplinkQueue implements AsyncIterable<unknown>, AsyncIterator<
   }
 
   /**
-   * The carrier is done with the uplink: close it.
-   * @returns the end of the uplink.
+   * 载体已用完上行：将其关闭。
+   * @returns 上行的结束。
    */
   return(): Promise<IteratorResult<unknown>> {
     this.close()
@@ -500,9 +500,9 @@ export class ClientUplinkQueue implements AsyncIterable<unknown>, AsyncIterator<
 }
 
 function remoteStreamUrl(): string {
-  // The mux route is registered absolute; a page resolves its document-relative
-  // form against its own document base. A shell-owned Host on another origin
-  // supplies that base through the transport.
+  // 多路复用路由以绝对形式注册；页面以其自身的文档基址解析
+  // 其文档相对形式。另一来源上由 shell 持有的 Host
+  // 通过传输提供该基址。
   const globals = globalThis as { __DSH_TRANSPORT__?: { streamBaseUrl?: string } }
   const url = new URL(REMOTE_STREAM_MUX_PATH.slice(1), globals.__DSH_TRANSPORT__?.streamBaseUrl ?? document.baseURI)
   url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'

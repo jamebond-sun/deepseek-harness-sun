@@ -1,5 +1,5 @@
 /**
- * Shared insertion-ordered storage and effect ownership for scope-aware registries.
+ * 作用域感知注册表的共享插入顺序存储与 effect 所有权。
  *
  * @module @deepseek-ai/dsh-scope
  */
@@ -8,24 +8,24 @@ import type { Context } from '@deepseek-ai/cordis'
 import { scopeChainOf, scopeOf } from './index.ts'
 import type { ScopeKey } from './index.ts'
 
-/** One scope's aggregate contribution to a registry. */
+/** 单个作用域对注册表的聚合贡献。 */
 export interface ScopeLayer {
-  /** Whether every table in this layer is empty. */
+  /** 此层中的每个表是否都为空。 */
   isEmpty(): boolean
 }
 
-/** Internal common read contract for the two entry-table implementations. */
+/** 两个条目表实现的内部公共读取契约。 */
 interface EntryValues<V> {
   values(): IterableIterator<V>
   isEmpty(): boolean
 }
 
 /**
- * Insertion-ordered named entries with caller-owned duplicate diagnostics.
+ * 插入顺序的具名条目，重复诊断由调用方拥有。
  *
- * Values are borrowed. Iterators are live within one nonempty table
- * generation; draining the table detaches them from later insertions. Each
- * successful insertion returns an idempotent undo for that exact entry.
+ * 值是借用。迭代器在单个非空表世代内是活跃的；
+ * 清空表会使它们与后续插入分离。每次成功插入都返回
+ * 针对该确切条目的幂等撤销。
  */
 export class NamedEntries<V> implements EntryValues<V> {
   private data = new Map<string, V>()
@@ -35,10 +35,10 @@ export class NamedEntries<V> implements EntryValues<V> {
   ) {}
 
   /**
-   * Insert one unique name.
-   * @param name - name unique within this table.
-   * @param value - borrowed value to retain.
-   * @returns an idempotent undo that removes only this insertion.
+   * 插入一个唯一名称。
+   * @param name - 此表内唯一的名称。
+   * @param value - 要保留的借用值。
+   * @returns 一个幂等撤销，只移除此次插入。
    */
   insert(name: string, value: V): () => void {
     const data = this.data
@@ -54,50 +54,50 @@ export class NamedEntries<V> implements EntryValues<V> {
   }
 
   /**
-   * Read one named value.
-   * @param name - name to resolve.
-   * @returns the retained value, or `undefined` when absent.
+   * 读取单个具名值。
+   * @param name - 要解析的名称。
+   * @returns 保留的值，缺席时为 `undefined`。
    */
   get(name: string): V | undefined {
     return this.data.get(name)
   }
 
   /**
-   * Test one name for membership.
-   * @param name - name to test.
-   * @returns whether the table contains that name.
+   * 测试单个名称是否为成员。
+   * @param name - 要测试的名称。
+   * @returns 表是否包含该名称。
    */
   has(name: string): boolean {
     return this.data.has(name)
   }
 
   /**
-   * Iterate live names in insertion order.
-   * @returns the native live key iterator.
+   * 按插入顺序迭代活跃名称。
+   * @returns 原生的活跃键迭代器。
    */
   keys(): IterableIterator<string> {
     return this.data.keys()
   }
 
   /**
-   * Iterate live entries in insertion order.
-   * @returns the native live entry iterator.
+   * 按插入顺序迭代活跃条目。
+   * @returns 原生的活跃条目迭代器。
    */
   entries(): IterableIterator<[string, V]> {
     return this.data.entries()
   }
 
   /**
-   * Iterate live values in insertion order.
-   * @returns the native live value iterator.
+   * 按插入顺序迭代活跃值。
+   * @returns 原生的活跃值迭代器。
    */
   values(): IterableIterator<V> {
     return this.data.values()
   }
 
   /**
-   * Test whether this table has no entries.
-   * @returns whether the table is empty.
+   * 测试此表是否没有条目。
+   * @returns 表是否为空。
    */
   isEmpty(): boolean {
     return this.data.size === 0
@@ -105,19 +105,18 @@ export class NamedEntries<V> implements EntryValues<V> {
 }
 
 /**
- * Insertion-ordered anonymous entries with independent registration identity.
+ * 插入顺序的匿名条目，具有独立的注册身份。
  *
- * Equal values remain separate registrations. Values are borrowed, and
- * iterators are live within one nonempty table generation; draining the table
- * detaches them from later appends.
+ * 相等的值保持为独立注册。值是借用，迭代器在单个非空表世代内是活跃的；
+ * 清空表会使它们与后续追加分离。
  */
 export class AnonymousEntries<V> implements EntryValues<V> {
   private data = new Map<symbol, V>()
 
   /**
-   * Append one independently owned value.
-   * @param value - borrowed value to retain.
-   * @returns an idempotent undo for this exact append.
+   * 追加一个独立拥有的值。
+   * @param value - 要保留的借用值。
+   * @returns 针对此确切追加的幂等撤销。
    */
   append(value: V): () => void {
     const data = this.data
@@ -133,16 +132,16 @@ export class AnonymousEntries<V> implements EntryValues<V> {
   }
 
   /**
-   * Iterate live values in insertion order.
-   * @returns the native live value iterator.
+   * 按插入顺序迭代活跃值。
+   * @returns 原生的活跃值迭代器。
    */
   values(): IterableIterator<V> {
     return this.data.values()
   }
 
   /**
-   * Test whether this table has no entries.
-   * @returns whether the table is empty.
+   * 测试此表是否没有条目。
+   * @returns 表是否为空。
    */
   isEmpty(): boolean {
     return this.data.size === 0
@@ -150,14 +149,13 @@ export class AnonymousEntries<V> implements EntryValues<V> {
 }
 
 /**
- * Own the global and exact-scope layers for one registry.
+ * 为单个注册表拥有全局与精确作用域层。
  *
- * Reads never create scoped layers. Registrations derive both visibility and
- * effect ownership from the supplied Cordis context, collect undo before
- * notification, and reclaim only a completely empty aggregate layer.
+ * 读取从不创建作用域层。注册从提供的 Cordis 上下文同时派生可见性和
+ * effect 所有权，在通知之前收集撤销，并只回收完全为空的聚合层。
  */
 export class ScopedLayers<L extends ScopeLayer> {
-  /** The eagerly constructed context-global layer. */
+  /** 急切构建的上下文全局层。 */
   readonly global: L
 
   private readonly scoped = new Map<ScopeKey, L>()
@@ -170,12 +168,11 @@ export class ScopedLayers<L extends ScopeLayer> {
   }
 
   /**
-   * Read an existing exact-scope overlay. Deliberately chain-blind: callers
-   * addressing one scope's OWN contributions (its restrictions, its guards)
-   * must not silently pick up an ancestor's — use {@link chainLayers} where
-   * inheritance is the point.
-   * @param scope - exact scope key; `undefined` denotes no overlay.
-   * @returns the existing scoped layer, or `undefined` without creating one.
+   * 读取既有的精确作用域覆盖。刻意对链不感知：寻址单个作用域自己的
+   * 贡献（其限制、其守卫）的调用方不得静默拾取祖先的——
+   * 在继承才是重点时使用 {@link chainLayers}。
+   * @param scope - 精确作用域键；`undefined` 表示没有覆盖。
+   * @returns 既有的作用域层，不创建新的，无覆盖时为 `undefined`。
    */
   peek(scope: ScopeKey | undefined): L | undefined {
     if (scope === undefined) return undefined
@@ -183,11 +180,11 @@ export class ScopedLayers<L extends ScopeLayer> {
   }
 
   /**
-   * Existing overlays along the scope's parent chain ({@link scopeChainOf}),
-   * farthest ancestor first and the exact scope last, so a caller layering
-   * them in order gives the nearest scope the final word.
-   * @param scope - viewing scope, or `undefined` for no overlays.
-   * @returns the existing layers, nearest last; absent overlays are skipped.
+   * 沿作用域父链（{@link scopeChainOf}）的既有覆盖，
+   * 最远祖先在前、精确作用域在后，使调用方按顺序层叠它们时
+   * 给最近的作用域最终决定权。
+   * @param scope - 查看作用域，无覆盖为 `undefined`。
+   * @returns 既有层，最近者在最后；缺席的覆盖被跳过。
    */
   chainLayers(scope: ScopeKey | undefined): L[] {
     const layers: L[] = []
@@ -199,11 +196,11 @@ export class ScopedLayers<L extends ScopeLayer> {
   }
 
   /**
-   * Materialize global named entries followed by scope-chain shadows,
-   * farthest ancestor first, so the nearest scope's entry wins a name.
-   * @param scope - viewing scope, or `undefined` for the global view.
-   * @param pick - select the named table from a layer.
-   * @returns an insertion-ordered effective map.
+   * 物化全局具名条目及其后的作用域链遮蔽，
+   * 最远祖先在前，使最近作用域的条目赢得名称。
+   * @param scope - 查看作用域，全局视图为 `undefined`。
+   * @param pick - 从一个层选择具名表。
+   * @returns 插入顺序的有效映射。
    */
   merge<V>(
     scope: ScopeKey | undefined,
@@ -217,11 +214,11 @@ export class ScopedLayers<L extends ScopeLayer> {
   }
 
   /**
-   * Attach one synchronous layer mutation to its registration context.
-   * @param ctx - context that determines both scope visibility and effect ownership.
-   * @param action - atomic mutation returning its synchronous undo.
-   * @param options - Cordis effect label and optional change notification.
-   * @returns the exact disposer returned by `ctx.effect()`.
+   * 将单个同步层变更附加到其注册上下文。
+   * @param ctx - 同时决定作用域可见性和 effect 所有权的上下文。
+   * @param action - 返回其同步撤销的原子变更。
+   * @param options - Cordis effect 标签和可选的变更通知。
+   * @returns `ctx.effect()` 返回的确切 disposer。
    */
   effect(
     ctx: Context,

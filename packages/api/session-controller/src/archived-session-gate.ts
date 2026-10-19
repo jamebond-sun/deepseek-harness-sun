@@ -1,10 +1,9 @@
 /**
- * The controller's admission gate for archived Sessions: an archived
- * Session, or a subagent descendant of one, must not run a model step until
- * it is restored. The work a Session still runs is reported and stopped by
- * its owners — the Agent registry (`turn`), the job registry seam (`job`),
- * the Subagent runtime (`subagent`), and the Schedule plugin (`schedule`) —
- * through the Workspace registry's archive-admission events.
+ * 控制器对已归档 Session 的准入闸门：已归档的 Session 或其
+ * subagent 后代在恢复之前不得运行任何模型步骤。Session 仍在
+ * 运行的工作由其拥有者——Agent 注册表（`turn`）、job 注册表
+ * 接缝（`job`）、Subagent 运行时（`subagent`）与 Schedule 插件
+ * （`schedule`）——通过 Workspace 注册表的归档准入事件报告并停止。
  */
 
 import type { Context, Plugin } from '@deepseek-ai/cordis'
@@ -13,12 +12,11 @@ import type { SessionId } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-workspace'
 
 /**
- * The gate as a plugin for `ctx.plugin(...)`: it loads once the Agent
- * registry, Session store, and Workspace registry are available and unwinds
- * with the plugin's fiber. A late waking delivery to an archived Session — a
- * subagent settlement, a queued follow-up — proposes a step the gate rejects,
- * which the loop ends as `blocked` without a request; unarchiving lifts the
- * gate for the whole lineage.
+ * 作为 `ctx.plugin(...)` 插件的闸门：它在 Agent 注册表、Session 存储与
+ * Workspace 注册表可用后加载，并随插件的 fiber 一起展开。对已归档
+ * Session 的迟到唤醒投递——subagent 结算、排队的后续任务——会提议
+ * 一个被闸门拒绝的步骤，循环将其以 `blocked` 结束而不发出请求；
+ * 取消归档会为整个谱系解除闸门。
  */
 export const ArchivedSessionGate: Plugin.Object<void> = {
   name: 'archived-session-gate',
@@ -32,13 +30,12 @@ export const ArchivedSessionGate: Plugin.Object<void> = {
 }
 
 /**
- * Whether the Agent's Session, or a Session above it in its subagent lineage,
- * is archived. Lineage follows the durable header fields through
- * subagent-origin Sessions only: a fork of an archived Session is an
- * independent conversation.
- * @param ctx - Host context.
- * @param agent - the Agent proposing a step.
- * @returns whether an archived Session owns the step.
+ * 该 Agent 的 Session 或其 subagent 谱系中位于其上方的 Session
+ * 是否已归档。谱系仅通过 subagent 来源的 Session 沿持久化
+ * header 字段追溯：已归档 Session 的分叉是一个独立对话。
+ * @param ctx - Host 上下文。
+ * @param agent - 提议步骤的 Agent。
+ * @returns 是否有已归档 Session 拥有该步骤。
  */
 export function underArchivedSession(ctx: Context, agent: Agent): boolean {
   const archived = ctx.workspaceRegistry.archivedSessionIds

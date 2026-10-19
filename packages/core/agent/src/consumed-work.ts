@@ -1,43 +1,41 @@
 /**
- * How one agent log accounts for the work it consumed.
+ * 单个 agent 日志如何核算它消费过的工作。
  *
- * The turn and step vocabulary alone cannot answer this. A turn that stops
- * before its first step leaves a `turn/end` shaped exactly like the balanced
- * no-op turns a rejection or an empty claim produces, so reading turns in
- * isolation either credits cut-short work as finished or convicts every no-op.
- * The missing fact is the inbox's own record: {@link Inbox} logs each mutation
- * with `removedCount` and marks a cancellation `outcome: 'canceled'`, which
- * separates a turn claiming its input from work being dropped unrun.
+ * 仅凭 turn 与 step 词汇无法回答这个问题。一个在第一个 step 之前停止的
+ * turn 留下的 `turn/end`，与拒绝或空认领产生的平衡无操作 turn 完全同形，
+ * 因此孤立地读取 turn 要么把被截断的工作记为已完成，要么把每个无操作
+ * 都定罪。缺失的事实是 inbox 自身的记录：{@link Inbox} 以 `removedCount`
+ * 记录每次变更，并用 `outcome: 'canceled'` 标记取消，从而把 turn 认领了
+ * 其输入与工作被未运行就丢弃区分开。
  *
  * @module @deepseek-ai/dsh-agent/consumed-work
  */
 
 import type { SessionEvent, TurnEndReason } from '@deepseek-ai/dsh-session'
 
-/** How one agent log accounts for the work it consumed. */
+/** 单个 agent 日志如何核算它消费过的工作。 */
 export interface ConsumedWork {
   /**
-   * The latest closed turn that accounts for consumed work: one that entered a
-   * model step, or one that claimed inbox input and then failed, was stopped,
-   * or was rejected. Absent when no turn closed over any work.
+   * 核算已消费工作的最新关闭 turn：进入了模型 step 的 turn，或认领了
+   * inbox 输入随后失败、被停止或被拒绝的 turn。没有任何 turn 关闭过
+   * 工作时不存在。
    */
   readonly end?: SessionEvent<'turn/end'>
   /**
-   * Whether accepted work was cancelled out of the inbox, unrun, after that
-   * turn. This is the only account of input a cancellation took before any turn
-   * could open over it — no `turn/end` describes it.
+   * 该 turn 之后，已接受的工作是否被取消出 inbox 且未运行。这是取消操作
+   * 在任何 turn 得以打开之前获取输入的唯一核算记录 —— 没有 `turn/end`
+   * 描述它。
    */
   readonly droppedUnrun: boolean
 }
 
 /**
- * Whether a turn that consumed input but never reached a step ends in a way
- * that accounts for that input. Only a `completed` end does not: it had
- * nothing left to run once its claim was rewritten away. A `blocked` end is
- * that input's ending too — the pre-step rejection that produced it discarded
- * the claimed messages, so the work it took will never run.
- * @param reason - the turn's recorded ending.
- * @returns whether the ending accounts for the input the turn took.
+ * 消费了输入但从未到达 step 的 turn，其结束方式是否核算了该输入。
+ * 只有 `completed` 结束不核算：一旦其认领被改写掉，它已无事可运行。
+ * `blocked` 结束同样核算该输入的终结 —— 产生它的 pre-step 拒绝丢弃了
+ * 被认领的消息，因此它取走的工作永远不会运行。
+ * @param reason - 该 turn 记录的结束方式。
+ * @returns 该结束方式是否核算了 turn 获取的输入。
  */
 function accountsForClaim(reason: TurnEndReason): boolean {
   switch (reason.kind) {
@@ -59,12 +57,12 @@ function accountsForClaim(reason: TurnEndReason): boolean {
 }
 
 /**
- * Fold one agent log, or an owned suffix of one, into its account of consumed
- * work. Single pass, and every input is the log itself: no caller has to sample
- * live state before cancelling, so a cancellation issued by anyone — the owner's
- * teardown, an ancestor's interrupt, an unloading plugin — reads the same.
- * @param events - the log, or an owned suffix, to fold.
- * @returns the accounting turn when one closed, and whether work was dropped unrun after it.
+ * 把单个 agent 日志（或其被拥有的后缀）fold 成其已消费工作的核算。
+ * 单次遍历，且每个输入都是日志本身：没有调用方需要在取消前采样活跃状态，
+ * 因此任何人 —— 所有者的拆除、祖先的中断、正在卸载的插件 —— 发出的取消
+ * 读到的结果一致。
+ * @param events - 要 fold 的日志或其被拥有的后缀。
+ * @returns 关闭的核算 turn（若有），以及其后工作是否被未运行就丢弃。
  */
 export function foldConsumedWork(events: readonly SessionEvent[]): ConsumedWork {
   const stepped = new Set<number>()
@@ -83,10 +81,10 @@ export function foldConsumedWork(events: readonly SessionEvent[]): ConsumedWork 
       case 'agent/inbox/spliced': {
         const { removedCount, outcome, inserted } = event.data
         if (removedCount === undefined) break
-        // A replacement keeps the work pending under a new identity, so only a
-        // cancellation that leaves nothing behind drops it.
+        // 替换会让工作以新身份保持待处理，因此只有不留下任何东西的取消
+        // 才算丢弃。
         if (outcome === 'canceled') droppedUnrun ||= inserted.length === 0
-        // Claims are the loop's own step-boundary reads, always inside a turn.
+        // 认领是循环自身的 step 边界读取，总是发生在 turn 内。
         else if (open !== undefined) claimed.add(open)
         break
       }
@@ -95,8 +93,8 @@ export function foldConsumedWork(events: readonly SessionEvent[]): ConsumedWork 
         open = undefined
         if (stepped.delete(turn) || (claimed.delete(turn) && accountsForClaim(reason))) {
           end = event
-          // Anything dropped before this turn closed is what its own ending
-          // reports; only a later drop is still unaccounted for.
+          // 在本 turn 关闭之前被丢弃的内容已由其自身的结束方式报告；
+          // 只有更晚的丢弃仍未被核算。
           droppedUnrun = false
         }
         break

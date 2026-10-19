@@ -1,7 +1,7 @@
 /**
- * Pending tool-result recovery shared by failed live steps, interrupted logs,
- * and fork seeds. Tail repair preserves closed steps and supplies only missing
- * tool results and lifecycle boundaries, with cause-specific retry guidance.
+ * 面向失败的活跃 step、中断日志与分叉 seed 共享的待处理工具结果恢复。尾部
+ * 修复保留已关闭的 step，只补充缺失的工具结果与生命周期边界，并给出按原因
+ * 区分的重试指引。
  * @module @deepseek-ai/dsh-session/repair
  */
 
@@ -11,24 +11,23 @@ import { deepFreeze } from '@deepseek-ai/dsh-util-values'
 import { SessionSeq } from './types.ts'
 import type { SessionEvent, SessionSeq as SessionSeqType } from './types.ts'
 
-/** Recovery code for an assistant tool request that never reached a recorded call start. */
+/** 未到达已记录调用开始的 assistant 工具请求的恢复码。 */
 export const TOOL_NOT_STARTED = 'TOOL_NOT_STARTED'
 
-/** Recovery code for a recorded tool call whose completed outcome was not durably recorded. */
+/** 已记录工具调用的完成结果未被持久记录时的恢复码。 */
 export const TOOL_OUTCOME_UNKNOWN = 'TOOL_OUTCOME_UNKNOWN'
 
 /**
- * Why an open tail turn is closed with synthetic events: `interrupted` is
- * crash recovery over a persisted log; `forked` is a fork seed cut inside the
- * source's open turn. The cause selects the synthetic `turn/end` reason, the
- * model-visible wording of synthetic error tool results, and the
- * deterministic synthetic message-id prefix. The error codes
- * ({@link TOOL_NOT_STARTED} / {@link TOOL_OUTCOME_UNKNOWN}) are shared: both
- * causes state the same fact about the call's recorded lifecycle.
+ * 打开的尾部 turn 以合成事件关闭的原因：`interrupted` 是对持久化日志的崩溃
+ * 恢复；`forked` 是分叉 seed 在源打开 turn 内部切分。原因决定合成的
+ * `turn/end` 原因、合成错误工具结果的模型可见措辞，以及确定性的合成
+ * message-id 前缀。错误码（{@link TOOL_NOT_STARTED} /
+ * {@link TOOL_OUTCOME_UNKNOWN}）共享：两种原因对调用的已记录生命周期陈述
+ * 相同事实。
  */
 export type OpenTurnCloseCause = { readonly kind: 'interrupted' } | { readonly kind: 'forked' }
 
-/** Model-visible wording of the synthetic error tool results, keyed by cause. */
+/** 按原因键入的合成错误工具结果的模型可见措辞。 */
 const CLOSER_TEXT = {
   interrupted: {
     started: 'The tool call was interrupted after it was recorded, but no result was durably recorded. Its outcome is unknown. Decide whether to retry from the tool semantics: retry only if the operation is read-only or idempotent; if it may have side effects, first verify external state or ask the user. Do not retry blindly.',
@@ -41,14 +40,14 @@ const CLOSER_TEXT = {
 } as const
 
 /**
- * Return deterministic synthetic events that close an open tail turn. Unmatched
- * calls receive error results first, followed by an open `step/end` and a
- * cause-specific `turn/end`; sequences continue the log and timestamps reuse the
- * last real event. A balanced or empty log returns no events.
+ * 返回关闭打开尾部 turn 的确定性合成事件。未配对的调用先收到错误结果，随
+ * 后是打开的 `step/end` 与按原因区分的 `turn/end`；序号延续日志，时间戳复
+ * 用最后一个真实事件。平衡或空日志不返回事件。
  *
- * @param events - the loaded durable log to scan (a valid committed prefix, possibly with a crash tail).
- * @param cause - the owning close operation: selects result wording and the turn-ending reason.
- * @returns the synthetic closer events to append after `events`, in order; empty when the log is already balanced.
+ * @param events - 要扫描的已加载持久日志（一个有效的已提交前缀，可能带崩
+ *   溃尾部）。
+ * @param cause - 所属关闭操作：决定结果措辞与 turn 结束原因。
+ * @returns 要按顺序追加到 `events` 之后的合成收尾事件；日志已平衡时为空。
  */
 export function openTurnClosers(events: readonly SessionEvent[], cause: OpenTurnCloseCause): SessionEvent[] {
   let openTurn: number | null = null
@@ -71,25 +70,24 @@ export function openTurnClosers(events: readonly SessionEvent[], cause: OpenTurn
       case 'step/end':
         openStep = null
         break
-      // Other event types do not move the turn/step boundary cursor.
+      // 其他事件类型不移动 turn/step 边界游标。
       default:
         break
     }
   }
 
-  // Balanced log (no open tail turn): nothing to close. An open turn implies
-  // `events` is non-empty (its turn/start was logged), so `last` exists.
+  // 平衡日志（无打开尾部 turn）：无需关闭。打开的 turn 蕴含 `events` 非空
+  // （其 turn/start 已记录），因此 `last` 存在。
   const last = events.at(-1)
   if (openTurn === null || last === undefined) return []
 
-  // The last real event supplies the seq base and the timestamp for the
-  // synthetic closers (reusing the last timestamp keeps them deterministic and
-  // never invents a "future" time).
+  // 最后一个真实事件提供 seq 基准与合成收尾事件的时间戳（复用最后一个时间
+  // 戳使它们确定，且绝不编造"未来"时间）。
   const closers: SessionEvent[] = recovery.results()
   let seq = last.seq + closers.length + 1
   const time = last.time
 
-  // Close an open step before its turn.
+  // 在其 turn 之前关闭打开的 step。
   if (openStep !== null) {
     closers.push({ type: 'step/end', seq: SessionSeq(seq++), time, data: { turn: openTurn, step: openStep } })
   }
@@ -98,20 +96,20 @@ export function openTurnClosers(events: readonly SessionEvent[], cause: OpenTurn
 }
 
 /**
- * Track unanswered assistant tool requests from one Session's committed events.
- * Observe from the start of the owned step or replay prefix, and recover before
- * its step closes. This state retains pending identities, not event history.
+ * 跟踪一个 Session 已提交事件中未应答的 assistant 工具请求。从所属 step 的
+ * 开始或回放前缀开始观察，并在其 step 关闭前恢复。该状态保留待处理身份，
+ * 不保留事件历史。
  */
 export class ToolCallRecovery {
   private readonly pendingCalls = new Map<ToolCallId, { turn: number; step: number; callSeq?: SessionSeqType }>()
   private last: Pick<SessionEvent, 'seq' | 'time'> | undefined
 
-  /** @param cause - defaults to interrupted live/crash recovery; fork-seed construction supplies its own cause. */
+  /** @param cause - 默认为中断的活跃/崩溃恢复；分叉 seed 构造提供自己的原因。 */
   constructor(private readonly cause: OpenTurnCloseCause = { kind: 'interrupted' }) {}
 
   /**
-   * Consume the next committed event; closed steps and turn boundaries discard pending requests.
-   * @param event - the next event from the same Session, in sequence order.
+   * 消费下一个已提交事件；已关闭的 step 与 turn 边界丢弃待处理请求。
+   * @param event - 同一 Session 的下一个事件，按序号顺序。
    */
   observe(event: SessionEvent): void {
     this.last = { seq: event.seq, time: event.time }
@@ -142,17 +140,17 @@ export class ToolCallRecovery {
         }
         break
       }
-      // SessionEvent is merge-extensible; unrelated events retain pending requests.
+      // SessionEvent 可合并扩展；无关事件保留待处理请求。
       default:
         break
     }
   }
 
   /**
-   * Build conservative error results in assistant order without changing tracked state.
-   * Sequences follow the latest observed event and timestamps reuse its time.
-   * Callers commit the results and observe those commits before recovering again.
-   * @returns pending tool-result events, empty when no request remains unanswered.
+   * 按 assistant 顺序构建保守的错误结果，不改变跟踪状态。
+   * 序号跟随最新观察到的事件，时间戳复用其时间。
+   * 调用方提交结果并在再次恢复前观察这些提交。
+   * @returns 待处理的工具结果事件，没有请求仍未应答时为空。
    */
   results(): SessionEvent<'tool/result'>[] {
     if (this.last === undefined) return []
@@ -161,8 +159,8 @@ export class ToolCallRecovery {
     const results: SessionEvent<'tool/result'>[] = []
 
     const text = CLOSER_TEXT[this.cause.kind]
-    // Close calls before their step: providers reject dangling assistant calls,
-    // and Map insertion order preserves their transcript order.
+    // 在 step 之前关闭调用：provider 拒绝悬空的 assistant 调用，
+    // Map 插入顺序保持其对话记录顺序。
     for (const [callId, { turn, step, callSeq }] of this.pendingCalls) {
       const started = callSeq !== undefined
       const message: ToolResultMessage = deepFreeze({
@@ -198,13 +196,13 @@ export class ToolCallRecovery {
 }
 
 /**
- * Crash-recovery entry point: synthetic closers that balance a persisted log
- * whose tail turn was interrupted. Used by crash-recovery callers; fork
- * seeds receive their `forked`-cause closers through `buildForkSeed` in
- * `./fork.ts`.
+ * 崩溃恢复入口：为尾部 turn 被中断的持久化日志补齐平衡的合成收尾事件。
+ * 由崩溃恢复调用方使用；分叉 seed 通过 `./fork.ts` 中的 `buildForkSeed` 获
+ * 得其 `forked` 原因的收尾事件。
  *
- * @param events - the persisted log to scan, possibly ending inside an open turn.
- * @returns the synthetic `interrupted` closer events to append after `events`; empty when the log is already balanced.
+ * @param events - 要扫描的持久化日志，可能结束于打开的 turn 内部。
+ * @returns 要追加到 `events` 之后的合成 `interrupted` 收尾事件；日志已平衡
+ *   时为空。
  */
 export function interruptedTurnClosers(events: readonly SessionEvent[]): SessionEvent[] {
   return openTurnClosers(events, { kind: 'interrupted' })

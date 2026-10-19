@@ -1,4 +1,4 @@
-/** Host BFF entry and Loader shell for the Remote contribution assembly. */
+/** Remote 贡献装配的 Host BFF 入口与 Loader 外壳。 */
 
 import { homedir } from 'node:os'
 import type { Context } from '@deepseek-ai/cordis'
@@ -14,10 +14,10 @@ import { carrierKeyOf } from '@deepseek-ai/dsh-scope'
 import { isJsonValue, type JsonValue } from '@deepseek-ai/dsh-util-values'
 import { API_REMOTE_FORWARDED_EVENTS } from './remote-events.ts'
 
-// The owner packages' client-safe `./types` exports carry the cordis `Events`
-// declarations for every allowlisted event. Pulling them into this face is what
-// makes the shape assertion below judge real signatures rather than an empty
-// event vocabulary.
+// owner 包的 client-safe `./types` 导出携带每个允许列表事件的
+// cordis `Events` 声明。把它们拉入本编译面，正是这一点使下方
+// 的形状断言判定真实签名，
+// 而非空的事件词汇表。
 import type {} from '@deepseek-ai/dsh-commands/types'
 import type {} from '@deepseek-ai/dsh-cordis-host-runner/types'
 import type {} from '@deepseek-ai/dsh-credentials/types'
@@ -33,10 +33,10 @@ export type {} from '@deepseek-ai/dsh-api-session-controller/types'
 export { API_REMOTE_FORWARDED_EVENTS } from './remote-events.ts'
 export type { ApiRemoteForwardedEvent } from './types.ts'
 
-/** Required Host service: the Gateway owns the physical Remote stream mux. */
+/** 必需的 Host 服务：Gateway 拥有物理 Remote 流复用器。 */
 export const inject = ['typertGateway']
 
-/** Host plugin body registering this application's selected Cordis event source. */
+/** 注册本应用所选 Cordis 事件源的 Host 插件体。 */
 export function apply(ctx: Context): void {
   ctx.effect(
     () => ctx.typertGateway.registerRemoteEvents(remoteEventSource(ctx), { home: homedir() }),
@@ -44,7 +44,7 @@ export function apply(ctx: Context): void {
   )
 }
 
-/** Create the sole queue and listener set consumed by the registered Gateway. */
+/** 创建已注册 Gateway 消费的唯一队列与监听器集合。 */
 function remoteEventSource(ctx: Context): TypertRemoteEventSource {
   return (signal) => {
     const queue = new RemoteEventQueue()
@@ -82,7 +82,7 @@ function remoteEventSource(ctx: Context): TypertRemoteEventSource {
   }
 }
 
-/** One pull-driven queue bridging synchronous Cordis listeners to an AsyncIterable. */
+/** 一个拉取驱动的队列，把同步 Cordis 监听器桥接到 AsyncIterable。 */
 class RemoteEventQueue {
   private readonly buffer = new Deque<TypertRemoteEventDispatch>()
   private waiter: (() => void) | undefined
@@ -124,16 +124,16 @@ class RemoteEventQueue {
 }
 
 /**
- * Normalize an event-source shutdown for pending Host waterfalls.
- * @param signal - source lifetime whose reason wins after cancellation.
- * @returns the cancellation reason or an unexpected-end failure.
+ * 为待决的 Host 瀑布调用规范化事件源的关闭方式。
+ * @param signal - 源生命周期，取消后以其 reason 为准。
+ * @returns 取消原因，或非预期结束的失败。
  */
 function remoteEventSourceEndReason(signal: AbortSignal): unknown {
   if (signal.aborted) return signal.reason
   return new Error('api-remotes: forwarded Remote event source ended')
 }
 
-/** Bridge one Cordis waterfall listener through the Gateway-owned pending event. */
+/** 通过 Gateway 持有的待决事件桥接一个 Cordis 瀑布监听器。 */
 function forwardWaterfall(
   queue: RemoteEventQueue,
   event: string,
@@ -159,7 +159,7 @@ function forwardWaterfall(
   return settled.promise
 }
 
-/** Reject an allowlisted event whose runtime arguments are not lossless JSON data. */
+/** 拒绝运行时参数不是无损 JSON 数据的允许列表事件。 */
 function assertJsonArgs(event: string, args: readonly unknown[]): JsonValue[] {
   for (const [index, arg] of args.entries()) {
     if (!isJsonValue(arg)) {

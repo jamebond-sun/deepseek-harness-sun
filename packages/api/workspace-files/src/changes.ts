@@ -1,7 +1,7 @@
 /**
- * Target-scoped filesystem watches and `fs/observed` invalidations for `changes`.
- * Each generation sends `ready` after watcher initialization, then reads current
- * target metadata for matching queued and live invalidations.
+ * `changes` 所需的目标范围文件系统 watch 与 `fs/observed` 失效。
+ * 每个生成在 watcher 初始化后发送 `ready`，随后为匹配的排队与
+ * 实时失效读取当前目标元数据。
  */
 
 import type { Context } from '@deepseek-ai/cordis'
@@ -10,14 +10,14 @@ import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
 import type { FsObservation, FsTarget } from '@deepseek-ai/dsh-fs'
 import type { WorkspaceFileWatchFrame } from './types.ts'
 
-/** One target invalidation, optionally carrying its instrumented observation. */
+/** 一个目标失效，可选携带其插桩观察。 */
 type Observed = readonly [target: FsTarget, observation?: FsObservation]
 
-/** Owns target watches, instrumented observations, and every open `changes` generation. */
+/** 持有目标 watch、插桩观察，以及每个打开的 `changes` 生成。 */
 export class WorkspaceChangeFeed {
   private readonly followers = new Set<ChangeFollower>()
 
-  /** @param ctx - Host context carrying the filesystem the observations come from. */
+  /** @param ctx - 携带观察来源文件系统的 Host 上下文。 */
   constructor(private readonly ctx: Context) {
     ctx.on('fs/observed', (target, observation) => {
       for (const follower of this.followers) follower.push([target, observation])
@@ -30,15 +30,15 @@ export class WorkspaceChangeFeed {
   }
 
   /**
-   * Open one target watch; directory targets remain inside `workspaceRoot`.
-   * @param workspaceRoot - the session's workspace root path.
-   * @param path - target path, resolved relative to the workspace root; Host metadata determines its type.
-   * @param signal - generation cancellation.
-   * @returns `ready` after watching starts, then current metadata for target invalidations.
+   * 打开一个目标 watch；目录目标保持在 `workspaceRoot` 之内。
+   * @param workspaceRoot - session 的 workspace 根路径。
+   * @param path - 目标路径，相对 workspace 根解析；其类型由 Host 元数据判定。
+   * @param signal - 生成取消。
+   * @returns watch 开始后先发 `ready`，随后对目标失效发送当前元数据。
    */
   async *follow(workspaceRoot: string, path: string, signal: AbortSignal): AsyncIterable<WorkspaceFileWatchFrame> {
     signal.throwIfAborted()
-    // Instrumented observations remain queued while the target resolves.
+    // 目标解析期间，插桩观察保持排队。
     const follower = new ChangeFollower(() => {
       signal.removeEventListener('abort', cancel)
       this.followers.delete(follower)
@@ -52,7 +52,7 @@ export class WorkspaceChangeFeed {
     this.followers.add(follower)
     let unwatch: (() => Promise<void>) | undefined
     try {
-      // Setup shares cancellation, so a late resolution cannot acquire a watcher.
+      // 设置阶段共享取消，因此迟到的解析无法再获取 watcher。
       const root = await this.ctx.fs.resolve(workspaceRoot, { signal }).catch((error: unknown) => {
         if (aborted()) return undefined
         throw error
@@ -109,7 +109,7 @@ export class WorkspaceChangeFeed {
   }
 }
 
-/** One generation's queue: observations wait here until its consumer pulls them. */
+/** 一个生成的队列：观察在此等待，直到其消费方拉取。 */
 class ChangeFollower {
   readonly controller = new AbortController()
   readonly initialized = Promise.withResolvers<(() => Promise<void>) | undefined>()
@@ -121,7 +121,7 @@ class ChangeFollower {
 
   constructor(private readonly release: () => void) {}
 
-  /** Whether this generation has stopped accepting invalidations. */
+  /** 该生成是否已停止接受失效。 */
   get isClosed(): boolean {
     return this.closed
   }
@@ -146,7 +146,7 @@ class ChangeFollower {
     this.controller.abort()
   }
 
-  /** Drain until closed or aborted; anything still queued then is dropped with the generation. */
+  /** 排空直到关闭或中止；届时仍在排队的项随生成一起丢弃。 */
   async *read(): AsyncIterable<Observed> {
     while (!this.closed) {
       const observed = this.queue.popFront()

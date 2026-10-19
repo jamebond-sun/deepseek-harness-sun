@@ -1,8 +1,7 @@
 /**
- * PTC mode `run_code` transport. Programs call the registry's agent-visible
- * tools through nested executions scheduled under the native concurrency
- * contract; each sub-dispatch is logged for reconstruction, while only the
- * outer curated result enters model history.
+ * PTC 模式的 `run_code` 传输层。程序通过在原生并发契约下调度的嵌套执行
+ * 调用注册表中代理可见的工具；每个子分发都记录日志以便重建，而只有外层
+ * 整理后的结果进入模型历史。
  * @module @deepseek-ai/dsh-tools/src/ptc
  */
 
@@ -11,7 +10,7 @@ import { brandString } from '@deepseek-ai/dsh-brand'
 import { createUserMessage, HarnessError } from '@deepseek-ai/dsh-llm'
 declare module '@deepseek-ai/dsh-llm' {
   interface MessageSourceMap {
-    /** Images deferred from a successful PTC subcall's final result. */
+    /** 从成功的 PTC 子调用最终结果中延迟附加的图片。 */
     'ptc-mode': { kind: 'ptc-mode' }
   }
 }
@@ -28,25 +27,24 @@ import { TOOL_RUNTIME_SCHEDULER } from './index.ts'
 import type { PtcDispatchLog, ToolDefinition, ToolExecutionResult, ToolRuntime, ToolRunContext } from './index.ts'
 import type {} from './types.ts'
 
-/** The model-facing name of the PTC mode tool. */
+/** PTC 模式工具面向模型的名称。 */
 export const RUN_CODE_NAME = 'run_code'
 
 /**
- * The language-specific `run_code` schema text: the tool `description` and its
- * `code` parameter description, kept together so a language's two model-facing
- * strings share one source of truth. Keyed by `PtcRuntime.language`, mirroring
- * `SDK_RENDERERS` in {@link ./index.ts}. The emitted flavor MUST match the
- * semantics the same language's SDK instructions promise, so the model never
- * receives a TypeScript schema beside a Python SDK (or vice versa).
+ * 各语言的 `run_code` 模式文本：工具的 `description` 与其 `code` 参数描述，
+ * 两者放在一起，使一种语言的两个面向模型的字符串共享同一事实来源。以
+ * `PtcRuntime.language` 为键，对应 {@link ./index.ts} 中的 `SDK_RENDERERS`。
+ * 发出的 flavor 必须与同一语言的 SDK 指令承诺的语义一致，这样模型绝不会
+ * 在 Python SDK 旁收到 TypeScript 模式（反之亦然）。
  */
 interface RunCodeFlavor {
-  /** The tool `description` the model sees for this language. */
+  /** 此语言下模型看到的工具 `description`。 */
   readonly description: string
-  /** The `code` parameter's description for this language. */
+  /** 此语言下 `code` 参数的描述。 */
   readonly codeDescription: string
 }
 
-/** Keep tool-call rules here; the runtime owns evaluation syntax and state retention. */
+/** 工具调用规则保存在此处；运行时负责求值语法与状态保留。 */
 function runCodeFlavor(language: string, execution = {
   programDescription: 'the program to execute',
   outputInstruction: 'Curate the program output.',
@@ -70,27 +68,25 @@ const TYPESCRIPT_FUNCTION_FLAVOR = runCodeFlavor('TypeScript', {
 const PYTHON_FLAVOR = runCodeFlavor('Python')
 
 /**
- * The languages PTC mode ships a presentation for. Both per-language tables —
- * {@link RUN_CODE_FLAVORS} here and `SDK_RENDERERS` in {@link ./index.ts} — are
- * checked against this union with `satisfies`, so a language added to one and
- * not the other fails `typecheck` instead of waiting for a runtime that reports
- * it. The tables stay declared `Record<string, …>` because `PtcRuntime.language`
- * is an unconstrained `string`: this union pins what the harness ships, while the
- * `Object.hasOwn` guards reject what a mounted runtime may report.
+ * PTC 模式提供了展示的语言。两张按语言划分的表——此处的 {@link RUN_CODE_FLAVORS}
+ * 与 {@link ./index.ts} 中的 `SDK_RENDERERS`——都用 `satisfies` 对照该联合类型
+ * 检查，因此只加入其中一张表的语言会让 `typecheck` 失败，而不必等某个运行时
+ * 报告它。这两张表仍声明为 `Record<string, …>`，因为 `PtcRuntime.language`
+ * 是不受约束的 `string`：该联合类型固定 harness 附带的内容，而 `Object.hasOwn`
+ * 守卫拒绝已挂载运行时可能报告的其他值。
  */
 export type PtcSdkLanguage = 'typescript' | 'python'
 
-/** Per-language `run_code` schema flavors (see {@link RunCodeFlavor}); one entry per {@link PtcSdkLanguage}. */
+/** 各语言的 `run_code` 模式 flavor（见 {@link RunCodeFlavor}）；每个 {@link PtcSdkLanguage} 一项。 */
 const RUN_CODE_FLAVORS: Record<string, RunCodeFlavor> = {
   typescript: TYPESCRIPT_FLAVOR,
   python: PYTHON_FLAVOR,
 } satisfies Record<PtcSdkLanguage, RunCodeFlavor>
 
 /**
- * The `description` parameter's model-facing description: language-independent
- * (the UI label contract is the same for every runtime), shared between the
- * static spec and the language-aware `parameters` getter so the two emissions
- * can never drift.
+ * `description` 参数面向模型的描述：与语言无关（UI 标签契约对所有运行时
+ * 相同），由静态规范与感知语言的 `parameters` getter 共享，使两次发出
+ * 永远不会漂移。
  */
 const RUN_CODE_DESCRIPTION_PARAM_DESCRIPTION
   = 'Clear, concise description of what this program does in active voice, '
@@ -105,7 +101,7 @@ const RUN_CODE_CONTROLS = {
 } as const
 
 function controlParameters(runtime: PtcRuntime | undefined) {
-  // Catalog readers have no mounted runtime; real model assembly requires one.
+  // 目录读取器没有挂载运行时；真正的模型组装需要运行时。
   if (runtime === undefined) return RUN_CODE_CONTROLS
   return {
     ...runtime.timeout === undefined ? {} : {
@@ -125,30 +121,27 @@ function escalationGuidance(runtime: PtcRuntime | undefined): string {
 }
 
 /**
- * Resolve the {@link RunCodeFlavor} for the loaded runtime's language, read at
- * schema-emission time so the model-visible `run_code` schema always matches
- * the SDK section's language. `peekRuntime` returns `undefined` only when no
- * runtime is mounted, which reaches this function through definition readers
- * and `schemas()` — the doc-catalog harvest is the only shipped one, and none
- * of them feeds a model, because `wireSchemas` calls `requirePtcRuntime`
- * before projecting — so that path degrades to {@link TYPESCRIPT_FLAVOR}. A
- * mounted runtime whose language has no flavor entry fails loud, exactly as
- * `requirePtcRuntime` rejects it at assembly. Keeping this table in step with
- * `SDK_RENDERERS` is the compiler's job ({@link PtcSdkLanguage}); what this
- * guard owns is the runtime-supplied language neither table knows, which never
- * yields a wrong-language schema for a real runtime.
+ * 为已加载运行时的语言解析 {@link RunCodeFlavor}，在模式发出时读取，使
+ * 面向模型的 `run_code` 模式始终与 SDK 章节的语言一致。`peekRuntime` 仅在
+ * 未挂载运行时时返回 `undefined`，该情况经定义读取器和 `schemas()` 到达
+ * 此函数——文档目录收割是唯一随附的读取器，且都不喂给模型，因为
+ * `wireSchemas` 在投影前会调用 `requirePtcRuntime`——所以该路径退化为
+ * {@link TYPESCRIPT_FLAVOR}。已挂载运行时的语言没有 flavor 条目时响亮
+ * 失败，与 `requirePtcRuntime` 在组装时拒绝它完全一致。让这张表与
+ * `SDK_RENDERERS` 保持同步是编译器的职责（{@link PtcSdkLanguage}）；本守卫
+ * 负责的是两张表都不知道的运行时提供的语言，它绝不会为真实运行时产生
+ * 错误语言的模式。
  */
 function resolveFlavor(peekRuntime: () => PtcRuntime | undefined): RunCodeFlavor {
   const runtime = peekRuntime()
   if (runtime === undefined) {
-    // No runtime mounted: reached by definition readers and `schemas()`, of
-    // which the doc-catalog harvest is the only shipped one. None feeds a
-    // model — `wireSchemas` calls `requirePtcRuntime` before projecting, so
-    // the assembly path never arrives here. Degrade to the TS default.
+    // 未挂载运行时：经定义读取器和 `schemas()` 到达，其中文档目录收割是
+    // 唯一随附的读取器。都不喂给模型——`wireSchemas` 在投影前调用
+    // `requirePtcRuntime`，因此组装路径永远不会到这里。退化为 TS 默认值。
     return TYPESCRIPT_FLAVOR
   }
-  // Own-property read: a language like `toString`/`constructor` would otherwise
-  // resolve an inherited Object.prototype member as a flavor.
+  // 自有属性读取：否则像 `toString`/`constructor` 这样的语言会把继承的
+  // Object.prototype 成员解析成 flavor。
   const flavor = RUN_CODE_FLAVORS[runtime.language]
   if (!Object.hasOwn(RUN_CODE_FLAVORS, runtime.language) || flavor === undefined) {
     const known = Object.keys(RUN_CODE_FLAVORS).map(name => JSON.stringify(name)).join(', ')
@@ -159,11 +152,10 @@ function resolveFlavor(peekRuntime: () => PtcRuntime | undefined): RunCodeFlavor
 }
 
 /**
- * Thrown by `run_code` when the program run itself failed — a program
- * exception, a budget expiry, an abort, or substrate death. Extends
- * {@link HarnessError} (`code: 'CODE_RUN_FAILED'`); the registry's execution
- * pipeline converts it into a structured `isError` result whose text carries
- * the failure kind plus the captured logs, so the model can self-correct.
+ * 程序运行本身失败时由 `run_code` 抛出——程序异常、预算到期、中止或底座
+ * 死亡。扩展 {@link HarnessError}（`code: 'CODE_RUN_FAILED'`）；注册表的
+ * 执行管线将其转换为结构化的 `isError` 结果，其文本携带失败类别与捕获的
+ * 日志，使模型能够自我纠正。
  */
 export class CodeRunFailedError extends HarnessError {
   constructor(message: string) {
@@ -173,9 +165,8 @@ export class CodeRunFailedError extends HarnessError {
 }
 
 /**
- * Snapshot one binding call's argument as lossless JSON, then snapshot that
- * detached value again so dispatch and logging stay independent without
- * reintroducing structured-clone's platform-specific nesting limit.
+ * 将一次绑定调用的参数快照为无损 JSON，再对该脱离后的值重新快照，使分发
+ * 与日志记录相互独立，又不重新引入结构化克隆的平台相关嵌套上限。
  */
 function jsonNormalizeArgs(value: unknown): { dispatched: unknown; logged: unknown } {
   let snapshot: JsonValue | undefined
@@ -195,22 +186,22 @@ function jsonNormalizeArgs(value: unknown): { dispatched: unknown; logged: unkno
   return { dispatched: snapshot, logged }
 }
 
-/** Two-space JSON presentation, matching the existing shallow `run_code` text contract. */
+/** 两空格 JSON 展示，与现有的浅层 `run_code` 文本契约一致。 */
 const JSON_INDENT = '  '
 
 /**
- * ECMAScript caps `JSON.stringify`'s `space` string at ten characters. The
- * renderer also caps TOTAL indentation there, compacting deeper subtrees, so
- * formatted output remains linear in the canonical JSON size.
+ * ECMAScript 将 `JSON.stringify` 的 `space` 字符串限制在十个字符内。渲染器
+ * 也将总缩进限制在该值，压缩更深的子树，使格式化输出在规范 JSON 大小上
+ * 保持线性。
  */
 const MAX_JSON_INDENT_CHARS = 10
 
-/** A pending fragment in the iterative JSON presentation traversal. */
+/** 迭代式 JSON 展示遍历中的一个待处理片段。 */
 type JsonRenderTask =
   | { kind: 'text'; text: string }
   | { kind: 'value'; value: JsonValue; depth: number; compact: boolean }
 
-/** Render one non-string JSON root without recursive traversal or unbounded indentation growth. */
+/** 渲染一个非字符串 JSON 根，不使用递归遍历，缩进也不无界增长。 */
 function renderJsonValue(value: Exclude<JsonValue, string>): string {
   const chunks: string[] = []
   const tasks: JsonRenderTask[] = [{ kind: 'value', value, depth: 0, compact: false }]
@@ -280,52 +271,48 @@ function renderJsonValue(value: Exclude<JsonValue, string>): string {
   return chunks.join('')
 }
 
-/** Render one present program completion value for the model-facing result text. */
+/** 为面向模型的结果文本渲染一个可展示的程序完成值。 */
 function renderValue(value: JsonValue): string {
   return typeof value === 'string' ? value : renderJsonValue(value)
 }
 
-/** Canonical value returned by the outer PTC mode transport. */
+/** 外层 PTC 模式传输层返回的规范值。 */
 type RunCodeOutput = { logs: string[]; result?: JsonValue; sandbox?: PtcRunSandbox }
 
 /**
- * Registry-private capabilities the bridge receives at construction — the
- * `requireRuntime` idiom: operations only the owning registry can mint stay
- * off its public service API and flow here as closures instead.
+ * 桥接层在构造时收到的注册表私有能力——`requireRuntime` 惯用法：只有
+ * 持有注册表能铸造的操作不进入其公共服务 API，而以闭包形式流入此处。
  */
 export interface RunCodeBridgeOptions {
-  /** Captures the calling Session current directory before program creation. */
+  /** 在程序创建前捕获调用方 Session 的当前目录。 */
   resolveWorkingDirectory: (exec: ToolRunContext) => Promise<string | undefined>
-  /** Reads the approval channel when a program requests a wider sandbox mode. */
+  /** 当程序请求更宽的沙箱模式时读取审批通道。 */
   peekApprover: () => ApprovalService | undefined
-  /** Resolves standing Session authority only for a runtime that enforces file policy. */
+  /** 仅为执行文件策略的运行时解析常设 Session 权限。 */
   resolveSandboxPolicy: (exec: ToolRunContext) => SandboxExecutionPolicy
-  /** Resolves `ctx.ptcRuntime` or throws the loud misconfiguration error (shared with the registry's assembly-time checks). */
+  /** 解析 `ctx.ptcRuntime` 或抛出响亮的配置错误（与注册表组装时检查共享）。 */
   requireRuntime: () => PtcRuntime
   /**
-   * Reads `ctx.ptcRuntime` without throwing: `undefined` when none is mounted.
-   * Lets schema emission tell "no runtime" (degrade to TS; the readers that
-   * reach it are {@link resolveFlavor}'s) apart from "unknown language" (fail
-   * loud).
+   * 不抛出地读取 `ctx.ptcRuntime`：未挂载时为 `undefined`。让模式发出能区分
+   * "无运行时"（退化为 TS；到达此处的读取器见 {@link resolveFlavor}）与
+   * "未知语言"（响亮失败）。
    */
   peekRuntime: () => PtcRuntime | undefined
-  /** The run's overlap cap for parallel-classified sub-calls (the registry passes its validated `maxParallelSubCalls`). */
+  /** 运行对并行类子调用的重叠上限（注册表传入其已验证的 `maxParallelSubCalls`）。 */
   maxParallel: number
-  /** Runs the contained `tools/ptc-dispatch-log` waterfall over one settled sub-dispatch (the registry's private invoker). */
+  /** 对一个已落定的子分发运行内聚的 `tools/ptc-dispatch-log` 瀑布（注册表的私有调用器）。 */
   shapeDispatchLog: (dispatch: PtcDispatchLog) => Promise<ContentBlock[]>
 }
 
 /**
- * Build the `run_code` {@link ToolDefinition}: required `code` and
- * `description` parameters, executed through the dispatch bridge described
- * above. The
- * registry reserves it as presentation infrastructure under non-native modes,
- * outside the filterable global/scoped capability layers.
- * @param registry - the owning registry (sub-calls go through its `execute`,
- *   bindings cover its registered tools).
- * @param options - the registry-private capabilities described above.
- * @param ctx - Owning registry context, independent of the calling Agent.
- * @returns the registry-ready definition.
+ * 构建 `run_code` {@link ToolDefinition}：必需的 `code` 与 `description`
+ * 参数，通过上述分发桥执行。注册表在非原生模式下将其保留为展示基础设施，
+ * 位于可过滤的全局/作用域能力层之外。
+ * @param registry - 持有的注册表（子调用经其 `execute` 进行，绑定覆盖其
+ *   注册的工具）。
+ * @param options - 上述注册表私有能力。
+ * @param ctx - 持有注册表的上下文，独立于调用的 Agent。
+ * @returns 注册表就绪的定义。
  */
 export function createRunCodeTool(registry: ToolRuntime, options: RunCodeBridgeOptions, ctx: Context): ToolDefinition {
   const { requireRuntime, peekRuntime, maxParallel, shapeDispatchLog } = options
@@ -333,12 +320,10 @@ export function createRunCodeTool(registry: ToolRuntime, options: RunCodeBridgeO
   const calls = new PtcCalls(ctx)
   const definition = defineTool({
     name: RUN_CODE_NAME,
-    // The description and `code` parameter description are placeholders here:
-    // the language-aware getters installed below replace both, resolving the
-    // loaded runtime's flavor at schema-emission time so the schema the MODEL
-    // sees matches the SDK section's language. Argument VALIDATION still keys
-    // off this static spec (defineTool closes over it), which is language-
-    // independent (one required string `code`).
+    // 这里的 description 与 `code` 参数描述只是占位符：下方安装的感知语言的
+    // getter 会替换两者，在模式发出时解析已加载运行时的 flavor，使 MODEL
+    // 看到的模式与 SDK 章节的语言一致。参数 VALIDATION 仍以此静态规范为准
+    // （defineTool 闭包引用它），它与语言无关（一个必填字符串 `code`）。
     description: TYPESCRIPT_FLAVOR.description,
     parameters: {
       code: { type: 'string', required: true, description: TYPESCRIPT_FLAVOR.codeDescription },
@@ -406,47 +391,41 @@ export function createRunCodeTool(registry: ToolRuntime, options: RunCodeBridgeO
         const cwd = await options.resolveWorkingDirectory({ ...exec, signal: callSignal })
         callSignal.throwIfAborted()
 
-        // The run-scoped abort: follows the outer signal in, and fires when the
-        // run settles for ANY reason, so an in-flight sub-dispatch is aborted
-        // (its executor kills on this signal) instead of orphaned, and
-        // queued-unstarted dispatches are abandoned.
+        // 运行级中止：跟随外层信号进入，并在运行因任何原因落定时触发，使
+        // 进行中的子分发被中止（其执行器在该信号上终止）而非成为孤儿，
+        // 排队未启动的分发则被放弃。
         const runController = new AbortController()
         const onOuterAbort = (): void => { runController.abort(callSignal.reason) }
         callSignal.addEventListener('abort', onOuterAbort, { once: true })
 
         let dispatches = 0
-        // The per-run scheduler uses the registry's staged interface and follows
-        // the same concurrency rules as the native loop. It also follows the
-        // native loop's SEQUENCING: every ordered stage (the dispatch-start
-        // append, prepare = pre-execute/guards, finalize/finish = post-execute,
-        // context deferral, the settle append) runs inside ONE driver lane, so
-        // ordered policy stages never overlap each other and only the
-        // around-dispatch/body stage runs concurrently. Starts are strictly
-        // submission-ordered; results commit in submission order through the
-        // head-of-line cursor. Consecutive parallel-classified calls overlap up
-        // to maxParallel; an exclusive call waits for the pool to drain, runs
-        // alone, and holds its barrier until its COMMIT (post-execute included)
-        // completes, exactly like a native exclusive group. Classification is
-        // re-read via executionMode() immediately before each start (a registry
-        // mutation while queued can flip a call exclusive), matching the native
-        // scheduler's lazy reclassification.
+        // 每次运行的调度器使用注册表的分阶段接口，并遵循与原生循环相同的
+        // 并发规则。它还遵循原生循环的顺序性：每个有序阶段（dispatch-start
+        // 追加、prepare = 执行前/守卫、finalize/finish = 执行后、上下文延后、
+        // settle 追加）都在同一条驱动车道内运行，因此有序策略阶段彼此不重叠，
+        // 只有 around-dispatch/body 阶段并发运行。启动严格按提交顺序；结果
+        // 通过队首游标按提交顺序提交。连续的并行类调用最多重叠 maxParallel
+        // 个；独占调用等待池排空、单独运行，并在其 COMMIT（含执行后）完成前
+        // 保持屏障，与原生独占组完全一致。每次启动前立即通过 executionMode()
+        // 重新读取分类（排队期间注册表变更可将调用翻转为独占），与原生调度器
+        // 的惰性重分类一致。
         interface PendingDispatch {
-          /** Ordered stage: append the start event, await prepare (pre-execute/guards), launch the body into `flight`. */
+          /** 有序阶段：追加启动事件，等待 prepare（执行前/守卫），将主体启动到 `flight`。 */
           start(): Promise<void>
           classify(): 'parallel' | 'exclusive'
           abandon(): void
-          /** Ordered stage: post-execute + context deferral + settle event, in submission order. */
+          /** 有序阶段：执行后 + 上下文延后 + settle 事件，按提交顺序。 */
           commit(): Promise<void>
-          /** The launched around-dispatch/body stage; resolved until start() replaces it. */
+          /** 已启动的 around-dispatch/body 阶段；在 start() 替换前为已解决状态。 */
           flight: Promise<void>
-          /** True once the dispatch stage parked its outcome; the commit cursor waits on it. */
+          /** 分发阶段寄存其结果后为真；提交游标等待它。 */
           settled: boolean
-          /** The classification this entry started under; an exclusive holds its barrier through commit(). */
+          /** 本条目启动时的分类；独占在 commit() 期间保持其屏障。 */
           mode?: 'parallel' | 'exclusive'
         }
         const pendingQueue: PendingDispatch[] = []
         const inFlight = new Set<Promise<void>>()
-        /** Tracked settle-event side work (log-content listener + append), drained at run settlement. */
+        /** 被跟踪的 settle 事件副工作（日志内容监听器 + 追加），在运行落定时排空。 */
         const logWork = new Set<Promise<void>>()
         const commitQueue: PendingDispatch[] = []
         let exclusiveActive = false
@@ -459,11 +438,9 @@ export function createRunCodeTool(registry: ToolRuntime, options: RunCodeBridgeO
           release?.()
         }
         /**
-         * The single ordered lane. Each pass commits the head-of-line settled
-         * dispatch (ordered post-execute), then starts the next queued entry if
-         * its slot is free (ordered pre-execute), and otherwise sleeps until a
-         * body settles or a new submission arrives. One run reaching the
-         * empty-queues/empty-pool state is quiescence.
+         * 唯一的有序车道。每轮先提交队首已落定的分发（有序执行后），然后在
+         * 槽位空闲时启动下一个排队条目（有序执行前），否则休眠，直到某个
+         * 主体落定或新提交到达。一次运行达到空队列/空池状态即为静止。
          */
         const drive = (): Promise<void> => {
           if (driving) return driverRun
@@ -471,15 +448,15 @@ export function createRunCodeTool(registry: ToolRuntime, options: RunCodeBridgeO
           driverRun = (async () => {
             try {
               for (;;) {
-                // Create the wakeup promise before inspecting state so a settle or submission arriving
-                // between the checks and the await below cannot be lost.
+                // 在检查状态前创建唤醒 promise，使检查与下方 await 之间到达的
+                // 落定或提交不会丢失。
                 const signal = new Promise<void>((resolve) => { wake = resolve })
                 const commitHead = commitQueue[0]
                 if (commitHead !== undefined && commitHead.settled) {
                   commitQueue.shift()
                   await commitHead.commit()
-                  // The barrier covers post-execute: later starts wait for the
-                  // exclusive call's full pipeline, as under the native loop.
+                  // 屏障覆盖执行后：后续启动等待独占调用的完整管线，与原生
+                  // 循环一致。
                   if (commitHead.mode === 'exclusive') exclusiveActive = false
                   continue
                 }
@@ -490,7 +467,7 @@ export function createRunCodeTool(registry: ToolRuntime, options: RunCodeBridgeO
                     head.abandon()
                     continue
                   }
-                  // Reclassify at start time (fail-closed on registry changes).
+                  // 启动时重新分类（注册表变更时失败关闭）。
                   const mode = head.classify()
                   const capacity = !exclusiveActive
                     && (mode === 'exclusive' ? inFlight.size === 0 : inFlight.size < maxParallel)
@@ -498,8 +475,8 @@ export function createRunCodeTool(registry: ToolRuntime, options: RunCodeBridgeO
                     if (mode === 'exclusive') exclusiveActive = true
                     head.mode = mode
                     pendingQueue.shift()
-                    // Joined before start() so the commit cursor sees submission
-                    // order; nothing commits it until `settled` flips.
+                    // 在 start() 前加入，使提交游标看到提交顺序；`settled`
+                    // 翻转前不会有任何东西提交它。
                     commitQueue.push(head)
                     await head.start()
                     const flight: Promise<void> = head.flight.finally(() => {
@@ -520,20 +497,18 @@ export function createRunCodeTool(registry: ToolRuntime, options: RunCodeBridgeO
           })()
           return driverRun
         }
-        /** Every dispatch settled AND committed; nothing can start (the run is aborted at call time). */
+        /** 每个分发都已落定并提交；不能再启动任何东西（运行在调用时已被中止）。 */
         const drainDispatches = async (): Promise<void> => {
-          // The abort already fired: the driver abandons queued-unstarted
-          // entries, awaits the live pool, and drains the ordered commit lane —
-          // including a commit already in progress when the program returned.
+          // 中止已触发：驱动器放弃排队未启动的条目，等待存活池，并排空有序
+          // 提交车道——包括程序返回时已在进行的提交。
           await drive()
-          // Every settle event is appended inside the open run_code turn
-          // (tasks self-remove on settlement).
+          // 每个 settle 事件都在打开的 run_code 轮次内追加（任务在落定时
+          // 自行移除）。
           while (logWork.size > 0) await Promise.allSettled([...logWork])
         }
 
-        // Read through a call, not a bare property: the abort state genuinely
-        // changes across awaits, and a direct `.aborted` re-check after one
-        // would be narrowed away by control flow analysis.
+        // 通过调用读取，而非裸属性：中止状态在 await 之间确实会变化，一次
+        // await 之后直接重查 `.aborted` 会被控制流分析收窄掉。
         const runOver = (): boolean => runController.signal.aborted
 
         const binding = (schema: ToolSchema): PtcBindingFunction => async (rawArgs: unknown): Promise<JsonValue> => {
@@ -557,31 +532,27 @@ export function createRunCodeTool(registry: ToolRuntime, options: RunCodeBridgeO
           type DispatchOutcome = { isError: true; message: string } | { isError: false; value: JsonValue }
           const scheduler = registry[TOOL_RUNTIME_SCHEDULER]
           const outcome = await new Promise<DispatchOutcome>((resolve, reject) => {
-            // Set by the dispatch stage (or start() for a pre-settled result): what commit() finalizes in submission order.
+            // 由分发阶段设置（预落定结果则由 start() 设置）：commit() 按提交顺序最终化该结果。
             let parked:
               | { kind: 'post-result' | 'final-result'; exec: ToolRunContext; result: ToolExecutionResult }
               | undefined
             const settle = (result: ToolExecutionResult): void => {
-              // The program gets its value NOW: the log-content listener (for
-              // example, a spill backend) must never delay the binding or occupy
-              // a dispatch slot. The event append is tracked side work; the run's
-              // settlement drains logWork so every settle event is still appended
-              // inside the open turn (shapeDispatchLog is contained, so this
-              // chain cannot reject).
+              // 程序现在就拿到值：日志内容监听器（例如溢出后端）绝不能延迟
+              // 绑定或占用分发槽位。事件追加是被跟踪的副工作；运行落定时会
+              // 排空 logWork，使每个 settle 事件仍在打开的轮次内追加
+              // （shapeDispatchLog 是内聚的，因此该链不会拒绝）。
               resolve(result.isError
                 ? { isError: true, message: result.error.message }
                 : { isError: false, value: result.value })
               const agent = exec.agent
               if (agent === undefined) return
               const task: Promise<void> = (async () => {
-                // The listener may replace the durable copy with a preview and
-                // locator; the program's value and model-visible result are
-                // untouched.
+                // 监听器可能用预览与定位器替换持久副本；程序的值与面向模型
+                // 的结果不受影响。
                 const logged = await shapeDispatchLog({
                   exec, agent, subCallId, name, isError: result.isError,
-                  // The registry deep-froze this projection at result
-                  // finalization; append snapshots the final copy again, so
-                  // the log stays detached.
+                  // 注册表在结果最终化时深冻结此投影；追加时再次快照最终
+                  // 副本，使日志保持脱离。
                   content: result.content,
                 })
                 agent.session.append('tool/ptc-dispatch', {
@@ -589,9 +560,8 @@ export function createRunCodeTool(registry: ToolRuntime, options: RunCodeBridgeO
                   parentCallId: exec.callId,
                   subCallId,
                   name,
-                  // The SIBLING parse of the dispatched value: byte-identical JSON,
-                  // but a separate object — a tool mutating its args cannot desync
-                  // this record from what it actually received.
+                  // 已分发值的兄弟解析：字节相同的 JSON，但是独立对象——
+                  // 工具变更其参数也无法使此记录与实际收到的内容失步。
                   arguments: normalized.logged,
                   isError: result.isError,
                   ...result.error?.info === undefined ? {} : { error: result.error.info },
@@ -604,8 +574,8 @@ export function createRunCodeTool(registry: ToolRuntime, options: RunCodeBridgeO
             pendingQueue.push({
               flight: Promise.resolve(),
               settled: false,
-              // Re-read per driver pass against the same agent view the SDK
-              // declared; fail-closed exclusive when undeclared/invalid.
+              // 每轮驱动按 SDK 声明的同一 agent 视图重新读取；未声明/无效时
+              // 失败关闭为独占。
               classify: () => registry.executionMode(input).kind,
               abandon: () => {
                 reject(new Error(`run_code run is over (${String(runController.signal.reason)}); ${name} tool call abandoned`))
@@ -618,9 +588,8 @@ export function createRunCodeTool(registry: ToolRuntime, options: RunCodeBridgeO
                   name,
                   arguments: normalized.logged,
                 })
-                // Ordered prepare runs INSIDE the driver lane: the next entry's
-                // pre-execute waits for this resolution, as under the native
-                // scheduler. Only the launched body below overlaps.
+                // 有序 prepare 在驱动车道内运行：下一个条目的执行前等待此次
+                // 解析，与原生调度器一致。只有下方已启动的主体并发。
                 const prepared = await scheduler.prepare(input)
                 if (prepared.kind === 'dispatch') {
                   this.flight = scheduler.dispatch(prepared.exec).then((dispatchOutcome) => {
@@ -647,47 +616,39 @@ export function createRunCodeTool(registry: ToolRuntime, options: RunCodeBridgeO
                 for (const context of result.additionalContexts ?? []) {
                   exec.deferContext(context)
                 }
-                // The composite forwards `additionalContexts` above and
-                // `concludesTurn` here from the nested result. Only a successful
-                // nested result can carry the terminal marker
-                // (ToolExecutionFailure types it never), so a policy-converted
-                // failure cannot stop the turn through a recovering program.
+                // 复合层从嵌套结果向上转发 `additionalContexts`，并在此处转发
+                // `concludesTurn`。只有成功的嵌套结果才能携带终止标记
+                // （ToolExecutionFailure 的类型绝不可能），因此策略转换的失败
+                // 无法经由恢复中的程序停止轮次。
                 if (result.concludesTurn) exec.concludeTurn()
                 settle(result)
-                // Backpressure on pending event-append tasks: each task retains
-                // a full result while a slow backend stores it, so the pool cap
-                // bounds their count. Beyond the cap, the
-                // ordered lane waits, so later sub-calls cannot start and
-                // pending I/O/memory cannot grow without bound.
+                // 对待处理事件追加任务的背压：慢后端存储期间每个任务都持有
+                // 完整结果，因此池上限约束其数量。超过上限时有序车道等待，
+                // 后续子调用无法启动，待处理 I/O/内存也不会无界增长。
                 while (logWork.size > maxParallel) await Promise.race(logWork)
               },
             })
             wakeup()
             void drive()
           })
-          // A budget expiry or outer cancel that occurs while this call was in
-          // flight already aborted the dispatch; stop the program now rather
-          // than hand it a result from a run that is over.
+          // 此调用在飞行中发生的预算到期或外层取消已经中止了分发；现在停止
+          // 程序，而不是把已结束运行的结果交给它。
           if (runOver()) {
             throw new Error(`run_code run is over (${String(runController.signal.reason)}); ${name} result discarded`)
           }
-          // The worker turns a binding rejection into ToolCallError and adds
-          // only the binding name. Native content and internal error metadata
-          // stay outside the program-facing failure contract.
+          // 工作进程将绑定拒绝转换为 ToolCallError，并只附加绑定名。原生内容
+          // 与内部错误元数据不进入面向程序的失败契约。
           if (outcome.isError) throw new Error(outcome.message)
           return outcome.value
         }
 
-        // Null-prototype + defineProperty, mirroring the worker-side namespace
-        // build: a registered tool named `__proto__` must become an ordinary
-        // own key (a plain-object assignment would hit the prototype setter,
-        // silently dropping the binding), and the runtime host resolves
-        // binding names as own properties only.
+        // 空原型 + defineProperty，对应工作进程侧的命名空间构建：名为
+        // `__proto__` 的注册工具必须成为普通自有键（普通对象赋值会命中原型
+        // setter，静默丢弃绑定），且运行时宿主只将绑定名解析为自有属性。
         const functions: Record<string, PtcBindingFunction> = Object.create(null) as Record<string, PtcBindingFunction>
-        // Enumerate the CALLING AGENT's visible set (scoped tools join,
-        // restricted globals vanish) — the same view the SDK section declared,
-        // so a program can bind exactly what its prompt promised; sub-dispatch
-        // re-resolves per call through the same view (exec.agent threads down).
+        // 枚举调用 AGENT 的可见集合（作用域工具加入，受限全局消失）——与
+        // SDK 章节声明的视图相同，使程序能绑定其提示词承诺的全部内容；
+        // 子分发按调用经同一视图重新解析（exec.agent 逐层下传）。
         for (const schema of registry.schemas(exec.agent)) {
           if (schema.name === RUN_CODE_NAME) continue
           Object.defineProperty(functions, schema.name, { enumerable: true, value: binding(deepFreeze(schema)) })
@@ -700,7 +661,7 @@ export function createRunCodeTool(registry: ToolRuntime, options: RunCodeBridgeO
               const agent = exec.agent
               let runtimes = stateOwners.get(agent)
               if (runtimes === undefined) stateOwners.set(agent, runtimes = new WeakSet())
-              // Cordis can wrap service returns repeatedly; cleanup belongs to the original provider.
+              // Cordis 可能反复包装服务返回值；清理归属于最初的提供方。
               let provider = runtime
               for (;;) {
                 const original = (provider as PtcRuntime & { [symbols.original]?: PtcRuntime })[symbols.original]
@@ -726,9 +687,8 @@ export function createRunCodeTool(registry: ToolRuntime, options: RunCodeBridgeO
               ...args.timeoutMs !== undefined ? { timeoutMs: args.timeoutMs } : {},
             }))
           } finally {
-            // Abort sub-dispatches and drain every in-flight dispatch before
-            // closing the turn (queued-unstarted ones are abandoned unlogged).
-            // Binding failures remain observable through their individual promises.
+            // 在关闭轮次前中止子分发并排空每个进行中的分发（排队未启动的
+            // 被放弃且不记日志）。绑定失败仍可通过各自的 promise 观测到。
             runController.abort('run_code settled')
             await drainDispatches()
           }
@@ -751,22 +711,20 @@ export function createRunCodeTool(registry: ToolRuntime, options: RunCodeBridgeO
       return runtime.sandboxMode === undefined || exec.agent === undefined ? run(exec.signal)
         : calls.run(exec.agent.session.id, exec.signal, () => options.resolveSandboxPolicy(exec).mode, run)
     },
-    // The model-authored description is the call's always-visible UI label
-    // (the bash `description` precedent); the program itself rides rawInput.
+    // 模型撰写的 description 是调用始终可见的 UI 标签（bash `description`
+    // 的先例）；程序本身放在 rawInput 中。
     presentCall: args => ({
       card: 'generic',
       title: args.description,
       kind: 'execute',
       rawInput: args.code,
     }),
-    // Deliberately no presentResult: the generic card fallback keeps this
-    // title and reads durable result content without duplicating a large raw
-    // result into the host view payload.
+    // 刻意不提供 presentResult：通用卡片回退保留此标题并读取持久结果内容，
+    // 不把大型原始结果复制进宿主视图载荷。
   })
-  // Resolve the language flavor lazily, at the moment the registry projects the
-  // schema (`schemaOf` destructures `description`/`parameters`). The definition
-  // is minted once at registration, before a runtime is known; deferring here
-  // is the least invasive point that still emits the loaded runtime's language.
+  // 惰性解析语言 flavor，在注册表投影模式的时刻（`schemaOf` 解构
+  // `description`/`parameters`）。定义在注册时铸造一次，早于运行时可知；
+  // 在此处延迟是仍能发出已加载运行时语言的侵入最小的点。
   Object.defineProperty(definition, 'description', {
     enumerable: true,
     get: () => {
@@ -780,8 +738,8 @@ export function createRunCodeTool(registry: ToolRuntime, options: RunCodeBridgeO
   })
   Object.defineProperty(definition, 'parameters', {
     enumerable: true,
-    // Recompile through the same spec→schema projection defineTool used, so
-    // the emitted schema always matches the validated specification.
+    // 经 defineTool 使用的同一 spec→schema 投影重新编译，使发出的模式始终
+    // 与已验证的规范一致。
     get: () => parameterSchemaSpecToJsonSchema({
       code: { type: 'string', required: true, description: resolveFlavor(peekRuntime).codeDescription },
       description: { type: 'string', required: true, description: RUN_CODE_DESCRIPTION_PARAM_DESCRIPTION },

@@ -1,11 +1,11 @@
-/** Resolve the Host account's Documents directory for first-use Workspace creation. */
+/** 为首次使用 Workspace 创建解析 Host 账户的 Documents 目录。 */
 
 import { homedir } from 'node:os'
 import { posix, win32 } from 'node:path'
 import { runNativeCommand, type NativeCommandRunner } from '@deepseek-ai/dsh-native-command'
 import { DEFAULT_WORKSPACE_DIRECTORY } from './default-workspace.ts'
 
-/** Platform observations replaceable in directory-resolution tests. */
+/** 目录解析测试中可替换的平台观察。 */
 interface DocumentsDirectoryInternals {
   readonly platform?: NodeJS.Platform
   readonly home?: string
@@ -13,10 +13,10 @@ interface DocumentsDirectoryInternals {
 }
 
 /**
- * Validate a configured or OS-returned Documents path without resolving it against cwd.
- * @param directory - fully qualified directory spelling.
- * @param platform - Host platform.
- * @returns the normalized directory.
+ * 校验配置的或操作系统返回的 Documents 路径，不相对 cwd 解析它。
+ * @param directory - 完全限定的目录写法。
+ * @param platform - Host 平台。
+ * @returns 归一化后的目录。
  */
 export function validateDocumentsDirectory(directory: string, platform: NodeJS.Platform = process.platform): string {
   const paths = platform === 'win32' ? win32 : posix
@@ -28,11 +28,11 @@ export function validateDocumentsDirectory(directory: string, platform: NodeJS.P
 }
 
 /**
- * Resolve the first-use directory on the Host without creating files.
- * @param documentsDirectory - explicit deployment override for the system Documents directory.
- * @param signal - caller lifetime and lookup deadline.
- * @param internals - platform facts and native command runner.
- * @returns the absolute candidate path.
+ * 在 Host 上解析首次使用目录，不创建文件。
+ * @param documentsDirectory - 对系统 Documents 目录的显式部署覆盖。
+ * @param signal - 调用方生命周期与查询期限。
+ * @param internals - 平台事实与原生命令执行器。
+ * @returns 绝对候选路径。
  */
 export async function defaultWorkspaceDirectory(
   documentsDirectory: string | undefined,
@@ -67,7 +67,7 @@ export async function defaultWorkspaceDirectory(
         throw new Error(`system Documents directory is unavailable on ${platform}`)
     }
     directory = stdout.replace(/[\r\n]+$/, '')
-    // XDG reports the home directory when this user directory is disabled.
+    // 该用户目录被禁用时，XDG 报告主目录。
     if (directory === '' || (platform === 'linux' && paths.normalize(directory) === (internals.home ?? homedir()))) {
       throw new Error('system Documents directory is unavailable')
     }

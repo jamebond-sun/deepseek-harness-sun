@@ -1,6 +1,6 @@
 /**
- * Default Agent driver over queued turns and step-boundary input. Every request
- * is derived from the session log.
+ * 队列 turn 与 step 边界输入之上的默认 Agent 驱动器。每个请求
+ * 都从会话日志派生。
  * @module dsh-agent-loop/agent
  */
 
@@ -60,7 +60,7 @@ type PreparedStep =
     assembly: PromptAssembly
   }
 
-/** Remove adapter-derived values before plugins propose the next request config. */
+/** 在插件提议下一个请求配置之前移除适配器派生的值。 */
 function requestProposal(header: EpochHeader): LlmCallConfig {
   if (header.adapterDefaults === undefined) return header.config
   const proposal = { ...header.config }
@@ -70,16 +70,16 @@ function requestProposal(header: EpochHeader): LlmCallConfig {
 }
 
 /**
- * Read the cause `cancel()` passed when aborting a loop-owned signal, copying
- * only the fields `turn/end` records. The live reason stays the caller's
- * object, and Node's fetch assigns a `stack` onto it that `Session.append`
- * would either log or reject as data JSON cannot hold.
- * @param signal - a turn or maintenance signal this loop owns.
- * @returns the copied cause, or undefined while the signal is still live.
+ * 读取 `cancel()` 在中止循环拥有的信号时传入的原因，仅复制
+ * `turn/end` 会记录的字段。活跃原因保持为调用方的对象，
+ * 而 Node 的 fetch 会在其上赋一个 `stack`，`Session.append` 要么记录它，
+ * 要么因 JSON 无法承载该数据而拒绝。
+ * @param signal - 此循环拥有的 turn 或维护信号。
+ * @returns 复制的原因，信号仍活跃时为 undefined。
  */
 function abortedCancelCause(signal: AbortSignal): AgentCancelCause | undefined {
   if (!signal.aborted) return undefined
-  // `cancel()` is the only aborter of the signals this loop owns.
+  // `cancel()` 是此循环拥有的信号的唯一中止者。
   const cause = signal.reason as AgentCancelCause
   switch (cause.kind) {
     case 'user':
@@ -94,29 +94,29 @@ function abortedCancelCause(signal: AbortSignal): AgentCancelCause | undefined {
   }
 }
 
-/** Drives one session through turn and step boundaries. */
+/** 驱动单个会话通过 turn 和 step 边界。 */
 export class ReactLoopAgent implements Agent {
   readonly inbox: ReactLoopInbox
   private phase: Phase
   private activityDone: Promise<void> = Promise.resolve()
 
-  /** The agent-scoped registration boundary; the lifecycle owner unwinds it after the driver exits. */
+  /** agent 范围的注册边界；生命周期所有者在驱动器退出后展开它。 */
   readonly scope: Scope
   readonly ctx: Context
 
-  /** Fused dispatcher, built once in the constructor so hot-path dispatches never allocate. */
+  /** 融合的分发器，在构造函数中构建一次，使热路径分发从不分配。 */
   private readonly dispatch: AgentEventDispatch
 
-  /** Whether this loop instance has appended its initial/resume request anchor. */
+  /** 此循环实例是否已追加其初始/恢复请求锚点。 */
   private requestHeaderLogged = false
-  /** Surface generation at attachment or the preceding built request. */
+  /** 附加时或上一个已构建请求的表面世代。 */
   private requestSurfaceGeneration: number
   private readonly runtimeContext: RuntimeContextProjection
-  /** Process-local revision of assistant frames for this attached Session. */
+  /** 此附加 Session 的 assistant 帧的进程本地修订号。 */
   private assistantStreamRevision = 0
   private assistantAttemptCounter = 0
   private readonly systemPrompt: SystemPromptProjection
-  /** Identities fully frozen by this loop; weak references do not retain replaced history. */
+  /** 此循环完全冻结的身份；弱引用不会保留被替换的历史。 */
   private readonly frozenMessages = new WeakSet<Message>()
 
   constructor(
@@ -141,7 +141,7 @@ export class ReactLoopAgent implements Agent {
     return this.phase.kind === 'idle' || this.phase.kind === 'maintenance' ? 'idle' : 'running'
   }
 
-  /** Commit a phase and publish its externally visible status transition. */
+  /** 提交一个阶段并发布其外部可见的状态转换。 */
   private setPhase(next: Phase): void {
     const previousStatus = this.status
     this.phase = next
@@ -152,8 +152,8 @@ export class ReactLoopAgent implements Agent {
   }
 
   send(message: UserMessage, target: InboxTarget, wakeup: boolean): void {
-    // Waking input cannot join an aborted activity, so it starts the next turn.
-    // Captured before the insertion so a reentrant cancel from a splice observer cannot reclassify it.
+    // 唤醒输入无法加入已中止的活动，因此它启动下一个 turn。
+    // 在插入之前捕获，使来自 splice 观察者的重入取消无法重新分类它。
     const wakingAfterAbort = wakeup && this.phase.kind !== 'idle' && this.phase.abort.signal.aborted
     const resolvedTarget = wakingAfterAbort ? 'next-turn' : target
     this.inbox.splice(resolvedTarget, Infinity, 0, [message])
@@ -204,18 +204,17 @@ export class ReactLoopAgent implements Agent {
   }
 
   /**
-   * Start one driver, or latch its wake behind maintenance or an aborted
-   * activity. A wake sent while idle always opens its turn boundary, even
-   * when its message was cleared; only a latched replay is suppressed when
-   * the queue no longer holds the wake.
-   * @param wakeAfterAbort - the {@link send} classification, captured before
-   *   the inbox insertion so a reentrant cancel cannot reclassify it.
+   * 启动一个驱动器，或将其唤醒锁存在维护或已中止活动之后。
+   * 空闲时发送的唤醒总是打开其 turn 边界，即使其消息已被清除；
+   * 只有被锁存的回放会在队列不再持有唤醒时被抑制。
+   * @param wakeAfterAbort - {@link send} 的分类，在收件箱插入之前捕获，
+   *   使重入取消无法重新分类它。
    */
   private wakeDriver(wakeAfterAbort = false): void {
     if (this.phase.kind !== 'idle') {
-      // Maintenance and aborted drivers cannot deliver the wake: latch it for
-      // replay at convergence. Live drivers claim queued work themselves;
-      // disposal never latches, so teardown waits on no model turn.
+      // 维护和中止的驱动器无法递送唤醒：将其锁存以在收敛时回放。
+      // 活跃驱动器自行认领队列中的工作；
+      // 释放从不锁存，因此拆除不会等待任何模型 turn。
       const reason = abortedCancelCause(this.phase.abort.signal)
       if (reason?.kind !== 'disposed' && (this.phase.kind === 'maintenance' || wakeAfterAbort)) {
         this.phase.wakeRequested = true
@@ -241,7 +240,7 @@ export class ReactLoopAgent implements Agent {
     } while (activity !== this.activityDone)
   }
 
-  /** Report one failure at its live boundary, then preserve it for driver containment. */
+  /** 在其活跃边界报告一个失败，然后为驱动器遏制保留它。 */
   private throwError(error: unknown): never {
     const turn = this.phase.kind === 'running' ? this.phase.turn : this.phase.lastTurn
     const step = this.phase.kind === 'running' ? this.phase.step : 0
@@ -253,7 +252,7 @@ export class ReactLoopAgent implements Agent {
     try {
       while (await this.turn()) {}
     } catch (_error) {
-      // Reported failures and cancellation are contained at the driver boundary.
+      // 已报告的失败和取消在驱动器边界被遏制。
     } finally {
       /* v8 ignore next -- kick owns a running phase until this driver boundary */
       if (this.phase.kind === 'running') {
@@ -287,14 +286,14 @@ export class ReactLoopAgent implements Agent {
     return { ...decision, assembly }
   }
 
-  /** Whether the assembled tool schemas differ from the logged request header's. */
+  /** 组装的工具 schema 是否与已记录的请求头不同。 */
   private toolsChanged(tools: PromptAssembly['tools']): boolean {
     const baseline = this.session.requestHeader()
     if (baseline === undefined) return false
     return !headerEquals(baseline, canonicalHeader({ ...baseline, tools: [...tools] }))
   }
 
-  /** Open one turn before claiming its first proposed step. */
+  /** 在认领其第一个提议步骤之前打开一个 turn。 */
   private async turn(): Promise<boolean> {
     if (this.phase.kind !== 'running') {
       this.throwError(new Error(`agent "${this.id}": turn without driver reservation`))
@@ -321,8 +320,8 @@ export class ReactLoopAgent implements Agent {
           return false
         }
         if (turnEnds && decision.messages.length === 0) break
-        // A removed waking message or an enter decision rewritten to empty
-        // still owns the initial turn boundary, but it spends no model call.
+        // 被移除的唤醒消息或被改写为空的 enter 决策
+        // 仍拥有初始 turn 边界，但不消耗任何模型调用。
         if (phase.step === 0 && decision.messages.length === 0) {
           turnEnds = { kind: 'completed' }
           return false
@@ -335,11 +334,11 @@ export class ReactLoopAgent implements Agent {
           if (session === this.session) toolRecovery.observe(event)
         })
         try {
-          // max-tokens is sticky: once any step hits the ceiling, later steps
-          // that complete normally must not downgrade the turn outcome.
+          // max-tokens 是粘性的：一旦任何步骤触及上限，后续
+          // 正常完成的步骤不得降级 turn 结果。
           const stepEnd = await this.step(decision)
-          // max-tokens stays sticky: a later completed step must not
-          // downgrade the turn outcome.
+          // max-tokens 保持粘性：后续完成的步骤不得
+          // 降级 turn 结果。
           if (turnEnds === null || turnEnds.kind !== 'max-tokens') turnEnds = stepEnd
         } catch (error: unknown) {
           try {
@@ -366,14 +365,14 @@ export class ReactLoopAgent implements Agent {
         target = 'next-step'
       }
     } catch (error: unknown) {
-      // A cause is present exactly while the signal is aborted.
+      // 原因恰好只在信号已中止时存在。
       const cause = abortedCancelCause(signal)
       if (cause !== undefined) {
         turnEnds = { kind: 'aborted', reason: cause }
         throw error
       }
-      // Every failure is structured: an `LlmError` keeps its facts, anything
-      // else flattens to `errorChain` text under the `UNKNOWN` code.
+      // 每个失败都是结构化的：`LlmError` 保留其事实，其他任何
+      // 失败都会在 `UNKNOWN` 代码下压平为 `errorChain` 文本。
       turnEnds = {
         kind: 'error',
         error: error instanceof LlmError
@@ -391,7 +390,7 @@ export class ReactLoopAgent implements Agent {
     }
     if (!this.inbox.hasPending) return false
     phase.abort = new AbortController()
-    // A fresh controller makes a latch set on the old one stale: the live driver claims the queue itself.
+    // 全新的控制器使在旧控制器上设置的锁存失效：活跃驱动器自行认领队列。
     phase.wakeRequested = false
     phase.step = 0
     return true
@@ -560,7 +559,7 @@ export class ReactLoopAgent implements Agent {
     }
   }
 
-  /** Resolve request config and bind its adapter before admitting model-visible input. */
+  /** 在接纳模型可见输入之前解析请求配置并绑定其适配器。 */
   private async prepareRequest(
     turn: number,
     step: number,
@@ -568,8 +567,8 @@ export class ReactLoopAgent implements Agent {
   ): Promise<{ config: LlmCallConfig; preparedCall?: PreparedLlmCall }> {
     const { session } = this
 
-    // A loop instance starts from its declared route, restoring only an explicit
-    // effort owned by that exact model. Later steps re-resolve marked defaults.
+    // 循环实例从其声明的路由开始，仅恢复由该精确模型拥有的显式
+    // effort。后续步骤重新解析已标记的默认值。
     const persistedHeader = session.requestHeader()
     const persistedConfig = persistedHeader?.config
     const route = { provider: this.options.provider ?? '', model: this.options.model ?? '' }
@@ -604,7 +603,7 @@ export class ReactLoopAgent implements Agent {
       preparedCall = await this.loopCtx.llm.prepareCall(proposedConfig, signal)
       config = preparedCall.config
     } catch (error: unknown) {
-      // Middleware may serve an unregistered route; terminal dispatch still requires an adapter.
+      // 中间件可能服务未注册的路由；最终分发仍需要适配器。
       if (!(error instanceof LlmError) || error.code !== 'NO_ADAPTER') throw error
       config = proposedConfig
     }
@@ -612,7 +611,7 @@ export class ReactLoopAgent implements Agent {
     return { config, ...preparedCall === undefined ? {} : { preparedCall } }
   }
 
-  /** Log the resolved envelope and derive a frozen request from the admitted surface. */
+  /** 记录已解析的信封，并从已接纳的表面派生冻结的请求。 */
   private buildRequest(
     config: LlmCallConfig,
     preparedCall: PreparedLlmCall | undefined,
@@ -633,7 +632,7 @@ export class ReactLoopAgent implements Agent {
       || this.requestSurfaceGeneration !== surfaceGeneration
     let headerSeq: SessionSeq | undefined
     if (!this.requestHeaderLogged) {
-      // Compaction during the first resumed pre-step must still mark a new series.
+      // 首次恢复的 pre-step 期间的压缩仍必须标记新序列。
       headerSeq = this.session.append('request/header', {
         header,
         reason: baseline === undefined ? 'initial' : 'resume',
@@ -683,7 +682,7 @@ export class ReactLoopAgent implements Agent {
     }
     signal.throwIfAborted()
 
-    // canonicalHeader is shallow; append logs a detached snapshot, not these local values.
+    // canonicalHeader 是浅层的；append 记录的是分离的快照，而不是这些本地值。
     deepFreeze(header)
     const boundaryMessages = session.deriveMessages()
     for (const message of boundaryMessages) {

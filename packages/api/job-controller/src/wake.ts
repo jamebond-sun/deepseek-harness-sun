@@ -1,25 +1,24 @@
 /**
- * Wake bookkeeping shared by the two observation generators: a wake-flag
- * waiter that never loses a wake between waits, and an abortable sleep that
- * coalesces bursts into bounded frames.
+ * 由两个观察生成器共享的 wake 记账：一个在两次等待之间从不丢失 wake 的
+ * wake 标志等待器，以及一个把突发合并为有界帧的可中止 sleep。
  * @module @deepseek-ai/dsh-api-job-controller/wake
  */
 
-/** Wake-flag waiter: a wake between waits is never lost. */
+/** Wake 标志等待器：两次等待之间的 wake 永不丢失。 */
 export class OutputWaiter {
   private dirty = false
   private resolve: (() => void) | undefined
 
-  /** Record one wake; releases a pending wait or arms the next one. */
+  /** 记录一次 wake；释放一个挂起的等待，或预备下一次等待。 */
   wake(): void {
     this.dirty = true
     this.resolve?.()
   }
 
   /**
-   * Resolve on the next wake, immediately when one already arrived, or on abort.
-   * @param signal - generation cancellation.
-   * @returns settles when woken or aborted.
+   * 在下一次 wake 时解除挂起；已有 wake 到达则立即解除，或在中止时解除。
+   * @param signal - 本次生成的取消信号。
+   * @returns 在被唤醒或中止时落定。
    */
   wait(signal: AbortSignal): Promise<void> {
     if (this.dirty || signal.aborted) {
@@ -41,10 +40,10 @@ export class OutputWaiter {
 }
 
 /**
- * Sleep for the coalescing window, or return at once when aborted.
- * @param ms - window in milliseconds.
- * @param signal - generation cancellation.
- * @returns settles after the window or on abort.
+ * 睡眠一个合并窗口，或在已中止时立即返回。
+ * @param ms - 窗口时长（毫秒）。
+ * @param signal - 本次生成的取消信号。
+ * @returns 在窗口结束后或中止时落定。
  */
 export function sleep(ms: number, signal: AbortSignal): Promise<void> {
   if (signal.aborted) return Promise.resolve()

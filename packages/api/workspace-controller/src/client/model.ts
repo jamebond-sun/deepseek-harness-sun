@@ -1,4 +1,4 @@
-/** Client-side Workspace state model shared by Remote transport and UI projection. */
+/** 由 Remote 传输与 UI 投影共享的 Client 侧 Workspace 状态模型。 */
 
 import { notifySubscribers } from '@deepseek-ai/dsh-client-store'
 import type {} from '@deepseek-ai/dsh-api-workspace-controller/remote'
@@ -22,42 +22,42 @@ import type {
   WorkspaceView,
 } from '../types.ts'
 
-/** Complete generated `ctx.remote.workspace` namespace. */
+/** 生成的完整 `ctx.remote.workspace` 命名空间。 */
 export type WorkspaceRemote = TypertClientRemote['workspace']
 
-/** Monotone Workspace-list arrival lifecycle. */
+/** 单调的 Workspace 列表到达生命周期。 */
 export type WorkspaceListPhase = 'pending' | 'ready'
 
-/** Immutable Client Workspace state. */
+/** 不可变的 Client Workspace 状态。 */
 export interface WorkspaceSnapshot {
   readonly items: readonly WorkspaceView[]
-  /** Complete registry-global archive set in Host order. */
+  /** Host 顺序下的完整注册表全局归档集合。 */
   readonly archivedSessionIds: WorkspaceArchiveValue['archivedSessionIds']
-  /** Complete registry-global pin set, most recently pinned first. */
+  /** 完整的注册表全局置顶集合，最近置顶的在前。 */
   readonly pinnedSessionIds: WorkspacePinValue['pinnedSessionIds']
   readonly state: 'idle' | 'loading' | 'error'
   readonly phase: WorkspaceListPhase
   readonly error: RemoteFailure | null
 }
 
-/** State operations emitted by a decoded Workspace follow generation. */
+/** 解码后的 Workspace follow 生成所发出的状态操作。 */
 export interface WorkspaceFollowSink {
-  /** Replace all state from the generation baseline. */
+  /** 以生成基线替换全部状态。 */
   replaceBaseline(value: WorkspaceBaseline): void
-  /** Merge one Workspace row. */
+  /** 合并一个 Workspace 行。 */
   upsertView(workspace: WorkspaceView): void
-  /** Remove one Workspace row. */
+  /** 移除一个 Workspace 行。 */
   removeView(workspaceId: WorkspaceId): void
-  /** Replace the Host-confirmed Workspace order. */
+  /** 替换 Host 确认的 Workspace 顺序。 */
   replaceOrder(workspaceIds: readonly WorkspaceId[]): void
-  /** Replace the complete archived Session set. */
+  /** 替换完整的已归档 Session 集合。 */
   replaceArchived(sessionIds: WorkspaceArchiveValue['archivedSessionIds']): void
-  /** Replace the complete pinned Session set. */
+  /** 替换完整的已置顶 Session 集合。 */
   replacePinned(pinnedSessionIds: WorkspacePinValue['pinnedSessionIds']): void
 }
 
 /**
- * Owns the Client Workspace projection, mutation echoes, and stream/unary race resolution.
+ * 持有 Client Workspace 投影、变更回显，以及流/一元竞争的消解。
  */
 export class ClientWorkspaceModel implements WorkspaceFollowSink {
   private items: readonly WorkspaceView[] = []
@@ -66,17 +66,17 @@ export class ClientWorkspaceModel implements WorkspaceFollowSink {
   private state: WorkspaceSnapshot['state'] = 'loading'
   private phase: WorkspaceListPhase = 'pending'
   private error: RemoteFailure | null = null
-  /** Latest local reorder request; only its unary echo may install order. */
+  /** 最近的本地重排请求；只有其对应的一元回显可以安装顺序。 */
   private orderRequestGeneration = 0
-  /** Increments on stream orders so a later remote commit outranks an older unary echo. */
+  /** 流顺序到来时递增，使更晚的远端提交胜过更早的一元回显。 */
   private orderFrameGeneration = 0
-  /** Last complete order accepted from a baseline, increment, or current unary echo. */
+  /** 从基线、增量或当前一元回显接受的最近完整顺序。 */
   private committedOrder: WorkspaceId[] = []
-  /** Latest archive-set request; a later request or a pushed set supersedes it. */
+  /** 最近的归档集合请求；更晚的请求或推送的集合会取代它。 */
   private archiveRequestSeq = 0
-  /** Latest pin-set request; a later request or a pushed set supersedes it. */
+  /** 最近的置顶集合请求；更晚的请求或推送的集合会取代它。 */
   private pinRequestSeq = 0
-  /** Host Workspace ids are never reused, so delayed data cannot resurrect a removed row. */
+  /** Host Workspace id 从不复用，因此迟到的数据无法复活已移除的行。 */
   private readonly removedIds = new Set<WorkspaceId>()
   private readonly listeners = new Set<() => void>()
   private snapshotCache: WorkspaceSnapshot
@@ -85,15 +85,15 @@ export class ClientWorkspaceModel implements WorkspaceFollowSink {
   private notificationScheduled = false
   private notificationGeneration = 0
 
-  /** @param remote - generated Workspace Remote namespace. */
+  /** @param remote - 生成的 Workspace Remote 命名空间。 */
   constructor(private readonly remote: WorkspaceRemote) {
     this.snapshotCache = this.buildSnapshot()
   }
 
   /**
-   * Create or resolve a Workspace and merge the unary result immediately.
-   * @param input - existing absolute path to adopt.
-   * @returns generated Remote result.
+   * 创建或解析一个 Workspace，并立即合并一元结果。
+   * @param input - 要收编的现有绝对路径。
+   * @returns 生成的 Remote 结果。
    */
   async create(input: WorkspaceCreateRequest): Promise<RemoteResult<WorkspaceCreateValue>> {
     const result = await this.remote.create(input)
@@ -102,9 +102,9 @@ export class ClientWorkspaceModel implements WorkspaceFollowSink {
   }
 
   /**
-   * Initialize the default Workspace and merge its authoritative row.
-   * @param signal - caller lifetime.
-   * @returns generated Remote result.
+   * 初始化默认 Workspace 并合并其权威行。
+   * @param signal - 调用方生命周期。
+   * @returns 生成的 Remote 结果。
    */
   async initializeDefault(signal?: AbortSignal): Promise<RemoteResult<WorkspaceValue | undefined>> {
     const result = await this.remote.initializeDefault(signal)
@@ -113,10 +113,10 @@ export class ClientWorkspaceModel implements WorkspaceFollowSink {
   }
 
   /**
-   * Rename a Workspace and merge the unary result immediately.
-   * @param workspaceId - target Workspace.
-   * @param title - new display title.
-   * @returns generated Remote result.
+   * 重命名一个 Workspace 并立即合并一元结果。
+   * @param workspaceId - 目标 Workspace。
+   * @param title - 新显示标题。
+   * @returns 生成的 Remote 结果。
    */
   async rename(workspaceId: WorkspaceId, title: string): Promise<RemoteResult<WorkspaceValue>> {
     const result = await this.remote.rename({ workspaceId, title })
@@ -125,9 +125,9 @@ export class ClientWorkspaceModel implements WorkspaceFollowSink {
   }
 
   /**
-   * Delete a Workspace and remove it from the local projection immediately.
-   * @param workspaceId - target Workspace.
-   * @returns generated Remote result.
+   * 删除一个 Workspace 并立即将其从本地投影移除。
+   * @param workspaceId - 目标 Workspace。
+   * @returns 生成的 Remote 结果。
    */
   async delete(workspaceId: WorkspaceId): Promise<RemoteResult<WorkspaceDeleteValue>> {
     const result = await this.remote.delete({ workspaceId })
@@ -136,10 +136,10 @@ export class ClientWorkspaceModel implements WorkspaceFollowSink {
   }
 
   /**
-   * Optimistically move a Workspace and reconcile the returned complete order.
-   * @param workspaceId - Workspace to move.
-   * @param beforeWorkspaceId - anchor Workspace; omitted appends.
-   * @returns generated Remote result.
+   * 乐观地移动一个 Workspace，并与返回的完整顺序和解。
+   * @param workspaceId - 要移动的 Workspace。
+   * @param beforeWorkspaceId - 锚点 Workspace；省略时追加到末尾。
+   * @returns 生成的 Remote 结果。
    */
   async insertBefore(
     workspaceId: WorkspaceId,
@@ -161,11 +161,11 @@ export class ClientWorkspaceModel implements WorkspaceFollowSink {
   }
 
   /**
-   * Move a Session within its Workspace and merge the returned row.
-   * @param workspaceId - owning Workspace.
-   * @param sessionId - accounted Session to move.
-   * @param beforeSessionId - accounted anchor; omitted appends.
-   * @returns generated Remote result.
+   * 在其 Workspace 内移动一个 Session 并合并返回的行。
+   * @param workspaceId - 所属 Workspace。
+   * @param sessionId - 要移动的已归入 Session。
+   * @param beforeSessionId - 已归入的锚点；省略时追加到末尾。
+   * @returns 生成的 Remote 结果。
    */
   async insertSessionBefore(
     workspaceId: WorkspaceInsertSessionBeforeRequest['workspaceId'],
@@ -182,11 +182,11 @@ export class ClientWorkspaceModel implements WorkspaceFollowSink {
   }
 
   /**
-   * Archive one Session and install the returned complete archive set.
-   * A reply superseded by a later archive request or a pushed set installs nothing.
-   * @param sessionId - Session to archive.
-   * @param options - Whether the Host stops the Session's running work instead of refusing.
-   * @returns generated Remote result.
+   * 归档一个 Session，并安装返回的完整归档集合。
+   * 被更晚的归档请求或推送集合取代的应答不安装任何内容。
+   * @param sessionId - 要归档的 Session。
+   * @param options - Host 是否停止该 Session 的运行中工作而非拒绝。
+   * @returns 生成的 Remote 结果。
    */
   async archiveSession(
     sessionId: WorkspaceArchiveSessionRequest['sessionId'],
@@ -199,18 +199,18 @@ export class ClientWorkspaceModel implements WorkspaceFollowSink {
     })
     if (result.ok && requestSeq === this.archiveRequestSeq) {
       this.installArchived(result.value.archivedSessionIds)
-      // The Host drops an archived session's pin in the same durable write;
-      // mirror that locally so no frame shows the row both archived and pinned.
+      // Host 在同一次持久写入中移除已归档 session 的置顶；
+      // 本地镜像该行为，使任何帧都不会把该行同时显示为已归档与已置顶。
       this.installPinned(this.pinnedSessionIds.filter(id => id !== sessionId))
     }
     return result
   }
 
   /**
-   * Unarchive one Session and install the returned complete archive set.
-   * A reply superseded by a later archive request or a pushed set installs nothing.
-   * @param sessionId - Session to unarchive.
-   * @returns generated Remote result.
+   * 取消归档一个 Session，并安装返回的完整归档集合。
+   * 被更晚的归档请求或推送集合取代的应答不安装任何内容。
+   * @param sessionId - 要取消归档的 Session。
+   * @returns 生成的 Remote 结果。
    */
   async unarchiveSession(
     sessionId: WorkspaceUnarchiveSessionRequest['sessionId'],
@@ -224,10 +224,10 @@ export class ClientWorkspaceModel implements WorkspaceFollowSink {
   }
 
   /**
-   * Pin one Session and install the returned complete pin set.
-   * A reply superseded by a later pin request or a pushed set installs nothing.
-   * @param sessionId - Session to pin.
-   * @returns generated Remote result.
+   * 置顶一个 Session，并安装返回的完整置顶集合。
+   * 被更晚的置顶请求或推送集合取代的应答不安装任何内容。
+   * @param sessionId - 要置顶的 Session。
+   * @returns 生成的 Remote 结果。
    */
   async pinSession(
     sessionId: WorkspacePinSessionRequest['sessionId'],
@@ -241,10 +241,10 @@ export class ClientWorkspaceModel implements WorkspaceFollowSink {
   }
 
   /**
-   * Unpin one Session and install the returned complete pin set.
-   * A reply superseded by a later pin request or a pushed set installs nothing.
-   * @param sessionId - Session to unpin.
-   * @returns generated Remote result.
+   * 取消置顶一个 Session，并安装返回的完整置顶集合。
+   * 被更晚的置顶请求或推送集合取代的应答不安装任何内容。
+   * @param sessionId - 要取消置顶的 Session。
+   * @returns 生成的 Remote 结果。
    */
   async unpinSession(
     sessionId: WorkspaceUnpinSessionRequest['sessionId'],
@@ -258,8 +258,8 @@ export class ClientWorkspaceModel implements WorkspaceFollowSink {
   }
 
   /**
-   * Replace the projection from one complete stream-generation baseline.
-   * @param baseline - complete Workspace and archive projection.
+   * 以一个完整的流生成基线替换投影。
+   * @param baseline - 完整的 Workspace 与归档投影。
    */
   replaceBaseline(baseline: WorkspaceBaseline): void {
     this.orderFrameGeneration++
@@ -274,25 +274,25 @@ export class ClientWorkspaceModel implements WorkspaceFollowSink {
     this.invalidate()
   }
 
-  /** Merge one decoded Workspace upsert from the current follow generation. */
+  /** 合并来自当前 follow 生成的一个解码后的 Workspace upsert。 */
   upsertView(workspace: WorkspaceView): void {
     this.upsert(workspace)
   }
 
-  /** Apply one decoded Workspace removal from the current follow generation. */
+  /** 应用来自当前 follow 生成的一次解码后的 Workspace 移除。 */
   removeView(workspaceId: WorkspaceId): void {
     this.remove(workspaceId)
   }
 
-  /** Replace Host-confirmed order from the current follow generation. */
+  /** 以当前 follow 生成为准替换 Host 确认的顺序。 */
   replaceOrder(workspaceIds: readonly WorkspaceId[]): void {
     this.orderFrameGeneration++
     this.installOrder(workspaceIds, true)
   }
 
   /**
-   * Replace the archived Session set from the current follow generation.
-   * @param archivedSessionIds - complete Host-confirmed archive set.
+   * 以当前 follow 生成为准替换已归档 Session 集合。
+   * @param archivedSessionIds - Host 确认的完整归档集合。
    */
   replaceArchived(archivedSessionIds: WorkspaceArchiveValue['archivedSessionIds']): void {
     this.archiveRequestSeq++
@@ -300,15 +300,15 @@ export class ClientWorkspaceModel implements WorkspaceFollowSink {
   }
 
   /**
-   * Replace the pinned Session set from the current follow generation.
-   * @param pinnedSessionIds - complete Host-confirmed pin set, most recently pinned first.
+   * 以当前 follow 生成为准替换已置顶 Session 集合。
+   * @param pinnedSessionIds - Host 确认的完整置顶集合，最近置顶的在前。
    */
   replacePinned(pinnedSessionIds: WorkspacePinValue['pinnedSessionIds']): void {
     this.pinRequestSeq++
     this.installPinned(pinnedSessionIds)
   }
 
-  /** Keep the last complete projection visible while a lost carrier reconnects. */
+  /** 在丢失的 carrier 重连期间保持最近一次完整投影可见。 */
   handleCarrierFailure(): void {
     this.state = 'loading'
     this.error = null
@@ -316,8 +316,8 @@ export class ClientWorkspaceModel implements WorkspaceFollowSink {
   }
 
   /**
-   * Publish a non-retryable stream or protocol failure.
-   * @param error - terminal stream failure.
+   * 发布不可重试的流或协议失败。
+   * @param error - 终态流失败。
    */
   handleStreamFailure(error: unknown): void {
     if (!isRemoteFailure(error)) throw error
@@ -327,9 +327,9 @@ export class ClientWorkspaceModel implements WorkspaceFollowSink {
   }
 
   /**
-   * Subscribe to Workspace state invalidation.
-   * @param listener - invalidation callback.
-   * @returns unsubscribe function.
+   * 订阅 Workspace 状态失效。
+   * @param listener - 失效回调。
+   * @returns 取消订阅函数。
    */
   subscribe(listener: () => void): () => void {
     this.listeners.add(listener)
@@ -337,8 +337,8 @@ export class ClientWorkspaceModel implements WorkspaceFollowSink {
   }
 
   /**
-   * Read the cached state, rebuilding it first when necessary.
-   * @returns the current stable Workspace list snapshot.
+   * 读取缓存状态，必要时先重建它。
+   * @returns 当前的稳定 Workspace 列表快照。
    */
   getSnapshot(): WorkspaceSnapshot {
     this.refreshSnapshot()
@@ -385,8 +385,8 @@ export class ClientWorkspaceModel implements WorkspaceFollowSink {
     if (this.removedIds.has(view.workspaceId)) return
     const index = this.items.findIndex(item => item.workspaceId === view.workspaceId)
     const installed = this.items[index]
-    // Unary responses and stream increments race on separate requests. Keep
-    // the newest Host projection regardless of their arrival order.
+    // 一元响应与流增量在不同请求上竞争。无论到达顺序如何，
+    // 都保留最新的 Host 投影。
     if (installed !== undefined && Date.parse(view.updatedAt) < Date.parse(installed.updatedAt)) return
     if (!this.committedOrder.includes(view.workspaceId)) {
       this.committedOrder = [view.workspaceId, ...this.committedOrder]
@@ -402,8 +402,8 @@ export class ClientWorkspaceModel implements WorkspaceFollowSink {
     this.committedOrder = this.committedOrder.filter(id => id !== workspaceId)
     const items = this.items.filter(item => item.workspaceId !== workspaceId)
     if (items.length === this.items.length) {
-      // A successful unary echo still publishes an earlier increment's
-      // pending removal before the user operation resolves.
+      // 成功的一元回显在用户操作兑现之前，仍会发布更早增量的
+      // 待处理移除。
       if (immediate) this.invalidate(true)
       return
     }

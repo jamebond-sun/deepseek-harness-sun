@@ -1,14 +1,14 @@
 /**
- * Gateway infrastructure failure codes merged into the shared Remote failure
- * vocabulary. Face-neutral: the Host face and the Client face each import this
- * module so both programs see the same map entries.
+ * 合并进共享 Remote 失败词汇表的 Gateway 基础设施失败码。
+ * 对 face 中立：Host face 与 Client face 各自导入本模块，
+ * 两个程序因此看到相同的映射条目。
  */
 
-/** Wire details every Gateway infrastructure failure carries. */
+/** 每个 Gateway 基础设施失败都携带的 wire 详情字段。 */
 export interface TypertGatewayFaultDetails {
-  /** Canonical `<namespace>/<method>` endpoint. */
+  /** 规范的 `<namespace>/<method>` 端点。 */
   readonly endpoint: string
-  /** Affected wire field when the failure is field-specific. */
+  /** 失败针对特定字段时受影响的 wire 字段。 */
   readonly field?: string
 }
 

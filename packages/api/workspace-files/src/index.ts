@@ -1,22 +1,19 @@
 /**
- * Workspace file service: read-only file previews, workspace directory
- * listings, and the filesystem-observation change feed, exposed as
- * `workspaceFiles`.
+ * Workspace 文件服务：只读文件预览、workspace 目录列表，以及文件系统
+ * 观察变更流，以 `workspaceFiles` 暴露。
  *
- * File reads follow the composed filesystem's read access, including paths
- * outside the workspace. The selected Session header supplies the base for
- * relative paths, with the sandbox policy root as its no-cwd fallback, not a
- * read-containment restriction. Directory listings and change observations
- * remain workspace-scoped. File-kind checks and configured read caps apply to
- * every preview; this service exposes no mutations.
+ * 文件读取遵循组合文件系统的读访问，包括 workspace 之外的路径。所选
+ * Session 头提供相对路径的基准，其无 cwd 时的回退是 sandbox 策略根，
+ * 而非读取围栏限制。目录列表与变更观察保持 workspace 范围。文件类型
+ * 检查与配置的读取上限适用于每次预览；本服务不暴露任何变更操作。
  *
- * A page is cut from `streamText`, which decodes and rejects non-UTF-8 as it
- * goes, so the file is read only up to the first character past the page and
- * never held whole in memory; the NUL scan runs on the page itself.
+ * 一页从 `streamText` 中截取，后者边解码边拒绝非 UTF-8，因此文件只被
+ * 读取到页之后的第一个字符，且整个文件从不整体驻留内存；NUL 扫描
+ * 在页本身上运行。
  *
- * This is NOT modelled on `session.openWorkspacePath`. That endpoint hands a
- * path to the local opener and leaves the effect on the machine; this one sends
- * file content across the wire, which is a different level of exposure.
+ * 本服务并非以 `session.openWorkspacePath` 为模型。那个端点把路径交给
+ * 本地打开器并把效果留在机器上；本服务则把文件内容经 wire 发送，
+ * 属于不同的暴露级别。
  */
 
 import { posix, win32 } from 'node:path'
@@ -46,56 +43,56 @@ export type * from './types.ts'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
-    /** Host owner of the `workspaceFiles` Remote namespace. */
+    /** `workspaceFiles` Remote 命名空间的 Host 属主。 */
     workspaceFiles: WorkspaceFiles
   }
 }
 
-/** Header-derived file resolution context for one Session identity. */
+/** 由头派生的单个 Session 身份的文件解析上下文。 */
 export interface WorkspaceFileScope {
-  /** Session identity received on the wire. */
+  /** wire 上收到的 Session 身份。 */
   readonly sessionId: SessionId
-  /** Session workspace root, or the deployment fallback when its header has no cwd. */
+  /** Session 的 workspace 根，其头不含 cwd 时为部署回退值。 */
   readonly workspaceRoot: string
 }
 
 declare module '@deepseek-ai/dsh-typert-protocol' {
   interface TypertLookupMap {
-    /** Resolve a Session id to its workspace root without loading its event body or activating an Agent. */
+    /** 将 Session id 解析为其 workspace 根，不加载其事件体，也不激活 Agent。 */
     workspaceFileScope: TypertLookup<WorkspaceFileScope, SessionId>
   }
 }
 
-/** Deployment caps on one page or one listing. */
+/** 部署层面对单页或单次列表的上限。 */
 export interface Config {
   /**
-   * Inclusive byte cap on one page's text and on one byte window.
+   * 单页文本与单个字节窗口的含边界字节上限。
    *
-   * A page above this fails; it is not shortened, because a silently cut page
-   * reads as the whole page. A byte window asking for more is refused the same
-   * way. The file itself has no size cap: a caller pages through it.
+   * 超过上限的页直接失败而不被缩短，因为被静默截断的页读起来
+   * 像完整页。请求更大字节窗口的调用以同样方式被拒绝。文件本身
+   * 没有大小上限：调用方通过分页遍历。
    */
   readonly maxBytes: number
-  /** Inclusive byte cap on a complete-file read; larger files are refused, never truncated. */
+  /** 完整文件读取的含边界字节上限；更大的文件被拒绝，从不截断。 */
   readonly maxFileBytes: number
-  /** Default and largest page size in lines; a request asking for more is refused. */
+  /** 页大小的默认值与最大值（以行计）；请求更大的值会被拒绝。 */
   readonly maxLines: number
-  /** Cap on returned directory entries; the rest is dropped and reported cut. */
+  /** 返回目录条目的上限；其余被丢弃并报告为已截断。 */
   readonly maxEntries: number
 }
 
-/** One page cut from a decoded text stream. */
+/** 从解码文本流截出的一页。 */
 interface Page {
   readonly text: string
-  /** Lines in `text`; `0` for a page past the last line. */
+  /** `text` 中的行数；页越过最后一行时为 `0`。 */
   readonly lines: number
   readonly eof: boolean
 }
 
-/** The byte text never carries: its presence marks a page as binary. */
+/** 文本字节流中绝不出现的字节：它的存在将页标记为二进制。 */
 const NUL = String.fromCharCode(0)
 
-/** Refuse anything the wire schema admits as a number but a window cannot use: only safe integers index a file. */
+/** 拒绝 wire 模式视为数字但窗口无法使用的值：只有安全整数可用于索引文件。 */
 function integerAtLeast(value: number, min: number, name: string): number {
   if (!Number.isSafeInteger(value) || value < min) {
     throw new RemoteError('gateway/bad-request', `${name} must be a safe integer of at least ${min}`, {})
@@ -104,11 +101,10 @@ function integerAtLeast(value: number, min: number, name: string): number {
 }
 
 /**
- * Cut lines `offset` through `offset + limit - 1` from decoded chunks, stopping
- * at the first character past the page so the rest of the file is never read.
- * Lines before the page are counted, not kept, and the page is refused the
- * moment its bytes exceed `maxBytes`, so one giant line cannot grow memory past
- * the cap either.
+ * 从解码块中截取第 `offset` 到 `offset + limit - 1` 行，在读到页之后的
+ * 第一个字符时停止，因此文件的其余部分从不被读取。页之前的行只计数
+ * 不保留，且页的字节数一旦超过 `maxBytes` 立即被拒绝，因此一行超大
+ * 内容也无法使内存越过上限增长。
  */
 async function cutPage(
   chunks: AsyncIterable<string>,
@@ -153,15 +149,15 @@ async function cutPage(
       position = newline + 1
     }
   }
-  // Only an in-page line can be pending here: earlier lines were never kept,
-  // and a character past the page returned above.
+  // 这里只可能有一行页内内容尚未收尾：更早的行从未保留，
+  // 且读到页之后的字符时已在上方返回。
   if (current.length > 0) complete()
   return { text: lines.join('\n'), lines: lines.length, eof: true }
 }
 
 /**
- * Workspace path of `target` relative to `root`, derived from the two canonical
- * `file:` URIs so the answer is `/`-joined on every platform. Empty for the root.
+ * `target` 相对 `root` 的 workspace 路径，由两个规范 `file:` URI 推导而来，
+ * 因此结果在所有平台上都以 `/` 连接。根本身为空串。
  */
 function workspacePathOf(rootUrl: string, targetUrl: string): string {
   const root = new URL(rootUrl).pathname.replace(/\/+$/, '')
@@ -170,7 +166,7 @@ function workspacePathOf(rootUrl: string, targetUrl: string): string {
   return target.slice(root.length + 1).split('/').map(decodeURIComponent).join('/')
 }
 
-/** Strip the resolved child target: the wire carries names and metadata only. */
+/** 去掉已解析的子项目标：wire 只承载名称与元数据。 */
 function directoryEntry(child: FsDirEntry): WorkspaceDirectoryEntry {
   return {
     name: child.name,
@@ -179,7 +175,7 @@ function directoryEntry(child: FsDirEntry): WorkspaceDirectoryEntry {
   }
 }
 
-/** Host Remote file reads and workspace directory observations over the composed filesystem. */
+/** 在组合文件系统上提供 Host Remote 文件读取与 workspace 目录观察。 */
 export class WorkspaceFiles extends TypertRemoteService {
   static inject = ['fs', 'sandboxPolicy', 'sessions', 'typert']
 
@@ -193,8 +189,8 @@ export class WorkspaceFiles extends TypertRemoteService {
   private readonly feed: WorkspaceChangeFeed
 
   /**
-   * @param ctx - Host context carrying the filesystem and the sandbox policy.
-   * @param config - deployment caps on one page or one listing.
+   * @param ctx - 携带文件系统与 sandbox 策略的 Host 上下文。
+   * @param config - 部署层面对单页或单次列表的上限。
    */
   constructor(ctx: Context, private readonly config: Config) {
     super(ctx, 'workspaceFiles')
@@ -223,12 +219,12 @@ export class WorkspaceFiles extends TypertRemoteService {
   }
 
   /**
-   * Read one page of lines from a UTF-8 file readable by the filesystem backend.
-   * @param workspaceFileScope - header-derived workspace root for the Session identity on the wire.
-   * @param path - absolute path or path relative to the workspace root; files outside it are allowed.
-   * @param range - the line window; omitted fields take the page defaults.
-   * @param signal - caller cancellation.
-   * @returns the page, the file's version at the stat before it, and whether it reaches the last line.
+   * 从文件系统后端可读的一个 UTF-8 文件中读取一页行。
+   * @param workspaceFileScope - 由头派生的 workspace 根，对应 wire 上的 Session 身份。
+   * @param path - 绝对路径或相对 workspace 根的路径；允许 workspace 之外的文件。
+   * @param range - 行窗口；省略的字段取页默认值。
+   * @param signal - 调用方取消。
+   * @returns 页、其前一次 stat 时的文件版本，以及是否到达最后一行。
    */
   @Remote
   async read(
@@ -247,12 +243,12 @@ export class WorkspaceFiles extends TypertRemoteService {
   }
 
   /**
-   * Read a complete regular file or one byte range without text decoding.
-   * @param workspaceFileScope - header-derived workspace root for the Session identity on the wire.
-   * @param path - target path, absolute or workspace-relative; relative to the base file's directory when provided.
-   * @param options - optional base file and range; without a range the complete-file cap applies.
-   * @param signal - caller cancellation.
-   * @returns native bytes with the file's version and size at the preceding stat, byte offset, and EOF marker.
+   * 不做文本解码地读取一个完整常规文件或一个字节范围。
+   * @param workspaceFileScope - 由头派生的 workspace 根，对应 wire 上的 Session 身份。
+   * @param path - 目标路径，绝对或 workspace 相对；提供基准文件时相对其所在目录。
+   * @param options - 可选的基准文件与范围；不带范围时适用完整文件上限。
+   * @param signal - 调用方取消。
+   * @returns 原生字节，附带前一次 stat 时的文件版本与大小、字节偏移，以及 EOF 标记。
    */
   @Remote
   async readBytes(
@@ -281,11 +277,11 @@ export class WorkspaceFiles extends TypertRemoteService {
   }
 
   /**
-   * Report one regular file's identity, version, and size without its content.
-   * @param workspaceFileScope - header-derived workspace root for the Session identity on the wire.
-   * @param path - absolute path or path relative to the workspace root; files outside it are allowed.
-   * @param signal - caller cancellation.
-   * @returns the file's absolute path, current version, and byte size.
+   * 报告一个常规文件的身份、版本与大小，不含其内容。
+   * @param workspaceFileScope - 由头派生的 workspace 根，对应 wire 上的 Session 身份。
+   * @param path - 绝对路径或相对 workspace 根的路径；允许 workspace 之外的文件。
+   * @param signal - 调用方取消。
+   * @returns 文件的绝对路径、当前版本与字节大小。
    */
   @Remote
   async stat(workspaceFileScope: WorkspaceFileScope, path: string, signal: AbortSignal): Promise<WorkspaceFileStat> {
@@ -294,18 +290,18 @@ export class WorkspaceFiles extends TypertRemoteService {
   }
 
   /**
-   * List the direct children of one directory inside the Session's workspace.
-   * @param workspaceFileScope - header-derived workspace root for the Session identity on the wire.
-   * @param path - workspace path, absolute or relative to the workspace root.
-   * @param signal - caller cancellation.
-   * @returns the directory's children in the backend's stable name order, bounded by the entry cap.
+   * 列出 Session workspace 内一个目录的直接子项。
+   * @param workspaceFileScope - 由头派生的 workspace 根，对应 wire 上的 Session 身份。
+   * @param path - workspace 路径，绝对或相对 workspace 根。
+   * @param signal - 调用方取消。
+   * @returns 目录子项，按后端稳定的名称顺序，受条目上限约束。
    */
   @Remote
   async list(workspaceFileScope: WorkspaceFileScope, path: string, signal: AbortSignal): Promise<WorkspaceDirectoryListing> {
     const { root, workspaceRoot, entry } = await this.inspect(workspaceFileScope, path, signal)
-    // A final link — a Windows junction or a symlink — is listed through the
-    // directory it resolves to, matching the child type `listDir` reports for
-    // that entry; `read` keeps its own no-follow gate on the final component.
+    // 末端链接——Windows junction 或符号链接——通过其解析到的目录列出，
+    // 与 `listDir` 为该条目报告的子项类型一致；`read` 对末端组件
+    // 保留自己的不跟随门禁。
     if (entry.type !== 'directory' && entry.type !== 'symlink') {
       throw new RemoteError(
         'workspace-file/not-directory',
@@ -329,13 +325,13 @@ export class WorkspaceFiles extends TypertRemoteService {
   }
 
   /**
-   * Watch one file or a directory's direct entries in the Session's filesystem.
-   * Files use the backend's read authority; directories remain workspace-scoped.
-   * @param workspaceFileScope - header-derived workspace root for the Session identity on the wire.
-   * @param path - target path; the Host determines its type and confines directories to the workspace.
-   * @param signal - generation cancellation.
-   * @returns `ready` once the target watch is active, then current metadata for queued and live invalidations.
-   * @throws RemoteError when watching is unavailable or a directory is outside the workspace.
+   * 在 Session 的文件系统中 watch 一个文件或一个目录的直接条目。
+   * 文件使用后端的读权限；目录保持 workspace 范围。
+   * @param workspaceFileScope - 由头派生的 workspace 根，对应 wire 上的 Session 身份。
+   * @param path - 目标路径；Host 判定其类型，并将目录限制在 workspace 内。
+   * @param signal - 生成取消。
+   * @returns 目标 watch 生效后先发 `ready`，随后对排队与实时的失效发送当前元数据。
+   * @throws 当 watch 不可用或目录在 workspace 之外时抛出 RemoteError。
    */
   @Remote({ mode: 'stream' })
   changes(workspaceFileScope: WorkspaceFileScope, path: string, signal: AbortSignal): AsyncIterable<WorkspaceFileWatchFrame> {
@@ -353,7 +349,7 @@ export class WorkspaceFiles extends TypertRemoteService {
     return paths.resolve(paths.dirname(absolute), relative)
   }
 
-  /** Apply the page defaults and caps here, so the request never carries them implicitly. */
+  /** 在此应用页默认值与上限，使请求绝不隐式携带它们。 */
   private resolvePage(range: WorkspaceFileRange): { offset: number; limit: number } {
     const offset = range.offset === undefined ? 1 : integerAtLeast(range.offset, 1, 'offset')
     const limit = range.limit === undefined ? this.config.maxLines : integerAtLeast(range.limit, 1, 'limit')
@@ -363,7 +359,7 @@ export class WorkspaceFiles extends TypertRemoteService {
     return { offset, limit }
   }
 
-  /** Apply the byte-window defaults and cap; a window above the cap is refused, not shortened. */
+  /** 应用字节窗口默认值与上限；超过上限的窗口被拒绝而非缩短。 */
   private resolveWindow(range: WorkspaceByteRange, path: string): { offset: number; length: number } {
     const offset = range.offset === undefined ? 0 : integerAtLeast(range.offset, 0, 'offset')
     const length = range.length === undefined ? this.config.maxBytes : integerAtLeast(range.length, 1, 'length')
@@ -380,8 +376,8 @@ export class WorkspaceFiles extends TypertRemoteService {
     return { offset, length }
   }
   /**
-   * Inspect the requested path itself before resolution follows its final
-   * component. Directory containment is checked separately by `list`.
+   * 在解析跟随最后组件之前先检查请求的路径本身。
+   * 目录围栏由 `list` 单独检查。
    */
   private async inspect(
     workspaceFileScope: WorkspaceFileScope,
@@ -391,7 +387,7 @@ export class WorkspaceFiles extends TypertRemoteService {
     if (path.length === 0) throw new RemoteError('gateway/bad-request', 'path is required', {})
     const { workspaceRoot } = workspaceFileScope
     const root = await this.ctx.fs.resolve(workspaceRoot, { signal })
-    // Gate on the path itself before anything follows it.
+    // 在任何解析跟随它之前，先对路径本身设门禁。
     const entry = await this.ctx.fs.lstat(path, { cwd: workspaceRoot }, signal)
     if (entry === undefined) {
       throw new RemoteError('workspace-file/not-found', `no entry at "${path}"`, { path })
@@ -399,7 +395,7 @@ export class WorkspaceFiles extends TypertRemoteService {
     return { root, workspaceRoot, entry }
   }
 
-  /** Resolve an inspected path and refuse it unless the workspace contains it. */
+  /** 解析已检查的路径，除非 workspace 包含它，否则拒绝。 */
   private async confine(root: FsTarget, workspaceRoot: string, path: string, signal: AbortSignal): Promise<FsTarget> {
     const target = await this.ctx.fs.resolve(path, { cwd: workspaceRoot, signal })
     if (!this.ctx.fs.contains(root, target)) {
@@ -409,9 +405,8 @@ export class WorkspaceFiles extends TypertRemoteService {
   }
 
   /**
-   * All gates for a regular file, ending in the one stat that names its version
-   * and size. The stat re-checks what `lstat` saw: the file may have gone or
-   * changed kind in between.
+   * 常规文件的全部门禁，以确定其版本与大小的一次 stat 收尾。
+   * 该 stat 会复核 `lstat` 所见：文件可能在此期间消失或改变了类型。
    */
   private async locateFile(
     workspaceFileScope: WorkspaceFileScope,
@@ -441,7 +436,7 @@ export class WorkspaceFiles extends TypertRemoteService {
     }
   }
 
-  /** Stream the file as text and cut the page, classifying the backend's non-text refusal. */
+  /** 将文件以文本流式读取并截页，对后端的非文本拒绝做分类。 */
   private async cutPage(target: FsTarget, offset: number, limit: number, signal: AbortSignal, path: string): Promise<Page> {
     try {
       return await cutPage(await this.ctx.fs.streamText(target, signal), offset, limit, this.config.maxBytes, path)
@@ -455,9 +450,8 @@ export class WorkspaceFiles extends TypertRemoteService {
 }
 
 /**
- * The backend's non-text refusal, recognized by its code alone: the error class
- * belongs to whichever `dsh-fs` instance the provider loaded, so no class
- * identity is shared across the package boundary.
+ * 后端的非文本拒绝，仅凭其 code 识别：错误类属于提供方加载的
+ * 某个 `dsh-fs` 实例，因此类标识不跨包共享。
  */
 function isNotTextRefusal(error: unknown): boolean {
   return typeof error === 'object' && error !== null && 'code' in error && error.code === 'FS_NOT_TEXT'

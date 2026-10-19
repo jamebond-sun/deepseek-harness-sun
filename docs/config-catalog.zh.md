@@ -18,18 +18,18 @@
 
 - `inject`: `agents` · `llm` · `sessionPersistence` · `sessions`
 - `refs`: `Stream` (`@agentclientprotocol/sdk`)
-- `source`: [`packages/acp/acp/src/index.ts:75`](../packages/acp/acp/src/index.ts)
+- `source`: [`packages/acp/acp/src/index.ts:74`](../packages/acp/acp/src/index.ts)
 
 ```ts config-catalog
-/** Plugin config: the provider/model selection used for each ACP-created agent. */
+/** 插件配置：每个由 ACP 创建的 agent 所使用的提供方/模型选择。 */
 export interface AcpConfig {
-  /** Provider route for created agents. */
+  /** 创建 agent 时使用的提供方路由。 */
   provider?: string
-  /** Model name for created agents. */
+  /** 创建 agent 时使用的模型名称。 */
   model?: string
-  /** Maximum summaries returned by one session/list page. */
+  /** 单次 session/list 分页返回的最大摘要数。 */
   sessionListPageSize?: number
-  /** Runtime-only transport override; production uses stdio. */
+  /** 仅运行期使用的传输覆盖；生产环境使用 stdio。 */
   stream?: Stream
 }
 ```
@@ -94,25 +94,25 @@ export interface Config {
 
 - `inject`: `agents` · `sessions` · `llm` · `tools` · `systemPrompt` · `sessionProjections`
 - `refs`: [`AgentOptions`](subsystems/core.zh.md) · [`SessionId`](subsystems/core.zh.md) · `Volatile` (`@deepseek-ai/cosmokit`)
-- `source`: [`packages/core/agent-loop/src/index.ts:303`](../packages/core/agent-loop/src/index.ts)
+- `source`: [`packages/core/agent-loop/src/index.ts:299`](../packages/core/agent-loop/src/index.ts)
 
 ```ts config-catalog
-/** Agent-loop plugin configuration. */
+/** agent-loop 插件配置。 */
 export interface Config {
   /**
-   * Maximum parallel-safe calls in flight per agent step. `1` is serial;
-   * omission defaults to {@link DEFAULT_MAX_PARALLEL_TOOL_CALLS}.
+   * 每个 agent 步骤中在途的最大并行安全调用数。`1` 表示串行；
+   * 省略时默认为 {@link DEFAULT_MAX_PARALLEL_TOOL_CALLS}。
    */
   maxParallelToolCalls: Volatile<number>
-  /** Agents created or resumed at plugin startup. */
+  /** 插件启动时创建或恢复的 agent。 */
   agents: (AgentOptions & {
-    /** Stable config label used in logs and as the fresh combined-id prefix. */
+    /** 用于日志的稳定配置标签，也是全新组合 id 的前缀。 */
     id: string
-    /** Optional stable identity; remounts resume its materialized history, while first use creates it fresh. */
+    /** 可选的稳定身份；重新挂载会恢复其已物化的历史，而首次使用则全新创建。 */
     sessionId?: SessionId
-    /** Optional workspace for a fresh session. */
+    /** 全新会话的可选工作区。 */
     cwd?: string
-    /** Persisted session to resume instead of creating a fresh session. */
+    /** 要恢复的持久化会话，而不是创建全新会话。 */
     resumeSessionId?: SessionId
   })[]
 }
@@ -3543,29 +3543,29 @@ export interface Config {
 
 ## `@deepseek-ai/dsh-system-prompt`
 
-- `source`: [`packages/core/system-prompt/src/index.ts:258`](../packages/core/system-prompt/src/index.ts)
+- `source`: [`packages/core/system-prompt/src/index.ts:254`](../packages/core/system-prompt/src/index.ts)
 
 ```ts config-catalog
-/** Plugin config: the deployment-authored fragment of the system prompt (see {@link Config.personaPrefix} for its contract). */
+/** 插件配置：系统提示词中部署编写的片段（契约见 {@link Config.personaPrefix}）。 */
 export interface Config {
-  /** Include the fixed DeepSeek Harness identity before the deployment persona (default true). */
+  /** 在部署人格之前包含固定的 DeepSeek Harness 身份（默认 true）。 */
   includeHarnessIdentity?: boolean
-  /** Include optional runtime-context snapshots in model history (default true); required context remains. */
+  /** 在模型历史中包含可选的运行时上下文快照（默认 true）；必需上下文仍保留。 */
   includeRuntimeContext?: boolean
   /**
-   * Deployment-wide persona prefix template before first-party guidance. A scoped section named
-   * `deployment:persona-prefix` shadows it; `{{variable}}` references are strict.
+   * 第一方指引之前的部署级人格前缀模板。名为 `deployment:persona-prefix`
+   * 的作用域分区会遮蔽它；`{{variable}}` 引用是严格的。
    */
   personaPrefix?: string
   /**
-   * Persona suffix template after first-party guidance. A scoped `deployment:persona-suffix`
-   * section shadows it; `{{variable}}` references are strict. Defaults to empty.
+   * 第一方指引之后的人格后缀模板。作用域内的 `deployment:persona-suffix`
+   * 分区会遮蔽它；`{{variable}}` 引用是严格的。默认为空。
    */
   personaSuffix?: string
   /**
-   * Model-facing tool names in order, with {@link TOOL_ORDER_REST} exactly once.
-   * Invalid fields fail at load and unknown names fail at assembly; known names
-   * hidden in one scope may be absent there. Omitted means lexicographic order.
+   * 面向模型的工具名称及其顺序，{@link TOOL_ORDER_REST} 恰好出现一次。
+   * 无效字段在加载时失败，未知名称在组装时失败；在某个作用域中被隐藏的
+   * 已知名称可以在那里缺席。省略表示字典序。
    */
   toolOrder?: string[]
 }

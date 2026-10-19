@@ -1,9 +1,8 @@
 import { notifySubscribers } from '@deepseek-ai/dsh-client-store'
 
 /**
- * Batches structural updates in microtasks and stream updates by animation
- * frame. Reads may rebuild a dirty snapshot without consuming the pending
- * subscriber notification.
+ * 在微任务中批量处理结构性更新，按动画帧批量处理流更新。
+ * 读取方可以在不消费待处理订阅者通知的情况下重建脏快照。
  */
 export class Notifier {
   private listeners = new Set<() => void>()
@@ -12,13 +11,13 @@ export class Notifier {
   private scheduled: 'none' | 'microtask' | 'frame' = 'none'
   private scheduleGeneration = 0
 
-  /** @param rebuild - snapshot rebuild function injected by the owner (writes the owner's snapshotCache). */
+  /** @param rebuild - 由持有者注入的快照重建函数（写入持有者的 snapshotCache）。 */
   constructor(private readonly rebuild: () => void) {}
 
   /**
-   * uSES subscription entry.
-   * @param listener - change callback.
-   * @returns the unsubscribe function.
+   * uSES 订阅入口。
+   * @param listener - 变更回调。
+   * @returns 取消订阅函数。
    */
   subscribe(listener: () => void): () => void {
     this.listeners.add(listener)
@@ -27,7 +26,7 @@ export class Notifier {
     }
   }
 
-  /** Mark the snapshot dirty and notify in a microtask. */
+  /** 把快照标记为脏，并在一个微任务中通知。 */
   markDirty(): void {
     this.dirty = true
     this.notifyPending = true
@@ -35,7 +34,7 @@ export class Notifier {
     this.schedule('microtask')
   }
 
-  /** Mark the snapshot dirty and publish cumulative state at most once per frame. */
+  /** 把快照标记为脏，并每帧至多发布一次累积状态。 */
   markFrameDirty(): void {
     this.dirty = true
     this.notifyPending = true
@@ -44,8 +43,8 @@ export class Notifier {
   }
 
   /**
-   * Synchronous flush: controlled-input writes must notify in the same tick as
-   * onChange, or React rolls the DOM back to the stale value and the caret jumps to the end.
+   * 同步刷新：受控输入的写入必须与 onChange 在同一个 tick 内通知，
+   * 否则 React 会把 DOM 回滚到旧值，光标跳到末尾。
    */
   notifyNow(): void {
     this.dirty = true
@@ -55,8 +54,8 @@ export class Notifier {
   }
 
   /**
-   * Pre-getSnapshot check: rebuild synchronously when dirty (read path
-   * before first subscribe / while unobserved). Notification stays pending.
+   * getSnapshot 前置检查：脏时同步重建（首次订阅前的读取路径
+   * / 无观察者期间）。通知保持待处理。
    */
   ensureFresh(): void {
     if (!this.dirty) return
@@ -86,7 +85,7 @@ export class Notifier {
 
   private flush(): void {
     if (!this.notifyPending) return
-    if (this.listeners.size === 0) return // lazy: dirty (if still set) rebuilds on next getSnapshot
+    if (this.listeners.size === 0) return // 惰性：脏（若仍置位）在下一次 getSnapshot 时重建
     this.notifyPending = false
     if (this.dirty) {
       this.dirty = false
