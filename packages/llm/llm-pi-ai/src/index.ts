@@ -125,7 +125,7 @@ function directoryEntries(
   settingsNs: string,
 ): LlmConfigurableProvider[] {
   const entries = new Map<string, LlmConfigurableProvider>()
-  const declare = (provider: string, displayName: string, error?: string): void => {
+  const addEntry = (provider: string, displayName: string, error?: string): void => {
     const installed = catalogProvider(provider)
     entries.set(provider, {
       provider,
@@ -140,8 +140,8 @@ function directoryEntries(
       ...error === undefined ? {} : { error },
     })
   }
-  for (const provider of catalogProviderIds()) declare(provider, provider)
-  for (const [provider, profile] of profiles) declare(provider, profile.displayName, profile.catalogError)
+  for (const provider of catalogProviderIds()) addEntry(provider, provider)
+  for (const [provider, profile] of profiles) addEntry(provider, profile.displayName, profile.catalogError)
   return [...entries.values()]
 }
 
