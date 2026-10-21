@@ -1,4 +1,4 @@
-/** Read-only `cordis_define` card with Host and Client source tabs. */
+/** 带 Host 与 Client 源码选项卡的只读 `cordis_define` 卡片。 */
 
 import { useId, useState } from 'react'
 import {
@@ -13,7 +13,7 @@ import type { CordisKey } from './locales.ts'
 import css from './CordisDefineRow.module.css'
 import { CordisPreparingRow } from './CordisPreparingRow.tsx'
 
-/** Full card props composed by the keyed Tool slot. */
+/** 由 keyed Tool 槽位组合而成的完整卡片 props。 */
 export type CordisDefineRowProps = ToolCallViewProps & InjectFace<CordisCardFace> & PropsLocale<'cordis'>
 
 type CardReading = CordisVisibleStatus | 'removed'
@@ -35,7 +35,7 @@ function stateStatus(state: CordisToolState): CordisKey | null {
   }
 }
 
-/** Render one immutable Package definition. */
+/** 渲染一个不可变的 Package 定义。 */
 export function CordisDefineRow(props: CordisDefineRowProps) {
   if (props.phase === 'preparing') return <CordisPreparingRow {...props}
     icon={<IconCodeOutlineRegular size={14} />} title={props.t('row.defineTitle')}

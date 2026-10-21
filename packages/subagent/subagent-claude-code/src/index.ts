@@ -1,7 +1,7 @@
 /**
- * Profile-named Claude Code one-shot subagent provider. Every accepted run
- * invokes the official Agent SDK in the delegating Session's workspace and
- * places the SDK-spawned real CLI under the shared subprocess owner.
+ * 以 profile 命名的 Claude Code 一次性子代理提供方。每次被接受的运行都在
+ * 委托方 Session 的工作区中调用官方 Agent SDK，并把由 SDK spawn 出的真实
+ * CLI 置于共享的 subprocess 属主之下。
  *
  * @module @deepseek-ai/dsh-subagent-claude-code
  */
@@ -32,27 +32,25 @@ export const inject = ['subagents', 'subprocess']
 
 const DEFAULT_PROVIDER_NAME = 'claude-code'
 
-/* jscpd:ignore-start -- sibling product providers intentionally expose
- * overlapping deployment-owned fields without adding a shared config owner. */
-/** Deployment-owned model, permission, environment, and process-release settings. */
+/* jscpd:ignore-start -- 兄弟产品提供方有意暴露重叠的、由部署拥有的字段，
+ * 而不引入一个共享的配置属主。 */
+/** 由部署拥有的模型、权限、环境与进程释放设置。 */
 export interface Config {
-  /** Provider name on `ctx.subagents` (default `claude-code`). */
+  /** `ctx.subagents` 上的提供方名称（默认 `claude-code`）。 */
   providerName?: string
-  /** Native Claude model fixed for this instance; omitted to inherit Claude settings. */
+  /** 为本实例固定的原生 Claude 模型；省略则继承 Claude 设置。 */
   model?: string
   /**
-   * Explicit environment entries layered over the subprocess seam's
-   * credential-scrubbed parent environment.
+   * 叠加在 subprocess 接缝已做凭据清洗的父环境之上的显式环境条目。
    */
   env?: Record<string, string>
   /**
-   * Native non-interactive mode fixed for this Provider instance. Defaults to
-   * `dontAsk`; `acceptEdits` accepts edits, `auto` uses the native classifier,
-   * `plan` returns a plan without approving execution, and
-   * `bypassPermissions` explicitly skips permission checks.
+   * 为本 Provider 实例固定的原生非交互模式。默认为 `dontAsk`；
+   * `acceptEdits` 接受编辑，`auto` 使用原生分类器，`plan` 返回计划而不批准
+   * 执行，`bypassPermissions` 显式跳过权限检查。
    */
   permissionMode?: ClaudeCodePermissionMode
-  /** Grace in milliseconds between Claude Code managed-range termination tiers. */
+  /** Claude Code 受管范围终止各层之间的宽限（毫秒）。 */
   disposeGraceMs?: number
 }
 
@@ -68,8 +66,8 @@ export const Config: z<Config> = z.object({
 type ResolvedConfig = Omit<Required<Config>, 'model'> & Pick<Config, 'model'>
 /* jscpd:ignore-end */
 
-/* jscpd:ignore-start -- Cordis registration and shared-seam plumbing mirror
- * the Codex sibling; each product's lifecycle remains package-private. */
+/* jscpd:ignore-start -- Cordis 注册与共享接缝管线镜像 Codex 兄弟包；
+ * 每个产品的生命周期仍保持包内私有。 */
 class ClaudeCodeProvider implements SubagentProvider {
   readonly capabilities: SubagentCapabilities = NO_START_CAPABILITIES
   readonly inheritsParentContext = false
@@ -116,9 +114,9 @@ class ClaudeCodeProvider implements SubagentProvider {
 }
 
 /**
- * Register one Profile-named Claude Code provider.
- * @param ctx - context carrying shared subagent and subprocess services.
- * @param config - registry name, optional model, permission mode, child environment, and disposal grace.
+ * 注册一个以 profile 命名的 Claude Code 提供方。
+ * @param ctx - 承载共享子代理与 subprocess 服务的上下文。
+ * @param config - 注册表名称、可选模型、权限模式、子环境与处置宽限。
  */
 export function apply(ctx: Context, config: Config): void {
   const resolved: ResolvedConfig = {

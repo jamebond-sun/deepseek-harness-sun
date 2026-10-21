@@ -1,10 +1,10 @@
-/** Argument-free Cordis tool prefix shared by its three card families. */
+/** 由三个卡片族共享的、无参数的 Cordis 工具前缀。 */
 import type { ReactNode } from 'react'
 import { DisclosureRow } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ToolCallViewProps } from '@deepseek-ai/dsh-client-ui-tool/client'
 
-/* v8 ignore next -- Non-expandable rows never invoke DisclosureRow's required toggle callback. */
+/* v8 ignore next -- 不可展开的各行永不调用 DisclosureRow 所需的 toggle 回调。 */
 const noop = (): void => undefined
 
 type CordisPreparingRowProps = Pick<ToolCallViewProps, 'toolName'> & PropsLocale<'cordis'> & {
@@ -16,9 +16,9 @@ type CordisPreparingRowProps = Pick<ToolCallViewProps, 'toolName'> & PropsLocale
 }
 
 /**
- * Render a Cordis-owned prefix without disclosure.
- * @param props - Cordis prefix, styling, and locale.
- * @returns the preparation row.
+ * 渲染一个不带展开的、Cordis 自有的前缀。
+ * @param props - Cordis 前缀、样式与本地化。
+ * @returns 准备行。
  */
 export function CordisPreparingRow({
   toolName, t, icon, title, className, rowClassName, titleClassName,

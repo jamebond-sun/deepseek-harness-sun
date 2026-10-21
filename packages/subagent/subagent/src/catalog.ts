@@ -1,5 +1,5 @@
 /**
- * Parent-owned durable subagent catalog events and their chunked projection.
+ * 父代理自有的持久化子代理目录事件及其分块投影。
  *
  * @module @deepseek-ai/dsh-subagent/catalog
  */
@@ -17,14 +17,14 @@ import type {
 import type { ProjectionDefinition } from '@deepseek-ai/dsh-session-projection'
 import type { SubagentCatalogEntry } from './projection-types.ts'
 
-/** Catalog payload version emitted by local child creation. */
+/** 本地子代理创建时发出的目录载荷版本。 */
 export const SUBAGENT_CATALOG_VERSION = 0
 
 type KnownCatalogMode =
   | { readonly mode: 'one-shot'; readonly label?: string }
   | { readonly mode: 'continuable'; readonly label: string }
 
-/** Parent catalog v0 records local modes, v1 adds unknown children, and v2 records external executions. */
+/** 父目录 v0 记录本地模式，v1 增加未知子代理，v2 记录外部执行。 */
 export type SubagentCatalogEvent =
   & {
     readonly childId: SessionId
@@ -38,14 +38,14 @@ export type SubagentCatalogEvent =
 declare module '@deepseek-ai/dsh-session/types' {
   interface SessionEventMap {
     /**
-     * A direct child's identity and available discovery fields.
-     * @param data - versioned parent-owned catalog entry.
+     * 直接子代理的身份与可用的发现字段。
+     * @param data - 带版本的父代理自有目录条目。
      */
     'subagent/catalog': SubagentCatalogEvent
   }
 }
 
-/** Host fold state for one parent catalog. */
+/** 单个父目录的宿主折叠状态。 */
 export interface SubagentCatalogState {
   readonly inheritedEventCount: SessionLogOffset
   readonly head?: ChunkedList<SubagentCatalogEvent> | undefined
@@ -104,9 +104,9 @@ declare module '@deepseek-ai/dsh-session-projection/types' {
 }
 
 /**
- * Materialize complete and unknown-mode child identities from parent catalog events.
- * @param state - parent catalog fold state.
- * @returns current direct-child rows in parent catalog event order.
+ * 从父目录事件中具现完整与 unknown 模式的子代理身份。
+ * @param state - 父目录折叠状态。
+ * @returns 按父目录事件顺序排列的当前直接子代理行。
  */
 function subagentCatalogEntries(state: SubagentCatalogState): SubagentCatalogEntry[] {
   const entries: SubagentCatalogEntry[] = []
@@ -117,7 +117,7 @@ function subagentCatalogEntries(state: SubagentCatalogState): SubagentCatalogEnt
   return entries
 }
 
-/** Parent-owned direct-child catalog projection; invalid own facts reject restoration. */
+/** 父代理自有的直接子代理目录投影；自身事实无效则拒绝恢复。 */
 export const subagentCatalogProjectionDefinition = {
   key: 'subagentCatalog',
   stateSchema,
@@ -131,10 +131,10 @@ export const subagentCatalogProjectionDefinition = {
 } satisfies ProjectionDefinition<'subagentCatalog', SubagentCatalogState>
 
 /**
- * Append a complete direct-child discovery fact to its parent Session.
- * @param parent - durable direct parent receiving the discovery fact.
- * @param child - established child's immutable Session metadata.
- * @param descriptor - mode-discriminated creation label frozen with the child.
+ * 向父 Session 追加一条完整的直接子代理发现事实。
+ * @param parent - 接收该发现事实的持久化直接父代理。
+ * @param child - 已建立子代理的不可变 Session 元数据。
+ * @param descriptor - 随子代理一起冻结的、由模式区分的创建标签。
  */
 export function establishCatalogChild(
   parent: Session,
@@ -150,14 +150,14 @@ export function establishCatalogChild(
   })
 }
 
-/** Catalog payload version emitted by external execution creation. */
+/** 外部执行创建时发出的目录载荷版本。 */
 const EXTERNAL_SUBAGENT_CATALOG_VERSION = 2
 
 /**
- * Record an external execution without a local child Session.
- * @param parent - durable direct parent receiving the discovery fact.
- * @param childId - identity returned by the external provider.
- * @param label - display label assigned by the caller.
+ * 记录一个没有本地子 Session 的外部执行。
+ * @param parent - 接收该发现事实的持久化直接父代理。
+ * @param childId - 外部提供方返回的身份。
+ * @param label - 调用方指定的展示标签。
  */
 export function establishExternalCatalogChild(parent: Session, childId: SessionId, label: string): void {
   parent.append('subagent/catalog', {

@@ -1,7 +1,6 @@
 /**
- * Transport factory: creates the appropriate MCP transport based on the
- * plugin's resolved config. Stdio spawns a child process (with credential
- * scrubbing); Streamable HTTP connects to a URL.
+ * 传输工厂：根据插件已解析的配置创建对应的 MCP 传输。stdio 会派生子进程
+ * （并对凭据做清洗）；Streamable HTTP 则连接到 URL。
  *
  * @module
  */
@@ -13,20 +12,19 @@ import { scrubbedParentEnv } from '@deepseek-ai/dsh-subprocess'
 import type { Config } from './index.ts'
 
 /**
- * The subprocess seam's scrubbed parent env (credential-shaped and stale
- * `DSH_*` names dropped), plus the spec's explicit env. The MCP SDK owns the
- * actual spawn, so this transport shares the scrub definition rather than the
- * spawn path.
+ * 子进程接缝提供的、已清洗过的父进程环境（丢弃凭据形状的名称与过期的
+ * `DSH_*` 名称），再叠加配置显式指定的 env。实际的派生由 MCP SDK 负责，
+ * 因此本传输复用的是清洗定义，而不是派生路径。
  */
 function buildChildEnv(extra: Record<string, string>): Record<string, string> {
   return { ...scrubbedParentEnv(), ...extra }
 }
 
 /**
- * Create an MCP transport from the resolved plugin config.
+ * 根据已解析的插件配置创建 MCP 传输。
  *
- * @param config - Resolved plugin config discriminated on `transport`.
- * @returns A connected-ready MCP Transport (stdio or Streamable HTTP).
+ * @param config - 以 `transport` 作为判别式的已解析插件配置。
+ * @returns 已准备好连接的 MCP Transport（stdio 或 Streamable HTTP）。
  */
 export function createTransport(config: Config): Transport {
   switch (config.transport) {

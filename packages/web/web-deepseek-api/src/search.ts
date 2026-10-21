@@ -1,6 +1,5 @@
 /**
- * DeepSeek Search API provider: one direct request per search, without an
- * auxiliary model request.
+ * DeepSeek 搜索 API 提供方：每次搜索一次直接请求，无需辅助模型请求。
  * @module @deepseek-ai/dsh-web-deepseek-api/search
  */
 import type { WebSearchProvider, WebSearchRequest, WebSearchResult } from '@deepseek-ai/dsh-web'
@@ -9,38 +8,38 @@ import {
   type DeepSeekWebAuth, type DeepSeekWebGuidance,
 } from './transport.ts'
 
-/** Stable id the Search API provider registers under in the search registry. */
+/** 搜索 API 提供方在搜索注册表中注册的固定 id。 */
 export const DEEPSEEK_SEARCH_API_PROVIDER_ID = 'deepseek-search-api'
 
-/** Default Search and Fetch API base, including its `/v1/tools` prefix; `/search` and `/fetch` are appended. */
+/** 搜索与抓取 API 的默认基址，含其 `/v1/tools` 前缀；会追加 `/search` 和 `/fetch`。 */
 export const DEEPSEEK_WEB_API_BASE_URL = 'https://api.deepseek.com/v1/tools'
 
-/** Default Search API result count, the service's own default. */
+/** 搜索 API 的默认结果数，即服务自身的默认值。 */
 export const DEEPSEEK_DEFAULT_COUNT = 10
 
-/** Longest `ori_question` the Search API accepts, in characters. */
+/** 搜索 API 接受的 `ori_question` 最大长度（字符）。 */
 const ORIGINAL_QUESTION_MAX_CHARS = 128
 
-/** Settings named by endpoint failures of either API in this package. */
+/** 本包中任一 API 端点失败时所命名的设置。 */
 export const DEEPSEEK_WEB_API_GUIDANCE: Omit<DeepSeekWebGuidance, 'subject'> = {
   plugin: 'web-deepseek-api', field: 'baseURL', label: 'Search / Fetch API base URL', page: 'Web search',
 }
 
-/** Authentication, endpoint, and result settings snapshotted for one search. */
+/** 为一次搜索快照化的认证、端点和结果设置。 */
 export interface DeepSeekSearchApiOptions extends DeepSeekWebAuth {
-  /** API base including its path prefix; `/search` is appended. */
+  /** API 基址，含路径前缀；会追加 `/search`。 */
   baseURL: string
-  /** Results requested per search, from 1 through 50; a smaller request bound wins. */
+  /** 每次搜索请求的结果数，从 1 到 50；较小的请求上限胜出。 */
   count: number
-  /** Read the user question that triggered the search; undefined or blank sends none. */
+  /** 读取触发搜索的用户问题；undefined 或空则不发送。 */
   originalQuestion?: () => string | undefined
 }
 
 /**
- * Validate a Search API response and project its sources into the web service.
- * @param response - untrusted JSON from the Search endpoint.
- * @returns sources with provider order and nullable publication dates preserved.
- * @throws {@link WebError} when the response does not contain valid search results.
+ * 校验搜索 API 响应并将其来源投影到 web 服务中。
+ * @param response - 来自搜索端点的不可信 JSON。
+ * @returns 保留提供方顺序以及可空发布日期的来源。
+ * @throws 当响应不包含合法搜索结果时抛出 {@link WebError}。
  */
 export function mapSearchResponse(response: unknown): WebSearchResult {
   if (!isRecord(response) || !Array.isArray(response.results)) throw invalidResponse()
@@ -59,15 +58,15 @@ export function mapSearchResponse(response: unknown): WebSearchResult {
 }
 
 /**
- * Search through the DeepSeek Search API. HTTP redirects fail as `WEB_PROVIDER_ERROR`;
- * failures after dispatch name the endpoint and tell the model how the user can configure it.
+ * 通过 DeepSeek 搜索 API 搜索。HTTP 重定向作为 `WEB_PROVIDER_ERROR` 失败；
+ * 分发之后的失败会指出端点，并告诉模型用户如何配置它。
  */
 export class DeepSeekSearchApiProvider implements WebSearchProvider {
   readonly id = DEEPSEEK_SEARCH_API_PROVIDER_ID
 
   /**
-   * @param resolveOptions - the options for the NEXT search, read once at each
-   * search's entry so one search never mixes two settings sections.
+   * @param resolveOptions - 供下一次搜索使用的选项，在每次搜索入口处读取一次，
+   *   因此一次搜索绝不会混用两个设置节。
    */
   constructor(private readonly resolveOptions: () => DeepSeekSearchApiOptions) {}
 
@@ -94,10 +93,9 @@ export class DeepSeekSearchApiProvider implements WebSearchProvider {
 }
 
 /**
- * Bound the triggering question to what `ori_question` accepts: whitespace
- * collapses to single spaces and the first 128 characters remain.
- * @param question - the user question, when one exists.
- * @returns the bounded question, or undefined when nothing remains.
+ * 将触发的问题限制为 `ori_question` 所接受的范围：空白折叠为单个空格，并保留前 128 个字符。
+ * @param question - 用户问题，当存在时。
+ * @returns 受限后的问题，或无剩余内容时为 undefined。
  */
 function boundedQuestion(question: string | undefined): string | undefined {
   const collapsed = question?.replace(/\s+/gu, ' ').trim() ?? ''
@@ -105,7 +103,7 @@ function boundedQuestion(question: string | undefined): string | undefined {
   return Array.from(collapsed).slice(0, ORIGINAL_QUESTION_MAX_CHARS).join('')
 }
 
-/** True for positive integral request limits. */
+/** 对于正整数的请求上限返回 true。 */
 function isPositiveInteger(value: number): boolean {
   return Number.isInteger(value) && value > 0
 }

@@ -1,7 +1,7 @@
-/** Pure first-party message interpreters for detached current-format replay, including browser readers. */
+/** 用于已分离的当前格式回放（含浏览器读取器）的纯一方消息解释器。 */
 
 import { imageOffloadProjection } from '@deepseek-ai/dsh-compaction-image-offload/projection'
 import type { SessionMessageProjection } from '@deepseek-ai/dsh-session/surface'
 
-/** Installed interpretation definitions; recovery listeners are mounted separately by their owning plugins. */
+/** 已安装的解释定义；恢复监听器由其所属插件单独挂载。 */
 export const currentSessionMessageProjections: readonly SessionMessageProjection[] = [imageOffloadProjection]

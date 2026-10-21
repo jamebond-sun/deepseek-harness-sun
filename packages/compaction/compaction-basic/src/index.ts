@@ -1,5 +1,5 @@
 /**
- * Basic replay-aware compaction backend.
+ * 基础的重放感知压缩后端。
  *
  * @module @deepseek-ai/dsh-compaction-basic
  */
@@ -14,7 +14,7 @@ import type { LlmCallConfig } from '@deepseek-ai/dsh-llm'
 import { assertNever } from '@deepseek-ai/dsh-util-values'
 import type { Agent, PreStepDecision } from '@deepseek-ai/dsh-agent'
 import type { CommandId } from '@deepseek-ai/dsh-commands/brand'
-// Type-only: makes the optional sibling service available to `ctx.get()`.
+// 仅类型：使可选的兄弟服务对 `ctx.get()` 可见。
 import type {} from '@deepseek-ai/dsh-compaction-tool-result-pruner'
 import {
   resolveCompactSpec,
@@ -45,7 +45,7 @@ export type {
   ResolvedTargetPolicy,
 } from './types.ts'
 
-/** Resolve the exact provider/model durably routed for the latest request. */
+/** 解析最新请求所持久化路由的精确 provider/model。 */
 function routedTarget(
   session: Session,
 ): Pick<LlmCallConfig, 'provider' | 'model'> | undefined {
@@ -57,17 +57,16 @@ function routedTarget(
 }
 
 /**
- * Output tokens the routed request reserves, which the provider charges to the
- * same window as the prompt. The effective envelope's own cap wins; otherwise
- * the adapter's per-request default, which the adapter materializes when that
- * envelope omits one. No declared cap means no reservation.
+ * 路由请求所预留的输出 token 数，由提供方计入与提示词相同的窗口。
+ * 有效信封自身的上限优先；否则使用适配器按请求的默认值，
+ * 该值在信封省略上限时由适配器实例化。未声明上限即表示无预留。
  */
 function reservedCompletionTokens(agent: Agent, defaultMaxTokens: number | undefined): number {
   const configured = agent.session.requestHeader()?.config.maxTokens
   return configured ?? defaultMaxTokens ?? 0
 }
 
-/** Resolve the conversation target used to select an optional policy override. */
+/** 解析用于选择可选策略覆盖的对话目标。 */
 function conversationTarget(
   agent: Agent,
 ): Pick<LlmCallConfig, 'provider' | 'model'> | undefined {
@@ -103,12 +102,11 @@ const modelPolicy: z<ModelCompactPolicyConfig> = z.object({
 })
 
 /**
- * Dependency-light compaction backend using `ctx.tokenMeter` for pressure,
- * retention, cited source events, and summary-convergence pricing.
+ * 依赖较轻的压缩后端，使用 `ctx.tokenMeter` 进行压力、
+ * 保留、引用来源事件以及摘要收敛计价。
  *
- * `summarize()` is the sole subclass customization hook; the replay and durable
- * mutation strategy stays fixed so every pricing decision uses the singleton
- * token meter.
+ * `summarize()` 是唯一的子类定制钩子；重放与持久化变更策略保持固定，
+ * 使每个计价决策都使用单例 token 计量器。
  */
 export class BasicCompactionEngine extends CompactionEngine {
   static inject = ['llm', 'tokenMeter', 'sessions']
@@ -127,7 +125,7 @@ export class BasicCompactionEngine extends CompactionEngine {
     auto: z.boolean(),
   })
 
-  /** Resolved and validated compaction configuration. */
+  /** 已解析并校验的压缩配置。 */
   readonly config: ResolvedConfig
 
   private readonly warnedPressureConfigTargets = new Set<string>()
@@ -141,9 +139,8 @@ export class BasicCompactionEngine extends CompactionEngine {
   }
 
   /**
-   * Register automatic between-step pressure and model-request overflow
-   * recovery. `compactIfNeeded` stays dynamically dispatched so subclass
-   * overrides are honored at event time.
+   * 注册自动的步间压力与模型请求溢出恢复。
+   * `compactIfNeeded` 保持动态分发，以便子类的覆盖在事件时刻被尊重。
    */
   private _registerAutomaticCompaction(): void {
     const { ctx } = this
@@ -205,9 +202,9 @@ export class BasicCompactionEngine extends CompactionEngine {
         result = await this.compactIfNeeded(agent, 'context-overflow', signal)
       } catch (recoveryError: unknown) {
         const message = recoveryError instanceof Error ? recoveryError.message : String(recoveryError)
-        // A model-free prune can land before later summary work fails. That
-        // durable reduction is sufficient retry proof; do not discard it just
-        // because the optional second phase threw. Cancellation still wins.
+        // 一次无模型的修剪可能在后续摘要工作失败之前就落地。该持久化缩减
+        // 已构成足够的重试证明；不要仅仅因为可选的第二个阶段抛错就丢弃它。
+        // 取消仍优先。
         // oxlint-disable-next-line typescript/no-unnecessary-condition -- the signal can abort while recovery is awaited.
         if (!signal.aborted && agent.session.surface.replaceGeneration > generation) {
           ctx.logger.warn(
@@ -235,14 +232,13 @@ export class BasicCompactionEngine extends CompactionEngine {
   }
 
   /**
-   * Summarize the replayed conversation region through a direct one-shot
-   * `ctx.llm.stream()` call whose prefix reuses the conversation's own system
-   * prompt, tools, and messages so the provider's KV cache is not invalidated.
-   * Override this sole hook for a template or remote summarizer.
-   * @param input - replayed conversation prefix (system, tools, and leading messages) to condense.
-   * @param agent - supplies routed-model history, fallback model, and session id.
-   * @param signal - optional cancellation forwarded to the adapter.
-   * @returns safe text summary blocks and the exact auxiliary call envelope and output.
+   * 通过一次直接的一锤子 `ctx.llm.stream()` 调用对重放的对话区域进行摘要，
+   * 其前缀复用了对话自身的系统提示、工具与消息，从而不至于使提供方的
+   * KV 缓存失效。如需模板或远程摘要器，请覆盖这一个钩子。
+   * @param input - 待压缩的重放对话前缀（系统提示、工具与前导消息）。
+   * @param agent - 提供路由模型历史、回退模型与会话 id。
+   * @param signal - 转发给适配器的可选取消信号。
+   * @returns 安全的文本摘要块，以及精确的辅助调用信封与输出。
    */
   protected async summarize(
     input: SummarizationInput,
@@ -257,14 +253,13 @@ export class BasicCompactionEngine extends CompactionEngine {
   }
 
   /**
-   * Compact for replayed step-boundary pressure or one provider-confirmed context
-   * overflow. Both triggers price the latest durable routed request envelope;
-   * overflow bypasses the normal threshold and retained-tail policy so it can
-   * force one useful balanced reduction.
-   * @param agent - agent whose latest durable routed request is measured.
-   * @param trigger - normal step-boundary pressure or context-overflow recovery.
-   * @param signal - live turn cancellation signal forwarded to summarization.
-   * @returns the latest summary compaction result, or `null` when no summary ran.
+   * 针对重放的步边界压力，或一次经提供方确认的上下文溢出进行压缩。
+   * 两种触发条件都对最新持久化路由请求信封计价；溢出会绕过常规阈值与
+   * 保留尾部策略，从而能够强制进行一次有用的平衡缩减。
+   * @param agent - 其最新持久化路由请求被计量的代理。
+   * @param trigger - 常规步边界压力或上下文溢出恢复。
+   * @param signal - 转发给摘要环节的活动轮次取消信号。
+   * @returns 最新摘要压缩结果，若没有运行摘要则为 `null`。
    */
   override async compactIfNeeded(
     agent: Agent,
@@ -286,9 +281,8 @@ export class BasicCompactionEngine extends CompactionEngine {
         assertNever(trigger, 'compaction trigger')
     }
 
-    // Pruning is optional so compaction-basic remains independently composable.
-    // Overflow always qualifies; pressure first resolves the routed model's
-    // capacity and checks its target-specific threshold.
+    // 修剪是可选的，以便 compaction-basic 保持可独立组合。
+    // 溢出始终符合条件；压力则先解析路由模型的容量并检查其目标特定的阈值。
     const prune = this.ctx.get('toolResultPruner')
 
     if (trigger === 'context-overflow') {
@@ -318,8 +312,8 @@ export class BasicCompactionEngine extends CompactionEngine {
     )
     if (measurement.totalTokens < spec.thresholdTokens) return null
 
-    // Once pressure qualifies, land the model-free pass before choosing a
-    // summary range, then remeasure through the singleton replay fold.
+    // 一旦压力符合条件，先落地无模型的那一遍，再选择摘要区间，
+    // 然后通过单例重放折叠重新计量。
     if (prune !== undefined) {
       prune.pruneSession(agent.session)
       measurement = meter.measure(agent.session)
@@ -347,13 +341,13 @@ export class BasicCompactionEngine extends CompactionEngine {
   }
 
   /**
-   * Compact one inclusive positional range from the agent-owned surface using
-   * the effective token meter for all retention and shrink pricing.
-   * @param start - inclusive first surface-node seq.
-   * @param end - inclusive last surface-node seq.
-   * @param agent - owner of the target session, used by the summarizer.
-   * @param signal - optional summarization cancellation signal.
-   * @returns the successful durable compaction result.
+   * 使用有效 token 计量器进行所有保留与缩减计价，压缩代理所拥有表层上的
+   * 一个包含性位置区间。
+   * @param start - 包含的首个表层节点 seq。
+   * @param end - 包含的末个表层节点 seq。
+   * @param agent - 目标会话的拥有者，供摘要器使用。
+   * @param signal - 可选的摘要取消信号。
+   * @returns 成功的持久化压缩结果。
    */
   override async compactRegion(
     start: SessionSeq,
@@ -373,12 +367,12 @@ export class BasicCompactionEngine extends CompactionEngine {
   }
 
   /**
-   * Force one useful idle-session compaction below the pressure threshold, and
-   * resolve only after its standalone marker pair is durably checkpointed.
-   * @param agent - idle agent whose next-turn admission this call reserves.
-   * @param signal - cancellation scoped to this compaction request.
-   * @param sourceCommandId - initiating command identity for presentation correlation.
-   * @returns the committed result, or `null` when no safe useful range exists.
+   * 强制进行一次低于压力阈值的、有用的空闲会话压缩，并仅在其独立的标记对
+   * 已被持久化检查点记录后才完成解析。
+   * @param agent - 其下一轮次准入由本次调用预留的空闲代理。
+   * @param signal - 限定于本次压缩请求的取消信号。
+   * @param sourceCommandId - 用于展示关联的发起命令标识。
+   * @returns 已提交的结果，当不存在安全的可用区间时为 `null`。
    */
   override compactNow(
     agent: Agent,
@@ -434,7 +428,7 @@ export class BasicCompactionEngine extends CompactionEngine {
     }
   }
 
-  /** Bind the effective token meter and dynamically dispatched summarizer hook. */
+  /** 绑定有效 token 计量器与动态分发的摘要钩子。 */
   private regionDependencies(): Parameters<typeof compactSurfaceRegion>[0] {
     return {
       meter: this.ctx.tokenMeter,

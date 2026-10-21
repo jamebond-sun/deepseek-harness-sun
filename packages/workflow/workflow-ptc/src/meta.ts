@@ -1,15 +1,14 @@
 /**
- * Meta validation checks caller-provided DATA against the {@link WorkflowMeta}
- * contract and rejects every violation by name. Meta arrives as schema-checked
- * JSON data, never evaluated script text. Model-written JavaScript executes
- * inside the confined PTC process.
+ * meta 校验会针对 {@link WorkflowMeta} 契约检查调用方提供的数据，并按名称
+ * 拒绝每一项违规。meta 以经 schema 检查的 JSON 数据到达，绝不会是被求值的
+ * 脚本文本。模型编写的 JavaScript 在受限的 PTC 进程内执行。
  * @module @deepseek-ai/dsh-workflow-ptc/meta
  */
 
 import { WorkflowError } from '@deepseek-ai/dsh-workflow'
 import type { WorkflowMeta, WorkflowPhase } from '@deepseek-ai/dsh-workflow'
 
-/** Collect shape violations for a meta value (plain JSON data by the seam contract). */
+/** 为一个 meta 值收集形状违规（按 seam 契约为纯 JSON 数据）。 */
 function validateMetaShape(meta: unknown): { meta?: WorkflowMeta; violations: string[] } {
   const violations: string[] = []
   if (typeof meta !== 'object' || meta === null || Array.isArray(meta)) {
@@ -65,13 +64,12 @@ function validateMetaShape(meta: unknown): { meta?: WorkflowMeta; violations: st
 }
 
 /**
- * Validate a caller-provided meta value against the {@link WorkflowMeta}
- * contract. Throws `META_INVALID` naming every violation (unknown fields,
- * missing/mistyped `name`/`description`, malformed `phases`); the returned
- * meta is a NORMALIZED copy built from the validated fields, so the engine
- * never aliases the caller's object.
- * @param value - the meta data from the start request (plain JSON by the seam contract).
- * @returns the validated, normalized meta block.
+ * 针对 {@link WorkflowMeta} 契约校验调用方提供的 meta 值。抛出 `META_INVALID`，
+ * 并逐一列出每一项违规（未知字段、缺失/类型错误的 `name`/`description`、
+ * 畸形的 `phases`）；返回值是基于已校验字段构建的 NORMALIZED 副本，因此
+ * 引擎绝不会别名调用方的对象。
+ * @param value - 来自 start 请求的 meta 数据（按 seam 契约为纯 JSON）。
+ * @returns 已校验、已规范化的 meta 块。
  */
 export function validateMeta(value: unknown): WorkflowMeta {
   const { meta, violations } = validateMetaShape(value)

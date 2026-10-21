@@ -1,34 +1,33 @@
 /**
- * Display resolution for roster presets, shared by every surface that renders
- * preset names: shipped presets resolve through locale dictionary keys, and
- * user-authored metadata is never translated. A pure fold with no imports, so
- * browser bundles inline it and the Host uses the same single home for which
- * shipped id carries which copy key.
+ * 名册预设的展示文案解析，供所有渲染预设名称的界面共用：
+ * 内置预设通过多语言字典的键解析，用户编写的元数据一律不翻译。
+ * 这是一个无导入的纯折叠，因此浏览器打包可以直接内联，
+ * Host 也用这唯一一处来维护「哪个内置 id 对应哪个文案键」。
  * @module @deepseek-ai/dsh-agent-preset-registry/display
  */
 
-/** Dictionary keys carrying one shipped preset's display copy. */
+/** 承载某个内置预设展示文案的字典键。 */
 export type BuiltInPresetCopyKey =
   | 'presetStandardName' | 'presetStandardDescription'
   | 'presetPtcName' | 'presetPtcDescription'
   | 'presetMinimalName' | 'presetMinimalDescription'
   | 'presetCordisName' | 'presetCordisDescription'
 
-/** Preset roster fields needed to resolve display copy. */
+/** 解析展示文案所需的预设名册字段。 */
 export interface PresetDisplaySource {
-  /** Stable preset id. */
+  /** 稳定的预设 id。 */
   readonly id: string
-  /** Unlocalized name published by the preset. */
+  /** 预设发布的、未本地化的名称。 */
   readonly name?: string
-  /** Unlocalized description published by the preset. */
+  /** 预设发布的、未本地化的描述。 */
   readonly description?: string
 }
 
-/** Display copy resolved for the active locale. */
+/** 针对当前语言解析出的展示文案。 */
 export interface PresetDisplayText {
-  /** Localized built-in name or the preset's own fallback name. */
+  /** 本地化后的内置名称，或预设自身的回退名称。 */
   readonly name: string
-  /** Localized built-in description or the preset's own description. */
+  /** 本地化后的内置描述，或预设自身的描述。 */
   readonly description?: string
 }
 
@@ -45,20 +44,20 @@ const BUILT_IN_PRESET_KEYS: Readonly<Partial<Record<string, PresetLocaleKeys>>> 
 }
 
 /**
- * Whether a roster row is one of the shipped presets whose copy the dictionaries carry.
- * A shipped preset publishes no `name`; a declaration that names itself owns its copy.
- * @param preset - roster row.
- * @returns true for a shipped preset id without a published name.
+ * 判断一条名册行是否属于字典中承载了文案的内置预设。
+ * 内置预设不发布 `name`；自行命名的声明拥有自己的文案。
+ * @param preset - 名册行。
+ * @returns 对于未发布名称的内置预设 id，返回 true。
  */
 export function isBuiltInPreset(preset: PresetDisplaySource): boolean {
   return preset.name === undefined && BUILT_IN_PRESET_KEYS[preset.id] !== undefined
 }
 
 /**
- * Resolve preset display copy without making user-authored metadata translatable.
- * @param preset - roster row whose copy is being rendered.
- * @param t - active locale lookup covering {@link BuiltInPresetCopyKey}.
- * @returns localized copy for a known shipped preset, otherwise declaration metadata.
+ * 解析预设的展示文案，同时不让用户编写的元数据进入翻译。
+ * @param preset - 正在渲染其文案的名册行。
+ * @param t - 覆盖 {@link BuiltInPresetCopyKey} 的当前语言查询函数。
+ * @returns 已知内置预设的本地化文案，否则返回声明中的元数据。
  */
 export function presetDisplayText(
   preset: PresetDisplaySource,

@@ -5,14 +5,14 @@ export type { RetryId }
 
 declare module '@deepseek-ai/dsh-session/types' {
   interface SessionEventMap {
-    /** Durable, non-surface record of one provider-routed retry scheduled after a failed request attempt. */
+    /** 一次请求尝试失败之后排定的、按提供方路由的重试的持久化非展示记录。 */
     'llm/retry': LlmRetryEventData
-    /** Durable transition written after a retry wait succeeds and before the next request attempt starts. */
+    /** 在重试等待成功之后、下一次请求尝试开始之前写入的持久化状态迁移。 */
     'llm/retry-started': LlmRetryStartedEventData
   }
 }
 
-/** Durable payload recorded before one provider-routed model-request retry wait. */
+/** 在一次按提供方路由的模型请求重试等待之前记录的持久化载荷。 */
 export type LlmRetryEventData =
   | {
     retryId: RetryId
@@ -39,7 +39,7 @@ export type LlmRetryEventData =
     failure: LlmFailure
   }
 
-/** Durable transition recorded after one retry delay completes. */
+/** 一次重试延迟结束之后记录的持久化状态迁移。 */
 export interface LlmRetryStartedEventData {
   retryId: RetryId
   turn: number

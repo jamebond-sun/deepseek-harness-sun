@@ -1,7 +1,7 @@
 /**
- * The SDK profile's command-line and stdin-lifetime provider. A successful
- * parse publishes {@link SDK_APP_STARTUP_SERVICE}; the JSON-RPC server waits
- * for that service, so help starts no transport.
+ * SDK profile 的命令行与 stdin 生命周期提供者。解析成功后发布
+ * {@link SDK_APP_STARTUP_SERVICE}；JSON-RPC 服务器会等待该服务，因此请求帮助
+ * 不会启动传输层。
  * @module @deepseek-ai/dsh-sdk-app
  */
 
@@ -10,30 +10,30 @@ import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { exitOnStdinEnd, parseCmdline } from '@deepseek-ai/dsh-cmdline'
 
-/** Stable Cordis plugin name. */
+/** 稳定的 Cordis 插件名。 */
 export const name = 'sdk-app-startup'
 
-/** Launcher service required before this app can parse its invocation. */
+/** 本应用解析本次调用之前所需的启动器服务。 */
 export const inject = ['cmdlineArgs']
 
-/** Service the JSON-RPC server row waits for before claiming stdio. */
+/** JSON-RPC 服务器行在接管 stdio 之前所等待的服务。 */
 export const SDK_APP_STARTUP_SERVICE = 'sdkAppStartup'
 
-/** SDK stdio startup configuration. */
+/** SDK stdio 启动配置。 */
 export interface Config {
-  /** Profile name rendered in help and diagnostics (default `sdk`). */
+  /** 渲染在帮助信息与诊断信息中的 profile 名（默认 `sdk`）。 */
   profile?: string
 }
 
-/** Validate and default SDK stdio startup configuration. */
+/** 校验并填充 SDK stdio 启动配置的默认值。 */
 export const Config: z<Config> = z.object({
   profile: z.string().default('sdk'),
 })
 
 /**
- * Build this app's zero-option command and help.
- * @param profile - selected profile name rendered in the command grammar.
- * @returns a fresh program for one invocation.
+ * 构建本应用的零选项命令与帮助信息。
+ * @param profile - 渲染在命令文法中的所选 profile 名。
+ * @returns 一次调用专用的全新 program。
  */
 function sdkCommand(profile: string): Command {
   return new Command()
@@ -47,10 +47,9 @@ Example:
 }
 
 /**
- * Accept an SDK profile invocation, publish readiness, and bind EOF to the
- * launcher's bounded shutdown.
- * @param ctx - plugin context carrying command-line and exit launcher values.
- * @param config - selected profile identity for command help.
+ * 接受一次 SDK profile 调用、发布就绪状态，并把 EOF 绑定到启动器的有界关闭流程。
+ * @param ctx - 承载命令行值与退出启动器值的插件上下文。
+ * @param config - 用于命令帮助信息的所选 profile 身份。
  */
 export function apply(ctx: Context, config: Config = {}): void {
   const program = sdkCommand(config.profile ?? 'sdk')

@@ -1,6 +1,6 @@
 /**
- * Mod registration: run a mod's `register(on, options)` and keep every
- * `on(...)` registration in one ordered registry that dispatch selects from.
+ * Mod 注册：运行某个 mod 的 `register(on, options)`，并将每一次
+ * `on(...)` 注册保留在一个有序注册表中，由分发逻辑从中选取。
  * @module
  */
 
@@ -9,26 +9,26 @@ import { messageOf } from './values.ts'
 import { describeMatcher, ENGINE_EVENTS, eventMatches, isEventPattern } from './matcher.ts'
 import type { AnyHook, HookMatcher, ModDefinition, ModOn, HookRegistration } from './types.ts'
 
-/** Plugin names Claude Code accepts: letters, digits, `_` and `-`. */
+/** Claude Code 接受的插件名称：字母、数字、`_` 与 `-`。 */
 const PLUGIN_NAME = /^[A-Za-z0-9_-]{1,64}$/u
 
-/** Mods ordered by load; hooks ordered by mod, then by registration. */
+/** Mods 按加载顺序排列；钩子先按 mod、再按注册顺序排列。 */
 export class HookRegistry {
   private readonly hooks: RegisteredHook[] = []
   private readonly mods: LoadedMod[] = []
 
   /**
-   * The loaded mods.
-   * @returns the mods in load order.
+   * 已加载的 mod（按加载顺序）。
+   * @returns 按加载顺序排列的 mod。
    */
   list(): readonly LoadedMod[] {
     return this.mods
   }
 
   /**
-   * Add one mod and its registrations; a mod of the same name must be removed first.
-   * @param mod - the mod the hooks belong to.
-   * @param hooks - its registrations in `on` order.
+   * 添加一个 mod 及其注册项；同名 mod 必须先被移除。
+   * @param mod - 这些钩子所属的 mod。
+   * @param hooks - 按 `on` 顺序排布的、它的注册项。
    */
   add(mod: LoadedMod, hooks: readonly RegisteredHook[]): void {
     if (this.mods.some(loaded => loaded.name === mod.name)) {
@@ -39,8 +39,8 @@ export class HookRegistry {
   }
 
   /**
-   * Drop one mod and its hooks.
-   * @param name - the plugin name.
+   * 丢弃一个 mod 及其钩子。
+   * @param name - 插件名称。
    */
   remove(name: string): void {
     const index = this.mods.findIndex(mod => mod.name === name)
@@ -52,11 +52,11 @@ export class HookRegistry {
   }
 
   /**
-   * Hooks whose pattern selects `event`, outermost first. A mods API call a mod
-   * raised is seen only by the mods loaded before it.
-   * @param event - the event name.
-   * @param raisedBy - the mod whose `$` call became the event, or undefined for the engine.
-   * @returns the ordered hooks; matchers are evaluated at run time.
+   * 其模式选中了 `event` 的钩子，最外层的在前。某个 mod 经 mods API 调用所
+   * 引发的事件，仅被在它之前加载的 mods 看到。
+   * @param event - 事件名称。
+   * @param raisedBy - 其 `$` 调用成为该事件的 mod，或为引擎时的 undefined。
+   * @returns 有序的钩子；匹配器在运行时求值。
    */
   select(event: string, raisedBy?: LoadedMod): RegisteredHook[] {
     return this.hooks
@@ -65,10 +65,10 @@ export class HookRegistry {
   }
 
   /**
-   * The engine events one mod hooks by exact name that the host never raises.
-   * @param mod - the loaded mod.
-   * @param served - the engine events the host raises.
-   * @returns the unserved event names in registration order, each once.
+   * 某个 mod 以精确名称钩住、却永远不会被宿主引发的引擎事件。
+   * @param mod - 已加载的 mod。
+   * @param served - 宿主所引发的引擎事件。
+   * @returns 未被服务的事件名称，按注册顺序，各出现一次。
    */
   unserved(mod: LoadedMod, served: ReadonlySet<string>): string[] {
     const names: string[] = []
@@ -80,9 +80,9 @@ export class HookRegistry {
   }
 
   /**
-   * Event names with matchers, as `claude plugin validate` prints the `hooks:` line.
-   * @param mod - the loaded mod.
-   * @returns its events with matchers, comma-separated.
+   * 带有匹配器的事件名称，格式如同 `claude plugin validate` 打印 `hooks:` 行那样。
+   * @param mod - 已加载的 mod。
+   * @returns 它带有匹配器的事件，以逗号分隔。
    */
   describe(mod: LoadedMod): string {
     return this.hooks
@@ -97,12 +97,11 @@ function isMatcher(value: unknown): value is HookMatcher {
 }
 
 /**
- * Build the `on` function one `register` call receives and collect its
- * registrations. Validation follows Claude Code: the event name must be a
- * known name or glob, and one event may be registered without a matcher only
- * once.
- * @param mod - the mod registering.
- * @returns `on` and the list it appends to.
+ * 构建某一次 `register` 调用所收到的 `on` 函数，并收集其注册项。
+ * 校验遵循 Claude Code：事件名称必须是一个已知的名称或 glob，且一个事件
+ * 在没有匹配器的情况下只能被注册一次。
+ * @param mod - 正在注册的 mod。
+ * @returns `on` 以及它向其追加的列表。
  */
 export function createOn(mod: LoadedMod): { on: ModOn; hooks: RegisteredHook[] } {
   const hooks: RegisteredHook[] = []
@@ -133,12 +132,12 @@ export function createOn(mod: LoadedMod): { on: ModOn; hooks: RegisteredHook[] }
 }
 
 /**
- * Run one mod's `register` and collect its hooks. A `register` that throws
- * fails the mod with Claude Code's wording; the caller decides whether the
- * session continues without it.
- * @param definition - the mod as its plugin defined it.
- * @param order - the mod's position in the chain; earlier mods run outside later ones.
- * @returns the loaded mod and its registrations.
+ * 运行某个 mod 的 `register` 并收集其钩子。一个抛出异常的 `register` 会以
+ * Claude Code 的措辞使该 mod 加载失败；是否在没有它的情况下继续会话，
+ * 由调用方决定。
+ * @param definition - 其插件所定义的、该 mod 的形态。
+ * @param order - 该 mod 在链中的位置；更靠前的 mod 在更靠后的 mod 之外运行。
+ * @returns 已加载的 mod 及其注册项。
  */
 export async function registerMod(definition: ModDefinition, order: number): Promise<{ mod: LoadedMod; hooks: RegisteredHook[] }> {
   if (!PLUGIN_NAME.test(definition.name)) {

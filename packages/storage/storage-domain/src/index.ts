@@ -1,9 +1,7 @@
 /**
- * Domain data form (`ctx.storage.domain`): schema-validated, change-emitting
- * KV domains over storage backends. The single implementation of the domain
- * layer — consumers depend on this package and never touch backends directly.
- * Plugin `Config` is schemastery; record schemas inside domain specs are zod
- * (see `src/spec.ts` for the split rationale).
+ * 领域数据形式（`ctx.storage.domain`）：基于存储后端的、经过 schema 校验且会发射变更的 KV 领域。
+ * 领域层的唯一实现——消费者依赖本包，绝不直接接触后端。Plugin 的 `Config` 使用 schemastery；
+ * 领域 spec 内的记录 schema 使用 zod（拆分理由见 `src/spec.ts`）。
  * @module @deepseek-ai/dsh-storage-domain
  */
 
@@ -38,21 +36,19 @@ declare module '@deepseek-ai/cordis' {
   }
 }
 
-/** Cordis plugin name. */
+/** Cordis 插件名称。 */
 export const name = 'storage-domain'
-/** The storage hub must be present before the form can mount. */
+/** 在形态可挂载之前，存储中枢必须存在。 */
 export const inject = ['storage']
 
 /**
- * Plugin config. Which backend serves which domain is decided here, not
- * globally on the hub: `backend` is the default route and `routes` overrides
- * it per domain name. A route naming an unregistered backend fails loud at
- * `open` with `backend-not-found`.
+ * 插件配置。哪个后端服务哪个领域在此决定，而非在中枢上全局决定：`backend` 是默认路由，`routes` 对每个领域名覆盖它。
+ * 命名了未注册后端的路由在 `open` 时以 `backend-not-found` 显式失败。
  */
 export interface Config {
-  /** Default backend name for every domain without an explicit route. Required: there is no universally correct medium. */
+  /** 每个未显式路由的领域所用的默认后端名。必填：不存在普适正确的介质。 */
   backend: string
-  /** Per-domain overrides: domain name → backend name. */
+  /** 逐领域覆盖：领域名 → 后端名。 */
   routes?: Record<string, string>
 }
 
@@ -62,19 +58,16 @@ export const Config: z<Config> = z.object({
 })
 
 /**
- * The mounted domain facility. Opens declared domains over routed backends;
- * one facility instance owns the open-domain table and enforces single-open
- * per domain name.
+ * 已挂载的领域设施。在已路由的后端上打开已声明的领域；一个设施实例拥有已打开领域表，并强制每个领域名单一打开。
  */
 export class DomainFacility {
   private readonly domains = new Map<string, DomainImpl>()
-  /** Names reserved by an in-flight or completed open, so concurrent opens of one name fail loud. */
+  /** 由在途或已完成打开保留的名称，以便同一名称的并发打开显式失败。 */
   private readonly reserved = new Set<string>()
 
   /**
-   * @param ctx - Context of the domain plugin; open-domain effects and change
-   * events attach here.
-   * @param config - Validated plugin config.
+   * @param ctx - 领域插件的 Context；已打开领域的 effect 与变更事件附于此。
+   * @param config - 已校验的插件配置。
    */
   constructor(
     private readonly ctx: Context,
@@ -82,23 +75,16 @@ export class DomainFacility {
   ) {}
 
   /**
-   * Open one declared domain. Steps, each failing the whole call: reject a
-   * name that is already open (`already-open`); resolve the backend route
-   * (`backend-not-found` passes through from the hub); require its `kv` facet
-   * (`facet-unsupported`); open the unit projected from the spec (backend
-   * `version-mismatch`/`malformed-medium` pass through); load and validate
-   * every stored record against the spec's zod schemas (`invalid-record`
-   * with the offending table and key — unless the spec declares
-   * `invalidRecords: 'backup-and-skip'` and the unit can move documents aside, in
-   * which case the failing record is backed up, logged, and skipped);
-   * construct the domain.
+   * 打开一个已声明的领域。每一步都会使整个调用失败：拒绝一个已经打开的名称（`already-open`）；
+   * 解析后端路由（来自中枢的 `backend-not-found` 透传）；要求其 `kv` facet（`facet-unsupported`）；
+   * 打开由 spec 投影的单元（后端的 `version-mismatch`/`malformed-medium` 透传）；
+   * 针对 spec 的 zod schema 加载并校验每条已存储记录（`invalid-record`，附带出问题的表与键——
+   * 除非 spec 声明 `invalidRecords: 'backup-and-skip'` 且单元能移开文档，此时失败记录被备份、记录日志并跳过）；构造领域。
    *
-   * Lifecycle: the CALLER owns the returned handle and closes it via
-   * `Domain.close()` (typically as its own `ctx.effect` disposer) — the
-   * facility does not tie the domain to any consumer fiber. Domains still
-   * open when the facility unmounts are closed by the plugin disposer.
-   * @param spec - The domain declaration, typically from `defineDomain`.
-   * @returns the opened domain handle, typed by the spec.
+   * 生命周期：调用方拥有返回的句柄并通过 `Domain.close()` 关闭它（通常作为其自身的 `ctx.effect` disposer）——
+   * 设施不会将该领域绑定到任何消费者纤程。设施卸载时仍处于打开状态的领域由插件 disposer 关闭。
+   * @param spec - 领域声明，通常来自 `defineDomain`。
+   * @returns 已打开的领域句柄，由 spec 定型。
    */
   async open<S extends DomainSpec>(spec: S): Promise<Domain<S>> {
     if (this.reserved.has(spec.name)) {
@@ -125,12 +111,11 @@ export class DomainFacility {
             try {
               parsed = parseRecord(spec.name, table, key, () => tableSpec.valueSchema.parse(raw))
             } catch (error) {
-              // Backup-and-skip policy (disposable derived data): move the record's
-              // document aside, log the concrete failure, and open without the
-              // record. Backends that cannot move a document keep the loud path.
+              // 备份并跳过策略（可丢弃的派生数据）：将记录的文档移开，记录具体失败，并在缺失该记录的情况下打开。
+              // 无法移动文档的后端保留显式失败路径。
               if (spec.invalidRecords !== 'backup-and-skip' || unit.backupRecord === undefined) throw error
               const moved = await unit.backupRecord(table, key)
-              // parseRecord always wraps the zod failure as the cause.
+              // parseRecord 总是将 zod 失败作为 cause 包装。
               this.ctx.logger.error(
                 `domain '${spec.name}': stored record '${key}' in table '${table}' failed schema validation; `
                 + `moved to '${moved}' and treated as absent. Cause: ${String((error as DomainError).cause)}`,
@@ -141,60 +126,54 @@ export class DomainFacility {
           }
           tables.set(table, records)
         }
-        // A null stored global means "never written": serve `initial` without
-        // materializing it — the first `set` writes.
+        // null 的已存储全局意为"从未写入"：以 `initial` 提供服务而不物化它——首个 `set` 才会写入。
         const globalSpec = spec.global
         const globalValue = globalSpec === undefined
           ? undefined
           : snapshot.global === null
             ? globalSpec.initial
             : parseRecord(spec.name, '', '', () => globalSpec.schema.parse(snapshot.global))
-        // The onClosed hook runs strictly after teardown completes: writes
-        // landing during the drain still emit domain/changed, and the name
-        // frees up for reopening only once the domain is fully closed.
+        // onClosed 钩子严格在拆卸完成之后运行：排干期间落地的写入仍会发射 domain/changed，
+        // 名称仅在领域完全关闭后才释放以便重新打开。
         const domain: DomainImpl = new DomainImpl(this.ctx, spec, unit, tables, globalValue, () => {
           this.domains.delete(spec.name)
           this.reserved.delete(spec.name)
         })
         this.domains.set(spec.name, domain)
-        // The single type-erasure point: DomainImpl is the untyped runtime,
-        // Domain<S> the spec-typed view; the unknown hop is required because
-        // S's conditional global-handle type stays unresolved here.
+        // 唯一的类型擦除点：DomainImpl 是未定型的运行时，Domain<S> 是 spec 定型的视图；
+        // unknown 跳转之所以必要，是因为此处 S 的条件式全局句柄类型仍未被解析。
         return domain as unknown as Domain<S>
       } catch (error) {
         await unit.close()
         throw error
       }
     } catch (error) {
-      // Any failure means the domain never registered (nothing can throw
-      // after it), so releasing the name reservation is unconditional.
+      // 任何失败都意味着领域从未注册（此后不可能再抛出），因此无条件释放名称保留。
       this.reserved.delete(spec.name)
       throw error
     }
   }
 
   /**
-   * Look up an open domain by name, untyped. Diagnostic surface; typed
-   * consumers hold the handle returned by {@link open}.
-   * @param name - Domain name.
-   * @returns the open domain runtime, or `undefined` when not open.
+   * 按名称查找一个已打开的领域，未定型。诊断用途；定型消费者持有 {@link open} 返回的句柄。
+   * @param name - 领域名。
+   * @returns 已打开的领域运行时；未打开时为 `undefined`。
    */
   get(name: string): DomainImpl | undefined {
     return this.domains.get(name)
   }
 
   /**
-   * Close every domain still open on this facility. The unmount path for
-   * consumers that never called `Domain.close()` themselves; closing is
-   * idempotent, so double-closing an already-closed domain is harmless.
-   * @returns resolution after every unit is released.
+   * 关闭本设施上仍处于打开状态的每个领域。供那些从未自行调用 `Domain.close()` 的消费者使用的卸载路径；
+   * 关闭是幂等的，因此对已关闭领域的重复关闭无害。
+   * @returns 每个单元释放后的结算。
    */
   async closeAll(): Promise<void> {
     await Promise.all([...this.domains.values()].map(domain => domain.close()))
   }
 }
 
-/** Run one zod parse, translating failure to `invalid-record` with its location. */
+/** 运行一次 zod 解析，将失败翻译为携带位置的 `invalid-record`。 */
 function parseRecord<T>(domain: string, table: string, key: string, parse: () => T): T {
   try {
     return parse()
@@ -209,10 +188,10 @@ function parseRecord<T>(domain: string, table: string, key: string, parse: () =>
 }
 
 /**
- * Mount the domain data form on the storage hub.
- * @param ctx - Plugin context.
- * @param config - Validated plugin config.
- * @returns resolution after an already-available backend set activates the form.
+ * 在存储中枢上挂载领域数据形式。
+ * @param ctx - 插件 Context。
+ * @param config - 已校验的插件配置。
+ * @returns 在已可用后端集合激活形态之后的结算。
  */
 export function apply(ctx: Context, config: Config): Promise<void> {
   const backendServices = [...new Set([
@@ -225,8 +204,7 @@ export function apply(ctx: Context, config: Config): Promise<void> {
     domainCtx.effect(() => {
       const unmount = domainCtx.storage.mount('domain', facility)
       return async () => {
-        // Close leftovers before unmounting: draining writes still emit
-        // domain/changed.
+        // 在卸载前先关闭残留：排干中的写入仍会发射 domain/changed。
         await facility.closeAll()
         unmount()
       }

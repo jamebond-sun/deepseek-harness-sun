@@ -1,7 +1,6 @@
 /**
- * Cordis catalog-specific projection over the compiler-independent Typert
- * model. This module owns Cordis validation and text projection mechanics;
- * callers supply repository-specific type classifications and inherited data.
+ * 针对 Cordis 目录、构建于与编译器无关的 Typert 模型之上的投影。本模块拥有
+ * Cordis 校验与文本投影机制；调用方提供仓库特定的类型分类与继承数据。
  * @module @deepseek-ai/dsh-typert-generator
  */
 
@@ -22,11 +21,10 @@ import type {
 
 type Mode = 'emit' | 'bail' | 'waterfall' | 'parallel' | 'serial'
 
-/** The fenced-block info string for generated signature blocks (skipped by
- * doc-typecheck, since a bare signature fragment is not standalone-compilable). */
+/** 为生成签名块准备的围栏信息串（doc-typecheck 跳过它，因为裸签名片段无法独立编译）。 */
 const FENCE = 'ts cordis-catalog'
 
-/** Append fail-closed signature type-link violations from the retained type tree. */
+/** 从保留的类型树追加按失败即拒绝处理的签名类型链接违规。 */
 function checkTypeLinks(
   where: string,
   names: readonly string[],
@@ -45,7 +43,7 @@ function checkTypeLinks(
   }
 }
 
-/** Throw one aggregated diagnostic for every unclassified signature type. */
+/** 为每个未分类的签名类型抛出一条汇总诊断。 */
 function reportTypeLinkViolations(gate: string, violations: string[]): void {
   if (violations.length === 0) return
   throw new Error(
@@ -54,94 +52,94 @@ function reportTypeLinkViolations(gate: string, violations: string[]): void {
   )
 }
 
-/** One harness event, extracted from an `interface Events` block. */
+/** 从 `interface Events` 块中提取的一个 harness 事件。 */
 export interface EventEntry {
-  /** Scoped name, e.g. `agent/request`. */
+  /** 限定名，例如 `agent/request`。 */
   name: string
-  /** The scope prefix, e.g. `agent` (everything before the first `/`). */
+  /** 作用域前缀，例如 `agent`（首个 `/` 之前的部分）。 */
   scope: string
-  /** Full signature text (the method-signature member, JSDoc stripped). */
+  /** 完整签名文本（已剥离方法签名成员与 JSDoc）。 */
   signature: string
-  /** Original declaration JSDoc, dedented from its containing interface. */
+  /** 原始声明 JSDoc，从其所属接口去缩进。 */
   jsDoc: string
-  /** Dispatch mode from the `@mode` tag. */
+  /** 来自 `@mode` 标签的调度模式。 */
   mode: Mode
-  /** Description prose (JSDoc minus the `@mode` tag), one line per paragraph. */
+  /** 描述性散文（JSDoc 去掉 `@mode` 标签后），每段一行。 */
   doc: string
-  /** Source pointer `packages/…/file.ts:line` of the declaration. */
+  /** 声明的源指针 `packages/…/file.ts:line`。 */
   source: string
 }
 
-/** One public service method and the source contract attached to it. */
+/** 一个公共 service 方法，及其附带的源契约。 */
 export interface ServiceMethodEntry {
-  /** Compiler member category; policy-supplied methods may omit it. */
+  /** 编译器成员类别；策略提供的方法可省略它。 */
   kind?: 'method' | 'property'
-  /** Public method signature (body stripped). */
+  /** 公共方法签名（已剥离函数体）。 */
   signature: string
-  /** Original method JSDoc, dedented from its containing class. */
+  /** 方法的原始 JSDoc，从其所属类去缩进。 */
   jsDoc: string
 }
 
-/** One harness service, extracted from an `interface Context` block. */
+/** 从 `interface Context` 块中提取的一个 harness service。 */
 export interface ServiceEntry {
-  /** The `ctx.<key>` name, e.g. `llm`. */
+  /** `ctx.<key>` 名，例如 `llm`。 */
   key: string
-  /** The service class/interface name, e.g. `LlmRuntime`. */
+  /** service 类/接口名，例如 `LlmRuntime`。 */
   type: string
-  /** Whether the service class is abstract (a seam interface). */
+  /** service 类是否为抽象类（一个 seam 接口）。 */
   abstract: boolean
-  /** Class-level JSDoc prose, one line per paragraph. */
+  /** 类级 JSDoc 散文，每段一行。 */
   doc: string
-  /** Public methods (bodies stripped), in source order. */
+  /** 公共方法（已剥离函数体），按源顺序排列。 */
   methods: ServiceMethodEntry[]
-  /** Source pointer of the class declaration. */
+  /** 类声明的源指针。 */
   source: string
 }
 
-/** A terse inherited-tier entry supplied by the catalog policy. */
+/** 由目录策略提供的、简明的继承层条目。 */
 export interface InheritedEntry {
-  /** Display name of the inherited event or context member group. */
+  /** 被继承事件或 Context 成员组的显示名。 */
   name: string
-  /** One-line description rendered into the catalog. */
+  /** 渲染进目录的单行描述。 */
   summary: string
-  /** Source pointer such as `vendor/…:line`. */
+  /** 源指针，例如 `vendor/…:line`。 */
   source: string
 }
 
-/** Repository policy consumed by the Cordis catalog parsing and rendering logic. */
+/** 被 Cordis 目录解析与渲染逻辑消费的仓库策略。 */
 export interface CordisCatalogPolicy {
-  /** Type names linked from signatures to their documentation pages. */
+  /** 从签名链接到其文档页的类型名。 */
   readonly linkedTypePages: Readonly<Record<string, string>>
-  /** TypeScript or framework types that need no repository documentation link. */
+  /** 无需仓库文档链接的 TypeScript 或框架类型。 */
   readonly foundationTypeNames: ReadonlySet<string>
-  /** Repository types deliberately documented outside the linked data catalog. */
+  /** 刻意记录于链接数据目录之外文档处的仓库类型。 */
   readonly typeLinkExemptions: Readonly<Record<string, string>>
-  /** Framework Services included in the model-facing runtime catalog but not the harness documentation partition. */
+  /** 包含在面向模型运行时目录、但不在 harness 文档分区中的框架 Service。 */
   readonly runtimeServices?: readonly ServiceEntry[]
-  /** Harness Services omitted from the model-facing runtime catalog because dynamic Plugins must not call them. */
+  /** 从面向模型运行时目录中省略的 harness Service，因为动态 Plugin 不得调用它们。 */
   readonly runtimeServiceExclusions?: ReadonlySet<string>
-  /** Manually curated framework events inherited by every plugin. */
+  /** 由每个插件继承的、手工整理的框架事件。 */
   readonly inheritedEvents: readonly InheritedEntry[]
-  /** Manually curated framework context members inherited by every plugin. */
+  /** 由每个插件继承的、手工整理的框架 Context 成员。 */
   readonly inheritedServices: readonly InheritedEntry[]
-  /** Maximum rendered characters per runtime type declaration. */
+  /** 每个运行时类型声明渲染的最大字符数。 */
   readonly runtimeDeclarationMaxChars?: number
 }
 
-/** Complete model-level Cordis projection used by every text renderer. */
+/** 每个文本渲染器使用的、完整的模型级 Cordis 投影。 */
 export interface CordisCatalogModel {
   readonly events: readonly EventEntry[]
   readonly services: readonly ServiceEntry[]
 }
 
-/** Repository-specific Cordis validation and projection over one Typert face. */
+/** 针对一个 Typert 端、仓库特定的 Cordis 校验与投影。 */
 export class CordisCatalogProjector {
   private readonly renderer: TypeGraphRenderer
 
   /**
-   * @param face - analyzed Host or Client face containing package business semantics.
-   * @param sourceDeclarations - exported declarations available to the runtime type closure.
-   * @param policy - caller-owned type classifications and inherited Cordis data.
+   * @param face - 包含包业务语义、已分析的 Host 或 Client 端。
+   * @param sourceDeclarations - 运行时类型闭包可用的已导出声明。
+   * @param policy - 调用方拥有的类型分类与继承 Cordis 数据。
    */
   constructor(
     private readonly face: FaceModel,
@@ -152,8 +150,8 @@ export class CordisCatalogProjector {
   }
 
   /**
-   * Validate and project the host model's Cordis API.
-   * @returns every validated service and event projected from the host model.
+   * 校验并投影 host 模型的 Cordis API。
+   * @returns 从 host 模型投影出的、每个已校验的 service 与事件。
    */
   project(): CordisCatalogModel {
     return {
@@ -163,9 +161,9 @@ export class CordisCatalogProjector {
   }
 
   /**
-   * Render the model-facing static API consumed by `tool-cordis`.
-   * @param model - validated Cordis catalog projection from this projector.
-   * @returns the model-facing TypeScript catalog source.
+   * 渲染由 `tool-cordis` 消费的、面向模型的静态 API。
+   * @param model - 来自本投影器的、已校验的 Cordis 目录投影。
+   * @returns 面向模型的 TypeScript 目录源。
    */
   renderRuntimeApi(model: CordisCatalogModel): string {
     const services = [...model.services, ...(this.policy.runtimeServices ?? [])]
@@ -239,22 +237,18 @@ export class CordisCatalogProjector {
   }
 
   /**
-   * The services this projection describes, one per `ctx.<key>`: those whose
-   * Context merge sits one level under a package's `src` and whose declaration
-   * belongs to that same package.
+   * 本投影描述的 service，每个 `ctx.<key>` 一个：其 Context 合并位于包 `src`
+   * 之下一层、且其声明属于同一个包的那些。
    *
-   * Interfaces qualify beside classes, because an interface-typed key
-   * (`lsp: LspService`) has its Service Definition — and, by repository
-   * convention, its member documentation — on the interface; requiring a class
-   * would drop a real injectable service from every catalog. The declaration may
-   * live in any file of the package (`types.ts` is the usual home), while a
-   * declaration from ANOTHER package is not this package's surface to document.
+   * 接口与类一样有资格，因为一个接口类型的键（`lsp: LspService`）将其 Service
+   * 定义——按仓库约定，还有其成员文档——放在接口上；强制要求类会把一个真正
+   * 可注入的 service 从每个目录中丢掉。声明可以位于包的任何文件（`types.ts`
+   * 是通常的归宿），而来自另一个包的声明不属于本包要记录的对外表面。
    *
-   * One key can have both kinds of candidate across packages: `ctx.typert` is
-   * typed by a merge-extensible interface in `type-meta` and implemented by a
-   * class in `registry`. The CLASS wins — it carries the documentation and is the
-   * object a caller meets — and picking before validating is what keeps a
-   * discarded candidate's missing JSDoc from failing the gate.
+   * 一个键在多个包之间可能同时拥有两类候选：`ctx.typert` 由 `type-meta` 中的
+   * 可合并扩展接口类型化，并由 `registry` 中的类实现。类胜出——它携带文档、
+   * 也是调用方遇到的对象——而先挑选再校验，正是让被丢弃候选的缺失 JSDoc 不会
+   * 使门禁失败的原因。
    */
   private renderableServices(): ServiceModel[] {
     const chosen = new Map<string, ServiceModel>()
@@ -360,11 +354,11 @@ export class CordisCatalogProjector {
 }
 
 /**
- * Analyze the host project once and return both the model and its projection.
- * @param scanRoot - workspace root containing `tsconfig.host.json`.
- * @param policy - caller-owned type classifications and inherited Cordis data.
- * @param targetFace - Host or Client Typert face to project.
- * @returns the configured projector and its validated catalog model.
+ * 分析 host 工程一次，并同时返回模型与其投影。
+ * @param scanRoot - 包含 `tsconfig.host.json` 的 workspace 根。
+ * @param policy - 调用方拥有的类型分类与继承 Cordis 数据。
+ * @param targetFace - 要投影的 Host 或 Client Typert 端。
+ * @returns 配置好的投影器与其已校验的目录模型。
  */
 export function projectCordisCatalog(scanRoot: string, policy: CordisCatalogPolicy, targetFace: TypertFace = 'host'): {
   readonly projector: CordisCatalogProjector
@@ -399,20 +393,20 @@ export function projectCordisCatalog(scanRoot: string, policy: CordisCatalogPoli
 }
 
 /**
- * Collect all modeled events for relationship-document consumers.
- * @param scanRoot - workspace root containing `tsconfig.host.json`.
- * @param policy - caller-owned Cordis catalog policy.
- * @returns all validated event entries.
+ * 为关系文档消费者收集所有被建模的事件。
+ * @param scanRoot - 包含 `tsconfig.host.json` 的 workspace 根。
+ * @param policy - 调用方拥有的 Cordis 目录策略。
+ * @returns 所有已校验的事件条目。
  */
 export function collectEvents(scanRoot: string, policy: CordisCatalogPolicy): EventEntry[] {
   return [...projectCordisCatalog(scanRoot, policy).model.events]
 }
 
 /**
- * Collect all modeled services for relationship-document consumers.
- * @param scanRoot - workspace root containing `tsconfig.host.json`.
- * @param policy - caller-owned Cordis catalog policy.
- * @returns all validated service entries.
+ * 为关系文档消费者收集所有被建模的 service。
+ * @param scanRoot - 包含 `tsconfig.host.json` 的 workspace 根。
+ * @param policy - 调用方拥有的 Cordis 目录策略。
+ * @returns 所有已校验的 service 条目。
  */
 export function collectServices(scanRoot: string, policy: CordisCatalogPolicy): ServiceEntry[] {
   return [...projectCordisCatalog(scanRoot, policy).model.services]
@@ -616,20 +610,20 @@ function signatureTypeNames(renderer: TypeGraphRenderer, signature: SignatureMod
   return [...names].sort()
 }
 
-/** Declarations longer than this render as a truncated stub. */
+/** 长于此长度的声明会渲染为截断的桩。 */
 const DEFAULT_MAX_DECL_CHARS = 1_500
 
-/** Render one value as a single-quoted TypeScript literal. */
+/** 将一个值渲染为带单引号的 TypeScript 字面量。 */
 function quote(value: string): string {
   return `'${value.replaceAll('\\', '\\\\').replaceAll("'", "\\'").replaceAll('\n', '\\n')}'`
 }
 
-/** Render a compact TypeScript string-array literal. */
+/** 渲染一个紧凑的 TypeScript 字符串数组字面量。 */
 function quoteList(values: readonly string[]): string {
   return `[${values.map(quote).join(', ')}]`
 }
 
-/** Render structured parameter documentation as a compact TypeScript literal. */
+/** 将结构化的参数文档渲染为紧凑的 TypeScript 字面量。 */
 function renderParameters(parameters: ReadonlyMap<string, string>): string {
   const values = [...parameters].map(([name, description]) => (
     `{ name: ${quote(name)}, description: ${quote(description)} }`
@@ -637,7 +631,7 @@ function renderParameters(parameters: ReadonlyMap<string, string>): string {
   return `[${values.join(', ')}]`
 }
 
-/** Resolve and sort the word-bounded transitive type closure referenced by seed text. */
+/** 解析并排序由种子文本引用的、词边界限定的传递类型闭包。 */
 function referencedTypes(
   seeds: readonly string[],
   declarations: ReadonlyMap<string, string>,
@@ -667,7 +661,7 @@ function firstSentence(doc: string): string {
   return (match?.[1] ?? line).trim()
 }
 
-/** Render the byte-compatible model-facing API catalog. */
+/** 渲染字节兼容的、面向模型的 API 目录。 */
 function renderRuntimeApi(
   services: readonly ServiceEntry[],
   events: readonly EventEntry[],
@@ -915,16 +909,15 @@ function renderRuntimeApi(
   )
   return lines.join('\n')
 }
-/** Opening region delimiter; injected content lives between the pair and the page owns everything outside. */
+/** 区域起始分隔符；被注入的内容位于这对标记之间，而页面拥有其之外的一切。 */
 export const REGION_BEGIN = '<!-- BEGIN GENERATED cordis-surface (gen-cordis-catalog.ts) — do not edit between markers -->'
-/** Closing region delimiter matching {@link REGION_BEGIN}. */
+/** 与 {@link REGION_BEGIN} 相匹配的区域结束分隔符。 */
 export const REGION_END = '<!-- END GENERATED cordis-surface -->'
 
 /**
- * Render the cross-link "Types:" line for a signature relative to one
- * subsystems page, or '' if none apply. A type whose primary page IS the
- * rendering page would link as a fragmentless self-link readers already sit
- * on, so it is dropped instead.
+ * 渲染相对于某个子系统页、某个签名的跨链接 “Types:” 行，若无适用者则为 ''。
+ * 一个主页面就是正在渲染页面的类型，会链接成读者已经处在的、无片段的自链接，
+ * 因此改为丢弃它。
  */
 function typeLinks(signature: string, onPage: string, linkedTypePages: Readonly<Record<string, string>>): string {
   const seen = new Set<string>()
@@ -939,29 +932,27 @@ function typeLinks(signature: string, onPage: string, linkedTypePages: Readonly<
 }
 
 /**
- * GitHub's heading-slug algorithm (lowercase; drop everything but letters,
- * numbers, spaces, hyphens; spaces become hyphens). Region headings carry
- * backticks and em-dashes, which VitePress slugifies differently, so each
- * generated heading is preceded by an explicit `<a id>` carrying this slug —
- * the historical flat-catalog anchor — making `#ctx<key>--<class>` fragments
- * resolve identically on GitHub and the published site.
+ * GitHub 的标题 slug 算法（小写；除字母、数字、空格、连字符外全部丢弃；空格变为连字符）。
+ * 区域标题带有反引号与长破折号，VitePress 对它们的 slug 化方式不同，因此每个生成的
+ * 标题前都带有一个显式 `<a id>`，承载此 slug——即历史上的扁平目录锚点——使
+ * `#ctx<key>--<class>` 片段在 GitHub 与已发布站点上解析一致。
  */
 function githubSlug(heading: string): string {
   return heading.toLowerCase().replace(/[^\p{L}\p{N} -]/gu, '').replaceAll(' ', '-')
 }
 
-/** The explicit-anchor line emitted before one generated heading. */
+/** 在某个生成标题之前发出的、显式锚点行。 */
 function anchorFor(headingText: string): string[] {
   return [`<a id="${githubSlug(headingText)}"></a>`, '']
 }
 
-/** Render a subsystem `file:line` source pointer as a file-only link. */
+/** 将一个子系统 `file:line` 源指针渲染为仅指向文件的链接。 */
 function sourceLink(source: string): string {
   const file = source.split(':')[0]
   return `[\`${file}\`](../../${file})`
 }
 
-/** Render one harness event entry onto its owning page, nested under its scope heading. */
+/** 将一个 harness 事件条目渲染到其所属页面，嵌套在其作用域标题之下。 */
 function renderEvent(e: EventEntry, onPage: string, linkedTypePages: Readonly<Record<string, string>>): string[] {
   const out = [...anchorFor(`${e.name} — ${e.mode}`), `#### \`${e.name}\` — ${e.mode}`, '']
   if (e.doc) out.push(e.doc, '')
@@ -972,7 +963,7 @@ function renderEvent(e: EventEntry, onPage: string, linkedTypePages: Readonly<Re
   return out
 }
 
-/** Render one harness service entry onto its owning page. */
+/** 将一个 harness service 条目渲染到其所属页面。 */
 function renderService(s: ServiceEntry, onPage: string, linkedTypePages: Readonly<Record<string, string>>): string[] {
   const kind = s.abstract ? ' (abstract seam)' : ''
   const out = [...anchorFor(`ctx.${s.key} — ${s.type}${kind}`), `### \`ctx.${s.key}\` — \`${s.type}\`${kind}`, '']
@@ -992,25 +983,24 @@ function renderService(s: ServiceEntry, onPage: string, linkedTypePages: Readonl
   return out
 }
 
-/** The shared generated-file banner comment. */
+/** 共享的生成文件横幅注释。 */
 const BANNER = [
   '<!-- Generated by scripts/gen-cordis-catalog.ts — do not edit by hand.',
   '     Run `pnpm run gen-cordis-catalog` to regenerate. -->',
   '',
 ]
 
-/** The shared GENERATED + freshness-gate + fence notice paragraph. */
+/** 共享的 GENERATED + 新鲜度门禁 + 围栏提示段落。 */
 const GATE_NOTICE = 'This file is GENERATED from source (`scripts/gen-cordis-catalog.ts`) and verified fresh by `pnpm run verify-cordis-catalog` (part of `doc-sync`) — do not edit it by hand. Signature blocks use a `ts cordis-catalog` fence and include the original source JSDoc immediately before each event or service method. doc-typecheck skips these bare declaration fragments; type names in a signature link to the page that documents them.'
 
 /**
- * Render one page's generated Cordis API region: the services mapped to
- * the page, then the event scopes mapped to it, markers included. Pure and
- * deterministic given sorted inputs; identical bytes land in both pair sides.
- * @param page - the owning `docs/subsystems/` page basename, e.g. `core.md`.
- * @param services - validated services mapped to this page.
- * @param events - validated events whose scopes map to this page.
- * @param policy - type links supplied by the caller.
- * @returns the complete marker-delimited region text.
+ * 渲染某个页面的生成 Cordis API 区域：映射到该页的 service，然后是映射到它的事件
+ * 作用域，包含标记。给定已排序的输入，纯函数且确定；相同的字节落在配对的两侧。
+ * @param page - 所属的 `docs/subsystems/` 页基名，例如 `core.md`。
+ * @param services - 映射到本页的已校验 service。
+ * @param events - 作用域映射到本页的已校验事件。
+ * @param policy - 由调用方提供的类型链接。
+ * @returns 完整的、标记定界的区域文本。
  */
 export function renderPageRegion(page: string, services: ServiceEntry[], events: EventEntry[], policy: CordisCatalogPolicy): string {
   const lines: string[] = [
@@ -1037,9 +1027,9 @@ export function renderPageRegion(page: string, services: ServiceEntry[], events:
 }
 
 /**
- * Render the inherited (pinned vendor) tier as its own generated page.
- * @param policy - inherited events and services supplied by the caller.
- * @returns the complete generated Markdown document.
+ * 将继承（固定 vendor）层渲染为它自己的生成页面。
+ * @param policy - 由调用方提供的继承事件与 service。
+ * @returns 完整的生成 Markdown 文档。
  */
 export function renderInheritedPage(policy: CordisCatalogPolicy): string {
   const lines: string[] = [

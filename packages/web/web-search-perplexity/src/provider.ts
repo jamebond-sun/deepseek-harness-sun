@@ -1,8 +1,7 @@
 /**
- * Perplexity search over its OpenAI-compatible chat-completions endpoint. The generated answer
- * becomes `content`; sources prefer structured `search_results[]` and fall back to URL-only
- * `citations[]`. The wire format and native `fetch` client are provider-private and do not use
- * `ctx.llm`.
+ * 通过 Perplexity 兼容 OpenAI 的 chat-completions 端点进行搜索。生成的答案成为 `content`；
+ * 来源优先采用结构化的 `search_results[]`，并回退到仅含 URL 的 `citations[]`。线格式与
+ * 原生 `fetch` 客户端都是提供方私有的，不使用 `ctx.llm`。
  * @module @deepseek-ai/dsh-web-search-perplexity/provider
  */
 
@@ -15,43 +14,43 @@ import type {
 } from '@deepseek-ai/dsh-web'
 import type { PerplexityError, PerplexityResponse, PerplexitySearchResult } from './types.ts'
 
-/** Stable id this provider registers under. */
+/** 本提供方注册的固定 id。 */
 export const PERPLEXITY_PROVIDER_ID = 'perplexity'
 
-/** Default Perplexity endpoint; `/chat/completions` is the operation. */
+/** 默认 Perplexity 端点；`/chat/completions` 是操作。 */
 export const PERPLEXITY_DEFAULT_BASE_URL = 'https://api.perplexity.ai'
 
-/** Default search model. */
+/** 默认搜索模型。 */
 export const PERPLEXITY_DEFAULT_MODEL = 'sonar'
 
-/** Default upper bound on generated answer tokens. */
+/** 生成答案令牌的默认上限。 */
 export const PERPLEXITY_DEFAULT_MAX_TOKENS = 1024
 
-/** Recency filter values Perplexity accepts for `search_recency_filter`. */
+/** Perplexity 为 `search_recency_filter` 接受的时效性过滤值。 */
 export type PerplexityRecency = 'day' | 'week' | 'month' | 'year'
 
-/** Attribution header sent on every request. Bump with the package version. */
+/** 每次请求发送的归因头。随包版本递增。 */
 const USER_AGENT = 'deepseek-harness/0.0.1'
 
-/** Resolved provider options (the plugin's `apply` supplies env-var and constant defaults). */
+/** 已解析的提供方选项（插件的 `apply` 提供环境变量与常量默认值）。 */
 export interface PerplexitySearchProviderOptions {
-  /** Perplexity API key. Empty/absent makes the provider unavailable. */
+  /** Perplexity API 密钥。为空/缺失会使提供方不可用。 */
   apiKey: string
-  /** Endpoint base; `/chat/completions` is appended. */
+  /** 端点基址；会追加 `/chat/completions`。 */
   baseURL: string
-  /** Search model name. */
+  /** 搜索模型名。 */
   model: string
-  /** Upper bound on generated answer tokens (`max_tokens`). */
+  /** 生成答案令牌的上限（`max_tokens`）。 */
   maxTokens: number
-  /** Optional recency window sent as `search_recency_filter`; omitted = no filter. */
+  /** 作为 `search_recency_filter` 发送的可选时效性窗口；省略 = 无过滤。 */
   searchRecency?: PerplexityRecency
 }
 
 /**
- * Map one structured Perplexity search result to a normalized source.
+ * 将一个结构化的 Perplexity 搜索结果映射为归一化的来源。
  *
- * @param result - one entry of the response's `search_results[]`.
- * @returns the normalized source; blank fields are omitted rather than set empty.
+ * @param result - 响应 `search_results[]` 中的一个条目。
+ * @returns 归一化的来源；空白字段被省略而非设为空。
  */
 export function mapPerplexityResult(result: PerplexitySearchResult): WebSearchSource {
   return {
@@ -63,12 +62,11 @@ export function mapPerplexityResult(result: PerplexitySearchResult): WebSearchSo
 }
 
 /**
- * Map a Perplexity response envelope to a normalized search result. Prefers
- * structured `search_results[]`; falls back to URL-only `citations[]` (those
- * sources carry just a `url`) only when `search_results` is absent.
+ * 将 Perplexity 响应信封映射为归一化的搜索结果。优先采用结构化的 `search_results[]`；
+ * 仅当 `search_results` 缺失时，回退到仅含 URL 的 `citations[]`（这些来源只携带一个 `url`）。
  *
- * @param response - the parsed chat-completions response body.
- * @returns the normalized result; `content` is omitted when the answer is empty.
+ * @param response - 解析后的 chat-completions 响应体。
+ * @returns 归一化的结果；当答案为空时省略 `content`。
  */
 export function mapPerplexityResponse(response: PerplexityResponse): WebSearchResult {
   const content = response.choices?.[0]?.message?.content
@@ -82,14 +80,13 @@ export function mapPerplexityResponse(response: PerplexityResponse): WebSearchRe
   }
 }
 
-/** The Perplexity-backed search provider; HTTP redirects fail as `WEB_PROVIDER_ERROR`. */
+/** 由 Perplexity 支持的搜索提供方；HTTP 重定向作为 `WEB_PROVIDER_ERROR` 失败。 */
 export class PerplexitySearchProvider implements WebSearchProvider {
   readonly id = PERPLEXITY_PROVIDER_ID
 
   constructor(private readonly options: PerplexitySearchProviderOptions) {}
 
-  // Availability checks stay beside each provider's distinct config contract;
-  // a shared base class would obscure which fields make this backend usable.
+  // 可用性检查紧贴每个提供方各异的配置契约；一个共享基类会掩盖哪些字段使此后端可用。
   /* jscpd:ignore-start */
   available(): boolean {
     return this.options.apiKey.length > 0
@@ -131,13 +128,11 @@ export class PerplexitySearchProvider implements WebSearchProvider {
         const detail = typeof parsed.error === 'string' ? parsed.error : parsed.error?.message ?? parsed.message
         if (detail !== undefined && detail.length > 0) message = detail
       } catch (error: unknown) {
-        // An abort fired mid-body must surface as WEB_ABORTED, not be swallowed
-        // into a generic HTTP-error message — cancellation is not a provider
-        // error (the seam's cancellation contract).
+        // 在正文读取中途触发的取消必须以 WEB_ABORTED 呈现，而不能被吞入一个
+        // 泛化的 HTTP 错误消息 —— 取消不是提供方错误（该 seam 的取消契约）。
         if (isAbortError(error)) throw new WebError('Perplexity search aborted', 'WEB_ABORTED', { cause: error })
-        // Otherwise: the HTTP status is already captured in `message` above; a
-        // malformed/non-JSON error body (normal for gateway 5xx/429s) can only
-        // cost a richer provider message, never the real error.
+        // 否则：HTTP 状态已在上方的 `message` 中捕获；一个畸形/非 JSON 的错误体
+        //（网关 5xx/429 的常见情况）最多损失一个更丰富的提供方消息，绝不会丢失真实错误。
       }
       throw new WebError(message, 'WEB_PROVIDER_ERROR')
     }
@@ -152,15 +147,14 @@ export class PerplexitySearchProvider implements WebSearchProvider {
   }
 }
 
-// These two predicates are intentionally local: exporting generic internals
-// from the public web seam would add more API than these pure checks.
+// 这两个谓词是刻意局部的：从公共 web seam 导出通用的内部实现会为这些纯检查添加超出所需的 API。
 /* jscpd:ignore-start */
-/** True for a fetch/`AbortSignal` abort, surfaced as `WEB_ABORTED`. */
+/** 对于 fetch/`AbortSignal` 的取消返回 true，以 `WEB_ABORTED` 呈现。 */
 function isAbortError(error: unknown): boolean {
   return error instanceof DOMException && error.name === 'AbortError'
 }
 
-/** True for a request limit that can be sent to Perplexity (a positive whole number). */
+/** 对于可以发往 Perplexity 的请求上限（正整数）返回 true。 */
 function isPositiveInteger(value: number): boolean {
   return Number.isInteger(value) && value > 0
 }

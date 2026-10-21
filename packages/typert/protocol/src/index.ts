@@ -1,7 +1,6 @@
 /**
- * Remote decorators and explicit Gateway bindings backed by versioned
- * descriptors carried on decorated class prototypes. Strict reflection
- * remains a Typert compiler responsibility.
+ * 由带版本的、承载于被装饰类原型上的描述符支撑的远程装饰器与显式
+ * Gateway 绑定。严格的反射仍是 Typert 编译器的职责。
  * @module @deepseek-ai/dsh-typert-protocol
  */
 
@@ -24,9 +23,9 @@ export type { RemoteAccessResource, RemoteAccessResourceKind, RemoteAccessResour
 const TYPERT_REMOTE_SEGMENT_PATTERN = /^[A-Za-z0-9_$.-]+$/
 
 /**
- * Test one generated Remote name against the Connection endpoint grammar.
- * @param value - namespace, method, lookup, or Context segment.
- * @returns whether the value can cross the shared RPC carrier unchanged.
+ * 将一个生成的 Remote 名称对照连接端点语法进行检验。
+ * @param value - 命名空间、方法、lookup 或 Context 段。
+ * @returns 该值是否能不变地穿越共享 RPC 载体。
  */
 export function isTypertRemoteSegment(value: string): boolean {
   return value !== '.' && value !== '..' && TYPERT_REMOTE_SEGMENT_PATTERN.test(value)
@@ -106,77 +105,73 @@ export type {
   TypertRegistryContract,
 } from './types.ts'
 
-/** Options for an explicit Service-to-Gateway binding. */
+/** 一个显式 Service 到 Gateway 绑定的选项。 */
 export interface TypertGatewayBindingOptions {
-  /** Wire namespace; defaults to the Cordis service key. */
+  /** 传输线命名空间；默认为 Cordis 服务键。 */
   readonly namespace?: string
 }
 
-/** Visible declaration that one Service participates in Typert Gateway export. */
+/** 声明一个 Service 参与 Typert Gateway 导出的可见声明。 */
 export interface TypertGatewayBinding<Service extends object = object> {
   readonly service: Service
   readonly serviceKey: string
   readonly namespace: string
 }
 
-/** Invocation mode recorded by a Remote method decorator. */
+/** 由 Remote 方法装饰器记录的调用模式。 */
 export type RemoteInvocationMarker =
   | { readonly kind: 'direct' }
   | { readonly kind: 'context'; readonly context: string }
 
-/** One decorator marker discovered for a live Service instance. */
+/** 为一个存活 Service 实例发现的一个装饰器标记。 */
 export interface RemoteMethodMarker {
-  /** Public instance method carrying the implementation. */
+  /** 承载实现的公共实例方法。 */
   readonly method: string
-  /** Endpoint method when it differs from the implementation member. */
+  /** 当端点方法不同于实现成员时的端点方法。 */
   readonly exportName?: string
-  /** Stream methods yield many independently validated result items. */
+  /** 流方法产出多个各自独立校验的结果项。 */
   readonly mode?: 'stream'
   readonly invocation: RemoteInvocationMarker
   /**
-   * Declared `resources` readers keyed by resource kind. Callers spread the
-   * method's wire arguments into each one and validate its result.
+   * 按资源种类键控的、已声明的 `resources` 读取器。调用方将方法的传输线参数
+   * 展开传入每一个读取器并校验其结果。
    */
   readonly resources?: Readonly<Record<string, TypertResourceReader>>
 }
 
 /**
- * Explicit endpoint and resource choices for one Remote Scope method.
- * @template WireArgs - the decorated method's positional parameters as the
- *   wire carries them; the default `never` admits readers of any tuple.
+ * 为一个 Remote Scope 方法提供的显式端点与资源选择。
+ * @template WireArgs - 被装饰方法的位置参数在传输线上的承载形式；
+ *   默认的 `never` 接受任意元组的读取器。
  */
 export interface RemoteScopeOptions<WireArgs extends readonly unknown[] = never> {
   /** Exported endpoint method; omission retains the implementation member name. */
   readonly name?: string
   /**
-   * Per-kind readers of the resources one call touches. Each receives the
-   * method's arguments as its own parameters, JSON arguments as their Typert
-   * codecs validated them, a lookup parameter as its wire identity and a
-   * cancellation parameter as the call's signal, so it performs plain reads
-   * only, and returns one identity, several, or `undefined` for none. A
-   * throw, an empty list, or an identity other than a non-empty string
-   * refuses the call. For a kind without a reader, the Gateway reads the
-   * identity of a scoped Context whose Host adapter declares that `resource`
-   * and of lookup parameters declaring it, else the field registered in
-   * `typert.resources`: a top-level argument or, failing that, the first
-   * object argument. A call that carries no identity touches `global`. The
-   * readers and these defaults together must name every resource the method
-   * accesses: access control never checks a resource they omit.
+   * 一次调用触及的资源的逐种类读取器。每个读取器接收方法的参数作为自身的形参、
+   * 由 Typert 编解码器校验过的 JSON 参数、作为传输线身份的 lookup 参数，以及
+   * 作为调用信号的取消参数，因此它只执行普通读取，并返回一个身份、多个身份，
+   * 或无（表示没有）。一个抛出、空列表，或非非空字符串之外的身份会拒绝该调用。
+   * 对于没有读取器的种类，Gateway 读取一个限定 Context 的身份（其 Host 适配器
+   * 声明了该 `resource`），以及声明了它的 lookup 参数的身份；否则读取在
+   * `typert.resources` 中注册的字段：一个顶层参数，若没有则读取第一个对象参数。
+   * 不带身份的调用触及 `global`。读取器与这些默认值一起必须命名该方法访问的
+   * 每一个资源：访问控制绝不检查它们所省略的资源。
    */
   readonly resources?: TypertResourceReaders<WireArgs>
 }
 
 /**
- * Explicit endpoint, stream, and resource choices for one direct Remote method.
- * @template WireArgs - the decorated method's positional parameters as the
- *   wire carries them; the default `never` admits readers of any tuple.
+ * 为一个直连 Remote 方法提供的显式端点、流与资源选择。
+ * @template WireArgs - 被装饰方法的位置参数在传输线上的承载形式；
+ *   默认的 `never` 接受任意元组的读取器。
  */
 export interface RemoteMethodOptions<WireArgs extends readonly unknown[] = never> extends RemoteScopeOptions<WireArgs> {
-  /** `stream`: deliver each Iterable item over the shared logical-stream carrier. */
+  /** `stream`：通过共享的逻辑流载体交付每个 Iterable 项。 */
   readonly mode?: 'stream'
 }
 
-/** A decorator whose `resources` readers were checked against the decorated method's parameters. */
+/** 其 `resources` 读取器已对照被装饰方法的参数校验过的装饰器。 */
 type RemoteTypedMethodDecorator<This extends object, Args extends unknown[], Result> = (
   method: (this: This, ...args: Args) => Result,
   context: ClassMethodDecoratorContext<This, (this: This, ...args: Args) => Result>,
@@ -201,7 +196,7 @@ interface StoredRemoteMethodMarker {
   readonly resources?: Readonly<Record<string, TypertResourceReader>>
 }
 
-/** Marker fields selected by decorator arguments. */
+/** 由装饰器实参选定的标记字段。 */
 interface RemoteMarkerOptions {
   readonly mode?: 'stream'
   readonly exportName?: string
@@ -220,14 +215,13 @@ interface RemoteMethodDescriptorV1 {
 const REMOTE_METHOD_DESCRIPTOR = '@deepseek-ai/dsh-typert-protocol/remote-methods'
 
 /**
- * Bind one visible Service field to a Cordis key and Remote namespace. A
- * service that owns a Cordis Context also gives its tree `ctx.invocation`,
- * `undefined` outside a Remote call, so no `TypertRemoteService` is needed for
- * a Host composition to read it.
- * @param service - owning Service instance, normally `this`.
- * @param serviceKey - exact Cordis service key.
- * @param options - optional wire namespace.
- * @returns a frozen, inspectable binding with no compiler-injected metadata.
+ * 将一个可见的 Service 字段绑定到 Cordis 键与 Remote 命名空间。一个拥有
+ * Cordis Context 的 Service 还会为其树提供 `ctx.invocation`（Remote 调用
+ * 之外为 `undefined`），因此 Host 组合无需 `TypertRemoteService` 即可读取它。
+ * @param service - 拥有 Service 实例，通常为 `this`。
+ * @param serviceKey - 精确的 Cordis 服务键。
+ * @param options - 可选的传输线命名空间。
+ * @returns 一个冻结的、可检查的绑定，不含编译器注入的元数据。
  */
 export function bindTypertRemote<Service extends object>(
   service: Service,
@@ -242,16 +236,16 @@ export function bindTypertRemote<Service extends object>(
   return Object.freeze({ service, serviceKey, namespace })
 }
 
-/** Cordis Service base that exposes its registered name through Typert Gateway. */
+/** 通过其注册名经由 Typert Gateway 暴露的 Cordis Service 基类。 */
 export abstract class TypertRemoteService<out T = never> extends Service<T> {
   /** Visible binding consumed by the Gateway's source-mode discovery. */
   readonly typertRemote: TypertGatewayBinding<this>
 
   /**
-   * Register the Service and bind the same key to Typert Gateway.
-   * @param ctx - owning Cordis Context.
-   * @param serviceKey - exact Cordis service key and default wire namespace.
-   * @param options - optional wire namespace.
+   * 注册该 Service 并将同一键绑定到 Typert Gateway。
+   * @param ctx - 拥有的 Cordis Context。
+   * @param serviceKey - 精确的 Cordis 服务键与默认传输线命名空间。
+   * @param options - 可选的传输线命名空间。
    */
   protected constructor(ctx: Context, serviceKey: string, options: TypertGatewayBindingOptions = {}) {
     super(ctx, serviceKey)
@@ -260,10 +254,9 @@ export abstract class TypertRemoteService<out T = never> extends Service<T> {
 }
 
 /**
- * Make `ctx.invocation` read as `undefined` outside a Remote call instead of the
- * reflect service's "cannot get property" error; a call-derived Context shadows
- * the accessor with its own property. The first Remote Service constructed in a
- * tree registers it on the root, where it outlives any one Service.
+ * 让 `ctx.invocation` 在 Remote 调用之外读取为 `undefined`，而非反射服务的
+ * “无法获取属性”错误；由调用派生的 Context 以自己的属性遮蔽该访问器。树中
+ * 构造的第一个 Remote Service 将其注册到根上，使其比任何单一 Service 都长寿。
  */
 function provideInvocationAccessor(ctx: Context): void {
   if (Object.hasOwn(ctx.root.reflect.props, 'invocation')) return
@@ -271,24 +264,24 @@ function provideInvocationAccessor(ctx: Context): void {
 }
 
 /**
- * Mark one public instance method as a direct Remote invocation.
- * @param _method - decorated method; retained only by the class itself.
- * @param context - standard decorator context used to schedule private marking.
+ * 将一个公共实例方法标记为一个直连 Remote 调用。
+ * @param _method - 被装饰方法；仅由类自身保留。
+ * @param context - 用于安排私有标记的标准装饰器上下文。
  */
 export function Remote<This extends object, Args extends unknown[], Result>(
   _method: (this: This, ...args: Args) => Result,
   context: ClassMethodDecoratorContext<This, (this: This, ...args: Args) => Result>,
 ): void
 /**
- * Mark one public instance method with an endpoint name.
- * @param name - exported endpoint method.
- * @returns a standard method decorator.
+ * 用端点名标记一个公共实例方法。
+ * @param name - 导出的端点方法。
+ * @returns 一个标准方法装饰器。
  */
 export function Remote(name: string): RemoteMethodDecorator
 /**
- * Mark one public instance method with endpoint, stream, or resource options.
- * @param options - Remote options; each reader's parameters are inferred from the decorated method.
- * @returns a standard method decorator.
+ * 用端点、流或资源选项标记一个公共实例方法。
+ * @param options - Remote 选项；每个读取器的形参从被装饰方法推断。
+ * @returns 一个标准方法装饰器。
  */
 export function Remote<This extends object, Args extends unknown[], Result>(
   options: NoInfer<RemoteMethodOptions<RemoteWireArgs<Args>>>,
@@ -315,7 +308,7 @@ export function Remote<This extends object, Args extends unknown[], Result>(
 const REMOTE_OPTION_KEYS: ReadonlySet<string> = new Set(['name', 'mode', 'resources'])
 const REMOTE_SCOPE_OPTION_KEYS: ReadonlySet<string> = new Set(['name', 'resources'])
 
-/** Validate one decorator options object against its accepted keys and select the marker fields. */
+/** 对照装饰器实参接受的键校验一个装饰器选项对象，并选定标记字段。 */
 function markerOptions(options: RemoteMethodOptions, accepted: ReadonlySet<string>, requirement: string): RemoteMarkerOptions {
   const keys = Reflect.ownKeys(options)
   if (keys.length === 0 || keys.some(key => typeof key !== 'string' || !accepted.has(key))
@@ -331,7 +324,7 @@ function markerOptions(options: RemoteMethodOptions, accepted: ReadonlySet<strin
   }
 }
 
-/** Freeze declared readers into the marker record; a misdeclared reader fails at decoration. */
+/** 将已声明的读取器冻结进标记记录；声明错误的读取器在装饰时失败。 */
 function resourceReaders(resources: object): Readonly<Record<string, TypertResourceReader>> {
   const readers: Record<string, TypertResourceReader> = {}
   for (const [kind, reader] of Object.entries(resources as Readonly<Record<string, unknown>>)) {
@@ -357,17 +350,17 @@ function remoteDecorator(
 }
 
 /**
- * Create a decorator for a method resolved from one Remote Scope.
- * @param key - scope key declared through the Context map.
- * @param name - optional Remote export name; defaults to the method name.
- * @returns a standard method decorator that records a versioned prototype descriptor.
+ * 为从一个 Remote Scope 解析出的方法创建装饰器。
+ * @param key - 通过 Context 映射声明的 scope 键。
+ * @param name - 可选的 Remote 导出名；默认为方法名。
+ * @returns 一个记录带版本原型描述符的标准方法装饰器。
  */
 export function RemoteScope(key: Extract<keyof TypertContextMap, string>, name?: string): RemoteMethodDecorator
 /**
- * Create a decorator for a Remote Scope method with endpoint or resource options.
- * @param key - scope key declared through the Context map.
- * @param options - Remote Scope options; each reader's parameters are inferred from the decorated method.
- * @returns a standard method decorator that records a versioned prototype descriptor.
+ * 为带有端点或资源选项的 Remote Scope 方法创建装饰器。
+ * @param key - 通过 Context 映射声明的 scope 键。
+ * @param options - Remote Scope 选项；每个读取器的形参从被装饰方法推断。
+ * @returns 一个记录带版本原型描述符的标准方法装饰器。
  */
 export function RemoteScope<This extends object, Args extends unknown[], Result>(
   key: Extract<keyof TypertContextMap, string>,
@@ -392,10 +385,10 @@ export function RemoteScope(
 }
 
 /**
- * Read Remote markers attached to a live Service's class prototype.
- * The returned snapshot cannot mutate the stored descriptor.
- * @param service - live Service instance.
- * @returns markers in class declaration order.
+ * 读取附加到一个存活 Service 类原型上的 Remote 标记。
+ * 返回的快照无法修改已存储的描述符。
+ * @param service - 存活 Service 实例。
+ * @returns 按类声明顺序排列的标记。
  */
 export function remoteMethods(service: object): readonly RemoteMethodMarker[] {
   const prototype = Object.getPrototypeOf(service) as object | null
@@ -455,7 +448,7 @@ function mark(
   })
   const current = descriptor?.methods.find(candidate => candidate.method === method)
   if (current !== undefined) {
-    // One decorator application owns one frozen reader record, so identity marks the same declaration.
+    // 一次装饰器应用拥有一个冻结的读取器记录，因此引用同一标识即代表同一声明。
     if (current.exportName === marker.exportName
       && current.mode === marker.mode
       && current.resources === marker.resources

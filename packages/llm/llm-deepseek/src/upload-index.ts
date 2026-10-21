@@ -1,4 +1,4 @@
-/** Durable DeepSeek attachment-to-file-id index. @module dsh-llm-deepseek/upload-index */
+/** 持久化的 DeepSeek 附件到文件 id 索引。 @module dsh-llm-deepseek/upload-index */
 
 import { createHash } from 'node:crypto'
 import { readFile, mkdir } from 'node:fs/promises'
@@ -10,12 +10,12 @@ import type { AttachmentId, ImageVariantId as ImageVariantIdType } from '@deepse
 import { DeepSeekFileId, DeepSeekFileScope } from './file-id.ts'
 import type { DeepSeekFileId as DeepSeekFileIdType, DeepSeekFileScope as DeepSeekFileScopeType } from './file-id.ts'
 
-/** One durable remote upload mapping. Unix times are milliseconds. */
+/** 一条持久化的远端上传映射。Unix 时间以毫秒计。 */
 export interface DeepSeekUploadRecord {
   scope: DeepSeekFileScopeType
-  /** Provider-independent normalized attachment from which the uploaded request version was derived. */
+  /** 与提供方无关的、已规范化的附件；上传所用的请求版本由它派生而来。 */
   attachmentId: AttachmentId
-  /** Complete request transformation identity, including route budgets and encoder parameters. */
+  /** 完整的请求转换身份，包含路由预算与编码器参数。 */
   variantId: ImageVariantIdType
   fileId: DeepSeekFileIdType
   bytes: number
@@ -30,17 +30,17 @@ interface StoredIndex {
 
 class InvalidUploadIndexError extends Error {}
 
-/** Candidate commit outcome when another process already published a reusable upload. */
+/** 当另一个进程已经发布了一次可复用的上传时，一次候选提交的结果。 */
 export interface UploadIndexCommit {
   record: DeepSeekUploadRecord
   accepted: boolean
 }
 
 /**
- * Derive a non-secret stable index namespace without persisting or logging authentication headers.
- * @param baseURL - normalized provider endpoint namespace.
- * @param credentials - serialized authentication headers used only as hash input.
- * @returns branded SHA-256 namespace digest.
+ * 派生一个非机密的、稳定的索引命名空间，且不持久化或记录认证头。
+ * @param baseURL - 已规范化的提供方端点命名空间。
+ * @param credentials - 仅作为哈希输入使用的、已序列化的认证头。
+ * @returns 带品牌标记的 SHA-256 命名空间摘要。
  */
 export function deepSeekFileScope(baseURL: string, credentials: string): DeepSeekFileScopeType {
   const digest = createHash('sha256')
@@ -108,13 +108,13 @@ function reusable(record: DeepSeekUploadRecord, now: number, refreshMarginMs: nu
   return record.expiresAt - now > refreshMarginMs
 }
 
-/** Atomic local index shared by every DeepSeek session in this DSH home. */
+/** 本 DSH 主目录中所有 DeepSeek 会话共享的原子本地索引。 */
 export class DeepSeekUploadIndex {
-  /** Absolute owner-private JSON index path. */
+  /** 属主私有的 JSON 索引绝对路径。 */
   readonly path: string
 
   /**
-   * @param path - explicit test path; omission uses `DSH_HOME/llm-deepseek/files-v3.json`.
+   * @param path - 显式的测试路径；省略时使用 `DSH_HOME/llm-deepseek/files-v3.json`。
    */
   constructor(path = join(resolveDshHome(), 'llm-deepseek', 'files-v3.json')) {
     this.path = path
@@ -139,12 +139,12 @@ export class DeepSeekUploadIndex {
   }
 
   /**
-   * Read one reusable mapping.
-   * @param scope - endpoint/API-key namespace.
-   * @param variantId - complete request-image transformation identity.
-   * @param now - current Unix time in milliseconds.
-   * @param refreshMarginMs - remaining lifetime below which a mapping is not reused.
-   * @returns the mapping when it has enough lifetime remaining.
+   * 读取一条可复用的映射。
+   * @param scope - 端点/API 密钥命名空间。
+   * @param variantId - 完整的请求图像转换身份。
+   * @param now - 当前 Unix 时间，以毫秒计。
+   * @param refreshMarginMs - 剩余生命周期低于该值时不再复用。
+   * @returns 当剩余生命周期足够时返回该映射。
    */
   async get(
     scope: DeepSeekFileScopeType,
@@ -159,11 +159,11 @@ export class DeepSeekUploadIndex {
   }
 
   /**
-   * Publish a completed upload unless another process already published a reusable mapping.
-   * @param candidate - completed remote upload.
-   * @param now - current Unix time in milliseconds.
-   * @param refreshMarginMs - minimum reusable remaining lifetime.
-   * @returns the winning record and whether the candidate entered the index.
+   * 发布一次已完成的上传，除非另一个进程已经发布了一条可复用的映射。
+   * @param candidate - 已完成的远端上传。
+   * @param now - 当前 Unix 时间，以毫秒计。
+   * @param refreshMarginMs - 可复用的最小剩余生命周期。
+   * @returns 胜出的记录，以及该候选是否进入了索引。
    */
   async commit(
     candidate: DeepSeekUploadRecord,
@@ -190,9 +190,9 @@ export class DeepSeekUploadIndex {
   }
 
   /**
-   * Remove exact mappings in one locked rewrite without deleting concurrently installed successors.
-   * @param scope - endpoint/API-key namespace.
-   * @param generations - exact remote generations being invalidated; pairs absent from the index are ignored.
+   * 在一次加锁重写中移除精确的映射，且不删除并发安装的后继映射。
+   * @param scope - 端点/API 密钥命名空间。
+   * @param generations - 正在失效的精确远端版本；索引中不存在的配对会被忽略。
    */
   async remove(
     scope: DeepSeekFileScopeType,
@@ -210,8 +210,8 @@ export class DeepSeekUploadIndex {
   }
 
   /**
-   * Remove every local mapping for one remote namespace.
-   * @param scope - endpoint/API-key namespace.
+   * 移除某个远端命名空间的全部本地映射。
+   * @param scope - 端点/API 密钥命名空间。
    */
   async clear(scope: DeepSeekFileScopeType): Promise<void> {
     await mkdir(dirname(this.path), { recursive: true, mode: 0o700 })

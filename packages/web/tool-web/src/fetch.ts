@@ -1,8 +1,8 @@
 /**
- * The model-facing `web_fetch` tool. This module owns its schema, validation, and presentation;
- * `ctx.web` owns retrieval. Timeout is deployment policy, not a model argument: config becomes
- * `ToolDefinition.timeoutMs`, timeout policy enforces it, and this tool forwards the resulting
- * signal. A provider timeout remains a backstop for direct service callers.
+ * 面向模型的 `web_fetch` 工具。本模块负责自己的模式、校验和呈现；
+ * `ctx.web` 负责检索。超时是部署策略，而非模型参数：配置变为
+ * `ToolDefinition.timeoutMs`，超时策略强制实施它，本工具转发最终的信号。
+ * 提供方超时仍是对直接服务调用方的兜底。
  */
 
 import type { Context } from '@deepseek-ai/cordis'
@@ -15,12 +15,11 @@ import { assertNever, type JsonValue } from '@deepseek-ai/dsh-util-values'
 import { EXTERNAL_WEB_CONTENT_NOTICE } from './trust.ts'
 
 /**
- * The shared HTML→markdown converter: turndown over its bundled domino DOM,
- * with GitHub-flavored tables/strikethrough (`@joplin/turndown-plugin-gfm`).
- * The style options are fixed model-facing presentation (matching the repo's
- * markdown conventions), not deployment tunables. `remove` drops non-content
- * elements wholesale — turndown's default keeps their text. The instance is
- * stateless across `turndown()` calls and safe to share.
+ * 共享的 HTML→Markdown 转换器：在其内置 domino DOM 之上运行 turndown，
+ * 并启用 GitHub 风格的表格/删除线（`@joplin/turndown-plugin-gfm`）。
+ * 这些样式选项是固定的、面向模型的呈现（与仓库的 Markdown 约定一致），
+ * 而非部署可调参数。`remove` 会整块丢弃非内容元素 —— turndown 默认会保留它们的文本。
+ * 该实例在多次 `turndown()` 调用之间是无状态的，可以安全共享。
  */
 const turndown = new TurndownService({
   headingStyle: 'atx',
@@ -48,14 +47,14 @@ turndown.addRule('removeNonVisibleContent', {
   },
 })
 
-/** Render one GFM table cell without interpreting HTML span counts. */
+/** 渲染一个 GFM 表格单元格，不解释 HTML 的跨列计数。 */
 function renderTableCell(content: string, index: number): string {
   const prefix = index === 0 ? '| ' : ' '
   const escaped = content.trim().replace(/\n\r/g, '<br>').replace(/\n/g, '<br>').replace(/\|+/g, '\\|').padEnd(3, ' ')
   return `${prefix}${escaped} |`
 }
 
-/** Whether a row is the table's Markdown heading row. */
+/** 判断一行是否为该表格的 Markdown 表头行。 */
 function isTableHeadingRow(row: HTMLTableRowElement): boolean {
   const cells = Array.from(row.cells)
   const section = row.parentElement as HTMLTableSectionElement
@@ -64,7 +63,7 @@ function isTableHeadingRow(row: HTMLTableRowElement): boolean {
     && cells.every(cell => cell.nodeName === 'TH')
 }
 
-/** Map an HTML table-cell alignment to the GFM separator marker. */
+/** 将 HTML 表格单元格的对齐方式映射为 GFM 分隔符标记。 */
 function tableBorder(cell: HTMLTableCellElement): string {
   const alignment = (cell.getAttribute('align') || cell.style.textAlign || '').toLowerCase()
   if (alignment === 'left') return ':---'
@@ -78,8 +77,8 @@ turndown.addRule('tableCellWithoutSpanExpansion', {
   replacement(content, node) {
     const cell = node as HTMLTableCellElement
     const row = cell.parentNode as HTMLTableRowElement
-    // GFM cannot represent spanning cells. Ignoring colspan keeps conversion
-    // work and output proportional to the source instead of the numeric attribute.
+    // GFM 无法表示跨列单元格。忽略 colspan 可以让转换保持可用，
+    // 并使输出与源成比例，而不是与数字属性成比例。
     return renderTableCell(content, Array.prototype.indexOf.call(row.childNodes, cell))
   },
 })
@@ -95,13 +94,13 @@ turndown.addRule('tableRowWithoutSpanExpansion', {
 })
 
 /**
- * Validate value constraints the schema DSL can't express: a non-blank `url`.
- * Throws a plain `Error` otherwise. No timeout parameter — the tool-call budget
- * is deployment policy declared via `fetchTimeoutMs` config and enforced by
- * `@deepseek-ai/dsh-tool-call-timeout-policy`, not a model argument.
+ * 校验模式 DSL 无法表达的取值约束：一个非空的 `url`。
+ * 否则抛出普通 `Error`。没有超时参数 —— 工具调用的预算是部署策略，
+ * 通过 `fetchTimeoutMs` 配置声明，并由 `@deepseek-ai/dsh-tool-call-timeout-policy`
+ * 强制实施，而不是模型参数。
  *
- * @param args - the schema-validated `web_fetch` arguments.
- * @returns the arguments as the seam's request fields.
+ * @param args - 经过模式校验的 `web_fetch` 参数。
+ * @returns 作为该 seam 请求字段的参数。
  */
 export function parseFetchArgs(args: { url: string }): { url: string } {
   if (args.url.trim().length === 0) throw new Error('url must be a non-empty string')
@@ -109,31 +108,29 @@ export function parseFetchArgs(args: { url: string }): { url: string } {
 }
 
 /**
- * Nesting-depth ceiling above which HTML skips conversion and passes through
- * raw. Conversion runs synchronously on the event loop, and unclosed-tag
- * nesting makes domino's tree (and turndown's walk over it) superlinear —
- * measured: depth 512 ≈ 0.15s, 2,000 ≈ 2s, 20,000 ≈ 5s — during which the
- * cooperative `fetchTimeoutMs` timer cannot fire. Real pages nest a few dozen
- * levels; 512 is far above content and far below weaponizable. A robustness
- * invariant, not a tunable.
+ * 嵌套深度上限，超过后 HTML 跳过转换并原样透传。转换在事件循环上同步运行，
+ * 而未闭合标签的嵌套会使 domino 的树（以及 turndown 在其上的遍历）变为超线性 ——
+ * 实测：深度 512 ≈ 0.15s，2,000 ≈ 2s，20,000 ≈ 5s —— 在此期间协作式的
+ * `fetchTimeoutMs` 计时器无法触发。真实页面嵌套几十层；512 远高于内容所需，
+ * 又远低于可被武器化的程度。这是一个鲁棒性不变量，而非可调参数。
  */
 const MAX_CONVERSION_DEPTH = 512
 
-/** Elements that never take a closing tag, so they do not grow the lexical stack. */
+/** 永远不带结束标签的元素，因此它们不会增长词法栈。 */
 const VOID_ELEMENTS = new Set([
   'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input',
   'link', 'meta', 'param', 'source', 'track', 'wbr',
 ])
 
-/** Elements whose contents HTML parses as text until their matching end tag. */
+/** 其内容在 HTML 解析为文本、直到匹配结束标签为止的元素。 */
 const RAW_TEXT_ELEMENTS = new Set(['script', 'style', 'noscript'])
 
-/** Whether a character can occur after a raw-text end-tag name. */
+/** 判断一个字符是否能出现在原始文本结束标签名之后。 */
 function isTagBoundary(char: string | undefined): boolean {
   return char === undefined || char === '>' || char === '/' || /\s/.test(char)
 }
 
-/** Find the matching raw-text end tag without interpreting markup-like body text. */
+/** 在不解释类标记体文本的情况下，找到匹配的原始文本结束标签。 */
 function findRawTextEnd(lowerHtml: string, name: string, from: number): number {
   const prefix = `</${name}`
   let candidate = lowerHtml.indexOf(prefix, from)
@@ -144,14 +141,12 @@ function findRawTextEnd(lowerHtml: string, name: string, from: number): number {
 }
 
 /**
- * Conservatively reject HTML whose lexical element stack crosses the conversion
- * depth ceiling. The single pass ignores closing tags inside comments, skips
- * raw-text bodies, respects quoted `>` characters, and only accepts a closing
- * tag for the current element; malformed input therefore over-counts rather
- * than hiding nesting.
+ * 保守地拒绝词法元素栈越过转换深度上限的 HTML。这一遍单向扫描会忽略注释内部的
+ * 结束标签、跳过原始文本体、尊重带引号的 `>` 字符，并且只为当前元素接受结束标签；
+ * 因此畸形输入会多计而不是隐藏嵌套。
  *
- * @param html - the decoded HTML body.
- * @returns whether the body crosses {@link MAX_CONVERSION_DEPTH}.
+ * @param html - 已解码的 HTML 正文。
+ * @returns 该正文是否越过 {@link MAX_CONVERSION_DEPTH}。
  */
 function exceedsConversionDepth(html: string): boolean {
   const lowerHtml = html.toLowerCase()
@@ -223,21 +218,19 @@ function exceedsConversionDepth(html: string): boolean {
 }
 
 interface RenderedBody {
-  /** Converted text, or a fixed omission marker when conversion is unsafe. */
+  /** 转换后的文本，或在转换不安全时的固定省略标记。 */
   text: string
-  /** Whether the source was cut before conversion to bound synchronous work. */
+  /** 源是否在转换前被截断，以限制同步工作量。 */
   sourceTruncated: boolean
 }
 
 /**
- * Render a fetched body to model-facing markdown text.
+ * 将抓取到的正文渲染为面向模型的 Markdown 文本。
  *
- * @param body - the decoded body; `html` is converted via turndown, `text`
- *   passes through verbatim.
- * @param maxInputChars - maximum source characters processed synchronously.
- * @returns the rendered prefix and whether the source was cut. HTML nested
- *   beyond {@link MAX_CONVERSION_DEPTH} or rejected by turndown is omitted so
- *   raw active markup never reaches the model-facing result.
+ * @param body - 已解码的正文；`html` 通过 turndown 转换，`text` 原样透传。
+ * @param maxInputChars - 同步处理的最大源字符数。
+ * @returns 渲染后的前缀以及源是否被截断。嵌套超出 {@link MAX_CONVERSION_DEPTH} 或被
+ *   turndown 拒绝的 HTML 会被省略，使活跃的标记原始内容永不会进入面向模型的结果。
  */
 function renderBody(body: WebFetchBody, maxInputChars: number): RenderedBody {
   const content = body.content.slice(0, maxInputChars)
@@ -248,56 +241,49 @@ function renderBody(body: WebFetchBody, maxInputChars: number): RenderedBody {
       try {
         return { text: turndown.turndown(content), sourceTruncated }
       } catch {
-        // turndown's DOM walk recurses per element; malformed markup the lexical
-        // guard cannot model can still throw RangeError. Provider errors remain
-        // structured upstream; conversion failure returns no source markup.
+        // turndown 的 DOM 遍历按元素递归；词法守卫无法建模的畸形标记仍可能抛出
+        // RangeError。提供方错误在其上游已结构化；转换失败不会返回任何源标记。
         return { text: '[HTML content omitted: unable to convert safely.]', sourceTruncated }
       }
     case 'text':
       return { text: content, sourceTruncated }
-    /* v8 ignore next 2 -- WebFetchBody is a closed union; this arm is unreachable and only makes adding a kind a compile error. */
+    /* v8 ignore next 2 -- WebFetchBody 是封闭联合；此分支不可达，仅用于让新增一种 kind 成为编译错误。 */
     default:
       return assertNever(body, 'unhandled web fetch body kind')
   }
 }
 
-/** The truncation notice appended when the provider or the output cap cut content. */
+/** 当提供方或输出上限截断内容时附带的截断提示。 */
 const TRUNCATION_FOOTER = '\n\n(Content truncated. Fetch a more specific URL or section for the full text.)'
 
-/** A rendered fetch output: the model-facing text and its effective truncation. */
+/** 一个渲染后的 fetch 输出：面向模型的文本及其有效截断状态。 */
 interface RenderedFetch {
-  /** The complete bounded output — header, rendered body, and truncation footer. */
+  /** 完整的受限输出 —— 头部、渲染后的正文以及截断页脚。 */
   text: string
   /**
-   * True when the provider capped the body, a pre-conversion source cut applied,
-   * or the complete output exceeded `maxOutputChars`. This is the effective
-   * truncation the returned text reflects (its footer), wider than the
-   * provider-only `WebFetchResult.truncated`.
+   * 当提供方截断了正文、应用了转换前源截断，或完整输出超出 `maxOutputChars` 时为 true。
+   * 这是返回文本所反映的有效截断（即其页脚），比仅限提供方的
+   * `WebFetchResult.truncated` 更宽。
    */
   truncated: boolean
 }
 
 /**
- * Render a fetch result to its bounded model-facing text and effective
- * truncation. The single source of both the `render` text and the fetch card's
- * `truncated`, so the card never disagrees with the text the model saw. The cap
- * limits the source prefix processed synchronously, then applies again where the
- * complete output — header, rendered body, and footer — is known.
+ * 将抓取结果渲染为其受限的面向模型文本和有效截断。这是 `render` 文本和 fetch 卡片
+ * `truncated` 的唯一来源，因此卡片绝不会与模型所见文本相矛盾。该上限先限制同步处理的
+ * 源前缀，再在完整输出 —— 头部、渲染后的正文和页脚 —— 已知时再次应用。
  *
- * Package-internal: the only callers are {@link formatFetchOutput} and
- * {@link fetchMetaFromValue}, both reached through the tool registry, which
- * deep-freezes the result value before calling `output.render` and
- * `output.presentationMeta`. The conversion is memoized per
- * `(result, maxOutputChars)` so the synchronous DOM parse and turndown walk run
- * once, not twice, on that same frozen value. Keeping it unexported means no
- * caller can mutate a cached input or the returned {@link RenderedFetch}, so the
- * memo needs no defensive copy.
+ * 包内私有：唯一的调用方是 {@link formatFetchOutput} 和 {@link fetchMetaFromValue}，
+ * 二者都通过工具注册表到达，注册表在调用 `output.render` 和 `output.presentationMeta`
+ * 之前会对结果值进行深冻结。转换按 `(result, maxOutputChars)` 记忆化，因此同一冻结值上的
+ * 同步 DOM 解析和 turndown 遍历只运行一次，而不是两次。保持不导出意味着没有调用方能够
+ * 修改缓存的输入或返回的 {@link RenderedFetch}，因此记忆化无需防御性拷贝。
  *
- * @param result - the seam's fetch outcome.
- * @param maxOutputChars - cap on the complete returned string; a cut body gets
- *   the same fetch-something-narrower notice as provider-side truncation.
- * @returns the complete `Fetched <url> (HTTP <status>)`-headed text and whether
- *   the provider, a source cut, or the cap trimmed the content.
+ * @param result - 该 seam 的抓取结果。
+ * @param maxOutputChars - 完整返回字符串的上限；被截断的正文会得到与提供方侧截断
+ *   相同的“抓取更窄内容”提示。
+ * @returns 以 `Fetched <url> (HTTP <status>)` 为开头的完整文本，以及提供方、源截断或
+ *   上限是否裁剪了内容。
  */
 function renderFetchOutput(result: WebFetchResult, maxOutputChars: number): RenderedFetch {
   const byCap = renderCache.get(result) ?? new Map<number, RenderedFetch>()
@@ -310,20 +296,19 @@ function renderFetchOutput(result: WebFetchResult, maxOutputChars: number): Rend
 }
 
 /**
- * Per-result memo for {@link renderFetchOutput}, keyed first on the frozen
- * result value so a garbage-collected result drops its entry, then on the output
- * cap (a deployment constant per registration). Collapses the registry's twin
- * `render`/`presentationMeta` calls into one HTML→markdown conversion.
+ * {@link renderFetchOutput} 的按结果记忆化：先以冻结的结果值为键（结果被垃圾回收时其条目
+ * 随之丢弃），再以输出上限（每次注册中的部署常量）为键。它将注册表的孪生
+ * `render`/`presentationMeta` 调用合并为一次 HTML→Markdown 转换。
  */
 const renderCache = new WeakMap<WebFetchResult, Map<number, RenderedFetch>>()
 
 /**
- * The uncached conversion behind {@link renderFetchOutput}. Separated so the
- * memo wraps exactly one call site and the conversion logic stays pure.
+ * {@link renderFetchOutput} 背后的未缓存转换。拆分为独立函数，使记忆化恰好包裹一个调用点，
+ * 转换逻辑保持纯净。
  *
- * @param result - the seam's fetch outcome.
- * @param maxOutputChars - cap on the complete returned string.
- * @returns the bounded text and effective truncation.
+ * @param result - 该 seam 的抓取结果。
+ * @param maxOutputChars - 完整返回字符串的上限。
+ * @returns 受限文本和有效截断。
  */
 function computeFetchOutput(result: WebFetchResult, maxOutputChars: number): RenderedFetch {
   const header = `Fetched ${result.url} (HTTP ${result.statusCode})\n\n${EXTERNAL_WEB_CONTENT_NOTICE}\n\n`
@@ -337,69 +322,63 @@ function computeFetchOutput(result: WebFetchResult, maxOutputChars: number): Ren
 }
 
 /**
- * Format a fetch result as one model-facing text block, bounded as a whole.
+ * 将抓取结果格式化为一个整体受限的面向模型文本块。
  *
- * @param result - the seam's fetch outcome.
- * @param maxOutputChars - cap on the complete returned string.
- * @returns the complete text from {@link renderFetchOutput}.
+ * @param result - 该 seam 的抓取结果。
+ * @param maxOutputChars - 完整返回字符串的上限。
+ * @returns 来自 {@link renderFetchOutput} 的完整文本。
  */
 export function formatFetchOutput(result: WebFetchResult, maxOutputChars: number): string {
   return renderFetchOutput(result, maxOutputChars).text
 }
 
 /**
- * Pending-call presentation: a fetch card titled by the URL.
+ * 调用进行中的呈现：一张以 URL 为标题的 fetch 卡片。
  *
- * @param args - the raw tool arguments; only `url` feeds the view.
- * @returns the generic card view (`kind: 'fetch'`) shown while the call runs.
+ * @param args - 原始工具参数；只有 `url` 进入视图。
+ * @returns 调用运行时显示的通用卡片视图（`kind: 'fetch'`）。
  */
 export function presentFetchCall(args: { url: string }): GenericCallView {
   return { card: 'generic', title: args.url, kind: 'fetch', rawInput: args.url }
 }
 
 /**
- * The `web_fetch` tool's private `tool/result` `meta` payload: the fetch summary
- * a UI cannot recover from the model-facing render text without reparsing its
- * header line. Attached opaquely (as `JsonValue`) on the tool result and
- * persisted with the session log, so `presentResult` reproduces the fetch card
- * on replay. The body itself is already markdown in the result content, so it is
- * not duplicated here. `truncated` is the effective truncation the render text
- * reflects, which a client cannot recompute (it does not know the deployment's
- * `fetchMaxOutputChars`); this is why fetch meta is carried, not derived from the
- * header line (see the web-result-card Agent Note).
+ * `web_fetch` 工具私有的 `tool/result` `meta` 负载：一个 UI 若不重新解析其头部行就无法从
+ * 面向模型的渲染文本中恢复的抓取摘要。它以不透明形式（作为 `JsonValue`）附加到工具结果上，
+ * 并随会话日志持久化，因此 `presentResult` 可以在回放时复现 fetch 卡片。正文本身在结果内容中
+ * 已是 Markdown，因此不在此重复。`truncated` 是渲染文本所反映的有效截断，客户端无法重算
+ * （它不知道部署的 `fetchMaxOutputChars`）；这也正是 fetch meta 被携带、而非从头部行派生
+ * 的原因（见 web-result-card 智能体笔记）。
  */
 export interface WebFetchMeta {
-  /** The final URL after allowed redirects. */
+  /** 允许的重定向之后的最终 URL。 */
   url: string
-  /** HTTP status code of the fetched response. */
+  /** 抓取到的响应的 HTTP 状态码。 */
   statusCode: number
-  /** True when the provider, a source cut, or the output cap trimmed the content. */
+  /** 当提供方、源截断或输出上限裁剪了内容时为 true。 */
   truncated: boolean
 }
 
 /**
- * Project a validated `web_fetch` output value into its replayable presentation
- * meta ({@link WebFetchMeta} as opaque JSON). `truncated` is the effective
- * truncation the model-facing text reflects (via {@link renderFetchOutput}), not
- * the provider-only `WebFetchResult.truncated`, so the fetch card never disagrees
- * with the returned text.
+ * 将一个经过校验的 `web_fetch` 输出值投影为其可回放的呈现 meta
+ *（`WebFetchMeta`，以不透明 JSON 形式）。`truncated` 是面向模型文本所反映的有效截断
+ * （通过 {@link renderFetchOutput}），而非仅限提供方的 `WebFetchResult.truncated`，
+ * 因此 fetch 卡片绝不会与返回文本相矛盾。
  *
- * @param value - the canonical `web_fetch` output value (the seam's result shape).
- * @param maxOutputChars - the deployment's output cap, the same one
- *   {@link formatFetchOutput} applies to the render text.
- * @returns the URL, status code, and effective truncation flag.
+ * @param value - 规范的 `web_fetch` 输出值（即该 seam 的结果形状）。
+ * @param maxOutputChars - 部署的输出上限，与 {@link formatFetchOutput} 应用于渲染文本者相同。
+ * @returns URL、状态码和有效截断标志。
  */
 export function fetchMetaFromValue(value: WebFetchResult, maxOutputChars: number): JsonValue {
   return { url: value.url, statusCode: value.statusCode, truncated: renderFetchOutput(value, maxOutputChars).truncated }
 }
 
 /**
- * Narrow opaque live or replayed result metadata to a {@link WebFetchMeta}.
- * Malformed metadata returns `undefined` so presentation can fall back to the
- * generic card instead of throwing during replay.
+ * 将不透明的实时或回放结果元数据收窄为 {@link WebFetchMeta}。畸形元数据返回 `undefined`，
+ * 使呈现可以在回放时退回到通用卡片，而不是抛出。
  *
- * @param meta - result metadata.
- * @returns the validated fetch meta, or `undefined` for absent or malformed data.
+ * @param meta - 结果元数据。
+ * @returns 校验通过的 fetch meta，或对缺失/畸形数据返回 `undefined`。
  */
 export function fetchMetaFromResult(meta: unknown): WebFetchMeta | undefined {
   if (typeof meta !== 'object' || meta === null || Array.isArray(meta)) return undefined
@@ -409,16 +388,14 @@ export function fetchMetaFromResult(meta: unknown): WebFetchMeta | undefined {
 }
 
 /**
- * Completed-call presentation: a `web` fetch card carrying the retrieval summary
- * from `meta`. It sets no `content` copy — a UI without the `web` capability
- * falls back to the raw `tool/result` content, the already-markdown body (see the
- * web-result-card Agent Note).
+ * 调用完成后的呈现：一张 `web` fetch 卡片，携带来自 `meta` 的检索摘要。
+ * 它不设置任何 `content` 文案 —— 不具备 `web` 能力的 UI 会退回到原始 `tool/result` 内容，
+ * 即已是 Markdown 的正文（见 web-result-card 智能体笔记）。
  *
- * @param args - the raw tool arguments; `url` becomes the result-state title so a
- *   window-truncated replay that dropped the call head still has one.
- * @param result - the final model-facing tool result; `meta` carries the summary.
- * @returns the fetch result view, or `undefined` (generic card) on failure or
- *   malformed meta.
+ * @param args - 原始工具参数；`url` 成为结果状态的标题，使一个丢弃了调用头部的窗口截断
+ *   回放仍然有一个标题。
+ * @param result - 最终的面向模型工具结果；`meta` 携带摘要。
+ * @returns fetch 结果视图，或在失败/畸形 meta 时返回 `undefined`（通用卡片）。
  */
 export function presentFetchResult(args: { url: string }, result: ToolResult): WebFetchResultView | undefined {
   if (result.isError) return undefined
@@ -435,14 +412,14 @@ export function presentFetchResult(args: { url: string }, result: ToolResult): W
 }
 
 /**
- * Register the `web_fetch` tool and its scope-aware system-prompt guidance.
+ * 注册 `web_fetch` 工具及其作用域感知的系统提示词指导。
  *
- * @param ctx - context whose `tools` and `systemPrompt` registries receive the
- *   registrations; both are effect-scoped and unregister on plugin dispose.
- * @param timeoutMs - the cooperative tool-call budget (ms) attached as the tool's
- *   `ToolDefinition.timeoutMs` for `@deepseek-ai/dsh-tool-call-timeout-policy` to enforce.
- * @param maxOutputChars - cap on the complete rendered tool output (see
- *   {@link formatFetchOutput}) and on source characters converted synchronously.
+ * @param ctx - 其 `tools` 与 `systemPrompt` 注册表接收注册的上下文；二者均为 effect 作用域，
+ *   在插件 dispose 时注销。
+ * @param timeoutMs - 协作式工具调用预算（毫秒），作为工具的 `ToolDefinition.timeoutMs` 附加，
+ *   由 `@deepseek-ai/dsh-tool-call-timeout-policy` 强制实施。
+ * @param maxOutputChars - 完整渲染工具输出的上限（见 {@link formatFetchOutput}），
+ *   以及同步转换的源字符数上限。
  */
 export function applyWebFetchTool(ctx: Context, timeoutMs: number, maxOutputChars: number): void {
   ctx.systemPrompt.section({

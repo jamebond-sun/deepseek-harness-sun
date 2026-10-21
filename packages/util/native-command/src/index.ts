@@ -1,5 +1,5 @@
 /**
- * Host-native command execution and path-opening utilities.
+ * 宿主原生命令执行与路径打开辅助工具。
  * @module @deepseek-ai/dsh-native-command
  */
 

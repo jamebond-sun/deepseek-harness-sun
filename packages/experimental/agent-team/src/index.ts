@@ -1,4 +1,4 @@
-/** Agent Teams service façade over roster, messaging, task, and runtime lifecycle owners. */
+/** Agent Teams 服务 façade，建立在花名册、消息、任务与运行时生命周期的持有者之上。 */
 
 import { Context, Service } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
@@ -44,7 +44,7 @@ const DEFAULT_MAX_TASKS = 256
 const DEFAULT_MAX_MESSAGE_BYTES = 65_536
 const DEFAULT_DISPOSAL_TIMEOUT_MS = 5_000
 
-/** Validate one positive safe-integer deployment limit. */
+/** 校验一个正向的安全整数部署上限。 */
 function positiveLimit(name: string, value: number): number {
   if (!Number.isSafeInteger(value) || value < 1) {
     throw new TeamError(`${name} must be a positive safe integer`, 'TEAM_INVALID_CONFIG')
@@ -52,7 +52,7 @@ function positiveLimit(name: string, value: number): number {
   return value
 }
 
-/** Agent Teams service backed by the exact live Lead Session log. */
+/** 由精确的实时 Lead Session 日志支撑的 Agent Teams 服务。 */
 export class TeamService extends Service {
   static inject = ['agents', 'sessions', 'sessionPersistence', 'sessionProjections', 'subagents']
 
@@ -63,7 +63,7 @@ export class TeamService extends Service {
     disposalTimeoutMs: z.number().step(1).min(1).default(DEFAULT_DISPOSAL_TIMEOUT_MS),
   })
 
-  /** Validated deployment limits used by every Team operation. */
+  /** 被每一次 Team 操作使用的、经过校验的部署上限。 */
   private readonly config: Required<Config>
 
   private readonly activity: TeamActivity
@@ -109,38 +109,38 @@ export class TeamService extends Service {
   }
 
   /**
-   * Resolve one exact live Agent's Team role.
-   * @param agent - exact live Agent used as the authority credential.
-   * @returns its root, Team identity, role, and model-facing name.
+   * 解析某个精确的实时 Agent 的 Team 角色。
+   * @param agent - 用作权威凭证的、精确的实时 Agent。
+   * @returns 它的 root、Team 身份、角色与面向模型的名称。
    */
   membership(agent: Agent): TeamMembership {
     return this.roster.membership(agent)
   }
 
   /**
-   * List the runtime-enriched roster visible to one Team member.
-   * @param agent - exact live Team member.
-   * @returns Lead and teammate rows in creation order.
+   * 列出某个 Team 成员可见的、经运行时充实后的花名册。
+   * @param agent - 精确的实时 Team 成员。
+   * @returns 按创建顺序排列的 Lead 与队友行。
    */
   listMembers(agent: Agent): TeamMemberView[] {
     return this.roster.list(this.roster.membership(agent))
   }
 
   /**
-   * Create one named, continuable direct child of the Team Lead.
-   * @param caller - exact live Lead Agent.
-   * @param request - immutable name, description, prompt, context mode, provider, and cancellation.
-   * @returns the active roster row.
+   * 创建 Team Lead 的一个具名、可延续的直接子级。
+   * @param caller - 精确的实时 Lead Agent。
+   * @param request - 不可变的名称、描述、提示、上下文模式、提供方与取消。
+   * @returns 活跃的花名册行。
    */
   async spawnTeammate(caller: Agent, request: SpawnTeammateRequest): Promise<SpawnTeammateResult> {
     return await this.roster.spawn(caller, request)
   }
 
   /**
-   * Steer one peer message into the target inbox or reject the attempt.
-   * @param caller - exact live sending Team member.
-   * @param request - target name, content, and cancellation before acceptance.
-   * @returns accepted inbox identity; acceptance follows normal Agent persistence and does not await model processing.
+   * 将一条对等消息引导进目标收件箱，或拒绝该尝试。
+   * @param caller - 精确的实时发送方 Team 成员。
+   * @param request - 目标名称、内容，以及接受前的取消。
+   * @returns 已接受的收件箱身份；接受遵循正常的 Agent 持久化，且不等待模型处理。
    */
   async sendMessage(caller: Agent, request: SendTeamMessageRequest): Promise<SendTeamMessageResult> {
     if (this.lifecycle.disposed) throw new TeamError('Agent Teams service is disposing', 'TEAM_DISPOSED')
@@ -151,50 +151,50 @@ export class TeamService extends Service {
   }
 
   /**
-   * Create one unowned pending task in the Team Lead log.
-   * @param caller - exact live Team member creating the task.
-   * @param request - task text, blockers, and advisory write scopes.
-   * @returns the revision-one task view.
+   * 在 Team Lead 日志中创建一条无主的待处理任务。
+   * @param caller - 创建该任务的、精确的实时 Team 成员。
+   * @param request - 任务文本、阻塞项，以及建议的写入作用域。
+   * @returns 修订版本一的任务视图。
    */
   async createTask(caller: Agent, request: CreateTeamTaskRequest): Promise<TeamTaskView> {
     return await this.tasks.create(this.roster.membership(caller), request)
   }
 
   /**
-   * Return one task, including a deleted tombstone.
-   * @param caller - exact live Team member reading the task.
-   * @param id - Team-local task identity.
-   * @returns the latest task value and derived readiness diagnostics.
+   * 返回一条任务，包括已删除的墓碑。
+   * @param caller - 读取该任务的、精确的实时 Team 成员。
+   * @param id - Team 本地的任务身份。
+   * @returns 最新的任务取值与派生的就绪诊断。
    */
   getTask(caller: Agent, id: TeamTaskId): TeamTaskView {
     return this.tasks.get(this.roster.membership(caller), id)
   }
 
   /**
-   * List current non-deleted tasks in numeric creation order.
-   * @param caller - exact live Team member reading the board.
-   * @returns detached current task views.
+   * 按数字创建顺序列出当前未删除的任务。
+   * @param caller - 读取看板的、精确的实时 Team 成员。
+   * @returns 已分离的当前任务视图。
    */
   listTasks(caller: Agent): TeamTaskView[] {
     return this.tasks.list(this.roster.membership(caller))
   }
 
   /**
-   * Compare-and-set one authorized task transition.
-   * @param caller - exact live Team member authorizing the mutation.
-   * @param request - task identity, expected revision, action, and action fields.
-   * @returns the committed next task revision.
+   * 比较并交换一次已授权的任务状态迁移。
+   * @param caller - 授权该变更的、精确的实时 Team 成员。
+   * @param request - 任务身份、期望修订版本、动作，以及动作字段。
+   * @returns 已提交的下一个任务修订版本。
    */
   async updateTask(caller: Agent, request: UpdateTeamTaskRequest): Promise<TeamTaskView> {
     return await this.tasks.update(caller, this.roster.membership(caller), request)
   }
 
   /**
-   * Wait for the next Team-domain or member-status change.
-   * @param caller - exact live Team member waiting for activity.
-   * @param timeoutMs - bounded wait duration from ten seconds through one hour.
-   * @param signal - caller cancellation for the wait only.
-   * @returns one observed change or a timeout result.
+   * 等待下一次 Team 领域或成员状态的变化。
+   * @param caller - 等待活动的、精确的实时 Team 成员。
+   * @param timeoutMs - 从十秒到一小时的有界等待时长。
+   * @param signal - 仅用于本次等待的调用方取消。
+   * @returns 一次观察到的变化或一个超时结果。
    */
   async waitForChange(caller: Agent, timeoutMs: number, signal: AbortSignal): Promise<TeamWaitResult> {
     const membership = this.roster.membership(caller)
@@ -202,25 +202,25 @@ export class TeamService extends Service {
   }
 
   /**
-   * Interrupt one live teammate turn without clearing its pending inbox.
-   * @param caller - exact live Lead Agent.
-   * @param targetName - durable teammate name.
-   * @returns the target status sampled before cancellation.
+   * 中断一次实时的队友轮次，但不清空其待处理收件箱。
+   * @param caller - 精确的实时 Lead Agent。
+   * @param targetName - 持久的队友名称。
+   * @returns 取消之前所采样的目标状态。
    */
   interrupt(caller: Agent, targetName: string): { previousStatus: 'running' | 'inactive' } {
     return this.roster.interrupt(caller, targetName)
   }
 
   /**
-   * Resolve a caller without throwing, used by scoped-tool installation and observers.
-   * @param agent - candidate exact live Agent.
-   * @returns Team membership, or undefined for non-Team subagents and stale identities.
+   * 在不抛出的前提下解析调用方，供作用域化工具安装与观察者使用。
+   * @param agent - 候选的、精确的实时 Agent。
+   * @returns Team 成员关系；对于非 Team 的子代理与过期身份则为 undefined。
    */
   tryMembership(agent: Agent): TeamMembership | undefined {
     return this.roster.tryMembership(agent)
   }
 
-  /** Deliver an admitted send using the Lead's authority and the actual sender's identity. */
+  /** 使用 Lead 的权威与实际发送方的身份，投递一次已准入的发送。 */
   private async sendAdmitted(caller: Agent, request: SendTeamMessageRequest): Promise<SendTeamMessageResult> {
     const membership = this.roster.membership(caller)
     request.signal.throwIfAborted()
@@ -247,7 +247,7 @@ export class TeamService extends Service {
     return { messageId }
   }
 
-  /** Queue one contained provisioning reconciliation after publication has unwound. */
+  /** 在发布已展开之后，排入一次被包含的置备对账。 */
   private scheduleRecovery(agent: Agent): void {
     queueMicrotask(() => {
       if (this.lifecycle.disposed) return
@@ -258,7 +258,7 @@ export class TeamService extends Service {
     })
   }
 
-  /** Stop Team-owned live branches and release every waiter before service disposal completes. */
+  /** 在服务处置完成之前，停止 Team 拥有的实时分支，并释放每个等待器。 */
   private async disposeRuntime(): Promise<void> {
     this.lifecycle.close()
     this.activity.close()

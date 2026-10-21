@@ -1,8 +1,8 @@
-/** Generated offline Official bundle metadata. Run pnpm gen-official-bundle-catalog; do not edit. */
+/** 生成的离线 Official bundle 元数据。运行 pnpm gen-official-bundle-catalog；请勿编辑。 */
 
 import type { OfficialBundleCatalogEntry } from './official-bundles.ts'
 
-/** Official on-demand entries, independent of installed packages and registry availability. */
+/** 与已安装包和注册表可用性无关的 Official 按需条目。 */
 export const OFFICIAL_ON_DEMAND_CATALOG: readonly OfficialBundleCatalogEntry[] = [
   {
     packageName: '@deepseek-ai/dsh-subagent-claude-code',

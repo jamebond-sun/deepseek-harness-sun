@@ -1,10 +1,10 @@
-/** Ordered head/tail retention of text and indivisible images. @module @deepseek-ai/dsh-spill-policy/retention */
+/** 文本与不可分割图片的有序头/尾保留。 @module @deepseek-ai/dsh-spill-policy/retention */
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 
-/** Content whose text can be split and whose images must remain whole. */
+/** 文本可切分、而图片必须保持完整的内容。 */
 export type RetainableBlock = Extract<ContentBlock, { type: 'text' | 'image' }>
 
-/** Retained ends and exact quantities excluded from their original sequence. */
+/** 被保留的两端，以及从原序列中排除掉的精确数量。 */
 export interface RetainedContent {
   head: RetainableBlock[]
   tail: RetainableBlock[]
@@ -12,7 +12,7 @@ export interface RetainedContent {
   omittedImages: number
 }
 
-/** Preserve a UTF-16 code point when a text budget cuts between its surrogates. */
+/** 当文本预算正好切在代理对之间时，保住一个 UTF-16 码位。 */
 function textSlice(text: string, length: number, tail: boolean): string {
   let cut = tail ? text.length - length : length
   const previous = text.charCodeAt(cut - 1)
@@ -23,7 +23,7 @@ function textSlice(text: string, length: number, tail: boolean): string {
   return tail ? text.slice(cut) : text.slice(0, cut)
 }
 
-/** Largest contiguous text end fitting a monotonic token estimate. */
+/** 在单调的 token 估算下能容纳的最大连续文本端。 */
 function fitText(text: string, budget: number, tail: boolean, price: (block: RetainableBlock) => number): string {
   let low = 0
   let high = text.length
@@ -37,13 +37,13 @@ function fitText(text: string, budget: number, tail: boolean, price: (block: Ret
 }
 
 /**
- * Retain contiguous ends without moving or partially retaining an image.
- * Each end receives half the content budget; unused space at an indivisible
- * image stays unused. Text pricing must be monotonic in retained length.
- * @param content - ordered text and image blocks whose total price exceeds budget.
- * @param budget - non-negative integer token budget after reserving notices.
- * @param price - model-route cost of one retained block, including its framing.
- * @returns retained ends and omitted UTF-8 text bytes and whole images.
+ * 保留连续的两端，且不移动图片或只保留图片的一部分。
+ * 每一端获得内容预算的一半；在不可分割的图片处未用尽的空间就保持未用。
+ * 文本定价必须对保留长度单调。
+ * @param content - 有序的文本与图片块，其总价超出预算。
+ * @param budget - 预留通知之后、非负整数的 token 预算。
+ * @param price - 一个被保留块在模型路由上的成本，包含其 framing。
+ * @returns 被保留的两端，以及被省略的 UTF-8 文本字节数与整张图片数。
  */
 export function retainContent(
   content: readonly RetainableBlock[],

@@ -1,4 +1,4 @@
-/** Bundled Office workflows and filesystem resources for document authoring and operations. */
+/** 随包分发的 Office 工作流与文件系统资源，用于文档写作与文档处理。 */
 
 import { readFileSync, statSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
@@ -12,26 +12,26 @@ import { parse as parseYaml } from 'yaml'
 
 const SKILL_NAMES = ['office', 'office-docx', 'office-pptx', 'office-xlsx', 'office-render', 'office-recalculate', 'office-export-pdf'] as const
 
-/** Office skill resource location. */
+/** Office 技能的资源位置。 */
 export interface Config {
-  /** Absolute assets directory containing skill folders; defaults to packaged assets. */
+  /** 容纳各技能文件夹的绝对资源目录；默认为随包打包的资源。 */
   assetRoot?: string
-  /** Standalone Node executable; defaults to the current executable outside Electron and SEA. */
+  /** 独立的 Node 可执行文件；在 Electron 与 SEA 之外默认为当前可执行文件。 */
   node?: string
-  /** Absolute LibreOffice Kit CLI entry; false explicitly disables CLI access. */
+  /** LibreOffice Kit CLI 入口的绝对路径；显式的 false 表示禁用 CLI 访问。 */
   cli?: string | false
 }
 
-/** Validated resource configuration. */
+/** 经过校验的资源配置。 */
 export const Config: z<Config> = z.object({
   assetRoot: z.string().min(1),
   node: z.string().min(1),
   cli: z.union([z.string().min(1), z.const(false)]),
 })
 
-/** Cordis plugin identity. */
+/** Cordis 插件身份。 */
 export const name = 'skill-office'
-/** Registry used by the bundled provider. */
+/** 该随包提供方所用的注册表。 */
 export const inject = ['skills']
 
 function parseSkill(raw: string, path: string): { description: string; content: string } {
@@ -62,9 +62,9 @@ function officeRuntime(config: Config): string {
 }
 
 /**
- * Register Office skills with resources readable by the script interpreter.
- * @param ctx - Context carrying the skill registry.
- * @param config - Optional external assets directory for packaged applications.
+ * 注册 Office 技能，并让其资源可被脚本解释器读取。
+ * @param ctx - 携带技能注册表的 Context。
+ * @param config - 可选的外部资源目录，供打包后的应用使用。
  */
 export function apply(ctx: Context, config: Config = {}): void {
   const assetRoot = config.assetRoot ?? fileURLToPath(new URL('../assets/', import.meta.url))

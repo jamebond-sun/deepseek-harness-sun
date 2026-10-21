@@ -1,6 +1,6 @@
 /**
- * Plugin market index format 1: JSON validation, relative icon resolution, and install arguments.
- * The format is defined by the plugin market index format Agent Note; readers and generators share this validator.
+ * 插件市场索引格式 1：JSON 校验、相对图标解析与安装参数。该格式由插件市场索引
+ * 格式 Agent Note 定义；读取方与生成方共享此校验器。
  * @module @deepseek-ai/dsh-plugin-market-index
  */
 
@@ -13,11 +13,11 @@ import type {
 
 export type * from './types.ts'
 
-/** An index that violates format 1; `path` is the JSON path of the offending value, such as `$.plugins[0].versions[1].version`. */
+/** 违反格式 1 的索引；`path` 是冒犯值的 JSON 路径，如 `$.plugins[0].versions[1].version`。 */
 export class MarketIndexError extends Error {
   /**
-   * @param path - JSON path of the offending value.
-   * @param reason - the violated rule.
+   * @param path - 冒犯值的 JSON 路径。
+   * @param reason - 违反的规则。
    */
   constructor(readonly path: string, readonly reason: string) {
     super(`${path} ${reason}`)
@@ -28,7 +28,7 @@ export class MarketIndexError extends Error {
 const LANGUAGE_ID = /^[a-z]{2,8}(?:-[a-z0-9]{1,8})*$/u
 const PACKAGE_NAME = /^(?:@[a-z0-9][a-z0-9._~-]*\/)?[a-z0-9][a-z0-9._~-]*$/u
 const PACKAGE_NAME_MAX_LENGTH = 214
-/** The SemVer 2.0.0 grammar for one exact version. */
+/** 一个精确版本的 SemVer 2.0.0 文法。 */
 const NUMERIC = '(?:0|[1-9]\\d*)'
 const PRERELEASE_PART = `(?:${NUMERIC}|\\d*[a-zA-Z-][0-9a-zA-Z-]*)`
 const SEMVER = new RegExp(
@@ -38,7 +38,7 @@ const COMMIT = /^[0-9a-f]{40}$/u
 const PATH_SEGMENT = /^[A-Za-z0-9._@+-]+$/u
 const DATA_ICON = /^data:(?:image\/svg\+xml|image\/png|image\/jpeg|image\/webp);base64,([A-Za-z0-9+/]*={0,2})$/u
 const BASE64 = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/u
-/** Largest decoded payload of an inline `data:` icon, in bytes. */
+/** 内联 `data:` 图标的最大解码负载，以字节计。 */
 export const MAX_INLINE_ICON_BYTES = 32 * 1024
 const MAX_PUBLISH_TIMESTAMP = 1e11
 
@@ -74,7 +74,7 @@ function localizedText(value: unknown, path: string): LocalizedText {
   return text as LocalizedText
 }
 
-/** Define an own enumerable member, so an id such as `__proto__` stays an ordinary key. */
+/** 定义一个自身可枚举成员，使 `__proto__` 之类的 id 仍是一个普通键。 */
 function own<T>(record: Record<string, T>, key: string, value: T): void {
   Object.defineProperty(record, key, { value, enumerable: true, writable: true, configurable: true })
 }
@@ -146,7 +146,7 @@ function httpUrl(value: unknown, path: string, protocols: readonly string[]): UR
   try {
     url = new URL(text)
   } catch {
-    // Unparseable text: report the rule instead of the parser message.
+    // 不可解析的文本：报告规则而非解析器消息。
     fail(path, 'must be an absolute URL')
   }
   if (!protocols.includes(url.protocol)) fail(path, `must use ${protocols.join(' or ')}`)
@@ -155,7 +155,7 @@ function httpUrl(value: unknown, path: string, protocols: readonly string[]): UR
   return url
 }
 
-/** An absolute http(s) URL; npm `homepage` values often carry a `#readme` fragment, so fragments and queries are kept. */
+/** 绝对 http(s) URL；npm 的 `homepage` 值常带有 `#readme` 片段，因此片段与查询均予以保留。 */
 function homepageUrl(value: unknown, path: string): string {
   const text = stringAt(value, path)
   if (!URL.canParse(text)) fail(path, 'must be an absolute URL')
@@ -230,7 +230,7 @@ function icon(value: unknown, path: string, indexUrl: URL): string {
   try {
     resolved = new URL(text, indexUrl)
   } catch {
-    // Unresolvable reference: report the rule instead of the parser message.
+    // 无法解析的引用：报告规则而非解析器消息。
     fail(path, 'must be a URL reference')
   }
   if (resolved.protocol !== 'https:' && (resolved.origin === 'null' || resolved.origin !== indexUrl.origin)) fail(path, 'must resolve to https or the index origin')
@@ -289,12 +289,12 @@ function plugin(value: unknown, path: string, index: MarketIndexMetadata, indexU
 }
 
 /**
- * Validate a parsed format-1 index. Members the format does not define are ignored and dropped.
- * @param value - the parsed JSON document.
- * @param indexUrl - absolute URL the index was read from; relative icon references resolve against it.
- * @returns the validated index with absent metadata groups and lists filled with empty values, and each plugin's
- *   versions in descending SemVer precedence.
- * @throws {MarketIndexError} for the first violated rule.
+ * 校验一个已解析的格式 1 索引。格式未定义的成员会被忽略并丢弃。
+ * @param value - 已解析的 JSON 文档。
+ * @param indexUrl - 索引被读取自的绝对 URL；相对图标引用针对它解析。
+ * @returns 已校验的索引，缺失的元数据组与列表以空值填充，且每个插件的版本按
+ *   SemVer 优先级降序排列。
+ * @throws {MarketIndexError} 对第一个违反的规则。
  */
 export function parseMarketIndex(value: unknown, indexUrl: string): MarketIndex {
   if (!URL.canParse(indexUrl)) fail('$', `index URL ${JSON.stringify(indexUrl)} must be an absolute URL`)
@@ -316,11 +316,11 @@ export function parseMarketIndex(value: unknown, indexUrl: string): MarketIndex 
 }
 
 /**
- * Build the arguments that install one exact version: `name@version` for npm, and a `git+https` URL pinned to the
- * commit, with pnpm's `path:` parameter for a package directory, for Git.
- * @param name - the plugin's package name.
- * @param version - a validated version of that plugin.
- * @returns the install spec and the registry to ask first, when the version names one.
+ * 构建安装一个精确版本的参数：npm 为 `name@version`，Git 为固定到提交的
+ * `git+https` URL，并带 pnpm 用于包目录的 `path:` 参数。
+ * @param name - 插件的包名。
+ * @param version - 该插件的一个已校验版本。
+ * @returns 安装说明，以及优先询问的注册表（当该版本指定了注册表时）。
  */
 export function marketInstallTarget(name: string, version: Pick<MarketVersion, 'version' | 'source'>): MarketInstallTarget {
   const { source: from } = version

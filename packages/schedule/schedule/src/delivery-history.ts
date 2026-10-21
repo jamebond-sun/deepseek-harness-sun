@@ -1,14 +1,14 @@
-/** Saved delivery interpretation and identity-based pagination without Session reads. */
+/** 已保存投递记录的解读，以及不读取 Session 的、基于标识的分页。 */
 import type { ScheduleTask } from './storage.ts'
 import type { DeliveryRetentionBounds, ScheduleDeliveryHistoryRequest, ScheduleDeliveryHistoryResult, ScheduleDeliveryReceipt } from './types.ts'
 
-/** Milliseconds in one day, the unit the retention window is stated in. */
+/** 一天的毫秒数，即保留窗口所采用的单位。 */
 const DAY_MS = 86_400_000
 
 /**
- * Read retained history; missing history exposes only the actual legacy receipt.
- * @param task - Immutable stored task.
- * @returns Oldest-first retained deliveries without changing storage.
+ * 读取保留的历史；缺失历史时只暴露实际的遗留回执。
+ * @param task - 不可变的已存储任务。
+ * @returns 由旧到新的保留投递记录，且不改动存储。
  */
 function deliveryHistoryOf(task: ScheduleTask): NonNullable<ScheduleTask['deliveryHistory']> {
   return task.deliveryHistory ?? {
@@ -18,15 +18,15 @@ function deliveryHistoryOf(task: ScheduleTask): NonNullable<ScheduleTask['delive
 }
 
 /**
- * Prepare one real inbox acknowledgment for the same task write as its status and target.
- * Prunes to the configured window and record cap here, on the only write path: the
- * domain publishes one whole-unit document per write, so an unbounded array would
- * grow that document with every acknowledgment. The read path states no bound of
- * its own, because a whole-unit document over the schema's limits refuses to open.
- * @param task - Task supplying the immutable sent prompt and retained history.
- * @param receipt - Acknowledgment obtained after successful Session flush.
- * @param bounds - Configured retention window and record cap for the appended history.
- * @returns Receipt and retained history; the caller publishes them only after task persistence.
+ * 为同一次任务写入准备一条真实的 inbox 确认，与它的状态和目标一起写入。
+ * 裁剪到配置的窗口与记录上限就在这里完成，因为这是唯一的写入路径：
+ * domain 每次写入发布一整个单元文档，所以无界的数组会随着每一次确认
+ * 不断撑大该文档。读取路径不声明自己的上限，因为超出 schema 限制的
+ * 整单元文档会拒绝打开。
+ * @param task - 提供不可变已发送提示与保留历史的任务。
+ * @param receipt - Session 刷新成功后获得的确认。
+ * @param bounds - 为追加历史所配置的保留窗口与记录上限。
+ * @returns 回执与保留历史；调用方仅在任务持久化之后才发布它们。
  */
 export function appendDelivery(
   task: ScheduleTask,
@@ -50,11 +50,11 @@ export function appendDelivery(
 }
 
 /**
- * Read one newest-first page in append order, independent of wall-clock ordering.
- * @param task - Task already checked against the requested Session binding.
- * @param request - Validated explicit page size and optional exclusive message cursor.
- * @param retention - Current configured limits shared with the delivery writer.
- * @returns Copied delivery records or a cursor-not-found result.
+ * 按追加顺序读取一页由新到旧的记录，与墙上时钟顺序无关。
+ * @param task - 已针对所请求的 Session 绑定校验过的任务。
+ * @param request - 已校验的显式页大小与可选的排他消息游标。
+ * @param retention - 与投递写入方共享的当前配置上限。
+ * @returns 复制出的投递记录，或游标未找到的结果。
  */
 export function deliveryHistoryPage(
   task: ScheduleTask, request: ScheduleDeliveryHistoryRequest, retention: DeliveryRetentionBounds,

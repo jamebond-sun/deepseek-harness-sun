@@ -1,9 +1,8 @@
 /**
- * Named wire types for the DeepSeek Harness SDK runtime protocol: its
- * request/result pairs and server-to-client notification payloads
- * exchanged over the newline-delimited JSON-RPC stdio transport. The server
- * plugin (`@deepseek-ai/dsh-sdk-jsonrpc-server`) and SDK clients share these shapes;
- * `serverInfo.name` stays the wire-stable `deepseek-harness-sdk-runtime`.
+ * DeepSeek Harness SDK 运行时协议的具名线上类型：在基于换行分隔的 JSON-RPC
+ * stdio 传输之上交换的请求/结果对，以及服务端到客户端的通知载荷。服务端插件
+ * （`@deepseek-ai/dsh-sdk-jsonrpc-server`）与 SDK 客户端共用这些结构；
+ * `serverInfo.name` 保持为线上稳定的 `deepseek-harness-sdk-runtime`。
  *
  * @module @deepseek-ai/dsh-sdk-protocol/types
  */
@@ -12,128 +11,128 @@ import type { ContentBlock, ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import type { SubagentStopReason } from '@deepseek-ai/dsh-subagent'
 
-/** Parameters for the process-wide SDK handshake. */
+/** 进程级 SDK 握手的参数。 */
 export interface InitializeParams {
-  /** Working directory recorded on every SDK-created session's header. */
+  /** 记录在每个 SDK 所创建 session 头部的工作目录。 */
   cwd: string
-  /** Provider route every SDK-created agent runs on. */
+  /** 每个 SDK 创建的 agent 所运行的 provider 路由。 */
   provider: string
-  /** Model name every SDK-created agent runs on (the server may mount a fallback adapter; see `HarnessSdkJsonRpcServer.initialize`). */
+  /** 每个 SDK 创建的 agent 所运行的模型名（服务端可能挂载兜底适配器；参见 `HarnessSdkJsonRpcServer.initialize`）。 */
   model: string
-  /** Optional adapter-owned reasoning effort for the selected provider/model route. */
+  /** 所选 provider/model 路由上由适配器拥有的可选推理强度。 */
   reasoningEffort?: ReasoningEffortId
-  /** Optional positive output-token cap inherited by SDK-created agents and their in-process descendants. */
+  /** 可选的正数输出 token 上限，由 SDK 创建的 agent 及其进程内后代继承。 */
   maxTokens?: number
 }
 
-/** Wire-stable server identity returned by initialization. */
+/** 初始化返回的线上稳定服务端身份。 */
 export interface InitializeResult {
-  /** Wire-stable server identity (`deepseek-harness-sdk-runtime`) and version. */
+  /** 线上稳定的服务端身份（`deepseek-harness-sdk-runtime`）与版本。 */
   serverInfo: { name: string; version: string }
 }
 
-/** One user turn on one SDK session. */
+/** 某个 SDK session 上的一轮用户输入。 */
 export interface SessionPromptParams {
-  /** The SDK-side session id; an unknown id lazily creates the agent+session pair. */
+  /** SDK 侧的 session id；未知 id 会惰性创建 agent 与 session 的组合。 */
   sessionId: string
-  /** The prompt content blocks, sent verbatim as the user message. */
+  /** 提示内容块，原样作为用户消息发送。 */
   contentBlocks: SdkPromptContentBlock[]
 }
 
-/** Inline raster input admitted into the runtime's durable attachment store. */
+/** 被准入运行时持久化附件存储的内联位图输入。 */
 export interface SdkEncodedImageBlock {
   type: 'image'
-  /** Canonical base64-encoded raster bytes. */
+  /** 规范的 base64 编码位图字节。 */
   data: string
-  /** Declared raster MIME type, verified during admission. */
+  /** 声明的位图 MIME 类型，在准入时校验。 */
   mimeType: 'image/png' | 'image/jpeg' | 'image/webp' | 'image/gif'
 }
 
-/** SDK prompt input: ordinary durable blocks plus inline images awaiting admission. */
+/** SDK 提示输入：普通持久化块，加上待准入的内联图片。 */
 export type SdkPromptContentBlock = ContentBlock | SdkEncodedImageBlock
 
-/** Durable enqueue receipt for one prompt. */
+/** 一次提示的持久化入队回执。 */
 export interface SessionPromptResult {
-  /** Identity of the queued user message. */
+  /** 已入队用户消息的标识。 */
   messageId: string
 }
 
-/** Restore a persisted session without enqueueing a prompt. */
+/** 恢复一个持久化的 session，而不入队任何提示。 */
 export interface SessionResumeParams {
-  /** Persisted session identity; missing or already owned sessions are rejected. */
+  /** 持久化 session 标识；缺失或已被占用的 session 会被拒绝。 */
   sessionId: string
 }
 
-/** Wait for an existing SDK session and its managed descendants to finish. */
+/** 等待一个已存在的 SDK session 及其受管后代结束。 */
 export interface SessionWaitParams {
-  /** An SDK-owned session id; waiting never creates a session. */
+  /** 一个 SDK 拥有的 session id；等待绝不会创建 session。 */
   sessionId: string
 }
 
-/** Session whose effective working directory is requested; an unknown id creates the Session. */
+/** 被请求有效工作目录的 session；未知 id 会创建该 Session。 */
 export interface SessionWorkingDirectoryParams {
-  /** SDK-side Session identity. */
+  /** SDK 侧的 Session 标识。 */
   sessionId: string
 }
 
-/** Change one Session's effective directory without changing its origin or permissions. */
+/** 修改某个 Session 的有效目录，而不改变其来源或权限。 */
 export interface SessionWorkingDirectorySetParams extends SessionWorkingDirectoryParams {
-  /** Directory to enter; relative paths resolve against the Session's current directory. */
+  /** 要进入的目录；相对路径基于该 Session 的当前目录解析。 */
   path: string
 }
 
-/** Validated effective directory after a read, change, or missing-directory recovery. */
+/** 读取、修改或缺失目录恢复之后经过校验的有效目录。 */
 export interface SessionWorkingDirectoryResult {
-  /** Absolute directory used by future independent operations and new processes. */
+  /** 后续独立操作与新进程所使用的绝对目录。 */
   cwd: string
 }
 
-/** Deployment-mapped SDK outcome: `ok` for an accepted result, `error` otherwise. */
+/** 由部署映射的 SDK 结果：被接受的结果为 `ok`，否则为 `error`。 */
 export type SdkRunStatus = 'ok' | 'error'
 
-/** `session.event` payload: one session-log event, streamed as it is recorded. */
+/** `session.event` 载荷：一条 session 日志事件，在记录的同时流式发出。 */
 export interface SessionEventNotification {
-  /** Session the event belongs to (every session in the runtime, not only SDK-created ones). */
+  /** 该事件所属的 session（运行时中的每个 session，而不只是 SDK 创建的那些）。 */
   sessionId: string
-  /** The full session-log event envelope. */
+  /** 完整的 session 日志事件信封。 */
   event: SessionEvent
 }
 
-/** Whole-agent lifecycle state for one session. */
+/** 某个 session 的整体 agent 生命周期状态。 */
 export interface SessionStatusNotification {
-  /** Session whose live agent changed status. */
+  /** 其活动 agent 状态发生变化的 session。 */
   sessionId: string
-  /** The whole-agent state after the transition. */
+  /** 状态迁移之后的整体 agent 状态。 */
   status: 'idle' | 'running'
 }
 
-/** `subagent.started` payload: an in-runtime child session was created. */
+/** `subagent.started` 载荷：运行时内创建了一个子 session。 */
 export interface SubagentStartedNotification {
-  /** The delegating session. */
+  /** 委派方 session。 */
   parentSessionId: string
-  /** The new child session. */
+  /** 新建的子 session。 */
   childSessionId: string
 }
 
-/** `subagent.finished` payload: an in-process subagent run ended (remote runs are not reported). */
+/** `subagent.finished` 载荷：一次进程内 subagent 运行结束（远程运行不上报）。 */
 export interface SubagentFinishedNotification {
-  /** Subagent provider name that ran the child. */
+  /** 运行该子任务的 subagent provider 名称。 */
   provider: string
-  /** The child agent's id (equals {@link childSessionId} for local runs). */
+  /** 子 agent 的 id（本地运行时等于 {@link childSessionId}）。 */
   agentId: string
-  /** The delegating session. */
+  /** 委派方 session。 */
   parentSessionId: string
-  /** The child session. */
+  /** 子 session。 */
   childSessionId: string
-  /** Deployment-mapped run outcome. */
+  /** 由部署映射的运行结果。 */
   status: SdkRunStatus
-  /** The provider-reported stop reason. */
+  /** provider 上报的停止原因。 */
   stopReason: SubagentStopReason
-  /** The child's selected assistant output; absent when the child produced none. */
+  /** 子任务选中的助手输出；当子任务未产出任何输出时缺省。 */
   lastAssistantMessage?: ContentBlock[]
 }
 
-/** Server-to-client notifications by JSON-RPC method name. */
+/** 按 JSON-RPC 方法名索引的服务端到客户端通知。 */
 export interface HarnessSdkNotificationMap {
   'session.event': SessionEventNotification
   'session.status': SessionStatusNotification
@@ -141,7 +140,7 @@ export interface HarnessSdkNotificationMap {
   'subagent.finished': SubagentFinishedNotification
 }
 
-/** Client-to-server request methods with their param and result shapes. */
+/** 客户端到服务端的请求方法及其参数与结果结构。 */
 export interface HarnessSdkRequestMap {
   'initialize': { params: InitializeParams; result: InitializeResult }
   'session/prompt': { params: SessionPromptParams; result: SessionPromptResult }

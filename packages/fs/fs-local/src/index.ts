@@ -1,6 +1,6 @@
 /**
- * Host-filesystem implementation of `ctx.fs`. Realpath-derived target identity makes aliases
- * share stale guards, and writes through a symlink update its target without replacing the link.
+ * `ctx.fs` 的宿主文件系统实现。源自 realpath 的目标标识让别名之间共享过期守卫，
+ * 通过符号链接的写入会更新其指向的目标而不会替换该链接本身。
  * @module @deepseek-ai/dsh-fs-local
  */
 
@@ -41,13 +41,13 @@ import {
 } from './fsio.ts'
 import type { FsIoInternals } from './fsio.ts'
 
-/** Configuration for the local filesystem backend. */
+/** 本地文件系统后端的配置。 */
 export interface Config {
-  /** Base directory for relative paths. Defaults to `process.cwd()`. */
+  /** 相对路径的基准目录。默认为 `process.cwd()`。 */
   cwd?: string
   /**
-   * Exclusive UTF-8 byte limit on each overwrite-diff side, capped by the
-   * runtime's safe allocation/decode maximum. Defaults to 10 MiB.
+   * 覆盖式 diff 每一侧的排他 UTF-8 字节上限，并受运行时的安全分配/解码最大值所约束。
+   * 默认为 10 MiB。
    */
   diffBasisMaxBytes?: number
 }
@@ -60,10 +60,9 @@ const MAX_DIFF_BASIS_BYTES = Math.min(
 )
 
 /**
- * The host-filesystem backend. Reads resolve relative paths from {@link Config.cwd}
- * (a resolution default, NOT a containment boundary — see the filesystem
- * capability-seam Agent Note); enforce
- * containment with a stricter backend or a `tools/execute` permission plugin.
+ * 宿主文件系统后端。读取时依据 {@link Config.cwd} 解析相对路径（这是一项解析默认值，
+ * **不是**隔离边界 —— 参见文件系统能力接缝的 Agent Note）；要强制隔离，请使用更严格的
+ * 后端或 `tools/execute` 权限插件。
  */
 export class LocalFileSystem extends FileSystem {
   override async watch(target: FsTarget, changed: (error?: Error) => void, signal: AbortSignal): Promise<() => Promise<void>> {
@@ -94,13 +93,12 @@ export class LocalFileSystem extends FileSystem {
     diffBasisMaxBytes: z.number().default(DEFAULT_DIFF_BASIS_MAX_BYTES),
   })
 
-  /** Validated config (schemastery applied the defaults before construction). */
+  /** 已校验的配置（schemastery 在构造之前已应用默认值）。 */
   readonly config: ResolvedConfig
-  /** Test hook forwarded to fsio for atomic-publication boundaries. */
+  /** 透传给 fsio 的测试钩子，用于注入原子发布边界。 */
   internals: FsIoInternals = {}
-  /** Per-targetKey tail promise: serializes mutating ops so the read→guard→write
-   * window can't interleave, making concurrent writes/edits deterministically
-   * ordered (one wins, the rest see the new version and reject as stale). */
+  /** 每个 targetKey 的尾 promise：串行化修改操作，使"读→守卫→写"窗口不会交错，
+   * 从而让并发的写入/编辑得到确定的顺序（一个成功，其余看到新版本后以过期为由拒绝）。 */
   private locks = new Map<string, Promise<unknown>>()
 
   constructor(ctx: Context, config: Config) {
@@ -114,11 +112,11 @@ export class LocalFileSystem extends FileSystem {
     this.config = resolved
   }
 
-  /** Run `op` with exclusive access to `targetKey` (FIFO per key). */
+  /** 以独占方式（按键 FIFO）对 `targetKey` 执行 `op`。 */
   private async withLock<T>(targetKey: string, op: () => Promise<T>): Promise<T> {
     const prior = this.locks.get(targetKey) ?? Promise.resolve()
     const run = prior.then(op, op)
-    // Keep the chain alive but swallow this op's result/throw for the *next* waiter.
+    // 保持链条存活，但对**下一个**等待者吞掉本次操作的结果/异常。
     const tail = run.then(() => undefined, () => undefined)
     this.locks.set(targetKey, tail)
     try {
@@ -212,22 +210,20 @@ export class LocalFileSystem extends FileSystem {
       }
 
       if (expected?.kind === 'replaceIfVersion') {
-        // Stale guard: the file must still exist at the version the owner observed.
+        // 过期守卫：文件必须仍处于持有者所观测到的那个版本上。
         if (!existing) throw new FsError(`cannot write "${target.displayPath}": file no longer exists`, 'FS_STALE_VERSION')
         if (existing.version !== expected.version) {
           throw new FsError(`cannot write "${target.displayPath}": file changed since it was read`, 'FS_STALE_VERSION')
         }
       } else if (expected?.kind === 'createIfAbsent' && existing) {
-        // createIfAbsent onto an existing file: a blind overwrite — require a read first.
+        // 对已存在的文件使用 createIfAbsent：等同于盲目覆盖 —— 要求先读取。
         throw new FsError(`cannot overwrite existing "${target.displayPath}" without reading it first`, 'FS_NOT_OBSERVED')
       }
-      // No expectation means an unconditional but still atomic write.
+      // 没有预期条件意味着无条件但仍然原子的写入。
 
-      // Capture an optional contextual-diff basis before the write. The bounded
-      // reader checks the opened file itself, so an external replacement after
-      // `probe()` cannot turn this best-effort presentation read into an
-      // unbounded allocation. Either side at/above the configured limit yields
-      // `before: null`; consumers retain their whole-file fallback.
+      // 在写入之前尽力捕获一份可选的上下文 diff 基线。带上限的读取会检查被打开的那个文件
+      // 本身，因此 `probe()` 之后发生的外部替换无法把这个尽力而为的展示用读取变成无界分配。
+      // 任一侧达到或超过配置上限时产出 `before: null`；消费方仍保有整文件回退方案。
       const diffable = existing !== null
         && Buffer.byteLength(content, 'utf8') < this.config.diffBasisMaxBytes
       const before = diffable
@@ -246,9 +242,8 @@ export class LocalFileSystem extends FileSystem {
         operation: existing ? 'update' : 'create',
         version: this.versionAfterWrite(after, target),
         before,
-        // LF-normalized to share the diff basis with `before` (also LF): a CRLF
-        // overwrite must not read as every line changed. Line-ending restoration
-        // is a storage detail the applied-hunk diff ignores.
+        // 做 LF 规范化以与 `before`（同样是 LF）共享 diff 基线：CRLF 覆盖不应被读成
+        // 每一行都变了。行尾还原属于存储细节，已应用补丁块的 diff 不予关注。
         after: normalizeLineEndings(content),
       }
     })
@@ -262,14 +257,13 @@ export class LocalFileSystem extends FileSystem {
   ): Promise<FsEditOutcome> {
     return this.withLock(target.targetKey, async () => {
       const existing = await probe(target.targetKey)
-      // Stale guard before literal matching: an edit based on an old read reports
-      // FS_STALE_VERSION, not FS_EDIT_NOT_FOUND/FS_AMBIGUOUS_EDIT against newer content.
-      // Missing targets use the same stale code on guarded and unconditional edit paths.
+      // 字面量匹配之前的过期守卫：基于旧读取内容的编辑报 FS_STALE_VERSION，
+      // 而不是针对更新内容报 FS_EDIT_NOT_FOUND/FS_AMBIGUOUS_EDIT。
+      // 目标缺失时，受守卫与无条件的编辑路径使用同一个过期错误码。
       if (!existing) throw new FsError(`cannot edit "${target.displayPath}": file changed since it was read`, 'FS_STALE_VERSION')
       if (existing.type !== 'file') throw new FsError(`cannot edit "${target.displayPath}": not a regular file`, 'FS_NOT_REGULAR_FILE')
-      // expected === undefined: unconditional edit of the current content — no
-      // version guard. Still inside the per-target lock, so the read→match→write
-      // window is serialized and atomic.
+      // expected === undefined：对当前内容做无条件编辑 —— 没有版本守卫。
+      // 仍在按目标的锁内，因此"读→匹配→写"窗口是串行且原子的。
       if (expected && existing.version !== expected.version) {
         throw new FsError(`cannot edit "${target.displayPath}": file changed since it was read`, 'FS_STALE_VERSION')
       }
@@ -282,16 +276,16 @@ export class LocalFileSystem extends FileSystem {
       const after = await probe(target.targetKey)
       return {
         version: this.versionAfterWrite(after, target),
-        // The LF-normalized before/after text (the applied-hunk diff basis);
-        // line-ending restoration is a storage detail the diff ignores.
+        // LF 规范化后的 before/after 文本（已应用补丁块的 diff 基线）；
+        // 行尾还原属于存储细节，diff 不予关注。
         before: original.content,
         after: edited.content,
       }
     })
   }
 
-  /* v8 ignore next 5 -- the post-write probe finding the file absent requires a
-   * concurrent unlink between rename and stat; fall back to a sentinel version. */
+  /* v8 ignore next 5 -- 写入后的探测发现文件不存在，需要 rename 与 stat 之间发生并发的 unlink；
+   * 此时回退到一个哨兵版本。 */
   private versionAfterWrite(after: { version: FsVersion } | null, target: FsTarget): FsVersion {
     if (after) return after.version
     return FsVersion(`missing:${target.targetKey}`)

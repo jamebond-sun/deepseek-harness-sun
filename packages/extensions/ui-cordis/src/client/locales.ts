@@ -1,8 +1,8 @@
-/** Cordis dynamic-plugin UI dictionaries. */
+/** Cordis 动态插件 UI 词典。 */
 
 export const NS = 'cordis'
 
-/** Simplified Chinese Cordis UI messages. */
+/** 简体中文 Cordis UI 消息。 */
 export const zh = {
   'row.defineTitle': '注册 Cordis 插件',
   'a11y.preparing': '准备调用 Cordis 工具',
@@ -57,17 +57,17 @@ export const zh = {
   'body.copied': '已复制',
 } satisfies Record<string, string>
 
-/** Translation keys owned by the Cordis UI namespace. */
+/** 由 Cordis UI 命名空间拥有的翻译键。 */
 export type CordisKey = keyof typeof zh
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
-    /** Dynamic Cordis UI copy. */
+    /** 动态 Cordis UI 文案。 */
     cordis: CordisKey
   }
 }
 
-/** English Cordis UI messages. */
+/** 英文 Cordis UI 消息。 */
 export const en = {
   'row.defineTitle': 'Register Cordis Plugin',
   'a11y.preparing': 'Preparing a Cordis tool call',

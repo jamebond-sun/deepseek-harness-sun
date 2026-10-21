@@ -1,4 +1,4 @@
-/** V3 content tags and request-tool fields admitted before V4 interpretation. */
+/** 在 V4 解释之前被接纳的 V3 内容标签与请求工具字段。 */
 
 import { SessionFormatError, SessionFormatUnsupportedMigrationError, isSessionFormatJsonObject } from '@deepseek-ai/dsh-session-format'
 import type { SessionFormatEvent, SessionFormatJsonObject, SessionFormatJsonValue } from '@deepseek-ai/dsh-session-format'
@@ -16,10 +16,10 @@ function migrateBlock(value: SessionFormatJsonValue, subject: string): SessionFo
 }
 
 /**
- * Convert declared content tags while keeping arguments and extension data opaque.
- * @param value - released content array.
- * @param subject - owning event and content location for diagnostics.
- * @returns content in the same order, sharing unchanged blocks and image references.
+ * 转换已声明的内容标签，同时保持参数与扩展数据不透明。
+ * @param value - 已发布的内容数组。
+ * @param subject - 用于诊断的所属事件与内容位置。
+ * @returns 顺序相同的内容，共享未变更的块与图片引用。
  */
 export function migrateV3Content(value: SessionFormatJsonValue | undefined, subject: string): SessionFormatJsonValue[] {
   if (!Array.isArray(value)) throw new SessionFormatError(`${subject} content must be an array`)
@@ -47,10 +47,10 @@ function migrateChunk(value: SessionFormatJsonValue | undefined, subject: string
 }
 
 /**
- * Convert declared V3 extension content and stream tags after canonical result lifting.
- * @param event - source event after producer attribution conversion.
- * @returns the event with namespaced content tags, retaining all coordinates and other fields.
- * @throws {SessionFormatUnsupportedMigrationError} A V3 tool definition contains the V4-only deferLoading field.
+ * 在规范化结果提升之后转换已声明的 V3 扩展内容与流标签。
+ * @param event - 完成生产者归属转换后的源事件。
+ * @returns 带有命名空间化内容标签的事件，保留全部坐标与其它字段。
+ * @throws {SessionFormatUnsupportedMigrationError} 某个 V3 工具定义包含仅 V4 才有的 deferLoading 字段。
  */
 export function migrateV3EventContent(event: SessionFormatEvent): SessionFormatEvent {
   const subject = `format v3 ${event.type} at seq ${event.seq}`

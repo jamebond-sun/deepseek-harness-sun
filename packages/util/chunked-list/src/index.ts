@@ -1,5 +1,5 @@
 /**
- * Persistent append-only lists with bounded copying and JSON checkpoint validation.
+ * 持久化、仅追加的列表，带有有界复制与 JSON 检查点校验。
  * @module @deepseek-ai/dsh-chunked-list
  */
 
@@ -8,9 +8,9 @@ import { z } from 'zod'
 const CHUNK_CAPACITY = 64
 
 /**
- * Newest chunk of an immutable list; `undefined` represents the empty list.
- * Values within each chunk follow insertion order. Callers treat nodes, arrays,
- * and stored values as immutable; operations share values and older chunks.
+ * 不可变列表的最新分块；`undefined` 表示空列表。每个分块内的值遵循
+ * 插入顺序。调用方应将节点、数组和存储的值视为不可变；各操作共享值
+ * 与较旧的分块。
  */
 export interface ChunkedList<T> {
   readonly values: readonly T[]
@@ -18,10 +18,10 @@ export interface ChunkedList<T> {
 }
 
 /**
- * Append without modifying the input, copying at most one 64-value chunk.
- * @param head - current list, or `undefined` for an empty list.
- * @param value - value to retain by reference.
- * @returns new list sharing the unchanged older chunks.
+ * 追加而不修改输入，最多复制一个 64 值分块。
+ * @param head - 当前列表，或空列表时的 `undefined`。
+ * @param value - 以引用方式保留的值。
+ * @returns 共享未变较旧分块的新列表。
  */
 export function appendChunkedList<T>(head: ChunkedList<T> | undefined, value: T): ChunkedList<T> {
   if (head === undefined || head.values.length === CHUNK_CAPACITY) {
@@ -34,9 +34,9 @@ export function appendChunkedList<T>(head: ChunkedList<T> | undefined, value: T)
 }
 
 /**
- * Visit all values in insertion order, with O(N) time and O(N / 64) scratch space.
- * @param head - current list, or `undefined` for an empty list.
- * @returns iterator yielding the stored values by reference, without truncation.
+ * 按插入顺序遍历所有值，时间复杂度 O(N)，临时空间 O(N / 64)。
+ * @param head - 当前列表，或空列表时的 `undefined`。
+ * @returns 按引用产出存储值的迭代器，不做截断。
  */
 export function* iterateChunkedList<T>(head: ChunkedList<T> | undefined): Generator<T> {
   const chunks: ChunkedList<T>[] = []
@@ -45,9 +45,9 @@ export function* iterateChunkedList<T>(head: ChunkedList<T> | undefined): Genera
 }
 
 /**
- * Validate nonempty list checkpoints, including every stored value and chunk size.
- * @param valueSchema - caller-owned validation for each stored value.
- * @returns recursive Zod schema rejecting empty or oversized chunks and unknown fields.
+ * 校验非空列表检查点，包括每个存储值与分块大小。
+ * @param valueSchema - 调用方对每个存储值的校验。
+ * @returns 递归 Zod 模式，拒绝空分块、超大分块及未知字段。
  */
 export function chunkedListSchema<T>(valueSchema: z.ZodType<T>): z.ZodType<ChunkedList<T>> {
   const schema: z.ZodType<ChunkedList<T>> = z.lazy(() => z.object({

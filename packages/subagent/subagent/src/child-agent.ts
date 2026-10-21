@@ -1,7 +1,7 @@
 /**
- * Shared in-process child composition: the delegation-depth budget, the
- * durable session metadata, the resolved child `AgentOptions`, the delegated
- * policy seed, and the scoped setup used by local activations.
+ * 共享的进程内子代理组合：委托深度预算、持久化 session 元数据、
+ * 解析出的子代理 `AgentOptions`、被委托的策略种子，以及本地激活所使用的
+ * 作用域化装配。
  *
  * @module @deepseek-ai/dsh-subagent/child-agent
  */
@@ -12,23 +12,22 @@ import type { SandboxMode } from '@deepseek-ai/dsh-sandbox'
 import type { Session, SessionId } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-system-prompt'
 import type { ToolRestriction } from '@deepseek-ai/dsh-tools'
-// Type-only: make `ctx.get('sandboxPolicy')`, `ctx.get('approval')`, and
-// `ctx.get('permissionPresets')` resolve to their services when composed — delegation consumes them
-// opportunistically (the documented `ctx.get` pattern), never as a hard dep —
-// and merge the inherited permission session-event payloads.
+// 仅类型：使 `ctx.get('sandboxPolicy')`、`ctx.get('approval')` 与
+// `ctx.get('permissionPresets')` 在被组合时解析为各自的服务 —— 委托按需消费它们
+// （即文档化的 `ctx.get` 模式），而非硬依赖 ——
+// 同时合并继承来的权限 session-event 载荷。
 import type {} from '@deepseek-ai/dsh-sandbox-policy'
 import type {} from '@deepseek-ai/dsh-user-approval'
 import type {} from '@deepseek-ai/dsh-permission-presets'
-// Type-only: make `ctx.get('agentPresets')` resolve to the preset roster when
-// composed — a child inherits its parent's composition opportunistically (the
-// documented `ctx.get` pattern), never as a hard dep. A rosterless deployment
-// keeps its model-facing rows on the host plane, where the child already sees
-// them through the tool registry's global layer.
+// 仅类型：使 `ctx.get('agentPresets')` 在被组合时解析为预设名册 ——
+// 子代理按需继承其父代理的组合（即文档化的 `ctx.get` 模式），而非硬依赖。
+// 无名册的部署会把其面向模型的行保留在宿主平面上，而子代理已通过工具
+// 注册表的全局层看到它们。
 import type {} from '@deepseek-ai/dsh-agent-preset-registry'
 import { delegationDepthOf } from './depth.ts'
 import { SubagentError } from './error.ts'
 
-/** Thrown when starting a child would exceed the requested depth cap. */
+/** 当启动子代理会超出所请求的深度上限时抛出。 */
 export class SubagentDepthError extends Error {
   constructor(public readonly attemptedDepth: number, public readonly maxDepth: number) {
     super(`subagent depth ${attemptedDepth} exceeds maxDepth ${maxDepth}`)
@@ -37,14 +36,13 @@ export class SubagentDepthError extends Error {
 }
 
 /**
- * Resolve the child's delegation depth from its parent and enforce an optional
- * cap. The persisted parent header is the monotone floor, so a resumed parent
- * cannot delegate as if it were top-level.
- * @param parent - the delegating parent agent.
- * @param maxDepth - optional absolute cap the resolved depth must not exceed.
- * @returns the child's non-negative safe-integer depth.
- * @throws {SubagentDepthError} when the resolved depth exceeds `maxDepth`.
- * @throws {RangeError} when the resolved depth leaves the safe-integer range.
+ * 根据父代理解析子代理的委托深度并执行可选上限。持久化父 header 是单调
+ * 下界，因此恢复后的父代理不能像顶层一样委托。
+ * @param parent - 执行委托的父代理。
+ * @param maxDepth - 可选的绝对上限，解析出的深度不得超出。
+ * @returns 子代理的非负安全整数深度。
+ * @throws {SubagentDepthError} 当解析出的深度超出 `maxDepth` 时。
+ * @throws {RangeError} 当解析出的深度超出安全整数范围时。
  */
 export function resolveChildDepth(parent: Agent, maxDepth: number | undefined): number {
   const childDepth = delegationDepthOf(parent) + 1
@@ -58,12 +56,11 @@ export function resolveChildDepth(parent: Agent, maxDepth: number | undefined): 
 }
 
 /**
- * Resolve the parent values inherited by a child. The latest request header
- * owns provider, model, and reasoning effort after request-time selection;
- * creation options remain the fallback before the first request and retain
- * the configured output-token limit.
- * @param parent - delegating parent Agent.
- * @returns detached Agent options for child-option merging.
+ * 解析子代理所继承的父代取值。在请求期选择之后，最新请求 header 拥有
+ * provider、model 与 reasoning effort；创建选项仍是首次请求之前的兜底，
+ * 并保留已配置的输出 token 上限。
+ * @param parent - 执行委托的父 Agent。
+ * @returns 用于子代理选项合并的分离型 Agent 选项。
  */
 export function parentAgentOptionsForDelegation(parent: Agent): AgentOptions {
   const requestConfig = parent.session.requestHeader()?.config
@@ -85,15 +82,14 @@ export function parentAgentOptionsForDelegation(parent: Agent): AgentOptions {
 }
 
 /**
- * Resolve the child's `AgentOptions`: the parent's provider/model,
- * reasoning-effort, and maxTokens values unless the request overrides them,
- * stamped with the child's own delegation depth. Changing the route without
- * naming an effort clears the parent's route-owned effort so the selected
- * model resolves its own default.
- * @param parent - the delegating parent whose route the child inherits.
- * @param requested - per-child overrides, if any.
- * @param childDepth - the resolved delegation depth to stamp.
- * @returns the resolved options for `ctx.agents.create()`.
+ * 解析子代理的 `AgentOptions`：继承父代理的 provider/model、
+ * reasoning-effort 与 maxTokens，除非请求覆盖了它们，并盖上子代理自身的
+ * 委托深度。在没有指定 effort 的情况下更换路由会清除父代理的路由自有
+ * effort，让所选模型解析其自身默认值。
+ * @param parent - 子代理继承其路由的委托方父代理。
+ * @param requested - 针对该子代理的覆盖项（若有）。
+ * @param childDepth - 要盖上的、已解析的委托深度。
+ * @returns 供 `ctx.agents.create()` 使用的已解析选项。
  */
 export function resolveChildAgentOptions(
   parent: Agent,
@@ -119,18 +115,16 @@ export function resolveChildAgentOptions(
 }
 
 /**
- * Build the child session's durable creation metadata: the parent's workspace,
- * its direct lineage, coarse product origin, the recursion budget that must
- * survive persistence, the seed boundary that separates inherited parent
- * history from child work, and the composition the child runs under.
+ * 构建子 session 的持久化创建元数据：父代理的工作区、其直接血缘、
+ * 粗粒度产品来源、必须跨持久化存活的递归预算、分隔继承父历史与子代理
+ * 工作的 seed 边界，以及子代理运行所依据的组合。
  *
- * Omitted selection uses the parent's live composition, including any switch
- * made while the parent was blank.
- * @param parent - the delegating parent agent.
- * @param childDepth - the resolved delegation depth to persist.
- * @param isSeeded - whether this child inherits a parent-log prefix, including an explicitly empty one.
- * @param selectedPreset - independent selection, or omission to inherit the parent.
- * @returns the `meta` for `ctx.agents.create()`.
+ * 省略选择时使用父代理的实时组合，包括父代理处于空白期间所做的任何切换。
+ * @param parent - 执行委托的父代理。
+ * @param childDepth - 要持久化的、已解析的委托深度。
+ * @param isSeeded - 该子代理是否继承父日志前缀，包括显式为空的情形。
+ * @param selectedPreset - 独立选择，或省略以继承父代理。
+ * @returns 供 `ctx.agents.create()` 使用的 `meta`。
  */
 export function childSessionMeta(
   parent: Agent,
@@ -145,28 +139,27 @@ export function childSessionMeta(
     ...agentPreset === undefined ? {} : { agentPreset },
     parentSession: parentHeader.id,
     isSeeded,
-    // Navigation classification only; the descriptor remains the authority
-    // for mode and continuation capability.
+    // 仅作导航分类；描述符仍是模式与续跑能力的权威来源。
     origin: 'subagent',
-    // Durable: the recursion budget must survive persistence and resume.
+    // 持久化：递归预算必须跨持久化与恢复存活。
     delegationDepth: childDepth,
   }
 }
 
-/** The scoped composition a child agent's creation window applies. */
+/** 子代理创建窗口所应用的、作用域化的组合。 */
 export interface ChildComposition {
-  /** Independently mounted preset; omission shares the parent's standing generation. */
+  /** 独立挂载的预设；省略则共享父代理的常驻 generation。 */
   readonly agentPreset?: string | undefined
-  /** Historical descriptor persona reapplied only during cold resume. */
+  /** 仅在冷恢复时重新应用的历史描述符 persona。 */
   readonly persona?: string | undefined
-  /** Historical descriptor tool restriction reapplied only during cold resume. */
+  /** 仅在冷恢复时重新应用的历史描述符工具限制。 */
   readonly toolFilter?: ToolRestriction | undefined
 }
 
 /**
- * Model-facing delegation-scope statement for every in-process child. A
- * runtime-context contribution rather than a system-prompt section, so the
- * deployment's system prompt stays uniform across parents and children.
+ * 面向每个进程内子代理的模型可见委托范围声明。这是运行时上下文贡献，
+ * 而非 system-prompt 区段，因此部署的 system prompt 在父代理与子代理之间
+ * 保持一致。
  */
 export const SUBAGENT_DELEGATION_CONTEXT
   = 'You are a delegated subagent: your permission scope was fixed when you were started and cannot be '
@@ -175,13 +168,12 @@ export const SUBAGENT_DELEGATION_CONTEXT
     + 'limitation in your reply so the delegating agent can handle it.'
 
 /**
- * Compose a child before publication and restore historical descriptor overrides.
- * Explicit selection mounts the named preset; omission synchronously joins the
- * parent's current generation. Registrations belong to the child's scope.
- * @param childCtx - the child agent's scoped creation context.
- * @param parent - the delegating parent used when no preset is selected.
- * @param composition - independent preset and any overrides read from a historical descriptor.
- * @returns A promise when mounting an independent preset; otherwise completes synchronously.
+ * 在发布之前组合子代理，并恢复历史描述符覆盖项。显式选择会挂载具名预设；
+ * 省略则同步加入父代理的当前 generation。注册项属于子代理作用域。
+ * @param childCtx - 子代理的作用域化创建上下文。
+ * @param parent - 未选择预设时使用的委托方父代理。
+ * @param composition - 独立预设以及从历史描述符读取的任何覆盖项。
+ * @returns 挂载独立预设时返回 Promise，否则同步完成。
  */
 export function applyChildComposition(
   childCtx: Context,
@@ -217,33 +209,30 @@ function applyChildOverrides(childCtx: Context, composition: ChildComposition): 
   if (composition.toolFilter !== undefined) childCtx.tools.restrict(composition.toolFilter)
 }
 
-/** Policy seeded onto a child session's log at the delegation boundary. */
+/** 在委托边界处播种到子 session 日志上的策略。 */
 export interface DelegatedPolicyOverrides {
   /**
-   * The parent's current preset identity when it runs in Auto or Full access;
-   * the child keeps it under the pinned `never` approval policy.
+   * 父代理在 Auto 或 Full access 下运行时的当前预设身份；子代理在钉住的
+   * `never` 审批策略下保留它。
    */
   readonly permissionPreset: 'auto' | 'danger-full-access' | undefined
-  /** The parent session's explicit sandbox-mode override, or `undefined` without one. */
+  /** 父 session 的显式 sandbox 模式覆盖，无则为 `undefined`。 */
   readonly sandboxMode: SandboxMode | undefined
   /**
-   * `'never'` whenever the approval capability is composed, `undefined`
-   * otherwise: a delegated child acts only within the sandbox scope fixed at
-   * delegation, so its asks are rejected deterministically.
+   * 只要组合了审批能力就为 `'never'`，否则为 `undefined`：被委托的子代理
+   * 只能在委托时固定的 sandbox 范围内行动，因此其请求会被确定性地拒绝。
    */
   readonly approvalPolicy: 'never' | undefined
 }
 
 /**
- * Capture the permission state to seed into one delegation. Call synchronously before
- * the child start's first await: a later parent switch belongs to the
- * parent's future, not to this child. Auto and Full access identities are
- * inherited only through the in-process DSH path so either can replace a stale
- * same-bundle fork value. Only the parent session's explicit sandbox override
- * is captured — never deployment defaults or one-shot grants — and the approval
- * policy is pinned to `'never'` regardless of the parent's own policy.
- * @param parent - the delegating parent agent.
- * @returns the sandbox override (or `undefined` without one) and the approval pin.
+ * 捕获要播种到一次委托中的权限状态。需在子代理启动的首次 await 之前同步
+ * 调用：父代理之后的切换属于父代理的未来，不属于该子代理。Auto 与 Full
+ * access 身份仅通过进程内 DSH 路径继承，以便二者都能替换陈旧的
+ * 同 bundle fork 值。只捕获父 session 的显式 sandbox 覆盖 —— 从不捕获部署
+ * 默认值或一次性授予 —— 且无论父代理自身策略如何，审批策略都钉为 `'never'`。
+ * @param parent - 执行委托的父代理。
+ * @returns sandbox 覆盖（无则为 `undefined`）与审批钉值。
  */
 export function captureDelegatedPolicyOverrides(parent: Agent): DelegatedPolicyOverrides {
   const preset = parent.ctx.get('permissionPresets')?.current(parent.session)
@@ -255,13 +244,12 @@ export function captureDelegatedPolicyOverrides(parent: Agent): DelegatedPolicyO
 }
 
 /**
- * Append the captured delegation policy onto the child's own log as
- * `source: 'delegation'` events inside the unpublished creation window, so the
- * child's effective policy is reconstructable from its log alone. Appends land
- * after any fork seed, so fresh policy wins stale seed state; later child
- * switches still win over these events.
- * @param childSession - the unpublished child's session.
- * @param overrides - the policy captured at delegation.
+ * 在未发布创建窗口内，以 `source: 'delegation'` 事件的形式把捕获到的委托
+ * 策略追加到子代理自身日志上，使子代理的生效策略可仅从其日志重建。追加
+ * 位于任何 fork seed 之后，因此新鲜策略胜过陈旧 seed 状态；子代理之后的
+ * 切换仍然胜过这些事件。
+ * @param childSession - 未发布子代理的 session。
+ * @param overrides - 委托时捕获的策略。
  */
 export function appendDelegatedPolicyOverrides(
   childSession: Session,
@@ -278,14 +266,14 @@ export function appendDelegatedPolicyOverrides(
   }
 }
 
-/** Identity and lineage inputs shared by every in-process child creation. */
+/** 每个进程内子代理创建所共享的身份与血缘输入。 */
 export interface ChildCreateInputs {
-  /** The child's reserved session id. */
+  /** 子代理已预留的 session id。 */
   readonly sessionId: SessionId
-  /** The delegating parent agent. */
+  /** 执行委托的父代理。 */
   readonly parent: Agent
-  /** The resolved delegation depth. */
+  /** 已解析的委托深度。 */
   readonly childDepth: number
-  /** How many leading seed events came from the parent's log. */
+  /** 来自父日志的前导 seed 事件数量。 */
   readonly lineageSeedLength: number
 }

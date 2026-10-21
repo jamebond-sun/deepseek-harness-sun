@@ -1,33 +1,33 @@
-/** Execution mode and resource limits for the Node PTC provider. */
+/** Node PTC provider 的执行模式与资源限额。 */
 import z from '@deepseek-ai/schemastery'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 import type { LaunchConfig } from './launch.ts'
 
-/** Deployment-varying runtime bounds and launch choices. */
+/** 随部署变化的运行时边界与启动选择。 */
 export interface Config {
-  /** Worker invocation in the subprocess world; omitted selects the local carrier. */
+  /** 子进程执行世界中的 worker 调用方式；省略则选择本地载体。 */
   launch?: LaunchConfig
-  /** per-call starts fresh processes; persistent-in-memory retains a REPL per owner under the same file policy. */
+  /** per-call 每次启动全新进程；persistent-in-memory 在同一文件策略下为每个所有者保留一个 REPL。 */
   executionMode?: 'per-call' | 'persistent-in-memory'
-  /** Default elapsed deadline, including nested tool and approval waits. */
+  /** 默认执行截止时间，包含嵌套的工具与审批等待。 */
   timeoutMs?: number
-  /** Maximum numeric elapsed budget accepted by resolve. */
+  /** resolve 所接受的数值型执行预算上限。 */
   maxTimeoutMs?: number
-  /** Combined serialized logs, completion and diagnostic byte cap. */
+  /** 序列化后的日志、完成值与诊断文本的合并字节上限。 */
   maxOutputBytes?: number
-  /** V8 old-generation heap limit in MiB; native allocations are excluded. */
+  /** V8 老生代堆上限，单位 MiB；原生分配不计入。 */
   maxOldGenerationSizeMb?: number
-  /** Maximum control frame, outstanding argument and queued control-output bytes. */
+  /** 控制帧、在途参数与排队控制输出的字节上限。 */
   maxMessageBytes?: number
-  /** Maximum simultaneous host binding calls accepted from a program. */
+  /** 同一个程序同时发起的宿主绑定调用上限。 */
   maxPendingCalls?: number
-  /** Managed process termination and output-drain grace in milliseconds. */
+  /** 托管进程终止与输出排空的宽限期，单位毫秒。 */
   graceMs?: number
 }
 
-/** Configuration after Loader defaults and executable selection. */
+/** 经过 Loader 默认值填充与可执行文件选择之后的配置。 */
 export type ResolvedConfig = Required<Config>
-/** Loader defaults for the Node PTC provider. */
+/** Node PTC provider 的 Loader 默认值。 */
 export const NodeConfig: z<Config> = z.object({
   executionMode: z.union([z.const('per-call'), z.const('persistent-in-memory')]).default('per-call'),
   timeoutMs: z.number().default(120_000),
@@ -44,8 +44,8 @@ export const NodeConfig: z<Config> = z.object({
 })
 
 /**
- * Validate resolved Node limits and paths.
- * @param config - Loader-defaulted fields with the selected executable.
+ * 校验已解析的 Node 限额与路径。
+ * @param config - 经 Loader 填充默认值的字段，含已选定的可执行文件。
  */
 export function validateConfig(config: ResolvedConfig): void {
   for (const [key, value] of Object.entries(config)) {

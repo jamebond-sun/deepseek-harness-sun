@@ -1,38 +1,32 @@
 /**
- * Shared rendering helpers for the shell tools (`dsh-tool-bash`,
- * `dsh-tool-pwsh`): the exit-status marker contract the tools' renderers emit,
- * Host `presentResult` implementations parse here, and the Web terminal card
- * model mirrors without importing Host code.
+ * shell 工具（`dsh-tool-bash`、`dsh-tool-pwsh`）共享的渲染辅助：这里定义
+ * 的是工具渲染器所输出的退出状态标记契约，Host 的 `presentResult`
+ * 实现在此解析它，Web 的终端卡片模型则在不导入 Host 代码的前提下镜像它。
  * @module @deepseek-ai/dsh-shell/render
  */
 
 /**
- * The exit status recovered from a rendered result, with the output body that
- * status was split off from.
+ * 从渲染结果中还原出的退出状态，以及该状态被剥离之前所属的输出主体。
  */
 export type ParsedExitStatus =
   & { body: string }
   & ({ exitCode: number } | { signal: string })
 
 /**
- * Split a rendered shell-tool result string into its output body and the
- * structured exit status — the inverse of the `[exit code: N]` /
- * `[killed by signal: X]` markers the shell tools' renderers append. A killed
- * marker yields `signal`; otherwise a non-zero marker yields `exitCode`;
- * absent both means a clean exit 0.
+ * 把渲染后的 shell 工具结果字符串拆分为输出主体与结构化退出状态——这是
+ * shell 工具渲染器附加的 `[exit code: N]`／`[killed by signal: X]` 标记的
+ * 逆操作。被杀死的标记得到 `signal`；否则非零标记得到 `exitCode`；两者
+ * 都缺失表示干净的退出 0。
  *
- * The consumed marker is removed from `body` because a terminal presentation
- * shows the exit status as its own pill: leaving the marker in the output
- * would render the exit twice. Other markers (timeout, sandbox denial) carry
- * facts no pill shows, so they stay in the body.
+ * 被消费的标记会从 `body` 中移除，因为终端呈现会把退出状态显示为独立的
+ * 徽标：把标记留在输出里会让退出状态渲染两次。其他标记（超时、沙箱拒绝）
+ * 承载的是没有徽标展示的事实，因此保留在 body 中。
  *
- * Replay only retains the rendered content text, not the original
- * `ShellRunResult`, so terminal presentation must recover the exit pill here.
- * Requiring a leading newline and the end of the string keeps ordinary output
- * that merely ends with marker-like text from matching unless the final line
- * is indistinguishable from a real marker.
- * @param text - rendered model-facing shell-tool result.
- * @returns the marker-free body plus the recovered terminal exit code or signal.
+ * 回放只保留渲染后的内容文本而非原始 `ShellRunResult`，因此终端呈现必须
+ * 在此还原退出徽标。要求前导换行且位于字符串末尾，可以避免普通输出仅因
+ * 以类似标记的文本结尾就被匹配——除非最后一行与真实标记无法区分。
+ * @param text - 面向模型的、已渲染的 shell 工具结果。
+ * @returns 去掉标记的主体，以及还原出的终止退出码或信号。
  */
 export function parseExitStatus(text: string): ParsedExitStatus {
   const signal = /\n\[killed by signal: ([^\]\n]+)\]$/.exec(text)

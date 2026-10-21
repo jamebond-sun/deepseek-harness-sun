@@ -28,20 +28,20 @@ interface ToolLifecycle {
   state: 'advertised' | 'started'
 }
 
-/** Relationship roles added by a later format while reusing the released validator. */
+/** 更晚的格式在复用已发布校验器时追加的关系角色。 */
 export interface ReleasedRelationshipExtensions {
-  /** Event types that must occur inside the current open step. */
+  /** 必须发生在当前打开 step 内的事件类型。 */
   readonly stepEvents?: ReadonlySet<string>
-  /** Title-request model input was source-validated and preserved across sequence remapping. */
+  /** 标题请求的模型输入已在源侧校验，并在序列重映射中保留。 */
   readonly preservedSourceTitleRequestText?: true
-  /** Admit the released resume pattern whose next-turn inbox insert omitted the prior turn/end. */
+  /** 接纳这样一种已发布的恢复模式：下一轮 inbox 插入前缺少前一个 turn/end。 */
   readonly legacyInterruptedTurnRestart?: true
 }
 
 /**
- * Validate cross-event relationships required to construct one current Session safely.
- * @param artifact - complete normalized v0 or exact current v1 artifact.
- * @param extensions - later-generation event roles interpreted by the calling format owner.
+ * 校验为安全构造一个当前 Session 所需的跨事件关系。
+ * @param artifact - 完整规范化后的 v0 制品，或精确的当前 v1 制品。
+ * @param extensions - 由调用方格式持有者解释的更晚代际事件角色。
  */
 export function assertReleasedArtifactRelationships(
   artifact: SessionFormatArtifact,
@@ -319,7 +319,7 @@ export function assertReleasedArtifactRelationships(
         break
       }
       case 'session/end-seed':
-        // An unmatched inherited transaction belongs to the ended source lifecycle.
+        // 未匹配的继承事务属于已结束的源生命周期。
         openCompaction = undefined
         break
     }

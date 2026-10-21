@@ -1,4 +1,4 @@
-/** Built-in Client inspect providers over live Client-owned services. */
+/** 基于活动 Client 自有服务的、内置的 Client 巡检提供方。 */
 
 import type { Context } from '@deepseek-ai/cordis'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
@@ -35,7 +35,7 @@ const SUBTREE_INPUT = {
   additionalProperties: false,
 } as const
 
-/** Exact Client closure symbols exposed by the evaluator and guard. */
+/** 由求值器与守卫暴露的精确 Client 闭包符号。 */
 export const CLIENT_BUILTIN_INSPECTION: readonly JsonValue[] = [
   {
     name: 'ctx',
@@ -70,9 +70,9 @@ export const CLIENT_BUILTIN_INSPECTION: readonly JsonValue[] = [
 ]
 
 /**
- * Construct the first-party Client provider registrations.
- * @param ctx - Client context used for live Service-backed queries.
- * @returns registrations for static catalogs and live Client capabilities.
+ * 构建第一方的 Client 提供方注册项。
+ * @param ctx - 用于活动 Service 支撑查询的 Client 上下文。
+ * @returns 静态 Catalog 与活动 Client 能力的注册项。
  */
 export function clientInspectProviders(ctx: Context): ClientCordisInspectProviderRegistration[] {
   return [

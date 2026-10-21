@@ -1,14 +1,13 @@
 /**
- * The model-facing `workflow` tool: run a JavaScript orchestration script that fans out
- * subagents, and return the script's final value. It owns the model-facing schema and run lifecycle; script
- * parsing, execution, caps, and cancellation live behind `ctx.workflowEngine`
- * (`@deepseek-ai/dsh-workflow`), so a hardened engine swaps in without touching what the model
- * sees. Foreground execution awaits `run.result` and always disposes the run; non-completed reasons
- * become tool errors. `run_in_background: true` instead registers the run as an owned `ctx.jobs` job
- * and returns its id immediately — the job's output ring streams live progress, and the run's value
- * arrives with the job's completion notice. Presentation is an args-only generic card
- * titled from `meta.name`. Explicit-ask usage guidance is registered as the tool's own prompt
- * section rather than deployment persona prose.
+ * 模型面向的 `workflow` 工具：运行一段 JavaScript 编排脚本，扇出子代理，
+ * 并返回脚本的最终值。它拥有模型可见的 schema 与运行生命周期；脚本解析、
+ * 执行、额度与取消则置于 `ctx.workflowEngine`（`@deepseek-ai/dsh-workflow`）
+ * 之后，这样换入一个加固过的引擎无需触碰模型所见内容。前台执行会等待
+ * `run.result` 且总会释放该运行；非 `completed` 的结束原因会变为工具错误。
+ * `run_in_background: true` 则将该运行登记为一个受管的 `ctx.jobs` job，
+ * 并立即返回其 id —— job 的输出环形缓冲会流式推送实时进度，运行的值
+ * 随 job 的完成通知一同到达。呈现是一个仅含参数的通用卡片，标题取自
+ * `meta.name`。显式询问的使用指引作为工具自身的提示段落而非部署人设文案登记。
  * @module @deepseek-ai/dsh-tool-workflow
  */
 
@@ -40,18 +39,17 @@ declare module '@deepseek-ai/dsh-jobs' {
 export const name = 'tool-workflow'
 export const inject = ['tools', 'workflowEngine', 'systemPrompt']
 
-/** Config: the model-facing tool name plus result rendering caps. */
+/** 配置：模型可见的工具名，以及结果渲染额度。 */
 export interface Config {
-  /** The model-facing tool name to register (default `workflow`). */
+  /** 要登记的模型可见工具名（默认 `workflow`）。 */
   toolName?: string
-  /** Rendered-result ceiling, in characters: a longer JSON value is truncated with a notice (default 50000). */
+  /** 渲染结果的字符上限：超过的 JSON 值会带提示被截断（默认 50000）。 */
   maxResultChars?: number
   /**
-   * Expose `run_in_background` (default true); disabled calls are also
-   * rejected. A background run needs a live `ctx.jobs` registry with a
-   * controller serving the caller (`dsh-jobs-local` plus `dsh-tool-jobs` in
-   * the shipped composition); without one the call fails with the missing
-   * piece named.
+   * 是否暴露 `run_in_background`（默认 true）；禁用时调用也会被拒绝。
+   * 后台运行需要一个带有为调用方提供服务的控制器的存活 `ctx.jobs` 注册表
+   * （shipped 组合中的 `dsh-jobs-local` 加 `dsh-tool-jobs`）；缺少时调用会
+   * 以缺失的组件命名而失败。
    */
   enableRunInBackground?: boolean
 }
@@ -77,7 +75,7 @@ interface ToolWorkflowRecordEventMap {
   'tool-workflow/run-end': ToolWorkflowRunEndData
 }
 
-/** Render a contained recording failure without trusting the thrown value. */
+/** 渲染一个被隔离的录制失败，而不信任被抛出的值。 */
 function renderRecordingError(error: unknown): string {
   try {
     return String(error)
@@ -87,8 +85,8 @@ function renderRecordingError(error: unknown): string {
 }
 
 /**
- * Project active top-level workflow runs into their parent Sessions without
- * letting recording failure affect tool execution.
+ * 在不让录制失败影响工具执行的前提下，将活跃顶层 workflow 运行映射到
+ * 它们的父 Session。
  */
 function createWorkflowRecorder(ctx: Context): WorkflowRecorder {
   const active = new Map<WorkflowRunId, Session>()
@@ -97,8 +95,8 @@ function createWorkflowRecorder(ctx: Context): WorkflowRecorder {
     type: Type,
     data: SessionEventMap[Type],
   ): boolean => {
-    // These four package-owned events are all log-only. Narrowing the generic
-    // append face here discharges Session.append's conditional options tuple.
+    // 这四个包内拥有的事件都是仅日志的。此处收窄通用的 append 接口，
+    // 以消减 Session.append 的条件 options 元组。
     const appendRecord = session.append.bind(session) as <Event extends keyof ToolWorkflowRecordEventMap>(
       event: Event,
       value: SessionEventMap[Event],
@@ -151,9 +149,8 @@ function createWorkflowRecorder(ctx: Context): WorkflowRecorder {
 }
 
 /**
- * The script-authoring contract, embedded in the tool description: the hooks,
- * their exact semantics, and the supported schema subset. Parameter-level
- * rules live in the parameter descriptions.
+ * 脚本编写契约，内嵌于工具描述中：各钩子、其确切语义，以及受支持的
+ * schema 子集。参数级的规则位于参数描述中。
  */
 const DESCRIPTION = `Run a JavaScript workflow script that orchestrates subagents at scale. Use this for work that fans out across many independent pieces — an audit over many files, a migration, multi-angle research, adversarial verification of findings — where you write the orchestration as a script instead of delegating turn by turn.
 
@@ -177,7 +174,7 @@ type WorkflowCallArgs = {
   run_in_background?: boolean
 }
 
-/** The pending-state card: a generic card titled by the workflow's meta name. */
+/** 等待态卡片：以 workflow 的 meta 名命名的通用卡片。 */
 function presentWorkflowCall(args: WorkflowCallArgs): ToolCallView {
   return {
     card: 'generic',
@@ -186,14 +183,14 @@ function presentWorkflowCall(args: WorkflowCallArgs): ToolCallView {
   }
 }
 
-/** The completed-state card: keep the pending title; render the result content as-is. */
+/** 完成态卡片：保留等待态标题；按原样渲染结果内容。 */
 function presentWorkflowResult(args: WorkflowCallArgs, result: { content: ContentBlock[]; isError: boolean }): ToolResultView {
   void args
   void result
   return { card: 'generic' }
 }
 
-/** A non-`completed` stop reason means the script did not finish cleanly. */
+/** 非 `completed` 的结束原因意味着脚本没有干净地结束。 */
 function stopReasonError(result: WorkflowResult): string | undefined {
   switch (result.stopReason) {
     case 'completed':
@@ -202,7 +199,7 @@ function stopReasonError(result: WorkflowResult): string | undefined {
       return `workflow run was cancelled${result.error !== undefined ? ` (${result.error})` : ''}`
     case 'error':
       return `workflow run failed: ${result.error ?? 'unknown error'}`
-    /* v8 ignore start -- defensive: WorkflowStopReason is a closed union, exhaustive by construction; a future variant fails here loudly */
+    /* v8 ignore start -- 防御性：WorkflowStopReason 是封闭联合，按构造可穷尽；未来的变体在此处会显式失败 */
     default:
       return `workflow run ended abnormally (${String(result.stopReason satisfies never)})`
     /* v8 ignore stop */
@@ -210,11 +207,9 @@ function stopReasonError(result: WorkflowResult): string | undefined {
 }
 
 /**
- * Map a settled background run onto the job outcome vocabulary. A completed
- * run carries the rendered return value as the job's result; a
- * cancelled run leaves the detail to the registry's kill-reason merge (the
- * cancel reason it forwarded is the same string); an errored run fails with
- * the script's failure message.
+ * 将一个已结算的后台运行映射到 job 结果词汇表。一个已完成的运行携带渲染后的
+ * 返回值作为 job 的结果；一个被取消的运行把细节交给注册表的终止原因合并
+ * （它转发的取消原因就是同一个字符串）；一个出错的运行以脚本的失败消息失败。
  */
 function jobOutcomeOf(result: WorkflowResult, name: string, maxChars: number): JobOutcome {
   switch (result.stopReason) {
@@ -228,16 +223,16 @@ function jobOutcomeOf(result: WorkflowResult, name: string, maxChars: number): J
       return { status: 'killed' }
     case 'error':
       return { status: 'failed', detail: result.error ?? 'unknown error' }
-    /* v8 ignore start -- defensive: WorkflowStopReason is a closed union, exhaustive by construction; a future variant fails here loudly */
+    /* v8 ignore start -- 防御性：WorkflowStopReason 是封闭联合，按构造可穷尽；未来的变体在此处会显式失败 */
     default:
       return { status: 'failed', detail: `workflow run ended abnormally (${String(result.stopReason satisfies never)})` }
     /* v8 ignore stop */
   }
 }
 
-/** Render the run's outcome text: the meta name, agent count, and the JSON value (capped). */
+/** 渲染运行的结果文本：meta 名、代理数量，以及（有上限的）JSON 值。 */
 function renderResult(name: string, agentsStarted: number, value: JsonValue, maxChars: number): string {
-  // The engine returns JSON data (null for a valueless script), so stringify never yields undefined.
+  // 引擎返回 JSON 数据（无值脚本为 null），因此 stringify 永远不会产出 undefined。
   const rendered = JSON.stringify(value, null, 2)
   const clipped = rendered.length > maxChars
     ? `${rendered.slice(0, maxChars)}\n… [truncated: ${rendered.length - maxChars} more characters]`
@@ -246,19 +241,18 @@ function renderResult(name: string, agentsStarted: number, value: JsonValue, max
 }
 
 /**
- * Register a background run as an owned job. The engine run is started
- * inside the job starter with no tool-step signal — the run belongs to the
- * job, so a registry kill or owner teardown is what cancels it — and its
- * settlement is the job's settlement: dispose, stop the mirrors, then map the
- * stop reason onto the job outcome (a completed run's rendered return value
- * rides `result` to the model's first read after settlement).
- * @param ctx - plugin context (engine, optional jobs registry, logger).
- * @param args - the validated tool call.
- * @param parent - the calling agent; owns the job.
- * @param toolCall - creating invocation, including its root call.
- * @param recordsRun - whether this top-level call records durable run events.
- * @param deps - the tool's recorder/mirror taps and the render cap.
- * @returns the background result for the tool's output schema.
+ * 将一个后台运行登记为一个受管的 job。引擎运行在 job 启动器内部启动，
+ * 没有工具步骤信号 —— 该运行属于 job，因此一个注册表终止或属主拆解
+ * 才是取消它的方式 —— 而其结算即 job 的结算：释放、停止镜像，随后将
+ * 结束原因映射到 job 结果（已完成运行的渲染返回值随结算后模型首次读取
+ * 而进入 `result`）。
+ * @param ctx - 插件上下文（引擎、可选的 jobs 注册表、日志器）。
+ * @param args - 已校验的工具调用。
+ * @param parent - 调用代理；拥有该 job。
+ * @param toolCall - 创建本次调用的调用，含其根调用。
+ * @param recordsRun - 该顶层调用是否记录持久运行事件。
+ * @param deps - 工具的录制器/镜像接入点，以及渲染上限。
+ * @returns 工具输出 schema 对应的后台结果。
  */
 function startBackgroundRun(
   ctx: Context,
@@ -279,9 +273,8 @@ function startBackgroundRun(
     owner: parent.id,
     toolCall,
     run: (job) => {
-      // A synchronous engine rejection (META_INVALID/SCRIPT_PARSE) propagates
-      // out of the starter, so the registry registers nothing and the model
-      // sees the violation list as an ordinary tool error.
+      // 一个同步的引擎拒绝（META_INVALID/SCRIPT_PARSE）会从启动器向外传播，
+      // 因此注册表什么都不登记，模型会看到违规列表，作为一个普通工具错误。
       run = ctx.workflowEngine.start({
         script: args.script,
         meta: args.meta,
@@ -292,11 +285,11 @@ function startBackgroundRun(
       if (recordsRun) deps.recorder.start(parent.session, run)
       const done = run.result.then(async (result): Promise<JobOutcome> => {
         try {
-          // Keep member listeners alive through disposal: an engine may
-          // synthesize cancelled member endings while reaching quiescence.
+          // 在释放过程中保持成员监听器存活：引擎可能在达到静止态时
+          // 合成被取消的成员结束。
           await run.dispose()
         } catch (error: unknown) {
-          // done must not reject; a failed disposal still has a settled result to report.
+          // done 不得 reject；一个失败的释放仍然有一个已结算的结果要报告。
           ctx.logger.warn(`background workflow run ${run.id} dispose failed: ${String(error)}`)
         }
         deps.mirror.stop(run.id)
@@ -316,13 +309,13 @@ function startBackgroundRun(
 }
 
 export function apply(ctx: Context, config: Config): void {
-  // schemastery (the exported Config schema) has already filled the defaulted
-  // fields; the assertion records that resolution, not a hidden fallback.
+  // schemastery（导出的 Config schema）已经填好了带默认值的字段；
+  // 该断言记录的是那次解析，而非一个隐藏的回退。
   const { toolName, maxResultChars, enableRunInBackground } = config as ResolvedConfig
   const recorder = createWorkflowRecorder(ctx)
   const mirror = createWorkflowRecordMirror(ctx)
-  // Usage policy ships with the tool (the master convention: tool guidance
-  // lives in tool plugins as prompt sections, not in the deployment persona).
+  // 使用策略随工具一同发布（核心约定：工具指引作为提示段落存在于工具插件中，
+  // 而非部署人设中）。
   ctx.systemPrompt.section({
     name: `tool:${toolName}`,
     order: ctx.systemPrompt.getSectionOrder('TOOL_WORKFLOW'),
@@ -409,20 +402,17 @@ export function apply(ctx: Context, config: Config): void {
     async execute(args, exec) {
       const parent = exec.agent
       if (!parent) {
-        // The loop sets `exec.agent` for every model-driven call; its absence
-        // means a non-agent caller invoked the tool directly, which has no
-        // parent to attribute the children to. Fail loud rather than guess.
+        // 循环会为每次模型驱动的调用设置 `exec.agent`；其缺失意味着一个非代理的
+        // 调用方直接调用了该工具，而没有可归属子项的父代理。显式失败而非猜测。
         throw new Error('workflow tool requires a calling agent (exec.agent was undefined)')
       }
       if (args.run_in_background === true) {
         if (!enableRunInBackground) {
           throw new Error('run_in_background is disabled for this tool')
         }
-        // No pre-abort check here, unlike bash/pwsh: ToolRuntime re-reads the
-        // caller signal right before execute(), and this branch reaches
-        // jobs.start synchronously from there. The shell tools await a
-        // sandbox escalation approval before registering, which is the window
-        // their check covers.
+        // 与 bash/pwsh 不同，此处没有预中止检查：ToolRuntime 在 execute() 之前
+        // 立即重读调用方信号，而本分支从那里同步到达 jobs.start。shell 工具会在
+        // 登记前等待一个沙箱提权审批，那正是它们的检查所覆盖的窗口。
         return startBackgroundRun(ctx, args, parent, { callId: exec.callId, rootCallId: exec.rootCallId }, exec.parent === undefined, {
           recorder,
           mirror,
@@ -430,9 +420,8 @@ export function apply(ctx: Context, config: Config): void {
         })
       }
 
-      // Meta/body validation failures (META_INVALID/SCRIPT_PARSE) throw
-      // synchronously here and become isError results via the registry — the
-      // model sees the violation list and can correct the call.
+      // Meta/正文校验失败（META_INVALID/SCRIPT_PARSE）会在此同步抛出，并通过
+      // 注册表变为 isError 结果 —— 模型会看到违规列表，并可以纠正调用。
       const run = ctx.workflowEngine.start({
         script: args.script,
         meta: args.meta,
@@ -441,12 +430,12 @@ export function apply(ctx: Context, config: Config): void {
         signal: exec.signal,
       })
       const recordsRun = exec.parent === undefined
-      // The engine publishes member events after start() returns and this run record is active.
+      // 引擎在 start() 返回后、且本运行记录处于活跃时发布成员事件。
       if (recordsRun) recorder.start(parent.session, run)
 
-      // Bridge the tool's abort signal to the run: if the parent step is aborted while the
-      // script is in flight, cancel the whole run. The signal also enters the engine directly, but
-      // this local bridge preserves the tool contract even if an implementation ignores it.
+      // 将工具的中止信号桥接到运行：若父步骤在脚本执行期间被中止，则取消
+      // 整个运行。该信号也直接进入引擎，但这一本地桥接即使在某个实现忽略它时
+      // 也能保留工具契约。
       const onAbort = (): void => { run.cancel('parent step aborted') }
       exec.signal.addEventListener('abort', onAbort, { once: true })
 
@@ -455,8 +444,8 @@ export function apply(ctx: Context, config: Config): void {
         result = await run.result
         const error = stopReasonError(result)
         if (error !== undefined) {
-          // Map a non-clean finish to an isError result (the registry turns a
-          // throw into an isError). Report the reason, not partial output.
+          // 将非干净结束映射为一个 isError 结果（注册表会把一个 throw 变成
+          // isError）。报告原因，而非部分输出。
           throw new Error(error)
         }
         return {
@@ -468,11 +457,11 @@ export function apply(ctx: Context, config: Config): void {
       } finally {
         exec.signal.removeEventListener('abort', onAbort)
         try {
-          // Keep member listeners alive through disposal: an engine may
-          // synthesize cancelled member endings while reaching quiescence.
+          // 在释放过程中保持成员监听器存活：引擎可能在达到静止态时
+          // 合成被取消的成员结束。
           await run.dispose()
           if (recordsRun) {
-            /* v8 ignore next -- WorkflowRun.result never rejects by contract, so result is assigned before finally. */
+            /* v8 ignore next -- WorkflowRun.result 按契约永不 reject，因此 finally 前 result 已被赋值。 */
             if (result === undefined) throw new Error('workflow run settled without a result')
             recorder.finish(run.id, result.stopReason)
           }

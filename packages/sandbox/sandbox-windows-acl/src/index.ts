@@ -1,45 +1,37 @@
 /**
- * Windows ACL write-restriction sandbox backend for the DeepSeek Harness
- * sandbox seam. Mirrors the mechanism of github.com/huoyaoyuan/
- * windows-acl-restrict-poc @ 10e4dfb (the fixed revision): a WRITE_RESTRICTED
- * token whose restricting SIDs include distinct workspace and temp write
- * SIDs that this sandbox adds to their owning directories' DACLs — the
- * intersection check then allows writes exactly where either capability has
- * a Write ACE, and nowhere else those SIDs are concerned (the check ALSO
- * inherits the ambient write ACEs of the other restricting SIDs — the
- * keep-alive group logon SID + Everyone; Authenticated Users, INTERACTIVE,
- * and LOCAL are absent from both lists — see the seam's dual-list contract
- * in `packages/sandbox/sandbox-local` and the package README's Modes section
- * for the complete boundary). The intersection covers only the object's own
- * access check, so the token is also lowered to Low integrity and every
- * granted directory carries a Low no-write-up label and the ambient-delete
- * deny the `acl` module documents. The write SID is the per-WORKSPACE identity
- * ({@link workspaceWriteSid}): deterministic from the canonical workspace
- * path, so the workspace-root ACE materializes once per workspace per
- * machine and every later provision hits the exact-ACE skip — the
- * grant-reuse story the per-session random SID paid a full tree propagation
- * per session for. Each private temp directory instead receives its own SID,
- * so sibling sessions sharing a workspace cannot enter one another's temp
- * trees. Unlike the POC, every API failure throws with the API
- * name and exact Win32 code; a child is NEVER spawned unrestricted.
+ * DeepSeek Harness 沙箱接缝的 Windows ACL 写入限制后端。它复刻了
+ * github.com/huoyaoyuan/windows-acl-restrict-poc @ 10e4dfb（已修复的修订版）
+ * 的机制：一个 WRITE_RESTRICTED 令牌，其限制 SID 中包含互不相同的写入 SID
+ * 与临时写入 SID，而本沙箱会把这两个 SID 加到各自所属目录的 DACL 上——于是
+ * 交集检查恰好在任一能力持有 Write ACE 的地方允许写入，而在这些 SID 所涉的
+ * 其他任何地方都不允许（该检查还会继承其他限制 SID 的环境写入 ACE——即保活
+ * 组登录 SID + Everyone；Authenticated Users、INTERACTIVE 与 LOCAL 在两份
+ * 列表中都不出现——完整边界见 `packages/sandbox/sandbox-local` 中该接缝的
+ * 双列表契约，以及包内 README 的 Modes 一节）。该交集只覆盖对象自身的访问
+ * 检查，因此令牌还会被降到 Low 完整性，且每个被授予的目录都带有 Low 禁止
+ * 向上写入标签以及 `acl` 模块所记录的环境删除拒绝。写入 SID 是按工作区划分
+ * 的身份（{@link workspaceWriteSid}）：由规范化工作区路径确定性派生，因此
+ * 工作区根目录的 ACE 按机器、按工作区只物化一次，此后每次供应都命中精确
+ * ACE 跳过——这正是"按会话随机 SID"要为每个会话付出一次整树传播代价的授予
+ * 复用故事。每一个私有临时目录则各自获得自己的 SID，因此共享同一工作区的
+ * 兄弟会话无法进入彼此的临时目录树。与 POC 不同，每一个 API 失败都会连同
+ * API 名称与精确的 Win32 错误码抛出；子进程绝不会被不受限地派生。
  *
- * Known boundaries (inherent to restricted tokens, not this port):
- *  - writes are restricted; reads, network, and process visibility are NOT
- *    (WRITE_RESTRICTED intersects only write accesses);
- *  - console isolation is unavailable — children share the host console
- *    (CREATE_NO_WINDOW / CREATE_NEW_CONSOLE children die with
- *    STATUS_DLL_INIT_FAILED under the restriction);
- *  - the private temp directory and every writable directory must be owned by the
- *    caller (owner-implicit WRITE_DAC);
- *  - grants are standing ACE mutations on real directories. WORKSPACE grants
- *    are deliberately never revoked — the ACE is the cross-session reuse
- *    cache (revoking would force the next session to re-propagate the whole
- *    tree). TEMP grants are revocable: dispose() removes them so a standing
- *    inheritable ACE never outlives its session's temp directory. The
- *    ambient temp root is never granted implicitly. With `manageDacls: false`
- *    the CALLER owns the DACLs (the sandbox seam's grant reuse):
- *    init()/dispose() skip grant/revoke entirely and the caller must not
- *    revoke under live children.
+ * 已知边界（属于受限令牌的固有性质，而非本次移植的产物）：
+ *  - 写入受限制；读取、网络与进程可见性不受限制（WRITE_RESTRICTED 只对
+ *    写入访问求交集）；
+ *  - 控制台隔离不可用——子进程与宿主机共用同一个控制台（在该限制之下，
+ *    CREATE_NO_WINDOW / CREATE_NEW_CONSOLE 的子进程会以
+ *    STATUS_DLL_INIT_FAILED 死亡）；
+ *  - 私有临时目录与每一个可写目录都必须由调用方拥有（所有者隐式的
+ *    WRITE_DAC）；
+ *  - 授予都是对真实目录的常驻 ACE 修改。工作区授予被刻意从不撤销——该 ACE
+ *    就是跨会话复用缓存（撤销会迫使下一个会话重新传播整棵树）。临时授予是
+ *    可撤销的：dispose() 会移除它们，使一个常驻的可继承 ACE 永远不会比它
+ *    所属会话的临时目录活得更久。环境临时根从不被隐式授予。当
+ *    `manageDacls: false` 时，由调用方持有这些 DACL（即沙箱接缝的授予
+ *    复用）：init()/dispose() 完全跳过授予/撤销，且调用方不得在存活的
+ *    子进程之下做撤销。
  * @module @deepseek-ai/dsh-sandbox-windows-acl
  */
 
@@ -59,83 +51,79 @@ export { AclWriteGrant } from './grant.ts'
 export { assertTempRootOutsideWorkspace } from './path-boundary.ts'
 export { tempWriteSid, workspaceWriteSid } from './workspace-sid.ts'
 export { ACL_DIAGNOSIS_SKILL, registerAclDiagnosisSkill } from './acl-skill.ts'
-/** Construction options: the workspace/temp allowlists and their distinct SID identities. */
+/** 构造选项：工作区/临时允许列表及其各自不同的 SID 身份。 */
 export interface AclSandboxOptions {
-  /** Directories the confined child may write into (must exist and be caller-owned). */
+  /** 受限子进程允许写入的目录（必须存在且由调用方拥有）。 */
   writableDirs: readonly string[]
   /**
-   * Existing private temp directory to grant. Workspace-write callers must
-   * pass it explicitly or pass null to disable temp writes; the ambient temp
-   * root is never an implicit grant. Read-only accepts only null/undefined.
+   * 待授予的既有私有临时目录。workspace-write 的调用方必须显式传入它，
+   * 或传入 null 以禁用临时写入；环境临时根从不是一次隐式授予。read-only
+   * 只接受 null/undefined。
    */
   tempDir?: string | null
   /**
-   * The write SID forming the workspace-write allowlist: REQUIRED under
-   * workspace-write, ignored (and must be absent) under read-only. Callers
-   * derive it from the workspace via {@link workspaceWriteSid} — the identity
-   * is per workspace, not per sandbox instance, so the workspace-root ACE
-   * outlives every instance and later provisions hit the exact-ACE skip.
+   * 构成 workspace-write 允许列表的那个写入 SID：在 workspace-write 下必填，
+   * 在 read-only 下被忽略（且必须不出现）。调用方通过
+   * {@link workspaceWriteSid} 从工作区派生它——该身份是按工作区划分的，
+   * 而非按沙箱实例划分，因此工作区根的 ACE 比每一个实例活得更久，后续供应
+   * 都会命中精确 ACE 跳过。
    */
   writeSid?: string
   /**
-   * The private temp directory's write SID. Required whenever
-   * workspace-write grants a temp directory, absent otherwise. It must be
-   * distinct from {@link writeSid}, so sibling sessions sharing a workspace
-   * cannot use the standing workspace capability in one another's temp tree.
+   * 该私有临时目录的写入 SID。只要 workspace-write 授予了一个临时目录就
+   * 必填，其余情形不出现。它必须与 {@link writeSid} 不同，因此共享同一
+   * 工作区的兄弟会话无法借助常驻的工作区能力进入彼此的临时目录树。
    */
   tempWriteSid?: string
   /**
-   * The file-effect mode this instance confines under — selects the
-   * restricted token's restricting-SID list (I for read-only, J for
-   * workspace-write) and MUST match the grant shape: read-only pairs with
-   * zero grants. The runner validates the argv-borne mode string at its
-   * boundary; this typed seam trusts the union.
+   * 本实例所限制的文件效应模式——它选定受限令牌的限制 SID 列表（read-only
+   * 为 I，workspace-write 为 J），且必须与授予形状匹配：read-only 配零授予。
+   * 运行器在其边界校验经 argv 传入的模式字符串；本带类型接缝信任该联合。
    */
   mode: 'read-only' | 'workspace-write'
   /**
-   * Whether this instance owns its DACL grants (default true). False means
-   * the CALLER has already materialized the ACEs (the sandbox seam's
-   * workspace/temp capability lifecycle): init()/dispose() skip grant/revoke entirely —
-   * the caller holds the grants for its own lifetime and revokes them.
+   * 本实例是否持有自己的 DACL 授予（默认 true）。为 false 表示调用方已经
+   * 物化了这些 ACE（沙箱接缝的工作区/临时能力生命周期）：init()/dispose()
+   * 完全跳过授予/撤销——调用方按其自身生命周期持有这些授予并自行撤销。
    */
   manageDacls?: boolean
 }
 
-/** Per-spawn options: the program, its argv/cwd, and the stdio shape. */
+/** 每次派生的选项：程序、其 argv/cwd，以及 stdio 形态。 */
 export interface AclSandboxSpawnOptions {
-  /** Program to run (resolved via PATH search when unqualified, like CreateProcess). */
+  /** 要运行的程序（非限定名时按 CreateProcess 的方式经 PATH 搜索解析）。 */
   command: string
-  /** Arguments, quoted per CommandLineToArgvW rules. */
+  /** 参数，按 CommandLineToArgvW 的规则加引号。 */
   args?: readonly string[]
-  /** Working directory; defaults to the caller's cwd. */
+  /** 工作目录；默认为调用方的 cwd。 */
   cwd?: string
   /**
-   * 'pipe' (default): capture stdout/stderr via anonymous pipes.
-   * 'inherit': the child inherits the caller's stdio directly (runner usage —
-   * bytes flow straight through), always wrapped in a kill-on-close job so the
-   * child dies with the caller; stdout/stderr in the result are empty.
+   * 'pipe'（默认）：通过匿名管道捕获 stdout/stderr。
+   * 'inherit'：子进程直接继承调用方的 stdio（运行器用法——字节直通），且总是
+   * 被包进一个"关闭即终止"的 Job，使子进程随调用方一同死亡；结果中的
+   * stdout/stderr 为空。
    */
   stdio?: 'pipe' | 'inherit'
-  /** Control pipe forwarded to the same payload descriptor in inherited-stdio mode. */
+  /** 在继承 stdio 模式下转发到同一载荷描述符的控制管道。 */
   controlFileDescriptor?: 7
 }
 
-/** A settled confined child: captured stdio and the exit code. */
+/** 一个已落定的受限子进程：捕获到的 stdio 与退出码。 */
 export interface AclSandboxChildResult {
   stdout: Buffer
   stderr: Buffer
   exitCode: number
 }
 
-/** A running confined child: its pid and a settlement promise. */
+/** 一个正在运行的受限子进程：其 pid 与一个落定 promise。 */
 export interface AclSandboxChild {
-  /** Child process id. */
+  /** 子进程 id。 */
   pid: number
-  /** Resolve stdout/stderr and the exit code once the child exits. */
+  /** 在子进程退出后解析出 stdout/stderr 与退出码。 */
   wait(): Promise<AclSandboxChildResult>
 }
 
-/** Free one optional SID while retaining a failure for best-effort sibling cleanup. */
+/** 释放一个可选 SID，同时为尽最大努力的兄弟清理保留失败信息。 */
 function freeSidBestEffort(
   api: Win32Bindings,
   sidPtr: NativePtr | undefined,
@@ -152,22 +140,21 @@ function freeSidBestEffort(
 }
 
 /**
- * One write-restricted sandbox instance: token + write-SID grants + spawn.
- * `init()` is fail-closed — any Win32 failure revokes the revocable (temp)
- * grants and throws; `dispose()` revokes the temp grants, leaves the
- * standing workspace ACEs in place (the cross-instance reuse cache), frees
- * every allocation, and reports every cleanup failure. With
- * `manageDacls: false` the caller owns the grants (the sandbox seam's grant
- * reuse): init() applies none and dispose() revokes none.
+ * 一个写入受限的沙箱实例：令牌 + 写入 SID 授予 + 派生。`init()` 是失败即
+ * 关闭的——任何 Win32 失败都会撤销那些可撤销的（临时）授予并抛出；
+ * `dispose()` 撤销临时授予、保留常驻的工作区 ACE 不动（跨实例复用缓存）、
+ * 释放每一次分配，并上报每一次清理失败。当 `manageDacls: false` 时由调用方
+ * 持有这些授予（沙箱接缝的授予复用）：init() 不应用任何授予，dispose()
+ * 也不撤销任何授予。
  */
 export class AclSandbox {
-  /** Absolute writable directories (constructor-validated). */
+  /** 绝对的可写目录（在构造函数中校验）。 */
   readonly writableDirs: string[]
-  /** The workspace SID string whose ACEs form the workspace allowlist. */
+  /** 其 ACE 构成工作区允许列表的工作区 SID 字符串。 */
   readonly writeSid: string | undefined
-  /** The private temp directory's write SID (workspace-write with temp only). */
+  /** 该私有临时目录的写入 SID（仅在带临时的 workspace-write 下存在）。 */
   readonly tempWriteSid: string | undefined
-  /** The file-effect mode — the restricted token's restricting-SID list selection. */
+  /** 文件效应模式——选定受限令牌的限制 SID 列表。 */
   readonly mode: 'read-only' | 'workspace-write'
   private readonly tempDirOption: string | null | undefined
   private readonly manageDacls: boolean
@@ -176,7 +163,7 @@ export class AclSandbox {
   private token: NativePtr | undefined
   private writeSidPtr: NativePtr | undefined
   private tempWriteSidPtr: NativePtr | undefined
-  /** The well-known/logon SID allocations init() makes; freed by dispose() alongside the write SIDs. */
+  /** init() 所分配的已知 SID/登录 SID；由 dispose() 与写入 SID 一并释放。 */
   private sidAllocations: NativePtr[] = []
   private grantedPaths: Array<{ path: string; sidPtr: NativePtr }> = []
 
@@ -216,12 +203,12 @@ export class AclSandbox {
     }
   }
 
-  /** Resolved temp directory (available after init; null when temp grants are disabled). */
+  /** 已解析的临时目录（init 之后可用；临时授予被禁用时为 null）。 */
   get tempDir(): string | null | undefined {
     return this.tempDirResolved
   }
 
-  /** Create the restricted token and apply the capability-SID grants. Idempotent-unsafe: once per instance. */
+  /** 创建受限令牌并应用能力 SID 授予。非幂等：每个实例只能调用一次。 */
   async init(): Promise<void> {
     if (this.api !== undefined) throw new Error('AclSandbox is already initialized')
     const api = await win32()
@@ -242,8 +229,8 @@ export class AclSandbox {
       this.tempWriteSidPtr = this.tempWriteSid === undefined ? undefined : parseSid(this.tempWriteSid)
 
       const tempDir = this.mode === 'read-only' || this.tempDirOption === null ? null : this.tempDirOption
-      /* v8 ignore next -- constructor validation requires workspace-write to supply
-         an explicit temp directory or null; the other branches normalize to null. */
+      /* v8 ignore next -- 构造函数校验要求 workspace-write 提供显式的临时目录或 null；
+         其他分支都会归一化为 null。 */
       if (tempDir === undefined) throw new Error('AclSandbox workspace-write temp directory was not resolved')
       if (tempDir !== null) {
         if (!existsSync(tempDir) || !statSync(tempDir).isDirectory()) {
@@ -253,14 +240,13 @@ export class AclSandbox {
       }
       this.tempDirResolved = tempDir
 
-      // manageDacls: false — the caller (the sandbox seam's grant) already
-      // materialized the ACEs; this instance must neither add nor remove any.
-      // When this instance owns the DACLs, writableDir ACEs are STANDING (the
-      // per-workspace reuse cache — dispose() never revokes them, or the next
-      // provision would re-propagate the whole tree) and the temp ACE is
-      // REVOCABLE (dispose() removes it before the private directory is
-      // deleted; the ambient temp root is never granted).
-      // The Low label SID and the world SID the grants deny and label with.
+      // manageDacls: false——调用方（沙箱接缝的授予）已经物化了这些 ACE；
+      // 本实例既不得添加也不得移除任何 ACE。当本实例持有这些 DACL 时，
+      // writableDir 的 ACE 是常驻的（按工作区划分的复用缓存——dispose()
+      // 从不撤销它们，否则下一次供应就得重新传播整棵树），而临时 ACE 是
+      // 可撤销的（dispose() 在私有目录被删除之前移除它；环境临时根从不
+      // 被授予）。
+      // 这些授予用于拒绝与打标签的 Low 标签 SID 与 world SID。
       const lowLabelSid = makeWellKnownSid(api, abi.WinLowLabelSid)
       const worldSid = makeWellKnownSid(api, abi.WinWorldSid)
       this.sidAllocations.push(lowLabelSid, worldSid)
@@ -271,9 +257,9 @@ export class AclSandbox {
             grantWrite(api, path, this.writeSidPtr, lowLabelSid, worldSid)
           }
           if (tempDir !== null && this.tempWriteSidPtr !== undefined) {
-            // Record BEFORE granting: grantWrite can throw after a successful
-            // apply (a LocalFree failure), and the fail-closed catch must still
-            // revoke that path (revoking an ungranted path is a no-op merge).
+            // 在授予之前记录：grantWrite 可能在一次成功应用之后抛错
+            // （一次 LocalFree 失败），而失败即关闭的 catch 必须仍然撤销
+            // 该路径（撤销一个从未授予过的路径是一次空操作式的合并）。
             this.grantedPaths.push({ path: tempDir, sidPtr: this.tempWriteSidPtr })
             grantWrite(api, tempDir, this.tempWriteSidPtr, lowLabelSid, worldSid)
           }
@@ -289,27 +275,23 @@ export class AclSandbox {
       )
       restrictTokenIntegrity(api, restrictedToken, lowLabelSid)
       this.token = restrictedToken
-      // The restricted token's default DACL still names only the user's
-      // ambient SIDs — none of the restricting SIDs. Every NEW object the
-      // confined process creates (anonymous stdio pipes, sync objects) takes
-      // its DACL from that default, so the write pass-2 check would deny
-      // pipe creation (ERROR_ACCESS_DENIED; Node EPERM) and break every
-      // piped-stdio grandchild spawn. Merge a full-access ACE for a
-      // restricting SID (the PRIVATE temp SID when present, otherwise the
-      // workspace SID, or Everyone under read-only): new-object creation
-      // stays gated by the parent object's DACL, while the new object's own
-      // DACL passes pass-2. Choosing the temp SID prevents default-DACL
-      // objects in one session's temp tree from acquiring the shared
-      // workspace capability.
+      // 受限令牌的默认 DACL 仍旧只点名用户那些环境 SID——没有一个是限制
+      // SID。受限进程所创建的每一个新对象（匿名 stdio 管道、同步对象）都从
+      // 该默认值取得其 DACL，因此写入的第二趟检查会拒绝创建管道
+      // （ERROR_ACCESS_DENIED；Node 表现为 EPERM），从而破坏每一次管道式
+      // stdio 的孙进程派生。合并进一条针对某个限制 SID 的完全访问 ACE
+      // （存在时取私有的临时 SID，否则取工作区 SID，read-only 下取
+      // Everyone）：新对象的创建仍受父对象 DACL 把关，而新对象自身的 DACL
+      // 则能通过第二趟检查。选择临时 SID 可以防止某个会话临时目录树中那些
+      // 默认 DACL 对象获得共享的工作区能力。
       setTokenDefaultDaclGrant(api, restrictedToken, this.tempWriteSidPtr ?? this.writeSidPtr ?? worldSid)
       if (api.closeHandle(currentToken) === 0) throwLastError(api, 'CloseHandle', 'current process token')
       currentTokenOpen = false
       this.api = api
     } catch (error) {
-      // Fail-closed cleanup: never leave a revocable (temp) grant or SID
-      // allocation behind a failed init. Standing workspace ACEs are NOT
-      // revoked — they are the intended end state (the reuse cache), not an
-      // error artifact.
+      // 失败即关闭的清理：绝不在一次失败的 init 之后留下可撤销的（临时）
+      // 授予或 SID 分配。常驻的工作区 ACE 不被撤销——它们是预期的终态
+      // （复用缓存），而非错误残留。
       const cleanupFailures: unknown[] = []
       if (currentTokenOpen && api.closeHandle(currentToken) === 0) {
         cleanupFailures.push(new Win32Error('CloseHandle', api.getLastError(), 'current process token after init failure'))
@@ -346,14 +328,13 @@ export class AclSandbox {
   }
 
   /**
-   * Spawn a process under the restricted token. Fails closed: throws on every
-   * Win32 failure; the child is never created unrestricted. With
-   * `stdio: 'inherit'` the child shares the caller's stdio directly and is
-   * placed in a kill-on-close job (dies with the caller). Call dispose() only
-   * after all children have exited — revoking grants under a live child
-   * removes its remaining write allowance.
-   * @param options - the program, argv/cwd, and stdio shape.
-   * @returns the running child.
+   * 在受限令牌之下派生一个进程。失败即关闭：任何 Win32 失败都抛出；子进程
+   * 绝不会以不受限的方式被创建。当 `stdio: 'inherit'` 时，子进程直接共用
+   * 调用方的 stdio，并被放进一个"关闭即终止"的 Job（随调用方一同死亡）。
+   * 只能在所有子进程都已退出之后调用 dispose()——在一个存活的子进程之下
+   * 撤销授予会移除它剩余的写入额度。
+   * @param options - 程序、argv/cwd 以及 stdio 形态。
+   * @returns 正在运行的子进程。
    */
   spawn(options: AclSandboxSpawnOptions): AclSandboxChild {
     const api = this.api
@@ -385,10 +366,9 @@ export class AclSandbox {
     const native = spawnSandboxed(api, token, { command: options.command, args, cwd })
     const stdout = drainPipe(api, native.stdoutRead)
     const stderr = drainPipe(api, native.stderrRead)
-    // waitForExit is deliberately NOT started here: WaitForSingleObject blocks
-    // the thread and would starve the drains while the child is still running
-    // (pipe-buffer deadlock). The drains resolve only after the child closed
-    // its pipe ends — by then the wait returns immediately.
+    // 这里刻意不启动 waitForExit：WaitForSingleObject 会阻塞线程，从而在
+    // 子进程仍在运行时饿死那些排空操作（管道缓冲区死锁）。排空操作只有在
+    // 子进程关闭其管道端之后才会解析——那时等待会立即返回。
     let exitCodePromise: Promise<number> | undefined
     return {
       pid: native.pid,
@@ -402,9 +382,8 @@ export class AclSandbox {
   }
 
   /**
-   * Revoke the revocable (temp) grants, free the SID, close the token; the
-   * standing workspace ACEs stay (the reuse cache). Reports every cleanup
-   * failure.
+   * 撤销那些可撤销的（临时）授予、释放 SID、关闭令牌；常驻的工作区 ACE
+   * 保留（复用缓存）。上报每一次清理失败。
    */
   dispose(): void {
     const api = this.api
@@ -423,8 +402,8 @@ export class AclSandbox {
       freeSidBestEffort(api, sidPtr, label, failures)
     }
     const token = this.token
-    /* v8 ignore next -- init assigns this.api only after this.token, so an initialized instance always
-       has its token; the guard mirrors the write-SID guard. */
+    /* v8 ignore next -- init 只在 this.token 之后才赋值 this.api，因此一个已初始化的实例
+       总是持有其令牌；该守卫与写入 SID 的守卫对称。 */
     if (token !== undefined) {
       try {
         if (api.closeHandle(token) === 0) throwLastError(api, 'CloseHandle', 'restricted token')

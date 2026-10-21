@@ -1,8 +1,8 @@
 /**
- * Shared boot glue for `dsh` profiles, including the CLI packaged by the Python runtime wheel: load the gitignored
- * `.env`, install the fail-loud Loader guards, resolve the config path (snapshot-aware), load the
- * optional user patch layers from the Harness home (`~/.dsh`), expose its path resolver to
- * config expressions, and drive the Cordis Loader against a leaf `cordis.yml` until the tree settles.
+ * `dsh` profile 共享的启动粘合层，包括由 Python 运行时 wheel 打包的 CLI：加载被 gitignore 的
+ * `.env`、安装“失败即报错”的 Loader 守卫、解析配置路径（感知快照）、从 Harness home（`~/.dsh`）
+ * 加载可选的用户补丁层、将其路径解析器暴露给
+ * 配置表达式，并针对叶子 `cordis.yml` 驱动 Cordis Loader，直到整棵树稳定。
  * @module @deepseek-ai/dsh-app-boot
  */
 
@@ -41,14 +41,14 @@ export {
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
-    /** Harness-home path resolver available to Loader `!!js` config expressions. */
+    /** 供 Loader `!!js` 配置表达式使用的 Harness-home 路径解析器。 */
     dshHomePath?: typeof dshHomePath
   }
 
   interface Events {
     /**
-     * Profile patches were reconciled into the running Loader tree: every entry update settled and no new
-     * inactive entry was introduced. Carries no diff; listeners re-read Loader entries.
+     * Profile 补丁已被协调进正在运行的 Loader 树：每次条目更新都已落定，且没有引入
+     * 新的非活动条目。不携带差异；监听器重新读取 Loader 条目。
      * @mode emit
      */
     'app-boot/config-reload'(): void
@@ -93,13 +93,13 @@ export {
 export { ResolutionRestartRequired } from './profile-resolution/resolver.ts'
 
 /**
- * Resolve the config to boot. Replay swaps a `cordis.yml` basename for
- * `cordis.snapshot.yml` in the same directory; every other mode keeps the path.
- * @param configPath - the requested config path (absolute, or relative to `cwd`).
- * @param snapshotMode - the bin's `$DSH_SNAPSHOT` value; only `'replay'` swaps the
- *   basename.
- * @param cwd - the base a relative `configPath` resolves against.
- * @returns the absolute path of the config to boot.
+ * 解析待启动的配置。Replay 模式会把同一目录下的 `cordis.yml` 基名替换为
+ * `cordis.snapshot.yml`；其它模式均保持原路径。
+ * @param configPath - 请求的配置路径（绝对路径，或相对 `cwd`）。
+ * @param snapshotMode - bin 的 `$DSH_SNAPSHOT` 取值；仅 `'replay'` 会替换
+ *   basename。
+ * @param cwd - 相对 `configPath` 所基于的解析基准。
+ * @returns 待启动配置的绝对路径。
  */
 export function resolveConfigPath(
   configPath: string, snapshotMode: string | undefined, cwd: string = process.cwd(),
@@ -112,11 +112,11 @@ export function resolveConfigPath(
 }
 
 /**
- * Load the optional gitignored `.env` from `dir`. Missing files fall back to the
- * ambient environment; other read failures are reported through `warn`.
- * @param binName - the diagnostic prefix on the warn line.
- * @param dir - the directory whose `.env` to load.
- * @param warn - sink for the one-line misconfiguration diagnostic.
+ * 从 `dir` 加载可选的、被 gitignore 的 `.env`。缺失文件会回退到
+ * 进程环境；其它读取失败通过 `warn` 报告。
+ * @param binName - warn 行上的诊断前缀。
+ * @param dir - 要加载其 `.env` 的目录。
+ * @param warn - 单行配置错误的诊断输出目标。
  */
 export function loadEnv(
   binName: string, dir: string = process.cwd(),
@@ -128,27 +128,27 @@ export function loadEnv(
     if ((error as NodeJS.ErrnoException | null)?.code !== 'ENOENT') {
       warn(`${binName}: failed to load .env: ${String(error)}\n`)
     }
-    // ENOENT (no .env) is fine — rely on the ambient environment.
+    // ENOENT（无 .env）无妨 —— 依赖进程环境。
   }
 }
 
-/** Exact names no discovered file may set. */
+/** 任何被发现的文件都不得设置的精确名称。 */
 const BOOTSTRAP_NAMES = new Set([
-  // Process launch and module resolution.
+  // 进程启动与模块解析。
   'PATH', 'HOME', 'USERPROFILE', 'SHELL',
   'NODE_OPTIONS', 'NODE_PATH', 'NODE_EXTRA_CA_CERTS',
   'LD_PRELOAD', 'LD_LIBRARY_PATH', 'LD_AUDIT',
-  // Interpreter startup hooks.
+  // 解释器启动钩子。
   'BASH_ENV', 'ENV', 'SHELLOPTS', 'BASHOPTS',
   'PERL5OPT', 'PERL5LIB', 'PYTHONSTARTUP', 'PYTHONPATH', 'RUBYOPT', 'RUBYLIB',
   'JAVA_TOOL_OPTIONS', '_JAVA_OPTIONS', 'JDK_JAVA_OPTIONS',
   'PYTHONHOME',
-  // Version-control hooks, config redirects, and ambient command selectors.
+  // 版本控制钩子、配置重定向，以及环境命令选择器。
   'GIT_SSH', 'GIT_SSH_COMMAND', 'GIT_EXTERNAL_DIFF', 'GIT_PAGER', 'GIT_EDITOR',
   'GIT_ASKPASS', 'SSH_ASKPASS',
   'GIT_CONFIG_GLOBAL', 'GIT_CONFIG_SYSTEM', 'GIT_CONFIG_COUNT',
   'EDITOR', 'VISUAL', 'PAGER', 'BROWSER',
-  // Network reach and trust.
+  // 网络可达性与信任。
   'DEEPSEEK_BASE_URL', 'DEEPSEEK_SEARCH_BASE_URL',
   'SSL_CERT_FILE', 'SSL_CERT_DIR',
   'HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'NO_PROXY',
@@ -156,24 +156,22 @@ const BOOTSTRAP_NAMES = new Set([
   'NODE_TLS_REJECT_UNAUTHORIZED',
 ])
 
-/** Name prefixes no discovered file may set. */
+/** 任何被发现的文件都不得设置的前缀。 */
 const BOOTSTRAP_PREFIXES = ['DSH_', 'XDG_', 'DYLD_', 'BASH_FUNC_']
 
 /**
- * The bootstrap names the Harness-home `.env` alone may set. A proxy chooses the route every
- * request takes, so the invoking directory's file — which arrives with a clone — keeps refusing
- * them; the home file is the user's own, and `DSH_HOME` is itself bootstrap-only, so no `.env` can
- * relocate this exemption. The CA and TLS names in the same group stay refused everywhere: they
- * change what is trusted, not where traffic goes.
+ * Harness-home `.env` 单独可以设置的引导名称。代理会选择每个请求所走的路由，因此
+ * 随克隆一起到达的调用方目录文件会持续拒绝它们；home 文件是用户自己的，而 `DSH_HOME`
+ * 本身也仅限于引导阶段，所以没有任何 `.env` 能重新定位这项豁免。同一组中的 CA 与 TLS
+ * 名称在所有位置都保持被拒绝：它们改变的是被信任的对象，而非流量的去向。
  */
 const HOME_LAYER_PROXY_NAMES = new Set(['HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'NO_PROXY'])
 
 /**
- * Whether a variable may come only from the inherited process environment
- * because it changes process, runtime, VCS, or network bootstrap. The Harness-home
- * file is additionally allowed {@link HOME_LAYER_PROXY_NAMES}.
- * @param name - the variable name.
- * @returns true when only the inherited environment may supply it.
+ * 一个变量是否只能来自继承的进程环境，因为它会改变进程、运行时、
+ * 版本控制或网络引导。Harness-home 文件另外还允许 {@link HOME_LAYER_PROXY_NAMES}。
+ * @param name - 变量名。
+ * @returns 当只有继承环境可以提供它时为 true。
  */
 function isBootstrapOnly(name: string): boolean {
   const upper = name.toUpperCase()
@@ -181,14 +179,14 @@ function isBootstrapOnly(name: string): boolean {
 }
 
 /**
- * Parse one directory's `.env` without applying it, rejecting bootstrap-only
- * names before any value is materialized.
- * @param binName - the diagnostic prefix on the thrown error.
- * @param dir - the directory whose `.env` to read.
- * @param warn - sink for the one-line unreadable-file diagnostic.
- * @param home - the resolved Harness home; when `dir` is it, {@link HOME_LAYER_PROXY_NAMES} are accepted.
- * @returns the parsed entries, or `undefined` when the file is absent or unreadable.
- * @throws when the file declares a name {@link isBootstrapOnly} rejects and this layer may not set.
+ * 解析某个目录的 `.env` 但不应用它，在任何值被具体化之前就拒绝
+ * 仅限引导阶段的名称。
+ * @param binName - 抛出异常时诊断信息的前缀。
+ * @param dir - 要读取其 `.env` 的目录。
+ * @param warn - 单行不可读文件诊断的输出目标。
+ * @param home - 已解析的 Harness home；当 `dir` 就是它时，接受 {@link HOME_LAYER_PROXY_NAMES}。
+ * @returns 解析出的条目；文件缺失或不可读时为 `undefined`。
+ * @throws 当文件声明了一个 {@link isBootstrapOnly} 拒绝、且本层不得设置的名称时。
  */
 function readEnvLayer(
   binName: string, dir: string, warn: (line: string) => void, home: string,
@@ -202,16 +200,16 @@ function readEnvLayer(
     if ((error as NodeJS.ErrnoException | null)?.code !== 'ENOENT') {
       warn(`${binName}: failed to load .env: ${String(error)}\n`)
     }
-    // ENOENT (no .env) is fine — rely on the ambient environment.
+    // ENOENT（无 .env）无妨 —— 依赖进程环境。
     return undefined
   }
-  // Parse once so validation and materialization use exactly the same entries.
+  // 只解析一次，使校验与具体化使用完全相同的条目。
   const values = parseEnv(content) as Record<string, string>
   for (const name of Object.keys(values)) {
     if (!isBootstrapOnly(name)) continue
     const proxyName = HOME_LAYER_PROXY_NAMES.has(name.toUpperCase())
     if (isHome && proxyName) continue
-    // A proxy name has a second way out that the other bootstrap names do not, so its message says so.
+    // 代理名称拥有其它引导名称所没有的第二条出路，因此其提示信息也据此说明。
     const remedy = proxyName
       ? `export ${name}, or put it in ${resolve(home, '.env')}, which does not travel with a repository`
       : `export ${name} instead of putting it in a .env file`
@@ -225,15 +223,15 @@ function readEnvLayer(
 }
 
 /**
- * Load the product CLI's inherited > invoking-directory `.env` > Harness-home
- * `.env` snapshot. The Harness home resolves before either file; both files
- * are checked before either is applied, and accepted values are materialized
- * without replacing inherited ones. The snapshot preserves which layer supplied each value.
- * @param binName - the diagnostic prefix on the diagnostics.
- * @param cwd - the invoking directory whose `.env` is the project layer.
- * @param warn - sink for the one-line misconfiguration diagnostics.
- * @returns this run's frozen environment snapshot.
- * @throws when either file declares a bootstrap-only variable, except {@link HOME_LAYER_PROXY_NAMES} in the Harness-home file.
+ * 加载产品 CLI 的“继承 > 调用方目录 `.env` > Harness-home
+ * `.env`”分层快照。Harness home 在任一文件之前解析；两个文件都在
+ * 被应用之前先接受检查，且被接受的值在具体化时不会替换继承值。快照保留了每个值由哪一层提供。
+ * @param binName - 诊断信息的前缀。
+ * @param cwd - 其 `.env` 作为项目层的调用方目录。
+ * @param warn - 单行配置错误诊断的输出目标。
+ * @returns 本次运行的冻结环境快照。
+ * @throws 当任一文件声明了一个仅限引导阶段的变量时（Harness-home 文件中的
+ *   {@link HOME_LAYER_PROXY_NAMES} 除外）。
  */
 export function loadLayeredEnv(
   binName: string, cwd: string = process.cwd(),
@@ -241,10 +239,10 @@ export function loadLayeredEnv(
 ): LaunchEnvironmentSnapshot {
   const home = resolveDshHome()
   const inherited = { ...process.env } as Record<string, string>
-  // Parse both layers first: a rejection must not leave one file applied.
+  // 先解析两层：被拒绝时不得留下已应用的一个文件。
   const project = readEnvLayer(binName, cwd, warn, home)
   const user = home === resolve(cwd) ? undefined : readEnvLayer(binName, home, warn, home)
-  // Apply the checked values without replacing a higher-ranked name.
+  // 应用已检查的值，但不替换更高优先级的名称。
   for (const layer of [project, user]) {
     if (layer === undefined) continue
     for (const [name, value] of Object.entries(layer.values)) {
@@ -260,49 +258,46 @@ export function loadLayeredEnv(
 
 const bootstrapIncludes = new WeakMap<Context, Entry>()
 
-// The include's YAML dialect (`!!js` scalars become expression nodes the
-// Loader interpolates against each entry's injection-ready context), imported
-// from the include itself so patch parsing and config dumping can never drift
-// from what the include mounts. User patch layers share it so they may
-// reference `process.env`.
+// include 的 YAML 方言（`!!js` 标量会变成表达式节点，由
+// Loader 针对每个条目的可注入上下文进行插值），从 include 自身导入，
+// 使补丁解析与配置导出永远不会与 include 所挂载的内容脱节。用户补丁层共用它，
+// 以便可以引用 `process.env`。
 const userPatchesSchema = entryListSchema
 
-/** What a caller of {@link recomposeProfile} already did and requires. */
+/** {@link recomposeProfile} 调用方已完成并需要满足的事项。 */
 export interface ProfileRecompositionOptions {
-  /** Explicit enablement targets whose existing failures also reject the recomposition. */
+  /** 显式的启用目标，其既有失败也会拒绝本次重组。 */
   readonly requiredIds?: readonly string[]
   /**
-   * Loader entries that ran before the caller stopped some of them. Each that no longer runs starts again, and each that
-   * failed afterwards counts as a new failure.
+   * 在调用方停止其中部分条目之前已经运行的 Loader 条目。每一个不再运行的会重新启动，而
+   * 之后失败的每一个都计为一次新的失败。
    */
   readonly running?: readonly Entry[]
 }
 
-/** The outcome of a {@link recomposeProfile} that applied or kept the composition. */
+/** 应用或保留了组合的 {@link recomposeProfile} 的结果。 */
 export interface ProfileRecomposition {
-  /** Diagnostics for unchanged pre-existing inactive entries. */
+  /** 针对未变化的既有非活动条目的诊断。 */
   warnings: string[]
-  /** Present when the runtime resolution could not publish a moved package or a changed installation mapping. */
+  /** 当运行时解析无法发布一个被移动的包或变更的安装映射时出现。 */
   restartReason?: 'package-moved'
 }
 
 /**
- * Recompose the profile from its complete patch list, together with its runtime resolution. The rows the generation no
- * longer lists are removed first and their disposal finishes while their packages are still mapped; the latest
- * generation of an installed, recomputable resolution is published; the compatibility preflight reads the published
- * packages; the generation is applied to the root Include; entries that ran, and enabled entries whose import failed,
- * start afterwards when the update left them without a running fiber; and activation is judged. A failure before the generation applies,
- * including a publication the resolution rejects, which reports `package-moved`, puts the removed rows back at their
- * places, starting them again, and starts the entries that ran again. An entry waiting for a service is reported as a
- * warning unless it is required. Patches are copied with `structuredClone`, so they hold no functions.
- * @param ctx Booted root context.
- * @param patches Complete ordered patch list.
- * @param binName Diagnostic prefix.
- * @param options What the caller already did and requires.
- * @returns Diagnostics for unchanged pre-existing inactive entries, and the restart reason of a rejected publication.
- * @throws When the root Include is missing; the latest resolution cannot be read or published; preparation or the
- * Loader update rejects; or for a new or changed failure, an inactive required entry, a failed entry that ran, or a
- * healthy fiber whose disposal rejected.
+ * 从 profile 的完整补丁列表及其运行时解析中重组该 profile。本代不再列出的行会先被移除，且
+ * 它们的释放会在其包仍被映射时完成；已安装、可重算的解析的最新一代会被发布；兼容性预检读取已发布的
+ * 包；该代被应用到根 Include；已经运行过的条目，以及导入失败的已启用条目，会在更新使它们失去一个
+ * 运行中的 fiber 之后启动；并据此判定激活。在应用该代之前发生的失败（包括被解析拒绝、报告 `package-moved`
+ * 的发布）会将被移除的行放回原处，重新启动它们，并重新启动那些已运行过的条目。等待某个服务的条目会作为
+ * 警告报告，除非它是必需的。补丁通过 `structuredClone` 复制，因此它们不持有任何函数。
+ * @param ctx 已启动的根上下文。
+ * @param patches 完整的、有序的补丁列表。
+ * @param binName 诊断前缀。
+ * @param options 调用方已完成并需要满足的事项。
+ * @returns 针对未变化的既有非活动条目的诊断，以及被拒绝发布的重启原因。
+ * @throws 当根 Include 缺失；最新解析无法读取或发布；准备或
+ * Loader 更新被拒绝；或针对新的或变化的失败——一个非活动的必需条目、一个已运行过的失败条目，或
+ * 一个释放被拒绝的健康 fiber。
  */
 export function recomposeProfile(
   ctx: Context, patches: PatchOptions[], binName: string, options: ProfileRecompositionOptions = {},
@@ -311,13 +306,13 @@ export function recomposeProfile(
 }
 
 /**
- * Apply a complete patch list to the root Include and judge activation, leaving the runtime resolution and entries
- * whose import failed as they are.
- * @param ctx Booted root context.
- * @param patches Complete ordered patch list.
- * @param binName Diagnostic prefix.
- * @param requiredIds Explicit enablement targets whose existing failures also reject reconciliation.
- * @returns Diagnostics for unchanged pre-existing inactive entries; new or changed failures reject.
+ * 将完整的补丁列表应用到根 Include 并判定激活，保持运行时解析与
+ * 导入失败的条目不变。
+ * @param ctx 已启动的根上下文。
+ * @param patches 完整的、有序的补丁列表。
+ * @param binName 诊断前缀。
+ * @param requiredIds 显式的启用目标，其既有失败也会拒绝对账。
+ * @returns 针对未变化的既有非活动条目的诊断；新的或变化的失败会拒绝。
  */
 export async function reconcileProfilePatches(
   ctx: Context, patches: PatchOptions[], binName: string, requiredIds: readonly string[] = [],
@@ -330,37 +325,37 @@ async function recompose(
 ): Promise<ProfileRecomposition> {
   const { requiredIds = [], running = [] } = options
   let applying = false
-  // The rows stopped first, which a failure before the generation applies puts back.
+  // 先被停止的行；在应用该代之前发生的失败会将其放回。
   let stopped: StoppedRow[] = []
   try {
     const entry = bootstrapIncludes.get(ctx)
     if (entry === undefined) throw new Error(`${binName}: profile reload requires the root Include entry`)
-    // Reading the prior state imports nothing, so plugin code does not run before the next resolution publishes.
+    // 读取先前的状态不会导入任何东西，因此插件代码不会在下一轮解析发布之前运行。
     const previousFailures = (await inactiveEntries(ctx, false)).map((failure): RecordedFailure => ({
       entry: failure.entry, fiber: failure.entry.fiber, options: JSON.stringify(failure.entry.options),
-      // An entry without a running fiber has no import error yet; the judgment after the update reads it.
+      // 没有运行中 fiber 的条目尚不存在导入错误；更新之后的判定会读取它。
       diagnostic: failure.entry.fiber?.uid ? reloadDiagnostic(failure) : undefined,
     }))
-    // Removed entries leave the Loader store before their async disposers finish.
+    // 被移除的条目在其异步释放器完成之前就离开 Loader 存储。
     const previousFibers = [...ctx.loader.entries()].flatMap(row => row.fiber === undefined ? [] : [{
       fiber: row.fiber, failed: row.fiber.state === FIBER_FAILED || row.fiber.state === FIBER_DISPOSED,
     }])
     const { patches: previous = [], ...includeConfig } = entry.options.config as Include.Config
     const current = withResolution ? ctx.get('pluginPackages')?.resolution : undefined
-    // A plain-data resolution has no inputs to recompute from.
+    // 纯数据的解析没有可重新计算的输入。
     const successor = current instanceof ProfileRuntimeResolution ? await current.computeLatestResolution() : undefined
     if (successor !== undefined) {
-      // Rows the generation no longer lists stop, and their disposal finishes, while their packages are still mapped.
+      // 本代不再列出的行会停止，且它们的释放会在其包仍被映射时完成。
       const listed = rowIds(structuredClone(patches))
       const composed = rowIds(structuredClone(previous))
-      // Only rows of the root Include's tree; a nested Include file has its own ids.
+      // 仅根 Include 树的行；嵌套的 Include 文件拥有自己的 id。
       const tree = entry.subgroup?.tree
       const dropped = [...ctx.loader.entries()]
         .filter(row => row.parent.tree === tree && composed.has(row.options.id) && !listed.has(row.options.id))
-      // A dropped group takes its rows with it.
+      // 被丢弃的组会一并带走它的行。
       const ids = new Set(dropped.map(row => row.options.id))
       const topmost = dropped.filter(row => !ids.has(row.parent.ctx.fiber.entry?.options.id as string))
-      // The Loader marks the options of a row it stops, so the copy taken before is the one restored.
+      // Loader 会标记它停止的行的选项，因此之前所取得的副本正是被恢复的那个。
       stopped = topmost.map(row => ({
         group: row.parent, options: structuredClone(row.options),
         index: row.parent.data.indexOf(row.options),
@@ -368,7 +363,7 @@ async function recompose(
       if (topmost.length > 0) {
         const fibers = dropped.flatMap(row => row.fiber === undefined ? [] : [row.fiber])
         for (const row of topmost) {
-          // A disabled row's disposal is the Loader's own, so it does not rewrite the profile's configuration file.
+          // 一个被禁用的行的释放由 Loader 自身负责，因此它不会改写 profile 的配置文件。
           row.options.disabled = true
           row.parent.remove(row.options.id)
         }
@@ -379,11 +374,11 @@ async function recompose(
         publish(ctx, successor)
       } catch (error) {
         if (!(error instanceof ResolutionRestartRequired)) throw error
-        // The generation waits for the mappings the rejected publication would change.
+        // 该代会等待被拒绝的发布本会改变的那些映射完成。
         return { warnings: [], restartReason: 'package-moved' }
       }
     }
-    // The recomposition judges the rows the launch judged, resolved from the file this Include read.
+    // 重组会判定启动时所判定的那些行，它们从本 Include 读取的文件解析而来。
     const parentURL = new URL('.', new URL(includeConfig.path, entry.parent.tree.ctx.baseUrl)).href
     const prepared = prepareProfilePatches(ctx, patches, parentURL, binName)
     applying = true
@@ -398,9 +393,9 @@ async function recompose(
     const failures = await inactiveEntries(ctx)
     const introduced = failures.filter((failure) => {
       if (requiredIds.includes(failure.entry.options.id)) return true
-      // An entry waiting for a service starts once a provider appears.
+      // 等待某个服务的条目会在提供者出现后启动。
       if (failure.outcome.kind === 'pending') return false
-      // An entry that ran before the caller stopped it is a new failure even when it failed the same way before.
+      // 在调用方停止它之前已经运行过的条目，即便之前以相同方式失败过，也视为一次新的失败。
       if (running.includes(failure.entry)) return true
       return !previousFailures.some(previous => sameFailure(previous, failure))
     })
@@ -411,70 +406,70 @@ async function recompose(
     ctx.emit('app-boot/config-reload')
     return { warnings: failures.map(reloadDiagnostic) }
   } finally {
-    // Before the generation applies, the rows removed first and the entries the caller stopped run again.
+    // 在应用该代之前，先被移除的行与调用方停止的条目会重新运行。
     if (!applying && (stopped.length > 0 || running.length > 0)) {
       try {
-        // Ascending original positions put each row back where it was.
+        // 按原始位置升序排列，可将每一行放回原处。
         for (const { group, options, index } of stopped.toSorted((left, right) => left.index - right.index)) {
-          // `create` starts the entry but leaves the group's option list as it is; that list is what the next update
-          // compares against to remove the row and what the Include writes back.
+          // `create` 会启动该条目但让组的选项列表保持原样；该列表正是下一轮更新用来
+          // 移除该行、以及 Include 写回时所对照的内容。
           group.data.splice(index, 0, options)
           await group.create(options)
         }
         await resume(ctx, running)
-        // A restored row is a new Loader entry with the id of the one that ran.
+        // 被恢复的行的 id 与之前运行的那个相同，对 Loader 而言却是一个新的条目。
         const ran = new Set(running.map(row => row.options.id))
         for (const failure of await inactiveEntries(ctx)) {
           if (ran.has(failure.entry.options.id)) ctx.logger.warn(`${binName}: ${reloadDiagnostic(failure)}`)
         }
       } catch (error) {
-        // The recomposition's own failure is the outcome.
+        // 重组自身的失败即为最终结果。
         ctx.logger.warn(error)
       }
     }
   }
 }
 
-/** An inactive entry as a recomposition found it before changing anything. */
+/** 重组在改动任何内容之前所记录到的一个非活动条目。 */
 interface RecordedFailure {
   entry: Entry
   fiber: Fiber | undefined
-  /** The entry's options as JSON. */
+  /** 该条目的选项，以 JSON 表示。 */
   options: string
-  /** The reload diagnostic; `undefined` for an import failure, which matches any diagnostic. */
+  /** 重载诊断；导入失败时取 `undefined`，可匹配任意诊断。 */
   diagnostic: string | undefined
 }
 
-/** Whether an inactive entry is the failure recorded before: the same entry, fiber and options, and a matching diagnostic. */
+/** 一个非活动条目是否与之前记录的失败相同：相同的条目、fiber 和选项，且诊断相匹配。 */
 function sameFailure(previous: RecordedFailure, failure: InactiveEntry): boolean {
   return previous.entry === failure.entry && previous.fiber === failure.entry.fiber
     && previous.options === JSON.stringify(failure.entry.options)
     && (previous.diagnostic === undefined || previous.diagnostic === reloadDiagnostic(failure))
 }
 
-/** A row a recomposition removed before publishing, with its place in its group. */
+/** 重组在发布之前移除的一行，连同它在组中的位置。 */
 interface StoppedRow {
   group: EntryGroup
   options: EntryOptions
   index: number
 }
 
-/** The ids of the rows a patch list inserts, including the rows of groups. */
+/** 一个补丁列表所插入的行的 id，包含组中各行的 id。 */
 function rowIds(patches: readonly PatchOptions[]): Set<string> {
   const ids = new Set<string>()
   const visit = (rows: readonly EntryOptions[]): void => {
     for (const row of rows) {
       ids.add(row.id)
-      // A group keeps its rows in its configuration.
+      // 一个组的行保存在它自己的配置中。
       if ((row.group === true || row.name === 'cordis:group') && Array.isArray(row.config)) visit(row.config as EntryOptions[])
     }
   }
-  // Patch warnings are logged when the generation itself is prepared.
+  // 补丁警告在该代自身被准备时记录。
   visit(applyEntryPatches([], patches as PatchOptions[], () => {}))
   return ids
 }
 
-/** Publish a generation unless it maps exactly what is published, which would only drop the package caches. */
+/** 发布一个代，除非它所映射的与已发布的完全一样——那样做只会丢弃包缓存。 */
 function publish(ctx: Context, next: RuntimeResolution): void {
   const table = ({ localPackageNames, entries, linkedRoots }: RuntimeResolution): string =>
     JSON.stringify([localPackageNames, entries, linkedRoots])
@@ -482,40 +477,40 @@ function publish(ctx: Context, next: RuntimeResolution): void {
   if (table(packages.resolution as RuntimeResolution) !== table(next)) packages.replace(next)
 }
 
-/** Whether an enabled entry below a running parent has no fiber or keeps the disposed fiber of a failed import. */
+/** 运行中的父级之下、已启用却没有 fiber、或保留着失败导入的已释放 fiber 的条目。 */
 function importFailed(entry: Entry): boolean {
   return enabledEntry(entry) && entry.parent.ctx.fiber.uid !== null
     && (entry.fiber === undefined || entry.fiber.state === FIBER_DISPOSED)
 }
 
-/** Whether an entry is enabled now; a throwing `disabled` expression counts as disabled. */
+/** 一个条目当前是否已启用；抛出异常的 `disabled` 表达式视为已禁用。 */
 function enabledEntry(entry: Entry): boolean {
   try {
     return !entry.disabled
   } catch (_error) {
-    // Judgment reports the expression failure.
+    // 判定会报告该表达式的失败。
     return false
   }
 }
 
-/** Start invalidated entries the Loader still holds without a running fiber, then wait until it settles. */
+/** 启动 Loader 仍持有、却没有运行中 fiber 的失效条目，然后等待其落定。 */
 async function resume(ctx: Context, invalidated: readonly Entry[]): Promise<void> {
   const entries = new Set(ctx.loader.entries())
-  // A stopped entry starts again on update even with unchanged options; an unchanged Include does not update its rows.
+  // 一个被停止的条目即便选项未变，也会在更新时重新启动；而未变化的 Include 不会更新其行。
   for (const row of invalidated) if (entries.has(row) && !row.fiber?.uid) await row.update({}, false, true)
   await ctx.loader.await()
 }
 
 /**
- * Load an optional patch-list file: a top-level YAML array of loader patch
- * entries (`@deepseek-ai/cordis-plugin-include`'s `PatchOptions`): id-targeted config
- * overrides and `insert` lists, with `!!js` expressions allowed. A missing
- * file means "no layer"; an unreadable, unparsable, or non-array file throws —
- * a present patch file that cannot apply is a misconfiguration and must fail
- * loud at boot, never be silently skipped.
- * @param binName - the diagnostic prefix on the thrown error.
- * @param file - absolute path of the patch file.
- * @returns the parsed patches, or `undefined` when the file does not exist.
+ * 加载一个可选的补丁列表文件：一个顶层的 YAML 数组，包含 Loader 补丁
+ * 条目（`@deepseek-ai/cordis-plugin-include` 的 `PatchOptions`）：定位到 id 的配置
+ * 覆盖与 `insert` 列表，并允许 `!!js` 表达式。缺失的
+ * 文件表示“无层级”；不可读、不可解析或非数组的文件会抛出异常——
+ * 一个存在却无法应用的补丁文件属于配置错误，必须在启动时就
+ * 大声失败，绝不能悄无声息地跳过。
+ * @param binName - 抛出异常时诊断信息的前缀。
+ * @param file - 补丁文件的绝对路径。
+ * @returns 解析出的补丁；文件不存在时为 `undefined`。
  */
 export function loadOptionalPatches(binName: string, file: string): PatchOptions[] | undefined {
   let content: string
@@ -529,13 +524,13 @@ export function loadOptionalPatches(binName: string, file: string): PatchOptions
 }
 
 /**
- * Load a required overlay patch list: a bundle's `cordis.patch.yml` or a
- * `--patch <path>` overlay. Same file format as {@link loadOptionalPatches},
- * but a missing file throws, because the caller named this file — its absence
- * is a misconfiguration, not "no overlay".
- * @param binName - the diagnostic prefix on the thrown error.
- * @param file - absolute path of the overlay file.
- * @returns the parsed patch list.
+ * 加载一个必需的覆盖补丁列表：bundle 的 `cordis.patch.yml` 或
+ * `--patch <path>` 覆盖层。文件格式与 {@link loadOptionalPatches} 相同，
+ * 但缺失文件会抛出异常，因为调用方明确指定了此文件——它的缺失
+ * 属于配置错误，而非“无覆盖层”。
+ * @param binName - 抛出异常时诊断信息的前缀。
+ * @param file - 覆盖文件的绝对路径。
+ * @returns 解析出的补丁列表。
  */
 export function loadOverlayPatches(binName: string, file: string): PatchOptions[] {
   let content: string
@@ -547,7 +542,7 @@ export function loadOverlayPatches(binName: string, file: string): PatchOptions[
   return parsePatchList(binName, file, content, 'overlay')
 }
 
-/** Convert inserted filesystem paths to file URLs, anchoring relative paths beside the patch; keep assertion names literal. */
+/** 将被插入的文件系统路径转换为文件 URL，将相对路径锚定在补丁旁边；断言名称保持原样。 */
 function anchorInsertedPluginNames(patches: PatchOptions[], file: string): PatchOptions[] {
   const base = dirname(resolve(file))
   const visit = (entry: EntryOptions): void => {
@@ -560,17 +555,17 @@ function anchorInsertedPluginNames(patches: PatchOptions[], file: string): Patch
   return patches
 }
 /**
- * Parse one loader patch list: a top-level YAML array of
- * `@deepseek-ai/cordis-plugin-include` `PatchOptions` (id-targeted config overrides and
- * `insert` lists, `!!js` expressions allowed). Every invalid field or value throws,
- * because a patch file that cannot be applied at all is a misconfiguration; a
- * single patch whose target row is absent stays a per-entry Loader warning, so
- * one overlay shared across surfaces does not have to match every tree.
- * @param binName - the diagnostic prefix on the thrown error.
- * @param file - the source path, quoted in errors.
- * @param content - the file's text.
- * @param label - what to call this list in errors (`patches`, `overlay`).
- * @returns the parsed patch list.
+ * 解析一个 Loader 补丁列表：一个顶层的 YAML 数组，包含
+ * `@deepseek-ai/cordis-plugin-include` 的 `PatchOptions`（定位到 id 的配置覆盖与
+ * `insert` 列表，允许 `!!js` 表达式）。任何无效的字段或值都会抛出，
+ * 因为一份根本无法应用的补丁文件属于配置错误；而
+ * 目标行缺失的单个补丁仍作为逐条目的 Loader 警告存在，因此
+ * 一份跨多个界面共用的覆盖层不必匹配每一棵树。
+ * @param binName - 抛出异常时诊断信息的前缀。
+ * @param file - 源路径，在错误中以引号包裹。
+ * @param content - 文件的文本内容。
+ * @param label - 在错误中如何称呼此列表（`patches`、`overlay`）。
+ * @returns 解析出的补丁列表。
  */
 function parsePatchList(
   binName: string, file: string, content: string, label: string,
@@ -592,45 +587,39 @@ function parsePatchList(
   return anchorInsertedPluginNames(parsed as PatchOptions[], file)
 }
 
-/** One overlay patch list with the source label printed in dump comments. */
+/** 一份覆盖补丁列表，源标签会打印在导出注释中。 */
 export interface ConfigDumpLayer {
-  /** Source name shown in dump comments (a file basename or path). */
+  /** 在导出注释中显示的源名称（文件名或路径）。 */
   label: string
-  /** The layer's patches, from {@link loadOverlayPatches} / {@link loadOptionalPatches}. */
+  /** 该层的补丁，来自 {@link loadOverlayPatches} / {@link loadOptionalPatches}。 */
   patches: PatchOptions[]
 }
 
 /**
- * Compose the configured entry list: parse the base config file with the
- * include's entry-list dialect, apply every layer's patches as ONE flattened
- * list through the include's own patch algorithm (`applyEntryPatches`) — the
- * same call `boot()` makes, so even patch-visibility corner cases (a later
- * layer targeting a group child a plain config replacement introduced, which
- * the single-pass id index never sees) compose identically — then render the
- * result as YAML in the same dialect (`!!js` expressions print verbatim,
- * unevaluated). Row admission is a later stage: a plugin row the compatibility
- * policy denies still appears here, while a denied bundle contributes no layer.
+ * 组合已配置的条目列表：用 include 的条目列表方言解析基础配置文件，再通过 include 自身的
+ * 补丁算法（`applyEntryPatches`）将每一层的补丁作为一份扁平化的
+ * 列表应用——这与 `boot()` 发起的调用相同，因此即便是补丁可见性的边界情况（后一层
+ * 针对由普通配置替换引入的组子节点，而单次遍历的 id 索引永远看不到它）也能以完全相同的方式组合——
+ * 然后将结果以同一种方言渲染为 YAML（`!!js` 表达式逐字打印，不求值）。行的准入是
+ * 后续阶段：兼容性策略拒绝的插件行仍出现在此处，而被拒绝的 bundle 则不贡献任何层。
  *
- * Every run of rows from the same file and patch layers is preceded by a `# ==` comment
- * naming the file that contributed the rows and any layers that patched them,
- * so the output stays a loadable YAML document while showing which section
- * comes from which file. The file and patch labels are derived from single-call prefix
- * snapshots (base + layers 1..k), diffed positionally: the patch algorithm
- * only rewrites rows in place or appends, so a top-level index identifies one
- * row across snapshots, and a layer whose addition changes the row (config
- * replacement, disable, group insert) is listed as having patched it.
+ * 来自同一文件与补丁层的每一段连续行，前面都会有一行 `# ==` 注释，
+ * 标明贡献这些行的文件以及修补过它们的各层，从而
+ * 输出始终保持为可加载的 YAML 文档，同时显示哪个段落来自哪个文件。文件与补丁标签
+ * 衍生于单次调用的前缀快照（基础 + 层 1..k），按位置做差：补丁算法
+ * 只就地重写行或追加行，因此顶层索引可跨快照标识同一行，而
+ * 其新增会改变该行的层（配置替换、禁用、组插入）会被列为已修补它。
  *
- * A patch that matches no row is reported through `warn` with its layer
- * label, mirroring the Loader's boot-time warning. Earlier layers' patches
- * see an identical preceding state in every snapshot that includes them, so
- * each snapshot's warning list extends the previous one and the new tail
- * belongs to the added layer.
- * @param binName - the diagnostic prefix on read/parse errors.
- * @param absoluteConfigPath - the base config file `boot()` would include.
- * @param layers - overlay layers in application order (later wins).
- * @param warn - sink for skipped-patch diagnostics; defaults to stderr.
- * @returns the composed entry list rendered as a YAML document with
- * source comment separators.
+ * 未匹配到任何行的补丁会通过 `warn`，连同其层标签一并报告，
+ * 与 Loader 启动时的警告相呼应。较早层的补丁在包含它们的每个快照中
+ * 都看到相同的前置状态，因此每个快照的警告列表都延伸前一个列表，而新增的尾部
+ * 属于被添加的层。
+ * @param binName - 读取/解析错误时的诊断前缀。
+ * @param absoluteConfigPath - `boot()` 本应包含的基础配置文件。
+ * @param layers - 按应用顺序排列的覆盖层（后者优先）。
+ * @param warn - 被跳过补丁诊断的输出目标；默认为 stderr。
+ * @returns 组合后的条目列表，渲染为带
+ * 源注释分隔符的 YAML 文档。
  */
 export function renderConfigDump(
   binName: string,
@@ -654,21 +643,20 @@ export function renderConfigDump(
     throw new Error(`${binName}: config ${absoluteConfigPath} must be a top-level YAML array of entries`)
   }
   const baseLabel = basename(absoluteConfigPath)
-  // YAML parsing yields untyped rows; the include validates each entry
-  // at mount, and the dump prints whatever the file holds, so `EntryOptions`
-  // here is structural trust in the same file `boot()` would include.
+  // YAML 解析产生无类型行；include 在挂载时校验每个条目，
+  // 而导出会原样打印文件所持有的内容，因此这里的 `EntryOptions`
+  // 是对 `boot()` 本应包含的同名文件的结构性信任。
   const base = parsed as Parameters<typeof applyEntryPatches>[0]
-  // snapshot_k = ONE application of layers 1..k flattened, using the exact
-  // arguments boot passes for that prefix. snapshot_N is the mounted composition.
-  // The patches are cloned per call: applyEntryPatches detaches the entry
-  // list but pushes `insert` rows by reference from the patch list, so
-  // sharing patch objects across snapshot calls would leak a later
-  // snapshot's mutations into an earlier one's result.
+  // snapshot_k = 层 1..k 扁平化后的一次应用，使用 boot 为该前缀传入的
+  // 完全相同参数。snapshot_N 即已挂载的组合。
+  // 补丁在每次调用时都被克隆：applyEntryPatches 会分离条目
+  // 列表，但会以引用方式从补丁列表推入 `insert` 行，因此
+  // 跨快照调用共享补丁对象会把较后快照的变更泄漏进较早快照的结果。
   const snapshot = (count: number, warnings: string[]): ReturnType<typeof applyEntryPatches> => {
     const flattened = structuredClone(layers.slice(0, count).flatMap(layer => layer.patches))
     return applyEntryPatches(base, flattened, (message: string, ...args: unknown[]) => {
-      // The include logs through cordis's printf-style logger (`%C` = code); a
-      // dump has no logger, so substitute inline for a plain line.
+      // include 通过 cordis 的 printf 风格记录器（`%C` = 代码）记录日志；而
+      // 导出没有记录器，因此以内联方式替换为普通的一行。
       let index = 0
       warnings.push(message.replace(/%C/g, () => JSON.stringify(args[index++])))
     })
@@ -679,7 +667,7 @@ export function renderConfigDump(
   let composed = base
   for (let count = 1; count <= layers.length; count += 1) {
     const layer = layers[count - 1]
-    /* v8 ignore next -- count iterates 1..length, so the slot exists */
+    /* v8 ignore next -- count 遍历 1..length，因此该槽位必然存在 */
     if (layer === undefined) continue
     const warnings: string[] = []
     composed = snapshot(count, warnings)
@@ -697,7 +685,7 @@ export function renderConfigDump(
   return groupedDump(composed, entryOrigins)
 }
 
-/** Render the composed rows grouped under one source-and-patches comment per contiguous run. */
+/** 将组合后的行渲染为按连续段分组、每段带一条源与补丁注释的形式。 */
 function groupedDump(
   composed: readonly unknown[],
   entryOrigins: readonly { origin: string; patchedBy: string[] }[],
@@ -713,7 +701,7 @@ function groupedDump(
   }
   for (let index = 0; index < composed.length; index += 1) {
     const record = entryOrigins[index]
-    /* v8 ignore next -- this array is index-aligned with composed by construction */
+    /* v8 ignore next -- 该数组按构造与 composed 索引对齐 */
     if (record === undefined) continue
     const label = record.patchedBy.length === 0
       ? record.origin
@@ -729,16 +717,15 @@ function groupedDump(
 }
 
 /**
- * Mount and remember the exact root Include entry used by app boot and user patch-layer HMR.
- * @param ctx - context carrying an initialized Loader service.
- * @param absoluteConfigPath - absolute YAML or JSON configuration path.
- * @param patches - initial app and user patches, applied in order.
- * @param bareModuleBaseUrl - optional installed-host base for bare package
- * names; relative names continue to resolve beside the configuration file.
- * @param binName - diagnostic prefix for a profile plugin denied by compatibility policy; defaults to `dsh`.
- * @returns the created root Include entry, or `undefined` when a surface
- * disposed the whole tree (taking the Loader service with it) while the
- * entry creation was in flight.
+ * 挂载并记住 app 启动与用户补丁层 HMR 所使用的精确根 Include 条目。
+ * @param ctx - 携带已初始化 Loader 服务的上下文。
+ * @param absoluteConfigPath - 绝对的 YAML 或 JSON 配置路径。
+ * @param patches - 初始的 app 与用户补丁，按顺序应用。
+ * @param bareModuleBaseUrl - 裸包名可选的已安装宿主基址；
+ * 相对名继续在配置文件旁边解析。
+ * @param binName - 被兼容性策略拒绝的 profile 插件的诊断前缀；默认为 `dsh`。
+ * @returns 创建的根 Include 条目；当某个界面在
+ * 条目创建进行中销毁了整棵树（一并带走 Loader 服务）时，为 `undefined`。
  */
 export async function mountRootInclude(
   ctx: Context,
@@ -754,23 +741,23 @@ export async function mountRootInclude(
         const specifier = isAbsolute(name) ? pathToFileURL(name).href : name
         if (name.startsWith('.') || name.startsWith('cordis:')) return super.import(specifier, getOuterStack)
         const internal = this.ctx.loader.internal
-        /* v8 ignore next -- Node supplies the internal loader; this preserves the
-           original diagnostic for hypothetical embedders without it. */
+        /* v8 ignore next -- 内部加载器由 Node 提供；此分支为没有它的假想嵌入者保留了
+           原始诊断。 */
         if (internal === undefined) return super.import(specifier, getOuterStack)
         return internal.import(specifier, bareModuleBaseUrl, {})
       }
     }
-  // `cordis:group` alongside it: a group row is how a composition gives one
-  // `isolate` realm to a provider and its consumers together, and an agent
-  // preset living outside this workspace cannot resolve `@deepseek-ai/cordis-plugin-group`
-  // by name. Both builtins load through the ambient module pipeline, so neither
-  // depends on the included tree's own specifier resolution.
+  // 与之并列的 `cordis:group`：组合正是通过一行 group 为某个提供方及其消费方共同
+  // 赋予一个 `isolate` 域，而位于本工作区之外的 agent
+  // preset 无法通过名称解析 `@deepseek-ai/cordis-plugin-group`。
+  // 两个内建插件都通过环境模块管线加载，因此都不
+  // 依赖被包含树自身的说明符解析。
   ctx.loader.builtins.group = Group
-  // Pinned id: the bootstrap include is app glue, not a config row, and its
-  // id appears in Loader failure chains — a random id would make startup
-  // diagnostics unstable across runs (and snapshot fixtures).
-  // The launcher's own copy is prepared here: compatibility decisions must be made before the root
-  // Include imports anything, and they change no profile patch layer, manifest, or bundle list.
+  // 固定的 id：引导 include 是 app 粘合层而非配置行，其
+  // id 会出现在 Loader 失败链中——随机 id 会让启动
+  // 诊断在不同运行间（以及快照夹具中）不稳定。
+  // 启动器自身的副本在此准备：兼容性决策必须在根 Include
+  // 导入任何内容之前做出，且它们不会改变任何 profile 补丁层、清单或 bundle 列表。
   const prepared = prepareProfilePatches(ctx, [...patches], pathToFileURL(dirname(absoluteConfigPath)).href + '/', binName)
   const includeConfig: Include.Config = {
     path: pathToFileURL(absoluteConfigPath).href,
@@ -789,28 +776,28 @@ export async function mountRootInclude(
   return entry
 }
 
-/** The two process events {@link installFailLoud} turns into a fatal exit. */
+/** {@link installFailLoud} 转为致命退出的两个进程事件。 */
 export type FailLoudEvent = 'unhandledRejection' | 'uncaughtException'
 
 /**
- * The slice of `process` {@link installFailLoud} needs — injectable so tests
- * exercise the handler without registering on (or exiting) the real process.
+ * {@link installFailLoud} 所需的 `process` 切片——可注入，从而测试
+ * 能在不向真实进程注册（或退出）的情况下演练该处理器。
  */
 export interface FailLoudProcess {
   on(event: FailLoudEvent, handler: (err: unknown) => void): unknown
   off(event: FailLoudEvent, handler: (err: unknown) => void): unknown
   stderr: { write(chunk: string): unknown }
   /**
-   * Terminate the process. Callers treat this as the end of the run, as
-   * `process.exit` is; a fake that returns lets the caller continue, which only
-   * a test observes.
+   * 终止进程。调用方将其视为运行的终点，正如
+   * `process.exit` 那样；一个会返回的假实现让调用方继续，而这
+   * 只有测试才会观察到。
    */
   exit(code: number): void
 }
 
-// Loader rc.5 derives and drops a rejected promise after a fiber fails. Keep
-// exact reasons already folded into the boot diagnostic visible through the
-// next process rejection checkpoint so the process guard can coalesce them.
+// Loader rc.5 会在 fiber 失败后派生并丢弃一个被拒绝的 promise。需将
+// 已折叠进启动诊断的确切原因，通过下一次
+// 进程拒绝检查点保持可见，以便进程守卫能够合并它们。
 const assembledActivationRejections = new Map<unknown, number>()
 
 function retainAssembledRejection(reason: unknown): void {
@@ -836,50 +823,46 @@ async function observeLoaderRejectionCheckpoint(reasons: readonly unknown[]): Pr
 }
 
 /**
- * How long {@link installFailLoud} waits for its `release` hook before exiting
- * anyway. A wedged disposer must delay the fatal exit, never cancel it.
+ * {@link installFailLoud} 在无论如何都退出之前，等待其 `release` 钩子的时长。
+ * 卡住的释放器只能推迟致命退出，绝不能取消它。
  */
 export const FAIL_LOUD_RELEASE_TIMEOUT_MS = 2_000
 
 /**
- * Install before boot to turn an unhandled rejection or an uncaught exception,
- * at any point in the process lifetime, into one labelled stderr diagnostic and
- * `exit(1)`. A rejection already included by {@link auditStartupEntries} is
- * ignored during its process checkpoint; every other rejection and every
- * uncaught exception remains fatal. Control never returns to the failed
- * operation after either: only the throw site knows which state is intact, and
- * a listener that threw mid-update (a stream `'data'` handler, a half-applied
- * registry write) leaves silently wrong results behind if it were resumed. The
- * event loop keeps running only until the release hook settles or times out.
- * Stdout remains untouched for ACP; the returned function removes both handlers.
+ * 在启动前安装，以将进程中任意时刻发生的未处理拒绝或未捕获异常，
+ * 转化为一条带标签的 stderr 诊断与
+ * `exit(1)`。已被 {@link auditStartupEntries} 纳入的拒绝会在其进程检查点期间
+ * 被忽略；其余所有拒绝与所有未捕获异常依然致命。在发生任一情况后，控制流
+ * 都不会回到失败的操作：只有抛出点才知道哪部分状态是完好的，而
+ * 在更新中途抛出的监听器（流的 `'data'` 处理器、半应用的
+ * 注册表写入）若被恢复，会留下悄然错误的结果。
+ * 事件循环只在 release 钩子落定或超时之前持续运行。
+ * 为 ACP 保留，stdout 不被触碰；返回的函数会移除这两个处理器。
  *
- * The diagnostic is `util.inspect(err)`, not `err.stack`: a `node:fs` error's
- * `code`, `syscall`, and `path` and any `cause` chain are enumerable properties
- * that the stack line omits, and they are what a crash report needs. Once a
- * handler is installed Node prints nothing of its own, so this line is the
- * only record of the failure.
+ * 诊断采用 `util.inspect(err)` 而非 `err.stack`：一个 `node:fs` 错误的
+ * `code`、`syscall`、`path` 以及任意 `cause` 链都是可枚举属性，
+ * 而堆栈行会省略它们，它们却正是崩溃报告所需。一旦
+ * 安装了处理器，Node 自身便不再打印任何内容，因此这一行
+ * 就成了失败的唯一记录。
  *
- * The Loader mounts entries concurrently, so a surface that owns the terminal
- * can already hold it when a sibling entry rejects. Exiting straight from the
- * handler would strand raw mode, bracketed paste, and the keyboard protocol on
- * the user's shell, and leave an in-flight terminal query's reply to land as
- * literal text at the next prompt. `release` is the terminal owner's chance to
- * hand it back; it is awaited under {@link FAIL_LOUD_RELEASE_TIMEOUT_MS}, whose
- * timer stays referenced so a never-settling disposer cannot let Node reach an
- * empty event loop and exit 0 instead of failing.
+ * Loader 并发挂载条目，因此当用户界面持有终端时，一个同级条目可能
+ * 已经拒绝。直接从处理器退出，会把原始模式、带括号粘贴与键盘协议
+ * 遗留在用户的 shell 上，并让一个在途的终端查询应答作为
+ * 字面文本落到下一个提示符处。`release` 是终端拥有者交还终端的机会；它在
+ * {@link FAIL_LOUD_RELEASE_TIMEOUT_MS} 之下被等待，其
+ * 计时器始终保持被引用，因此一个永不落定的释放器无法让 Node 进入
+ * 空事件循环并以退出码 0 而非失败收场。
  *
- * The diagnostic is written before the release so a hanging or failing disposer
- * cannot swallow the reason. The handler stays installed while the release runs
- * — removing it would let a second concurrent rejection become uncaught and kill
- * the process mid-teardown, stranding exactly the terminal state this restores —
- * so a latch keeps the first rejection the reported one and lets later
- * rejections (including the release's own) fall through to the pending exit.
- * @param binName - the diagnostic prefix on the fatal-failure line.
- * @param proc - the process slice to register on; tests inject a fake.
- * @param release - optional teardown awaited before exit, used by a
- *   terminal-owning surface to restore the terminal. Its own failure is
- *   swallowed because the pending fatal exit already owns the outcome.
- * @returns the uninstaller that removes both handlers.
+ * 诊断在 release 之前写入，从而挂起或失败的释放器
+ * 无法吞掉原因。处理器在 release 运行期间保持安装——
+ * 移除它会让第二次并发拒绝变成未捕获并终止进程，在拆除中途
+ * 恰好把本要恢复的终端状态抛在一边——因此用一个闩锁保留首次拒绝作为
+ * 上报的那一个，并让后续拒绝（包括 release 自身的）落到待定的退出上。
+ * @param binName - 致命失败行上的诊断前缀。
+ * @param proc - 要注册的进程切片；测试会注入一个假实现。
+ * @param release - 退出前等待的可选拆除，由
+ *   持有终端的界面用于恢复终端。其自身失败被吞掉，因为待定的致命退出已拥有该结果。
+ * @returns 移除这两个处理器的卸载器。
  */
 export function installFailLoud(
   binName: string,
@@ -888,9 +871,9 @@ export function installFailLoud(
 ): () => void {
   let exiting = false
   const report = (err: unknown, label: string): void => {
-    // A release in flight already owns the exit. Swallow later failures
-    // (teardown's own included) rather than reporting a second failure over the
-    // real one or letting Node kill the process before the terminal is back.
+    // 一个正在进行的 release 已经拥有该退出。吞掉后续失败
+    // （包括拆除自身的失败），而不是在真实失败之上再上报一次失败，
+    // 或让 Node 在终端恢复之前就终止进程。
     if (exiting) return
     exiting = true
     proc.stderr.write(`${binName}: ${label}: ${inspect(err, { depth: 4, maxArrayLength: 50 })}\n`)
@@ -899,8 +882,7 @@ export function installFailLoud(
       return
     }
     void (async () => {
-      // Definitely assigned: the timeout promise's executor runs synchronously
-      // while the race is being constructed, before the first await.
+      // 必然已赋值：超时 promise 的执行器在竞速构造期间、第一个 await 之前同步运行。
       let timer!: ReturnType<typeof setTimeout>
       try {
         await Promise.race([
@@ -910,8 +892,8 @@ export function installFailLoud(
           }),
         ])
       } catch {
-        // The terminal release failed; the fatal exit below is the outcome that
-        // matters, and no reporter runs after it.
+        // 终端的 release 失败了；下方致命退出才是
+        // 要紧的结果，且在它之后不会再有任何报告器运行。
       }
       clearTimeout(timer)
       proc.exit(1)
@@ -919,7 +901,7 @@ export function installFailLoud(
   }
   const onRejection = (err: unknown): void => {
     if (assembledActivationRejections.has(err)) return
-    // Label kept stable: the Web profile expected-output e2e tests match it.
+    // 标签保持稳定：Web profile 期望输出 e2e 测试会匹配它。
     report(err, 'fatal load failure')
   }
   const onException = (err: unknown): void => { report(err, 'fatal uncaught exception') }
@@ -933,8 +915,8 @@ export function installFailLoud(
 }
 
 /**
- * Value mirrors used because Cordis's const enum has no runtime object to import.
- * Keep aligned with `packages/client/web/src/loader-status.ts`.
+ * 取值镜像，因为 Cordis 的 const enum 没有可供导入的运行时对象。
+ * 请与 `packages/client/web/src/loader-status.ts` 保持对齐。
  */
 const FIBER_PENDING = 0 as FiberState.PENDING
 const FIBER_ACTIVE = 2 as FiberState.ACTIVE
@@ -942,11 +924,11 @@ const FIBER_FAILED = 3 as FiberState.FAILED
 const FIBER_DISPOSED = 4 as FiberState.DISPOSED
 
 /**
- * Entry ids whose presence defines a usable DSH application.
+ * 其存在即界定一个可用 DSH 应用的条目 id。
  *
- * The list is global rather than profile metadata. Missing or disabled ids do
- * not affect startup; an enabled listed entry must activate. The list covers
- * shared Agent execution, application endpoints, and Web bootstrap/transport.
+ * 该列表是全局的，而非 profile 元数据。缺失或被禁用的 id 不会
+ * 影响启动；一个已列出的、处于启用状态的条目必须激活。该列表覆盖
+ * 共享的 Agent 执行、应用端点，以及 Web 引导/传输。
  */
 const requiredStartupEntryIds = new Set<string>([
   'agent-loop',
@@ -959,7 +941,7 @@ const requiredStartupEntryIds = new Set<string>([
   'sdk-jsonrpc-server',
 ])
 
-/** Render plugin stacks, nested causes, and aggregate member failures once per error. */
+/** 对每个错误一次性渲染插件堆栈、嵌套原因与聚合成员失败。 */
 function formatActivationError(error: unknown, stacks = true): string {
   const details: string[] = []
   const seen = new Set<Error>()
@@ -979,14 +961,14 @@ function formatActivationError(error: unknown, stacks = true): string {
 }
 
 interface InactiveEntry {
-  /** Loader entry used to identify the bootstrap Include and required ids. */
+  /** 用于识别引导 Include 与必需 id 的 Loader 条目。 */
   entry: Entry
-  /** Activation errors and missing services remain distinct for presentation. */
+  /** 激活错误与缺失的服务在展示时保持区分。 */
   outcome: { kind: 'failed'; error: unknown; phase?: string }
     | { kind: 'pending'; missing: string[] }
 }
 
-/** Inactive plugin metadata without retaining its Context or Fiber. */
+/** 不保留其 Context 或 Fiber 的非活动插件元数据。 */
 interface StartupEntryDiagnostic {
   id: string
   module: string
@@ -995,7 +977,7 @@ interface StartupEntryDiagnostic {
   outcome: InactiveEntry['outcome']
 }
 
-/** Startup warning or error arguments, including import errors with no Fiber. */
+/** 启动警告或错误的参数，包含没有 Fiber 的导入错误。 */
 interface StartupLogRecord {
   ts: number
   name: string
@@ -1003,14 +985,14 @@ interface StartupLogRecord {
   args: readonly unknown[]
 }
 
-/** Startup audit failure with non-enumerable metadata and original failures as its cause. */
+/** 启动审计失败，带有不可枚举的元数据，且以原始失败作为其 cause。 */
 export class StartupError extends Error {
-  /** Root configuration and startup logs, attached by boot after disposal. */
+  /** 根配置与启动日志，由 boot 在释放之后附加。 */
   startup?: { configurationPath: string; messages: readonly StartupLogRecord[] }
 
   /**
-   * @param message - concise terminal diagnostic.
-   * @param entries - inactive plugin metadata and original failure values.
+   * @param message - 简洁的终端诊断。
+   * @param entries - 非活动插件元数据与原始失败值。
    */
   constructor(message: string, readonly entries: readonly StartupEntryDiagnostic[]) {
     const failures = entries.flatMap(({ outcome }) => outcome.kind === 'failed' ? [outcome.error] : [])
@@ -1022,7 +1004,7 @@ export class StartupError extends Error {
   }
 }
 
-/** The error importing an entry's module raises now, which Node returns from its cache for a module that failed before. */
+/** 导入某个条目模块当前抛出的错误；对于此前失败的模块，Node 会从其缓存中返回它。 */
 async function importFailure(entry: Entry): Promise<unknown> {
   try {
     await entry.parent.tree.import(entry.options.name)
@@ -1033,11 +1015,10 @@ async function importFailure(entry: Entry): Promise<unknown> {
 }
 
 /**
- * Collect Loader activation failures and disabled-expression errors. Failed
- * fibers are awaited to recover their recorded rejection reason and coalesce
- * duplicate Loader notifications through the next process rejection checkpoint.
- * An entry whose import failed reports the error importing it raises now; without
- * `importNow` nothing is imported and the entry reports a failed import without the import error.
+ * 收集 Loader 激活失败与禁用表达式错误。失败的
+ * fiber 会被等待以恢复其记录的拒绝原因，并通过下一次进程拒绝检查点
+ * 合并重复的 Loader 通知。导入失败的条目会报告其当前导入所抛出的错误；
+ * 若没有 `importNow`，则不会导入任何内容，该条目会报告一次导入失败，但不含导入错误。
  */
 async function inactiveEntries(ctx: Context, importNow = true): Promise<InactiveEntry[]> {
   const failures: InactiveEntry[] = []
@@ -1050,7 +1031,7 @@ async function inactiveEntries(ctx: Context, importNow = true): Promise<Inactive
       continue
     }
     const fiber = entry.fiber
-    // An entry whose import failed has no fiber, or keeps the disposed fiber of its previous activation.
+    // 导入失败的条目没有 fiber，或保留其上次激活时已释放的 fiber。
     if (fiber === undefined || fiber.state === FIBER_DISPOSED) {
       const error = importNow ? await importFailure(entry) : undefined
       failures.push({ entry, outcome: error === undefined
@@ -1083,12 +1064,12 @@ async function inactiveEntries(ctx: Context, importNow = true): Promise<Inactive
   return failures
 }
 
-/** Render one failed plugin's original error and activation phase. */
+/** 渲染一个失败插件的原始错误与激活阶段。 */
 function failureDetail(outcome: Extract<InactiveEntry['outcome'], { kind: 'failed' }>, stacks = true): string {
   return `${outcome.phase === undefined ? '' : `${outcome.phase}: `}${formatActivationError(outcome.error, stacks)}`
 }
 
-/** Render optional-only warnings without changing startup policy. */
+/** 渲染仅针对可选项的警告，不改变启动策略。 */
 function activationDiagnostic(
   binName: string,
   failures: readonly InactiveEntry[],
@@ -1098,19 +1079,19 @@ function activationDiagnostic(
   return `${binName}: warning: ${String(failures.length)} ${noun} did not activate\n${failures.map(failure => inactiveDiagnostic(failure, stacks)).join('\n')}\n`
 }
 
-/** Per-entry reload text, which people read through the Web UI and agents, so it carries error messages without stack frames. */
+/** 逐条目的重载文本，会经由 Web UI 与 agent 被人阅读，因此不带堆栈帧、只携带错误消息。 */
 function reloadDiagnostic(failure: InactiveEntry): string {
   return inactiveDiagnostic(failure, false)
 }
 
-/** Stable per-entry text for reload comparisons and optional warnings. */
+/** 用于重载比较与可选警告的、稳定的逐条目文本。 */
 function inactiveDiagnostic({ entry, outcome }: InactiveEntry, stacks = true): string {
   const detail = outcome.kind === 'failed' ? failureDetail(outcome, stacks)
     : `pending (waiting for ${outcome.missing.length === 1 ? 'service' : 'services'}: ${outcome.missing.join(', ') || 'unknown'})`
   return `${entry.options.id} (${entry.options.name}): ${detail}`
 }
 
-/** Group startup failures and pending services, marking every required entry. */
+/** 将启动失败与等待中的服务分组，并标记每一个必需条目。 */
 function startupDiagnostic(binName: string, failures: readonly InactiveEntry[], required: ReadonlySet<Entry>): string {
   const lines = [`${binName}: startup failed: ${String(required.size)} required ${required.size === 1 ? 'plugin' : 'plugins'} did not activate`]
   const failed = failures.flatMap(({ entry, outcome }) => outcome.kind === 'failed' ? [{ entry, outcome }] : [])
@@ -1135,20 +1116,20 @@ function startupDiagnostic(binName: string, failures: readonly InactiveEntry[], 
 }
 
 /**
- * Apply DSH startup policy to a settled Loader tree.
+ * 将 DSH 启动策略应用到已落定的 Loader 树。
  *
- * Inactive entries from the global required list reject startup. Other
- * inactive entries join that failure diagnostic, or produce one warning when
- * no required entry failed and leave successful siblings running.
- * Required ids absent from the tree, and disabled required entries, are ignored.
- * A throwing disabled expression is an entry failure, not a disabled entry.
- * The bootstrap Include must activate so unreadable or invalid root config is fatal.
- * @param ctx - the settled context whose Loader entries to audit.
- * @param binName - the prefix on startup diagnostics.
- * @param warn - sink for optional-entry warnings.
- * @returns after optional warnings if required startup checks pass.
- * @throws {@link StartupError} when the bootstrap Include or a required entry is inactive or its disabled expression throws;
- * its message includes optional failures too.
+ * 来自全局必需列表的非活动条目会拒绝启动。其它
+ * 非活动条目会加入该失败诊断，或在没有任何必需条目失败、且成功
+ * 的同级条目继续运行的情况下，产生一条警告。
+ * 树中缺失的必需 id，以及被禁用的必需条目，都会被忽略。
+ * 抛出异常的禁用表达式属于条目失败，而非被禁用的条目。
+ * 引导 Include 必须激活，从而不可读或无效的根配置会是致命的。
+ * @param ctx - 已落定、待审计 Loader 条目的上下文。
+ * @param binName - 启动诊断上的前缀。
+ * @param warn - 可选条目警告的输出目标。
+ * @returns 在可选警告之后，若必需的启动检查通过。
+ * @throws 当引导 Include 或某个必需条目处于非活动状态、或其禁用表达式抛出异常时抛出
+ *   {@link StartupError}；其消息也包含可选失败。
  */
 export async function auditStartupEntries(
   ctx: Context,
@@ -1167,35 +1148,34 @@ export async function auditStartupEntries(
 }
 
 /**
- * Boot the Loader against `absoluteConfigPath` and return only after the whole
- * tree settles. Relative entry names resolve against the config directory;
- * bare package names resolve there by default or against an explicit
- * `bareModuleBaseUrl` for closed packaged runtimes. The bootstrap include
- * is statically imported and mounted as the `cordis:include` builtin, loading
- * through the ambient module pipeline (vite/tsx/plain ESM). The package build
- * embeds Include while leaving Loader external, so the built include tree and
- * host share one Loader peer. Loader settlement drains entry work without
- * rejecting the whole tree. The final {@link auditStartupEntries} call rejects
- * failures in the global required list and warns about other failed, missing,
- * and pending entries while successful siblings remain active. Later unhandled
- * rejections remain covered by {@link installFailLoud}. Built bins need the Loader's native
- * helper for bare plugin specifiers; relative specifiers do not.
- * @param binName - the diagnostic prefix for load-failure errors.
- * @param absoluteConfigPath - the config to include; must already be absolute
- * (see {@link resolveConfigPath}).
- * @param patches - optional overlay patches applied over the included tree
- * (see {@link loadOptionalPatches}); an empty list mounts none.
- * @param prepare - optional host setup run after Loader installation and before any config-tree entry mounts.
- * @param bareModuleBaseUrl - optional installed-host base for bare package
- * names; use it when the host, rather than the configuration project, owns the
- * complete plugin set.
- * @returns the root context after the initial startup audit, or as soon as a
- * surface disposed the tree while startup was still in flight.
- * @throws {@link StartupError} for an inactive required entry, including all inactive plugins in its message;
- * otherwise a labelled error after disposing the partial context — `host
- * preparation failed` when `prepare` threw before any config-tree entry
- * mounted, `plugin tree failed to load` afterwards. Cyclic causes terminate
- * diagnostic traversal without replacing the original cause.
+ * 针对 `absoluteConfigPath` 启动 Loader，并仅在整棵树
+ * 落定之后返回。相对条目名在配置目录处解析；
+ * 裸包名默认在那儿解析，或在封闭打包运行时的显式
+ * `bareModuleBaseUrl` 处解析。引导 include
+ * 被静态导入并作为 `cordis:include` 内建插件挂载，通过
+ * 环境模块管线（vite/tsx/纯 ESM）加载。包的构建
+ * 内嵌了 Include 却让 Loader 保持外部，因此构建出的 include 树与
+ * 宿主共享同一个 Loader peer。Loader 的落定会排空条目工作，而不会
+ * 拒绝整棵树。最后一次 {@link auditStartupEntries} 调用会拒绝
+ * 全局必需列表中的失败，并就已失败的、缺失的与等待中的
+ * 条目发出警告，同时成功的同级条目保持活跃。后续的未处理
+ * 拒绝仍由 {@link installFailLoud} 覆盖。构建出的二进制需要 Loader 的原生
+ * 辅助函数来解析裸插件说明符；相对说明符则不需要。
+ * @param binName - 加载失败错误的诊断前缀。
+ * @param absoluteConfigPath - 要包含的配置文件；必须已经是绝对路径
+ * （参见 {@link resolveConfigPath}）。
+ * @param patches - 应用于被包含树之上的可选覆盖补丁
+ * （参见 {@link loadOptionalPatches}）；空列表则不挂载任何补丁。
+ * @param prepare - 在 Loader 安装之后、任何配置树条目挂载之前运行的
+ * 可选宿主设置。
+ * @param bareModuleBaseUrl - 裸包名可选的已安装宿主基址；
+ * 当宿主（而非配置项目）拥有完整插件集时使用它。
+ * @returns 初始启动审计之后的根上下文；或一旦某个界面在启动仍在进行中时
+ * 销毁了这棵树，立即返回。
+ * @throws 针对非活动必需条目抛出 {@link StartupError}，其消息包含所有非活动插件；
+ * 否则在释放部分上下文之后抛出一个带标签的错误——若 `prepare` 在任何配置树
+ * 条目挂载之前抛出，则为 `host preparation failed`，之后则为
+ * `plugin tree failed to load`。循环 cause 会终止诊断遍历，而不会替换原始 cause。
  */
 export async function boot(
   binName: string,
@@ -1206,7 +1186,7 @@ export async function boot(
 ): Promise<Context> {
   const ctx = new Context()
   const startupLogs: StartupLogRecord[] = []
-  // The collector must outlive root disposal to retain asynchronous cleanup errors.
+  // 收集器必须比根上下文的释放更长寿，以保留异步清理错误。
   const diagnostics = new Context()
   diagnostics.logger = ctx.logger
   diagnostics.logger.exporter({
@@ -1215,14 +1195,14 @@ export async function boot(
       if (type === 'warn' || type === 'error') startupLogs.push({ ts, name, type, args })
     },
   })
-  // Two failure labels: `prepare` runs before any config-tree entry mounts,
-  // so its failure is host setup, not the plugin tree.
+  // 两个失败标签：`prepare` 在任何配置树条目挂载之前运行，
+  // 因此其失败属于宿主设置，而非插件树。
   let stage = 'host preparation failed'
   try {
     ctx.baseUrl = pathToFileURL(dirname(absoluteConfigPath)).href + '/'
     ctx.provide('dshHomePath', dshHomePath)
-    // Fiber.update() discards the restart promise. Observe it before the
-    // waterfall returns; activation audits still report the failed fiber.
+    // Fiber.update() 会丢弃重启 promise。在 waterfall 返回之前
+    // 观察它；激活审计仍会报告失败的 fiber。
     ctx.on('internal/update', (_config, _noSave, next: () => unknown) => {
       void Promise.resolve(next()).catch((error: unknown) => { ctx.logger.error(error) })
     }, { global: true, prepend: true })
@@ -1230,26 +1210,24 @@ export async function boot(
     await prepare?.(ctx)
     stage = 'plugin tree failed to load'
     await mountRootInclude(ctx, absoluteConfigPath, patches, bareModuleBaseUrl, binName)
-    // A surface can finish and dispose the whole tree while startup is still
-    // in flight, before the last entry settles. The Loader service goes with
-    // it, and the activation audit describes a live tree — reading `ctx.loader`
-    // past this point would throw a TypeError over an app that exited exactly
-    // as asked. Re-check after settlement before auditing the tree.
+    // 某个界面可能在启动仍在进行、最后一个条目落定之前，就结束并销毁整棵树。Loader 服务会随之
+    // 而去，而激活审计描述的是一棵存活的树——在此之后读取 `ctx.loader`
+    // 会针对一个“恰好按要求退出”的应用抛出 TypeError。落定之后、审计这棵树之前需重新检查。
     await ctx.get('loader')?.await()
     if (ctx.get('loader') === undefined) return ctx
     await auditStartupEntries(ctx, binName)
     return ctx
   } catch (cause) {
-    // Root-fiber disposal contains cleanup failures per observer (Cordis
-    // fiber.ts hardening) and a repeated call returns the settled single-shot
-    // result, so this await cannot reject and replace `cause`.
+    // 根 fiber 的释放包含每个观察者的清理失败（Cordis
+    // fiber.ts 加固），而重复调用会返回已落定的单次结果，
+    // 因此这次 await 不会拒绝并替换 `cause`。
     await ctx.fiber.dispose()
     if (cause instanceof StartupError) {
       cause.startup = { configurationPath: absoluteConfigPath, messages: startupLogs }
       throw cause
     }
     const detail = cause instanceof Error ? cause.message : String(cause)
-    // A wrapper can carry an activation error whose original stack names the failed plugin.
+    // 一个包装器可能携带一条激活错误，其原始堆栈标明了失败的插件。
     let deepest: unknown = cause
     const seen = new Set<Error>()
     while (deepest instanceof Error && !seen.has(deepest) && deepest.cause !== undefined) {

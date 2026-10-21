@@ -1,13 +1,13 @@
-/* Cordis definition card: DisclosureRow chrome (leading/chevron/title come from
-   that primitive) plus this card's own trailing run switch and source body.
-   No running sweep: `cordis_define` settles in the same turn it starts. */
+/* Cordis 定义卡片：DisclosureRow 的修饰（前导/箭头/标题来自
+   该基础组件）加上本卡片自身的尾部 run 开关与源码主体。
+   无运行扫描：`cordis_define` 在其启动的同一回合内结算。 */
 
 .card {
   display: flex;
   flex-direction: column;
 }
 
-/* Definition cards keep a brand accent to distinguish their editable source. */
+/* 定义卡片保留品牌强调色，以区分其可编辑源码。 */
 .card .title,
 .card .chevron {
   color: var(--dsw-alias-state-business-primary);
@@ -44,8 +44,8 @@
   color: var(--dsw-alias-label-secondary);
 }
 
-/* The purpose absorbs the remaining width and clips first: the name and the
-   switch are the two parts that must survive a narrow row. */
+/* purpose 吸收剩余宽度并最先裁剪：name 与
+   switch 是窄行中必须保留的两个部分。 */
 .purpose {
   flex: 1 1 auto;
   min-width: 0;
@@ -88,7 +88,7 @@
   margin-left: 8px;
 }
 
-/* Said once in the expanded body: this card records, the panel operates. */
+/* 在展开的面板中只说一次：本卡片负责记录，面板负责操作。 */
 .panelHint {
   margin: 4px 0 2px 4px;
   font-size: 11px;
@@ -102,7 +102,7 @@
   color: var(--dsw-alias-label-caption);
 }
 
-/* The model's question, shown beside the approve/decline pair. */
+/* 模型提出的问题，显示在批准/拒绝对旁边。 */
 .approvalPrompt {
   flex: none;
   max-width: 40%;
@@ -115,9 +115,9 @@
   color: var(--dsw-alias-label-secondary);
 }
 
-/* A qualified success (nothing acknowledged the dispatch, or the browser half
-   parked on missing services): informational, so it must not read as the error
-   line beside it. */
+/* 一次有条件的成功（无人确认该分派，或浏览器半区
+   因缺失服务而挂起）：属于提示信息，因此不得读成
+   其旁边的错误行。 */
 .notice {
   flex: none;
   max-width: 40%;
@@ -136,9 +136,9 @@
   font-size: 12px;
 }
 
-/* Terminal definitions (unloaded, or lost to a host restart) stay in the flow
-   as a greyed card: the define call is still in the session log, so removing
-   the row would leave a replay hole. */
+/* 终态定义（已卸载，或因 host 重启而丢失）以灰色卡片
+   形式留在流中：define 调用仍在会话日志里，因此移除
+   该行会留下一个重放空洞。 */
 .card[data-terminal] .title,
 .card[data-terminal] .name,
 .card[data-terminal] .purpose,

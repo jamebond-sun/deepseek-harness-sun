@@ -1,7 +1,7 @@
 /**
- * LLM service: adapter registry with a waterfall-interceptable streaming call
- * API. Exports the `LlmRuntime` default, the abstract `LlmAdapter` for
- * provider backends, and `BlockAssembler` for chunk assembly.
+ * LLM 服务：带有一个可被瀑布拦截的流式调用 API 的适配器注册表。
+ * 它导出默认的 `LlmRuntime`、供提供方后端使用的抽象 `LlmAdapter`，
+ * 以及用于块装配的 `BlockAssembler`。
  *
  * @module @deepseek-ai/dsh-llm
  */
@@ -61,15 +61,14 @@ declare module '@deepseek-ai/cordis' {
 
   interface Events {
     /**
-     * Waterfall around every streaming model call (retry, replay, routing).
-     * Bound to the {@link LlmRuntime}; call `next()` to reach the resolved
-     * adapter's stream, or yield your own chunks to short-circuit.
-     * @param options - the full request. A LOOP-built request carries the
-     *   process-local {@link markAgentLoopRequest} identity and arrives deep-frozen
-     *   (mutation throws): its content is a pure function of the session log (the
-     *   reconstructability Agent Note), so listeners read it, never rewrite it.
-     *   Hand-built calls do not carry that marker; callers own their request
-     *   inputs and must keep them unchanged until the stream settles.
+     * 围绕每次流式模型调用的瀑布（重试、回放、路由）。
+     * 它绑定到 {@link LlmRuntime}；调用 `next()` 以到达已解析适配器的流，
+     * 或者产出你自己的块以短路。
+     * @param options - 完整的请求。一个由循环构建的请求携带进程局部的
+     *   {@link markAgentLoopRequest} 身份，并且是深度冻结地到达的（改动会抛错）：
+     *   它的内容是会话日志的一个纯函数（可重建性 Agent Note），
+     *   因此各个监听器读取它，绝不重写它。手工构建的调用不携带那个标记；
+     *   调用方拥有自己的请求输入，并且必须在流落定之前保持它们不变。
      * @mode waterfall
      */
     'llm/stream'(this: LlmRuntime, options: GenerateOptions, next: () => AsyncIterable<StreamChunk>): AsyncIterable<StreamChunk>
@@ -77,30 +76,31 @@ declare module '@deepseek-ai/cordis' {
   }
 }
 
-/** Structured provider facts and cause accepted by {@link LlmError}. */
+/** 由 {@link LlmError} 接受的、结构化的提供方事实与 cause。 */
 export interface LlmErrorOptions extends ErrorOptions {
-  /** Valid HTTP status observed at the provider boundary. */
+  /** 在提供方边界处观测到的有效 HTTP 状态码。 */
   status?: number
-  /** Positive finite provider-requested delay in milliseconds. */
+  /** 提供方要求的、正的有限延迟，以毫秒计。 */
   providerRetryAfterMs?: number
-  /** Non-empty opaque provider request id. */
+  /** 非空的、不透明的提供方请求 id。 */
   requestId?: ProviderRequestId
-  /** Positive count of additional oldest retained image occurrences to offload; only with `IMAGE_OFFLOAD_REQUIRED`. */
+  /** 还需额外卸载的最早的被保留图像出现的正数个数；仅配合 `IMAGE_OFFLOAD_REQUIRED`。 */
   offloadImages?: number
 }
 
 /**
- * Typed error for LLM-related failures. Extends {@link HarnessError}, so the
- * `code` string (e.g. `AUTH`, `RATE_LIMIT`, `NO_ADAPTER`) is shared taxonomy.
+ * 面向 LLM 相关失败的带类型错误。它继承 {@link HarnessError}，
+ * 因此那个 `code` 字符串（例如 `AUTH`、`RATE_LIMIT`、`NO_ADAPTER`）
+ * 属于共享的分类法。
  */
 export class LlmError extends HarnessError {
-  /** Serializable facts retained beside this live Error. */
+  /** 留存在这个存活的 Error 旁边的、可序列化的事实。 */
   readonly failure: LlmFailure
 
   /**
-   * @param message - non-empty human-readable failure summary.
-   * @param code - non-empty stable provider-neutral machine code.
-   * @param options - optional cause and validated serializable provider facts.
+   * @param message - 非空的、人类可读的失败摘要。
+   * @param code - 非空的、稳定的、与提供方无关的机器码。
+   * @param options - 可选的 cause，以及已校验的可序列化提供方事实。
    */
   constructor(message: string, code: string, options?: LlmErrorOptions) {
     if (typeof message !== 'string' || message.length === 0) throw new Error('LlmError message must be a non-empty string')
@@ -131,30 +131,29 @@ export class LlmError extends HarnessError {
 }
 
 /**
- * Accept one supplied credential, or refuse it as unusable.
+ * 接受一个所提供的凭据，或把它当作不可用而拒绝。
  *
- * A stored key arrives from the credentials seam, a `.env` line, or a shell
- * export, all of which pick up surrounding whitespace, so trimming is silent.
- * Anything else fails here rather than inside `fetch`, whose ByteString
- * refusal names a UTF-16 code point instead of the setting to change. The key
- * never enters the message: `ref` names where to fix it, and echoing any part
- * of a secret into a log or a UI is the failure this diagnosis avoids.
+ * 一个已存储的密钥来自凭据接缝、某一行 `.env`，或一次 shell 导出，
+ * 它们都会带上周围的空白，因此裁剪是静默的。其他任何问题都在这里失败，
+ * 而不是在 `fetch` 内部——后者对 ByteString 的拒绝只会指名一个 UTF-16
+ * 码位，而不是要改动哪个设置。该密钥绝不进入消息：`ref` 指名在哪里修复它，
+ * 而把机密任何一部分回显到日志或 UI 正是这一诊断要避免的失败。
  *
- * Lives beside {@link LlmError} rather than in `./api-key.ts` so the predicate
- * module stays dependency-free; both adapters share this one diagnosis instead
- * of keeping near-identical local copies.
- * @param raw - the credential exactly as supplied.
- * @param pkg - the refusing package name, prefixed to the diagnostic.
- * @param ref - the credential reference the value resolved through.
- * @returns the trimmed, usable key.
+ * 它放在 {@link LlmError} 旁边而不是 `./api-key.ts` 中，是为了让那个
+ * 判定模块保持无依赖；两个适配器共享这一个诊断，而不是各自保留
+ * 近乎相同的本地副本。
+ * @param raw - 该凭据被提供时的原本形式。
+ * @param pkg - 执行拒绝的包名，作为该诊断信息的前缀。
+ * @param ref - 该值所解析经过的凭据引用。
+ * @returns 已裁剪、可用的密钥。
  */
 export function assertUsableApiKey(raw: string, pkg: string, ref: string): string {
   const checked = normalizeApiKey(raw)
   if (checked.ok) return checked.value
-  // The Models page is named as the writer it usually is, not as the only one:
-  // the same value can arrive from a hand-edited .env or a shell export in a
-  // composition that mounts no credentials seam at all, where directing the
-  // user to a page that deployment does not serve would be a dead end.
+  // Models 页面被指名为它通常是的那个写入者，而不是唯一的那个：
+  // 同一个值也可能来自一次手工编辑的 .env，或某个根本没有挂载
+  // 凭据接缝的组合中的 shell 导出；而在那种部署下，把用户指向
+  // 一个该部署并未提供的页面会是一条死路。
   throw new LlmError(
     checked.reason === 'empty'
       ? `${pkg}: the API key resolved from ${ref} is blank; set ${ref} to the raw key`
@@ -165,110 +164,110 @@ export function assertUsableApiKey(raw: string, pkg: string, ref: string): strin
   )
 }
 
-/** One model call whose config and adapter registration were resolved together. */
+/** 一次其配置与适配器注册被一起解析出来的模型调用。 */
 export interface PreparedLlmCall {
-  /** Detached, deep-frozen config with any adapter-owned default materialized. */
+  /** 已分离、深度冻结的配置，其中任何由适配器持有的默认值都已物化。 */
   readonly config: LlmCallConfig
-  /** Immutable retry policy captured with the adapter registration. */
+  /** 随该适配器注册一起捕获的不可变重试策略。 */
   readonly retryPolicy: ResolvedRetryPolicy
-  /** Detached context metadata resolved with the registration-bound call. */
+  /** 随该注册绑定调用一起解析出来的、已分离的上下文元数据。 */
   readonly context?: LlmModelContext
-  /** Exact model modalities captured with the adapter dispatch generation. */
+  /** 随该适配器分发世代一起捕获的精确模型模态。 */
   readonly inputModalities?: readonly ModelModality[]
-  /** Exact model system prompt update mode captured with the adapter dispatch generation. */
+  /** 随该适配器分发世代一起捕获的精确模型系统提示更新模式。 */
   readonly systemPromptUpdate?: SystemPromptUpdate
-  /** Exact model tool update mode captured with the adapter dispatch generation. */
+  /** 随该适配器分发世代一起捕获的精确模型工具更新模式。 */
   readonly toolUpdate?: ToolUpdate
-  /** Config fields materialized by the captured adapter rather than proposed by the caller. */
+  /** 由已捕获的适配器物化、而非由调用方提议的那些配置字段。 */
   readonly adapterDefaults: LlmCallConfigAdapterDefaults
   /**
-   * Dispatch this call once through the registration captured during
-   * preparation. The request's call-config fields must match {@link config};
-   * reuse or mismatch fails with `INVALID_PREPARED_CALL`.
-   * @param options - fully assembled request carrying the prepared config.
-   * @returns the chunk stream, including the `llm/stream` waterfall.
+   * 通过准备期间所捕获的那次注册分发本次调用一次。该请求的
+   * call-config 字段必须匹配 {@link config}；复用或错位会以
+   * `INVALID_PREPARED_CALL` 失败。
+   * @param options - 携带该已准备配置的、完整装配好的请求。
+   * @returns 块流，包含 `llm/stream` 瀑布。
    */
   stream(options: GenerateOptions): AsyncIterable<StreamChunk>
 }
 
-/** One adapter-owned model-resolution generation bound to its eventual stream call. */
+/** 一个由适配器持有、且绑定到它最终流式调用的模型解析世代。 */
 export interface PreparedAdapterCall {
-  /** Exact model metadata from the same adapter generation as {@link stream}. */
+  /** 来自与 {@link stream} 同一个适配器世代的精确模型元数据。 */
   readonly model: LlmResolvedModelInfo
-  /** Dispatch through that generation without re-reading dynamic connection facts. */
+  /** 通过该世代分发，而不重新读取动态的连接事实。 */
   stream(options: GenerateOptions): AsyncIterable<StreamChunk>
 }
 
 /**
- * Provider-wire adapter for the harness message and stream vocabulary. Register implementations
- * with `ctx.llm.registerAdapter(providers, adapter)`. Every provider HTTP request must include
- * `attributionHeaders()`; prove the headers are added in the wire request or library header hook. The direct-fetch
- * DeepSeek and library-backed pi-ai adapters meet this contract through different internals.
+ * 面向 harness 消息与流词汇的提供方线路适配器。用
+ * `ctx.llm.registerAdapter(providers, adapter)` 注册各个实现。
+ * 每个提供方 HTTP 请求都必须包含 `attributionHeaders()`；
+ * 请在线路请求或库请求头钩子中证明这些请求头已被添加。直接 fetch 的
+ * DeepSeek 适配器与由库支撑的 pi-ai 适配器通过不同的内部实现满足这一契约。
  */
 export abstract class LlmAdapter {
   /**
-   * Describe one provider route owned by this adapter.
-   * @param provider - a route passed to `registerAdapter()` for this instance.
-   * @returns detached display metadata whose id must equal `provider`.
+   * 描述本适配器所持有的一条提供方路由。
+   * @param provider - 为本实例传给 `registerAdapter()` 的一条路由。
+   * @returns 已分离的展示元数据，其 id 必须等于 `provider`。
    */
   providerInfo(provider: string): LlmProviderInfo {
     return { id: provider, name: provider }
   }
 
   /**
-   * Return the provider-owned retry policy captured with this route.
-   * @param _provider - a route passed to `registerAdapter()` for this instance.
-   * @returns a resolved policy, or `undefined` to use the normal defaults.
+   * 返回随本路由一起捕获的、由提供方持有的重试策略。
+   * @param _provider - 为本实例传给 `registerAdapter()` 的一条路由。
+   * @returns 一个已解析的策略，或 `undefined` 以使用 normal 默认值。
    */
   providerRetryPolicy(_provider: string): ResolvedRetryPolicy | undefined {
     return undefined
   }
 
   /**
-   * Resolve provider-side request-image pricing for one exact model route.
-   * The default declares none, so consumers fall back to their own neutral
-   * estimate. Implementations must answer synchronously without I/O; the
-   * token meter resolves this per measurement.
-   * @param _provider - a route passed to `registerAdapter()` for this instance.
-   * @param _model - exact model id passed to {@link GenerateOptions.model}.
-   * @returns route-owned image pricing, or `undefined` when the route declares none.
+   * 为一条精确模型路由解析提供方侧的请求图像定价。
+   * 默认不声明任何定价，因此消费者回退到它们自己的中立估计。
+   * 实现必须同步作答且不做 I/O；token meter 按每次度量解析它。
+   * @param _provider - 为本实例传给 `registerAdapter()` 的一条路由。
+   * @param _model - 传给 {@link GenerateOptions.model} 的精确模型 id。
+   * @returns 由路由持有的图像定价，或当该路由不声明任何定价时为 `undefined`。
    */
   imageRequestPricing(_provider: string, _model: string): LlmImageRequestPricing | undefined {
     return undefined
   }
 
   /**
-   * Resolve the image dimensions and byte target this adapter sends to the model.
-   * The default preserves normalized images; adapters that resize must override it.
-   * @param _provider - registered provider route.
-   * @param _model - exact model id.
-   * @param image - normalized image whose request projection is being resolved.
-   * @returns the same target used by request serialization, before provider-internal processing.
+   * 解析本适配器发送给模型的图像尺寸与字节目标。
+   * 默认保留已规范化的图像；会缩放的适配器必须覆盖它。
+   * @param _provider - 已注册的提供方路由。
+   * @param _model - 精确的模型 id。
+   * @param image - 其请求投影正在被解析的、已规范化的图像。
+   * @returns 请求序列化所使用的同一个目标，且先于提供方内部的处理。
    */
   imageRequestTarget(_provider: string, _model: string, image: ImageAttachmentRef): ImageRequestTarget {
     return { width: image.width, height: image.height, maxBytes: image.bytes }
   }
 
   /**
-   * List models this adapter can currently advertise for one owned provider.
-   * Core routing accepts unlisted model ids; catalog-driven entry points such
-   * as the GUI may require membership. Adapters used there must advertise
-   * their available models; the base empty catalog offers no GUI selection.
-   * @param _provider - one provider route owned by this adapter.
-   * @returns discoverable models in adapter-preferred order.
+   * 列出本适配器当前可以为它所持有的一条提供方宣传的各个模型。
+   * 核心路由接受未被列出的模型 id；像 GUI 那样由目录驱动的入口
+   * 可能要求成员身份。在那里被使用的适配器必须宣传它们可用的模型；
+   * 基类那个空目录不提供任何 GUI 选择。
+   * @param _provider - 本适配器所持有的一条提供方路由。
+   * @returns 按适配器偏好顺序排列的、可被发现的模型。
    */
   listModels(_provider: string): Promise<readonly LlmModelInfo[]> {
     return Promise.resolve([])
   }
 
   /**
-   * Resolve all metadata available for one exact model. This query is
-   * independent of the advisory catalog and does not validate request routing.
-   * @param provider - one provider route owned by this adapter.
-   * @param model - exact model id passed to {@link GenerateOptions.model}.
-   * @param _signal - cancellation for this exact-model lookup; asynchronous
-   *   implementations must settle promptly after it aborts.
-   * @returns provider/model identity plus any context, call-default, and reasoning metadata.
+   * 解析一条精确模型可得的全部元数据。这一查询独立于那份参考性的目录，
+   * 并且不校验请求路由。
+   * @param provider - 本适配器所持有的一条提供方路由。
+   * @param model - 传给 {@link GenerateOptions.model} 的精确模型 id。
+   * @param _signal - 本次精确模型查找的取消信号；异步实现必须在它
+   *   中止之后迅速落定。
+   * @returns 提供方/模型身份，外加任何上下文、调用默认值与推理元数据。
    */
   resolveModel(
     provider: string,
@@ -279,13 +278,13 @@ export abstract class LlmAdapter {
   }
 
   /**
-   * Bind exact model metadata and the eventual request dispatch to one adapter generation.
-   * Dynamic adapters override this so settings changes between preparation and
-   * dispatch cannot combine one generation's capabilities with another's endpoint.
-   * @param provider - registered provider route.
-   * @param model - exact model id.
-   * @param signal - cancellation for model resolution.
-   * @returns model metadata and a one-generation stream entry point.
+   * 把精确的模型元数据与最终的请求分发绑定到同一个适配器世代。
+   * 动态适配器覆盖它，从而使准备与分发之间发生的设置变更
+   * 无法把一个世代的能力与另一个世代的端点组合在一起。
+   * @param provider - 已注册的提供方路由。
+   * @param model - 精确的模型 id。
+   * @param signal - 模型解析的取消信号。
+   * @returns 模型元数据，以及一个单世代的流入口。
    */
   async prepareCall(provider: string, model: string, signal?: AbortSignal): Promise<PreparedAdapterCall> {
     return {
@@ -295,61 +294,59 @@ export abstract class LlmAdapter {
   }
 
   /**
-   * Stream one model call as raw chunks. The only required method.
-   * @param options - the fully-assembled request; implementations must honor `options.signal`.
-   * @returns the chunk stream, obeying the adapter contract documented on `StreamChunk`.
+   * 以原始块的形式流式输出一次模型调用。这是唯一必需的方法。
+   * @param options - 完整装配好的请求；实现必须遵守 `options.signal`。
+   * @returns 块流，遵守 `StreamChunk` 上所记载的适配器契约。
    */
   abstract stream(options: GenerateOptions): AsyncIterable<StreamChunk>
 }
 
 /**
- * What {@link LlmRuntime.registerAdapter} returns: the disposer, plus an
- * atomic route replacement for the same adapter instance.
+ * {@link LlmRuntime.registerAdapter} 的返回值：那个 disposer，
+ * 以及针对同一个适配器实例的原子性路由替换。
  */
 export interface AdapterRegistrationHandle {
-  /** Release every route this registration currently holds. */
+  /** 释放本次注册当前持有的每条路由。 */
   (): void
   /**
-   * Replace this registration's routes with `providers`, keeping the same
-   * adapter instance. The candidate set is validated in full first — a
-   * conflict with another adapter, an invalid name, or bad provider metadata
-   * throws and leaves the current routes untouched — and the swap itself is
-   * one synchronous section, so no request can observe a gap. An empty array
-   * is legal here (a settings section that emptied holds zero routes while
-   * staying registered), unlike an empty initial registration.
+   * 用 `providers` 替换本次注册的路由，并保留同一个适配器实例。
+   * 候选集合会先被完整校验——与另一个适配器冲突、一个无效的名称，
+   * 或错误的提供方元数据都会抛错，并且让当前的路由不受影响——
+   * 而这次替换本身是一个同步区段，因此没有任何请求能观察到空档。
+   * 这里一个空数组是合法的（一个被清空的小节在保持注册的同时
+   * 持有零条路由），这与一次空的初始注册不同。
    *
-   * Throws `LlmError` with code `REGISTRATION_DISPOSED` once the registration
-   * has been released: its routes are gone and its disposer has already run,
-   * so anything registered afterwards would have no owner left to release it.
-   * @param providers - the complete next route set for this registration.
+   * 一旦本次注册已被释放，就以错误码 `REGISTRATION_DISPOSED`
+   * 抛出 `LlmError`：它的路由已经消失，而它的 disposer 也已经运行过，
+   * 因此之后注册的任何东西都将没有持有者来释放它。
+   * @param providers - 本次注册的完整下一个路由集合。
    */
   replace(providers: string[]): void
 }
 
 /**
- * A live configurable-provider registration, disposable and atomically
- * replaceable — the directory counterpart of {@link AdapterRegistrationHandle}.
+ * 一个存活的、可配置提供方注册，可释放且可原子替换——
+ * 即 {@link AdapterRegistrationHandle} 在目录侧的对应物。
  */
 export interface DirectoryRegistrationHandle {
-  /** Withdraw every entry this registration currently holds. */
+  /** 撤下本次注册当前持有的每个条目。 */
   (): void
   /**
-   * Replace this registration's entries with `entries`. The candidate set is
-   * validated in full first — an entry another registration already declares,
-   * a duplicate within the set, or invalid metadata throws and leaves the
-   * current entries untouched — and the swap is one synchronous section, so no
-   * reader observes a gap. An empty array is legal here, unlike an empty
-   * initial registration.
+   * 用 `entries` 替换本次注册的条目。候选集合会先被完整校验——
+   * 一个已被另一次注册声明的条目、集合内部的重复，或无效的元数据
+   * 都会抛错，并且让当前的条目不受影响——而这次替换是一个同步区段，
+   * 因此没有任何读取者观察到空档。这里一个空数组是合法的，
+   * 这与一次空的初始注册不同。
    *
-   * Throws `LlmError` with code `REGISTRATION_DISPOSED` once the registration
-   * has been disposed.
+   * 一旦本次注册已被释放，就以错误码 `REGISTRATION_DISPOSED`
+   * 抛出 `LlmError`。
    */
   replace(entries: readonly LlmConfigurableProvider[]): void
 }
 
 /**
- * The abstract `llm` service: an adapter registry plus a streaming model-call
- * API, interceptable via the `llm/stream` waterfall.
+ * 抽象的 `llm` 服务：一个适配器注册表，外加一个可通过
+ * `llm/stream` 瀑布拦截的流式模型调用 API。
  */
 export class LlmRuntime extends TypertRemoteService {
   private adapters = new Map<string, AdapterRegistration>()
@@ -363,17 +360,16 @@ export class LlmRuntime extends TypertRemoteService {
     super(ctx, 'llm')
   }
 
-  /** Notify topology observers without letting one broken listener veto the commit. */
+  /** 通知各个拓扑观察者，且不让一个损坏的监听器否决这次提交。 */
   private emitAdaptersUpdated(): void {
-    // Cordis emit uses Array.map: one synchronous throw starves later
-    // listeners. Registry notifications are non-vetoing, so contain each
-    // callback independently.
+    // Cordis 的 emit 使用 Array.map：一次同步抛出会让较晚的监听器饿死。
+    // 注册表通知是不可否决的，因此独立地隔离每一个回调。
     for (const listener of this.ctx.events.dispatch('emit', ['llm/adapters-updated']) as Array<() => unknown>) {
       try {
         const returned = listener()
         if (returned != null && typeof (returned as PromiseLike<unknown>).then === 'function') {
-          // An emit listener may still be an async function; its rejection
-          // is contained here instead of becoming an unhandled rejection.
+          // 一个 emit 监听器仍然可能是一个 async 函数；它的拒绝
+          // 在这里被隔离，而不是变成一个未处理的拒绝。
           void Promise.resolve(returned as PromiseLike<unknown>).then(undefined, (error: unknown) => {
             this.warnAdaptersListenerFailure(error)
           })
@@ -384,26 +380,26 @@ export class LlmRuntime extends TypertRemoteService {
     }
   }
 
-  /** Contained-listener diagnostic shared by the sync and async failure paths. */
+  /** 由同步与异步两条失败路径共享的、已隔离监听器的诊断信息。 */
   private warnAdaptersListenerFailure(error: unknown): void {
     this.ctx.logger.warn('llm: an llm/adapters-updated listener failed')
     this.ctx.logger.warn(error)
   }
 
   /**
-   * Register an adapter for the given provider routes. Throws `LlmError` with code
-   * `DUPLICATE_ADAPTER` if any provider already has an adapter (all-or-nothing).
-   * Disposed with the fiber.
-   * @param providers - every provider route this adapter should serve.
-   * @param adapter - the adapter that streams calls for those providers.
-   * @returns the disposer, carrying {@link AdapterRegistrationHandle.replace}.
+   * 为给定的各条提供方路由注册一个适配器。当任何提供方已经拥有一个
+   * 适配器时，以错误码 `DUPLICATE_ADAPTER` 抛出 `LlmError`（全有或全无）。
+   * 随 fiber 一起被释放。
+   * @param providers - 本适配器应当服务的每条提供方路由。
+   * @param adapter - 为那些提供方流式输出各次调用的适配器。
+   * @returns 那个 disposer，并携带 {@link AdapterRegistrationHandle.replace}。
    */
   registerAdapter(providers: string[], adapter: LlmAdapter): AdapterRegistrationHandle {
-    // The routes this registration currently holds; `replace` rewrites it, and
-    // the disposer releases whatever it holds at disposal time.
+    // 本次注册当前持有的各条路由；`replace` 会重写它，
+    // 而那个 disposer 会释放它在释放时刻所持有的任何东西。
     const owned = new Set<string>()
-    // The disposer has run: `owned` being empty cannot say so on its own,
-    // because `replace([])` legally leaves a live registration holding none.
+    // disposer 已经运行过：`owned` 为空这一点本身无法说明这一点，
+    // 因为 `replace([])` 合法地留下一个持有零条路由的存活注册。
     let released = false
     const dispose = this.ctx.effect(function* (this: LlmRuntime) {
       if (providers.length === 0) throw new LlmError('an adapter must register at least one provider', 'INVALID_ADAPTER')
@@ -415,12 +411,12 @@ export class LlmRuntime extends TypertRemoteService {
         this.emitAdaptersUpdated()
       }
     }.bind(this), 'llm.registerAdapter()')
-    // ctx.effect's disposer returns Promise<void>; our disposer API is
-    // synchronous fire-and-forget — discard the (always-resolved) promise.
+    // ctx.effect 的 disposer 返回 Promise<void>；我们的 disposer API
+    // 是同步的即发即弃 —— 丢弃那个（总是已兑现的）promise。
     const handle = (() => void dispose()) as AdapterRegistrationHandle
     handle.replace = (next: string[]): void => {
-      // Registering here would leak: the effect's disposer already ran, so
-      // nothing remains to release whatever this call would put in the map.
+      // 在这里注册将会泄漏：那个 effect 的 disposer 已经运行过，
+      // 因此没有任何东西留下，来释放本次调用将放进映射表的东西。
       if (released) {
         throw new LlmError('a disposed adapter registration cannot replace its routes', 'REGISTRATION_DISPOSED')
       }
@@ -430,9 +426,9 @@ export class LlmRuntime extends TypertRemoteService {
   }
 
   /**
-   * Validate one candidate route set for `adapter`, treating routes this
-   * registration already holds as available. Nothing is mutated: a rejected
-   * candidate leaves the registry exactly as it was.
+   * 为 `adapter` 校验一个候选路由集合，并把本次注册已经持有的路由
+   * 当作可用。没有任何东西被改动：一个被拒绝的候选会让注册表
+   * 与之前完全一样。
    */
   private prepareRoutes(providers: string[], adapter: LlmAdapter, owned: ReadonlySet<string>): AdapterRegistration[] {
     const unique = new Set<string>()
@@ -459,11 +455,10 @@ export class LlmRuntime extends TypertRemoteService {
   }
 
   /**
-   * Swap this registration's routes for the prepared ones in one synchronous
-   * section, so no observer can see the registry between the release and the
-   * re-registration. The route set's one mutation point is also where
-   * `llm/adapters-updated` is published, so a `replace` announces itself
-   * exactly like a first registration.
+   * 在一个同步区段内把本次注册的路由换成那些已准备好的路由，
+   * 因此没有任何观察者能看到释放与重新注册之间的注册表。
+   * 该路由集合唯一的改动点也正是发布 `llm/adapters-updated` 的地方，
+   * 于是一次 `replace` 会像一次首次注册那样宣告自己。
    */
   private commitRoutes(owned: Set<string>, registrations: readonly AdapterRegistration[]): void {
     for (const provider of owned) this.adapters.delete(provider)
@@ -476,8 +471,8 @@ export class LlmRuntime extends TypertRemoteService {
   }
 
   /**
-   * Describe provider routes with a registered adapter.
-   * @returns detached provider metadata in registration order.
+   * 描述那些拥有已注册适配器的提供方路由。
+   * @returns 按注册顺序排列的、已分离的提供方元数据。
    */
   @Remote
   listProviders(): LlmProviderInfo[] {
@@ -485,22 +480,20 @@ export class LlmRuntime extends TypertRemoteService {
   }
 
   /**
-   * Declare provider routes an adapter plugin can activate through
-   * configuration. Registration is all-or-nothing: an empty list, invalid
-   * entry, or a provider already declared by any registration throws
-   * `LlmError` without registering the rest. Disposed with the fiber.
-   * @param entries - every configurable provider this plugin owns.
-   * @returns a handle that withdraws all of them, and can atomically replace them.
+   * 声明那些适配器插件可以通过配置激活的提供方路由。注册是全有或全无的：
+   * 一个空列表、无效的条目，或一个已被任何一次注册声明过的提供方，
+   * 都会在不注册其余部分的前提下抛出 `LlmError`。随 fiber 一起被释放。
+   * @param entries - 本插件所持有的每个可配置提供方。
+   * @returns 一个撤下它们全部、并能原子地替换它们的句柄。
    */
   registerConfigurableProviders(entries: readonly LlmConfigurableProvider[]): DirectoryRegistrationHandle {
     let held: LlmConfigurableProvider[] = []
     let disposed = false
     /**
-     * Validate a candidate set in full against everything this registration
-     * does not already hold, then publish it. Nothing is written until the
-     * whole set passes, so a refused candidate leaves the current entries in
-     * place — the property that makes `replace` a swap rather than a
-     * delete-then-add that can strand the directory empty.
+     * 针对本次注册尚未持有的一切，完整校验一个候选集合，然后发布它。
+     * 在整个集合通过之前不写入任何东西，因此一个被拒绝的候选会让当前
+     * 条目留在原处——正是这一性质让 `replace` 成为一次替换，
+     * 而不是一次可能把目录搁置为空的先删后加。
      */
     const commit = (candidates: readonly LlmConfigurableProvider[]): void => {
       const detached: LlmConfigurableProvider[] = []
@@ -548,8 +541,8 @@ export class LlmRuntime extends TypertRemoteService {
   }
 
   /**
-   * List every declared configurable provider, registered or dormant.
-   * @returns detached directory entries in declaration order.
+   * 列出每个已声明的可配置提供方，无论已注册还是处于休眠。
+   * @returns 按声明顺序排列的、已分离的目录条目。
    */
   @Remote
   listConfigurableProviders(): LlmConfigurableProvider[] {
@@ -557,14 +550,13 @@ export class LlmRuntime extends TypertRemoteService {
   }
 
   /**
-   * Offer to interrogate provider endpoints on behalf of the settings
-   * namespace this plugin owns. The namespace is the key because that is what
-   * a configuration surface already holds from the configurable-provider
-   * directory, and because a provider being *added* has no route to name yet.
-   * Disposed with the fiber.
-   * @param settingsNs - the namespace whose profiles this discovery serves.
-   * @param discover - interrogates one endpoint and must honor the supplied signal.
-   * @returns the disposer that withdraws the offer.
+   * 代表本插件所持有的设置命名空间，主动提出去探查各个提供方端点。
+   * 命名空间之所以是那个键，是因为一个配置界面已经从可配置提供方目录
+   * 那里持有它，并且因为一个正在被*添加*的提供方还没有可以指名的路由。
+   * 随 fiber 一起被释放。
+   * @param settingsNs - 本次发现所服务的那些 profile 所属的命名空间。
+   * @param discover - 探查一个端点，且必须遵守所提供的信号。
+   * @returns 撤下该提议的 disposer。
    */
   registerModelDiscovery(
     settingsNs: string,
@@ -589,14 +581,13 @@ export class LlmRuntime extends TypertRemoteService {
   }
 
   /**
-   * Interrogate one provider endpoint for the models it advertises. The
-   * request describes a draft, not a stored route, so nothing here reads or
-   * writes settings or credentials — the caller owns both, and the reply is
-   * candidate metadata a surface may offer for adoption.
-   * @param settingsNs - namespace whose registered discovery serves this draft.
-   * @param request - the endpoint, protocol, and one-shot credential to use.
-   * @param signal - caller cancellation.
-   * @returns the advertised models, deduplicated in endpoint order.
+   * 探查一个提供方端点，看它宣传了哪些模型。该请求描述的是一份草稿，
+   * 而非一条已存储的路由，因此这里没有任何东西读取或写入设置或凭据——
+   * 两者都由调用方持有，而应答是某个界面可以提议采纳的候选元数据。
+   * @param settingsNs - 其已注册发现服务于这份草稿的命名空间。
+   * @param request - 要使用的端点、协议与一次性凭据。
+   * @param signal - 调用方的取消信号。
+   * @returns 被宣传的各个模型，按端点顺序去重。
    */
   async discoverModels(
     settingsNs: string,
@@ -607,8 +598,8 @@ export class LlmRuntime extends TypertRemoteService {
     if (discover === undefined) {
       throw new LlmError(`no model discovery is registered for "${settingsNs}"`, 'NO_DISCOVERY')
     }
-    // One of the two identifies what to describe: a route the adapter knows, or
-    // an endpoint to ask. Neither leaves nothing to answer about.
+    // 这两者之一标识要描述什么：一条适配器知道的路由，或一个要去询问的端点。
+    // 两者都缺失就没有任何可以作答的对象。
     if ((request.provider ?? '').length === 0 && (request.baseURL ?? '').length === 0) {
       throw new LlmError('model discovery needs a provider route or a baseURL', 'INVALID_DISCOVERY')
     }
@@ -632,12 +623,12 @@ export class LlmRuntime extends TypertRemoteService {
   }
 
   /**
-   * Remote adapter for one draft provider interrogation.
-   * @param settingsNs - namespace whose registered discovery serves this draft.
-   * @param request - endpoint, protocol, and one-shot credential to use.
-   * @param signal - caller cancellation supplied by the Remote carrier.
-   * @returns advertised models in endpoint order.
-   * @throws RemoteError with `llm/model-discovery-rejected` when discovery refuses or fails.
+   * 供一次草稿提供方探查使用的远端适配器。
+   * @param settingsNs - 其已注册发现服务于这份草稿的命名空间。
+   * @param request - 要使用的端点、协议与一次性凭据。
+   * @param signal - 由 Remote 载体提供的调用方取消信号。
+   * @returns 按端点顺序排列的、被宣传的模型。
+   * @throws 当发现拒绝或失败时，抛出带有 `llm/model-discovery-rejected` 的 RemoteError。
    */
   @Remote('discoverModels')
   async remoteDiscoverModels(
@@ -661,59 +652,56 @@ export class LlmRuntime extends TypertRemoteService {
   }
 
   /**
-   * Resolve the retry policy captured when one provider route was registered.
-   * @param provider - registered provider route to inspect.
-   * @returns the provider-owned policy, with normal defaults already resolved.
+   * 解析某条提供方路由被注册时所捕获的重试策略。
+   * @param provider - 要查看的、已注册的提供方路由。
+   * @returns 由提供方持有的策略，其中 normal 默认值已经解析完成。
    */
   providerRetryPolicy(provider: string): ResolvedRetryPolicy {
     return this.registration(provider).retryPolicy
   }
 
   /**
-   * Resolve provider-side request-image pricing for one exact route, or
-   * `undefined` when the provider is unregistered or declares none. Unknown
-   * providers degrade to `undefined` rather than throwing because callers
-   * price durable history whose route may no longer be mounted.
-   * @param provider - provider route named by a request header.
-   * @param model - exact model id named by the same header.
-   * @returns the owning adapter's image pricing for the route, when declared.
+   * 为一条精确路由解析提供方侧的请求图像定价，或当该提供方未注册
+   * 或未声明任何定价时为 `undefined`。未知的提供方降级为 `undefined`
+   * 而不是抛错，因为调用方要为那些其路由可能已不再挂载的持久化历史计价。
+   * @param provider - 由某个请求头指名的提供方路由。
+   * @param model - 由同一个请求头指名的精确模型 id。
+   * @returns 持有该路由的适配器的图像定价，当它声明了时。
    */
   imageRequestPricing(provider: string, model: string): LlmImageRequestPricing | undefined {
     return this.adapters.get(provider)?.adapter.imageRequestPricing(provider, model)
   }
 
   /**
-   * Resolve the image projection for an exact registered model route.
-   * @param provider - registered provider route.
-   * @param model - exact model id.
-   * @param image - normalized image reference.
-   * @returns dimensions and byte target used by the adapter's request serializer.
+   * 为一条精确的已注册模型路由解析图像投影。
+   * @param provider - 已注册的提供方路由。
+   * @param model - 精确的模型 id。
+   * @param image - 已规范化的图像引用。
+   * @returns 该适配器的请求序列化器所使用的尺寸与字节目标。
    */
   imageRequestTarget(provider: string, model: string, image: ImageAttachmentRef): ImageRequestTarget {
     return this.registration(provider).adapter.imageRequestTarget(provider, model, image)
   }
 
   /**
-   * Resolve the exact text one durable file occurrence contributes to every
-   * provider request in the current execution environment.
-   * @param ref - durable verbatim file reference from model history.
-   * @returns the same deterministic handle text used at adapter dispatch.
+   * 解析一个持久化文件出现在当前执行环境中对每个提供方请求所贡献的精确文本。
+   * @param ref - 来自模型历史的、持久化的逐字文件引用。
+   * @returns 在适配器分发处所使用的同一个确定性句柄文本。
    */
   fileRequestText(ref: FileAttachmentRef): string {
     return fileHandleText(ref, this.fileReadPath(ref))
   }
 
-  /** Detach typed adapter-owned modality metadata. */
+  /** 分离由适配器持有的、带类型的模态元数据。 */
   private detachedModalities(modalities: readonly ModelModality[] | undefined): ModelModality[] | undefined {
     return modalities === undefined ? undefined : [...modalities]
   }
 
   /**
-   * Discover models advertised by one registered provider. Catalog membership
-   * does not constrain core routing. Catalog-driven entry points may restrict
-   * selection and submission to the advertised models.
-   * @param provider - registered provider route to inspect.
-   * @returns detached model metadata in adapter-preferred order.
+   * 发现一条已注册提供方所宣传的各个模型。目录成员身份并不约束核心路由。
+   * 由目录驱动的入口可能把选择与提交限制在被宣传的那些模型上。
+   * @param provider - 要查看的、已注册的提供方路由。
+   * @returns 按适配器偏好顺序排列的、已分离的模型元数据。
    */
   async listModels(provider: string): Promise<LlmModelInfo[]> {
     const adapter = this.registration(provider).adapter
@@ -745,13 +733,13 @@ export class LlmRuntime extends TypertRemoteService {
   }
 
   /**
-   * Resolve and validate all metadata from the adapter that owns one exact
-   * route. The result is detached from adapter-owned objects; catalog
-   * membership remains advisory and does not control request routing.
-   * @param provider - registered provider route to inspect.
-   * @param model - exact model id passed to the adapter.
-   * @param signal - optional cancellation for adapter-owned asynchronous lookup.
-   * @returns exact model identity plus available context and reasoning metadata.
+   * 解析并校验来自持有某条精确路由的适配器的全部元数据。该结果
+   * 已从由适配器持有的对象上分离；目录成员身份仍然是参考性的，
+   * 并不控制请求路由。
+   * @param provider - 要查看的、已注册的提供方路由。
+   * @param model - 传给该适配器的精确模型 id。
+   * @param signal - 供由适配器持有的异步查找使用的可选取消信号。
+   * @returns 精确的模型身份，外加可得的上下文与推理元数据。
    */
   async resolveModelInfo(
     provider: string,
@@ -770,7 +758,7 @@ export class LlmRuntime extends TypertRemoteService {
     return this.normalizeModelInfo(registration, model, resolved)
   }
 
-  /** Validate and detach one adapter-returned exact model result. */
+  /** 校验并分离一个由适配器返回的精确模型结果。 */
   private normalizeModelInfo(
     registration: AdapterRegistration,
     model: string,
@@ -798,10 +786,10 @@ export class LlmRuntime extends TypertRemoteService {
         'INVALID_MODEL_CONTEXT',
       )
     }
-    // Capability metadata rides through: an explicit modality omission is
-    // negative capability downstream preflights act on (image admission).
+    // 能力元数据原样带过：一个显式的模态遗漏，就是下游预检
+    // （图像准入）所依据的否定能力。
     const inputModalities = this.detachedModalities(resolved.inputModalities)
-    // Widened: adapters derive this mode from catalog config, so the value is checked as a string.
+    // 放宽：适配器从目录配置派生这个模式，因此该值按字符串校验。
     const systemPromptUpdate: string | undefined = resolved.systemPromptUpdate
     if (systemPromptUpdate !== undefined && systemPromptUpdate !== 'in-history') {
       throw new LlmError(
@@ -809,7 +797,7 @@ export class LlmRuntime extends TypertRemoteService {
         'INVALID_MODEL_INFO',
       )
     }
-    // Widened for the same reason: catalog config supplies the tool update mode as text.
+    // 出于同样的原因放宽：目录配置以文本形式提供工具更新模式。
     const toolUpdate: string | undefined = resolved.toolUpdate
     if (toolUpdate !== undefined && toolUpdate !== 'in-history' && toolUpdate !== 'addition-only') {
       throw new LlmError(
@@ -882,14 +870,13 @@ export class LlmRuntime extends TypertRemoteService {
   }
 
   /**
-   * Validate a conversation call config against its exact model capability and
-   * materialize adapter-configured defaults. Unsupported explicit efforts
-   * reject before provider I/O; no clamping or aliasing is performed. This
-   * standalone query does not bind a later dispatch; use {@link prepareCall}
-   * when logging and streaming must share one adapter registration.
-   * @param config - provider/model route and optional request controls.
-   * @param signal - optional cancellation for adapter-owned capability lookup.
-   * @returns a detached config only when a default must be materialized.
+   * 针对某条精确模型的能力校验一次对话调用配置，并物化由适配器配置的
+   * 默认值。不受支持的显式强度会在任何提供方 I/O 之前被拒绝；
+   * 不执行任何钳制或别名化。这一独立查询并不绑定之后的一次分发；
+   * 当记录日志与流式输出必须共享同一个适配器注册时，请使用 {@link prepareCall}。
+   * @param config - 提供方/模型路由，以及可选的请求控制项。
+   * @param signal - 供由适配器持有的能力查找使用的可选取消信号。
+   * @returns 仅当某个默认值必须被物化时，一份已分离的配置。
    */
   async resolveCallConfig(config: LlmCallConfig, signal?: AbortSignal): Promise<LlmCallConfig> {
     return (await this.resolveCallFor(this.registration(config.provider), config, signal)).config
@@ -904,7 +891,7 @@ export class LlmRuntime extends TypertRemoteService {
     return this.resolveCallWithInfo(config, info)
   }
 
-  /** Validate request controls against one already-bound exact model result. */
+  /** 针对一个已绑定的精确模型结果校验各个请求控制项。 */
   private resolveCallWithInfo(
     config: LlmCallConfig,
     info: LlmResolvedModelInfo,
@@ -942,16 +929,15 @@ export class LlmRuntime extends TypertRemoteService {
   }
 
   /**
-   * Resolve one call under its current adapter registration. The returned
-   * one-shot handle keeps that registration across header logging and dispatch,
-   * so HMR cannot combine one adapter's capability result with another adapter.
-   * An optional synchronous callback selects concrete controls using captured
-   * model metadata. Defaults and validation apply to its result. Callback
-   * failures and cancellation reject preparation before dispatch.
-   * @param config - provider/model route and optional concrete request controls.
-   * @param signal - optional cancellation for adapter-owned capability lookup.
-   * @param configure - pure control selection, called once before defaults and validation.
-   * @returns a prepared config and its registration-bound stream entry point.
+   * 在其当前的适配器注册之下解析一次调用。所返回的那个一次性句柄
+   * 会在请求头记录与分发之间保持该注册，因此 HMR 无法把一个适配器的
+   * 能力结果与另一个适配器组合起来。一个可选的同步回调使用已捕获的
+   * 模型元数据选择具体的控制项。默认值与校验作用于它的结果。
+   * 回调失败与取消会在分发之前让这次准备 reject。
+   * @param config - 提供方/模型路由，以及可选的、具体的请求控制项。
+   * @param signal - 供由适配器持有的能力查找使用的可选取消信号。
+   * @param configure - 纯粹的控制项选择，在默认值与校验之前被调用一次。
+   * @returns 一份已准备的配置，以及它绑定到该注册的流入口。
    */
   async prepareCall(
     config: LlmCallConfig,
@@ -1019,7 +1005,7 @@ export class LlmRuntime extends TypertRemoteService {
     return registration
   }
 
-  /** Remove replay state whose historical route is owned by another adapter. */
+  /** 移除那些其历史路由由另一个适配器持有的回放状态。 */
   private forAdapter(options: GenerateOptions, adapter: LlmAdapter): GenerateOptions {
     const messages: RequestMessage[] = options.messages.map((message) => {
       if (message.role !== 'assistant') return message
@@ -1037,29 +1023,28 @@ export class LlmRuntime extends TypertRemoteService {
   }
 
   /**
-   * Resolve the current execution-world read path of one durable file
-   * reference through the mounted attachment and filesystem providers.
+   * 通过已挂载的附件与文件系统提供方，解析一个持久化文件引用
+   * 在当前执行世界中的读取路径。
    */
   private fileReadPath(ref: FileAttachmentRef): string | undefined {
     let hostPath: string | undefined
     try {
       hostPath = this.ctx.get('attachments')?.fileHostPath(ref)
     } catch {
-      // A malformed durable reference degrades this occurrence to the no-path
-      // handle instead of failing every later request over the same log.
+      // 一个格式错误的持久化引用会把这次出现降级为无路径的句柄，
+      // 而不是让同一份日志之后的每个请求都失败。
       return undefined
     }
     if (hostPath === undefined) return undefined
-    // Structural face: dsh-llm cannot depend on the filesystem package, and
-    // only this one mapping method is consumed.
+    // 结构性的接口面：dsh-llm 不能依赖文件系统包，而只消费这一个映射方法。
     const fs = this.ctx.get('fs') as { processPathFromHostPath(hostPath: string): string | undefined } | undefined
     return fs?.processPathFromHostPath(hostPath)
   }
 
   /**
-   * Final adapter boundary. Adapter selection, dispatch, iterator construction,
-   * and iteration failures become one terminal failure chunk. Middleware and
-   * downstream consumer failures remain thrown plugin or consumer errors.
+   * 最终的适配器边界。适配器选择、分发、迭代器构造与迭代失败
+   * 都会变成一个终止性的失败块。中间件与下游消费者的失败
+   * 仍然是被抛出的插件或消费者错误。
    */
   private async * adapterStream(
     options: GenerateOptions,
@@ -1093,7 +1078,7 @@ export class LlmRuntime extends TypertRemoteService {
         : Object.isFrozen(options)
           ? deepFreeze({ ...options, ...resolvedConfig })
           : { ...options, ...resolvedConfig }
-      // Files are never dispatched natively: every route receives handle text.
+      // 文件永远不会原生地被分发：每条路由收到的都是句柄文本。
       let projectedMessages: readonly RequestMessage[] = resolvedOptions.messages
       if (projectedMessages.some(message => contentHasFile(message.content))) {
         projectedMessages = projectFilesToText(projectedMessages, ref => this.fileReadPath(ref))
@@ -1103,7 +1088,7 @@ export class LlmRuntime extends TypertRemoteService {
         && projectedMessages.some(message => contentHasImage(message.content))) {
         projectedMessages = projectImagesForTextModel(projectedMessages)
       }
-      // Tool changes are logged on every route; the route's declared mode selects what it receives.
+      // 工具变更在每条路由上都会被记录；由该路由已声明的模式选择它收到什么。
       const projectedTools = projectToolUpdates(projectedMessages, resolvedOptions.tools, modelInfo.toolUpdate, resolvedOptions.toolHistory)
       projectedMessages = projectedTools.messages
       let projectedOptions = resolvedOptions
@@ -1140,8 +1125,8 @@ export class LlmRuntime extends TypertRemoteService {
           completed = true
           return
         }
-        // End the adapter-owned try before yielding: consumer/middleware
-        // failures resumed into this generator must remain thrown.
+        // 在 yield 之前结束由适配器持有的那个 try：被恢复进本生成器的
+        // 消费者/中间件失败必须保持被抛出。
         yield item.value
       }
     } finally {
@@ -1153,15 +1138,13 @@ export class LlmRuntime extends TypertRemoteService {
   }
 
   /**
-   * Stream one model call as raw chunks (token-level deltas). Replay state is
-   * retained only when the same adapter instance owns its historical provider
-   * and the target provider. Final adapter selection remains fixed through
-   * asynchronous exact-model resolution and dispatch. Adapter selection,
-   * dispatch, and iteration failures become terminal `error` or `aborted`
-   * finish chunks; middleware, nested-call, cleanup, and consumer failures
-   * remain thrown.
-   * @param options - the full request; `options.provider` selects the adapter.
-   * @returns the chunk stream, possibly wrapped by `llm/stream` listeners.
+   * 以原始块（令牌级增量）的形式流式输出一次模型调用。只有当同一个
+   * 适配器实例同时持有其历史提供方与目标提供方时，回放状态才会被保留。
+   * 最终的适配器选择在异步的精确模型解析与分发期间保持固定。适配器选择、
+   * 分发与迭代失败会变成终止性的 `error` 或 `aborted` 结束块；
+   * 中间件、嵌套调用、清理与消费者的失败仍然是被抛出的。
+   * @param options - 完整的请求；`options.provider` 选择那个适配器。
+   * @returns 块流，可能被各个 `llm/stream` 监听器包装。
    */
   stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
     return this.streamWithRegistration(options)
@@ -1180,7 +1163,7 @@ export class LlmRuntime extends TypertRemoteService {
   }
 }
 
-/** Convert one adapter throw into the stream protocol's terminal outcome. */
+/** 把一次适配器抛出转换为流协议的终止性结果。 */
 function adapterFailureChunk(error: unknown, signal?: AbortSignal): StreamChunk {
   const failure = normalizeLlmFailure(error)
   return {
@@ -1191,7 +1174,7 @@ function adapterFailureChunk(error: unknown, signal?: AbortSignal): StreamChunk 
   }
 }
 
-/** Copy a directory entry, including its arrays, so neither side can mutate the other's copy. */
+/** 复制一个目录条目，包括它的各个数组，因此任何一方都无法改动另一方的副本。 */
 function detachDirectoryEntry(entry: LlmConfigurableProvider): LlmConfigurableProvider {
   const { nativeAuth } = entry
   return {

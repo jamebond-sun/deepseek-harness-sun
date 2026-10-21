@@ -1,14 +1,13 @@
 /**
- * Configuration schema and provider-profile validation for the pi-ai adapter.
- * Profiles are a dict keyed by provider route, so the composition base and a
- * user-settings layer merge per provider and the route set is structural.
+ * pi-ai 适配器的配置 schema 与提供方 profile 校验。各个 profile 是一个以
+ * 提供方路由为键的字典，因此组合基座与用户设置层按提供方合并，
+ * 而路由集合是结构性的。
  *
- * A route key is not required to name an installed pi-ai provider. When it does,
- * that provider's endpoint, protocol, display name, and model catalog are the
- * profile's defaults and the profile overrides them field by field; when it does
- * not, the profile is the whole provider declaration. Stored reads retain
- * catalog diagnostics beside serviceable models; writes validate every changed
- * provider before persistence. Self-contained profile constraints apply to both.
+ * 一个路由键并不要求指名某个已安装的 pi-ai 提供方。当它指名了，该提供方的
+ * 端点、协议、展示名称与模型目录就成为该 profile 的默认值，而该 profile
+ * 逐字段覆盖它们；当它没有指名，该 profile 就是整个提供方声明。已存储的
+ * 读取会在可服务的模型旁边保留目录诊断信息；写入会在持久化之前校验
+ * 每一个发生变化的提供方。两种情况下都适用那些自包含的 profile 约束。
  *
  * @module dsh-llm-pi-ai/config
  */
@@ -43,39 +42,35 @@ import type {
 } from './catalog.ts'
 import { buildProvider, supportedProtocols } from './provider.ts'
 
-/** Default maximum idle interval while an adapter stream read is outstanding. */
+/** 一次适配器流式读取处于未完成状态时的默认最大空闲间隔。 */
 export const DEFAULT_STREAM_IDLE_TIMEOUT_MS = 300_000
 
 /**
- * Default request-level bound on base64-encoded image payload. Every image in
- * history is re-encoded into every request body, so an unbounded conversation
- * eventually exceeds a provider or gateway request-size cap and the session
- * can never complete another request. The 20MiB default admits fifteen 1MiB
- * request versions after base64 expansion and reserves request capacity for
- * system prompts, history, tools, and JSON.
- * Deployments behind stricter gateways lower it per route.
+ * 对 base64 编码图像载荷的默认请求级上限。历史中的每张图像都会被重新编码
+ * 进每一个请求体，因此一段无上界的对话最终会超出某个提供方或网关的请求
+ * 大小上限，而该会话永远无法再完成一次请求。这个 20MiB 默认值在 base64
+ * 展开之后接纳十五个 1MiB 的请求版本，并为系统提示、历史、工具与 JSON
+ * 预留请求容量。位于更严格网关之后的部署可以逐路由调低它。
  */
 export const DEFAULT_MAX_REQUEST_IMAGE_BYTES = 20 * 1024 * 1024
-/** Default total-pixel budget preserves the complete 2048px normalized attachment. */
+/** 默认的总像素预算保留完整的 2048px 已规范化附件。 */
 export const DEFAULT_REQUEST_IMAGE_PIXEL_BUDGET = 2048 * 2048
-/** Default raw encoded-byte target before inline base64 expansion; the smallest quality-ladder output is used when no quality fits. */
+/** 内联 base64 展开之前默认的原始编码字节目标；当没有质量档位可用时使用最小的质量阶梯输出。 */
 export const DEFAULT_REQUEST_IMAGE_MAX_BYTES = 1024 * 1024
 
-/** Context capacity assumed for a model neither configuration nor the catalog sizes. */
+/** 对于某个既未被配置、也未被目录给出容量的模型所假定的上下文容量。 */
 export const DEFAULT_CONTEXT_WINDOW = 262_144
 
-/** Output capability assumed for a model neither configuration nor the catalog sizes. */
+/** 对于某个既未被配置、也未被目录给出容量的模型所假定的输出能力。 */
 export const DEFAULT_MAX_TOKENS = 32_768
 
 /**
- * Modalities assumed for a model neither configuration nor the catalog
- * declares. Text is the floor every supported protocol certainly carries, so
- * this is the absence of a declaration rather than a guess at the endpoint:
- * nothing can interrogate a gateway for its modalities, and the two wrong
- * answers do not cost the same. Under-claiming refuses the image before it is
- * attached, naming the model. Over-claiming admits one the provider then
- * rejects mid-turn, after the message is durable, leaving the session
- * repeating a request that cannot succeed.
+ * 对于某个既未被配置、也未被目录声明模态的模型所假定的模态。文本是每一个
+ * 受支持协议都确定会承载的底线，因此这是*缺少一份声明*，而不是对端点的一次
+ * 猜测：没有任何东西能就一个网关的模态去询问它，而那两个错误答案的代价
+ * 并不相同。声明不足会在图像被附上之前就拒绝它，并指名该模型。
+ * 声明过头则会接纳一个提供方之后在轮次中途拒绝的东西——而此时该消息
+ * 已经持久化，于是该会话只能重复一个不可能成功的请求。
  */
 export const DEFAULT_INPUT: readonly PiAiModality[] = ['text']
 
@@ -88,147 +83,139 @@ export type {
   PiAiThinkingFormat,
 } from './catalog.ts'
 
-/** Configuration for one pi-ai provider route; the `providers` dict key IS the route. */
+/** 一条 pi-ai 提供方路由的配置；`providers` 字典的那个键*就是*该路由。 */
 export interface PiAiProviderProfile {
-  /** Credential reference (environment-variable name) resolved per request through `ctx.credentials`. */
+  /** 凭据引用（环境变量名），每次请求时通过 `ctx.credentials` 解析。 */
   apiKeyEnv?: string
-  /** Name shown by configuration surfaces; defaults to the route key. */
+  /** 由各个配置界面展示的名称；默认为该路由键。 */
   displayName?: string
   /**
-   * Wire protocol every model on this route speaks. Omission keeps each
-   * installed catalog model's own protocol, which is why a catalog route needs
-   * no protocol at all; a route the catalog does not ship must name one.
+   * 本路由上每个模型所说的线协议。省略会保留每个已安装目录模型自己的协议，
+   * 而正因如此一条目录路由完全不需要协议；一条目录并不自带的路由则必须指名一个。
    */
   api?: string
-  /** Endpoint for this route's models; defaults to the installed catalog's endpoint. */
+  /** 本路由各个模型的端点；默认为已安装目录的端点。 */
   baseURL?: string
   /**
-   * This route's model catalog. Omission serves the installed catalog for the
-   * route unchanged; an explicit list replaces it, each entry defaulting its
-   * unset fields from the installed model of the same id.
+   * 本路由的模型目录。省略会原样提供该路由的已安装目录；一个显式列表会
+   * 替换它，其中每个条目从同 id 的已安装模型那里取默认值来补全它未设置的字段。
    */
   models?: PiAiModelProfile[]
   /**
-   * Installed-catalog customizations by model id: each entry reshapes that
-   * one model with the same fields a {@link models} entry takes, while the
-   * rest of the catalog keeps serving untouched. Only meaningful on a catalog
-   * route with no `models` list — `models` already replaces the catalog, so
-   * an override beside it, on a route the catalog does not ship, or naming a
-   * model the catalog does not describe is refused rather than skipped.
+   * 按模型 id 组织的、已安装目录的定制项：每个条目用与某个 {@link models}
+   * 条目相同的字段去重塑那一个模型，而目录的其余部分继续原样服务。
+   * 只在一个没有 `models` 列表的目录路由上有意义——`models` 已经替换了目录，
+   * 因此它旁边的一个覆盖项、在一条目录并不自带的路由上的一个覆盖项，
+   * 或指名了一个目录并未描述的模型的覆盖项，都会被拒绝而不是被跳过。
    */
   modelOverrides?: Record<string, PiAiModelOverride>
   /**
-   * pi-ai wire-compatibility switches defaulting every model on this route
-   * whose protocol declares them; each model's own `compat` overrides per
-   * field. What neither sets keeps the installed catalog entry's value, then
-   * pi-ai's own detection. A switch no model on the route could read is
-   * refused rather than left looking applied.
+   * pi-ai 的线兼容开关，为那些其协议声明了它们的本路由模型提供默认值；
+   * 每个模型自己的 `compat` 逐字段覆盖。两者都未设置的，保留已安装目录
+   * 条目中的那个值，然后是 pi-ai 自己的检测。一个本路由上没有模型能读取的
+   * 开关会被拒绝，而不是看起来已被应用。
    */
   compat?: PiAiCompatProfile
   /**
-   * Context capacity for a model this route lists that neither the entry nor
-   * the installed catalog sizes (default 262,144). A guess by construction, so
-   * a deployment whose gateway serves smaller models corrects it here.
+   * 本路由所列出的、其条目与已安装目录都未给出容量的某个模型的上下文容量
+   *（默认 262,144）。按构造它是一次猜测，因此一个其网关服务更小模型的部署
+   * 可以在这里改正它。
    */
   defaultContextWindow?: number
   /**
-   * Output capability for a model this route lists that neither the entry nor
-   * the installed catalog sizes (default 32,768). This sizes the model; it
-   * never becomes a per-request cap on its own.
+   * 本路由所列出的、其条目与已安装目录都未给出容量的某个模型的输出能力
+   *（默认 32,768）。这是给模型定尺寸；它自身从不成为一个按请求的上限。
    */
   defaultMaxTokens?: number
   /**
-   * Request modalities for a model this route lists that neither its entry's
-   * {@link PiAiModelProfile.input} nor the installed catalog declares (default
-   * `[text]`). A fallback like the capacities above, not an override: a
-   * catalog model keeps the modalities the catalog records for it, and this
-   * value never narrows one. A gateway serving vision models the catalog does
-   * not describe declares `[text, image]` once here instead of on every entry.
-   * Unlike an entry's list, this one may not be empty — nothing sits below it
-   * to answer instead.
+   * 本路由所列出的、其条目的 {@link PiAiModelProfile.input} 与已安装目录
+   * 都未声明的某个模型的请求模态（默认 `[text]`）。与上面那些容量一样是
+   * 一次兜底，而不是一次覆盖：一个目录模型保留该目录为它记录的那些模态，
+   * 而该值从不收窄它们。一个服务着目录并未描述的视觉模型的网关，
+   * 可以在这里一次性声明 `[text, image]`，而不是在每个条目上都声明。
+   * 与某个条目的列表不同，这个列表不允许为空——它之下没有任何东西可以代为作答。
    */
   defaultInput?: PiAiModality[]
-  /** Provider request headers, validated against Fetch when the profile resolves; Harness attribution wins reserved names. */
+  /** 提供方请求头，在该 profile 解析时针对 Fetch 校验；保留名称由 Harness 归因胜出。 */
   headers?: Record<string, string>
-  /** Provider-neutral pi-ai reasoning level. */
+  /** 与提供方无关的 pi-ai 推理强度。 */
   reasoning?: ModelThinkingLevel
-  /** Token budgets used by reasoning providers that support them. */
+  /** 那些支持它的推理提供方所使用的令牌预算。 */
   thinkingBudgets?: ThinkingBudgets
-  /** Prompt-cache retention preference. */
+  /** 提示缓存保留偏好。 */
   cacheRetention?: CacheRetention
-  /** Streaming transport preference. */
+  /** 流式传输偏好。 */
   transport?: Transport
-  /** HTTP/provider SDK timeout in milliseconds. */
+  /** HTTP/提供方 SDK 超时，以毫秒计。 */
   timeoutMs?: number
-  /** WebSocket connection timeout in milliseconds. */
+  /** WebSocket 连接超时，以毫秒计。 */
   websocketConnectTimeoutMs?: number
-  /** Maximum provider idle time while one stream read is outstanding. */
+  /** 一次流式读取处于未完成状态时提供方的最大空闲时间。 */
   streamIdleTimeoutMs?: number
   /**
-   * Maximum base64-encoded image payload per request. When a request's
-   * accumulated images exceed it, the oldest images are replaced by text
-   * placeholders until the request fits, so a long session keeps completing
-   * requests instead of being rejected by a request-size cap.
+   * 每次请求中 base64 编码图像载荷的上限。当某次请求的图像累计量超出它时，
+   * 最早的图像会被文本占位符替换，直到该请求放得下，于是一个很长的会话
+   * 能够继续完成请求，而不是被一个请求大小上限拒绝。
    */
   maxRequestImageBytes?: number
-  /** Total-pixel budget for each deterministic inline request version. */
+  /** 每个确定性的内联请求版本的总像素预算。 */
   requestImagePixelBudget?: number
   /**
-   * Raw encoded-byte target for each deterministic inline request version;
-   * the smallest quality-ladder output is used when no quality fits.
+   * 每个确定性的内联请求版本的原始编码字节目标；
+   * 当没有质量档位可用时使用最小的质量阶梯输出。
    */
   requestImageMaxBytes?: number
-  /** Provider-owned model-request retry policy; omission uses normal mode with five retries. */
+  /** 由提供方持有的模型请求重试策略；省略时使用 normal 模式并重试五次。 */
   retryPolicy?: RetryPolicyConfig
 }
 
-/** Validated profile with its route stamped and every adapter-owned default resolved. */
+/** 已校验的 profile，带有它的路由戳，以及每个由适配器持有的默认值都已解析完成。 */
 export interface ResolvedPiAiProviderProfile
   extends Omit<PiAiProviderProfile, 'apiKeyEnv' | 'retryPolicy' | 'models' | 'displayName'> {
-  /** Harness route key and the `Models` collection key (the configuration dict key). */
+  /** Harness 路由键，以及那个 `Models` 集合键（即配置字典的那个键）。 */
   provider: string
-  /** Resolved display name for selectors and configuration surfaces. */
+  /** 供选择器与配置界面使用的已解析展示名称。 */
   displayName: string
-  /** Validated credential reference, when one is configured. */
+  /** 已校验的凭据引用，当配置了一个时。 */
   apiKeyEnv?: CredentialRef
-  /** Positive finite provider-idle interval after defaulting. */
+  /** 默认值补全之后的正的有限提供方空闲间隔。 */
   streamIdleTimeoutMs: number
-  /** Positive request-level base64 image payload bound after defaulting. */
+  /** 默认值补全之后的正的请求级 base64 图像载荷上限。 */
   maxRequestImageBytes: number
-  /** Positive total-pixel request-version budget after defaulting. */
+  /** 默认值补全之后的正的请求版本总像素预算。 */
   requestImagePixelBudget: number
-  /** Positive raw request-version byte target after defaulting; the smallest quality-ladder output is used when no quality fits. */
+  /** 默认值补全之后的正的请求版本原始字节目标；当没有质量档位可用时使用最小的质量阶梯输出。 */
   requestImageMaxBytes: number
-  /** Immutable retry policy captured with this provider route. */
+  /** 随本提供方路由一起捕获的不可变重试策略。 */
   retryPolicy: ResolvedRetryPolicy
   /**
-   * The pi-ai provider containing this route's serviceable models. Absent when
-   * a stored route cannot be constructed; its configuration remains editable.
+   * 含有本路由各个可服务模型的那个 pi-ai 提供方。当一条已存储的路由
+   * 无法被构造时缺失；它的配置仍然可编辑。
    */
   piProvider?: Provider
-  /** First model diagnostic, or the route failure when no model diagnostic is available. */
+  /** 首个模型诊断信息，或当没有可用的模型诊断信息时该路由的失败。 */
   catalogError?: string
-  /** Per-model failures reported before attempting a request. */
+  /** 在尝试请求之前报告的、按模型的失败。 */
   modelErrors: ReadonlyMap<string, string>
   /**
-   * Per-request output caps this profile explicitly configured, by model id.
-   * The seam materializes one only into a request that names no cap of its
-   * own, so a catalog capability must not appear here.
+   * 本 profile 显式配置的、按模型 id 组织的按请求输出上限。
+   * 该接缝只会把它物化进一次自身未指名任何上限的请求，
+   * 因此一个目录能力绝不能出现在这里。
    */
   configuredMaxTokens: ReadonlyMap<string, number>
 }
 
-/** Plugin configuration: the provider routes this instance owns. */
+/** 插件配置：本实例所持有的各条提供方路由。 */
 export interface Config {
   /**
-   * pi-ai provider routes, keyed by provider. An empty (or omitted) dict is
-   * the dormant settings-driven posture: the adapter mounts with no routes
-   * and registers them the moment a settings section supplies profiles.
+   * 以提供方为键的各个 pi-ai 提供方路由。一个空的（或被省略的）字典
+   * 就是那个由设置驱动的休眠姿态：该适配器以零条路由挂载，
+   * 并在某个设置小节提供各个 profile 的那一刻注册它们。
    */
   providers: Volatile<Record<string, PiAiProviderProfile>>
 }
 
-/** Plain options accepted by the provider resolver. */
+/** 由提供方解析器接受的纯选项。 */
 export type Options = { [K in keyof Config]?: Config[K] extends Volatile<infer T> ? T : never }
 
 const thinkingBudgets = z.object({
@@ -239,10 +226,9 @@ const thinkingBudgets = z.object({
 })
 
 /**
- * One `chat_template_kwargs` or `chat_template_args` value. The `$var` member
- * is pi-ai's placeholder for a value dispatch fills from the request's
- * thinking state, which makes a template-driven gateway configurable without
- * restating its template.
+ * 一个 `chat_template_kwargs` 或 `chat_template_args` 的值。那个 `$var`
+ * 成员是 pi-ai 的占位符，用于让分发从该请求的思考状态填充一个值，
+ * 而正是这一点让一个由模板驱动的网关无需复述它的模板就可被配置。
  */
 const chatTemplateKwarg: z<ChatTemplateKwargValue> = z.union([
   z.string(),
@@ -285,32 +271,31 @@ const compatProfile: z<PiAiCompatProfile> = z.object({
 })
 
 /**
- * Keys are the offered levels, values their wire spellings. A valueless key
- * (`off:`) survives validation because schemastery passes nullable data
- * through before any member schema runs — `z.const(null)` only controls the
- * error for non-null wrong values and what a configuration UI renders.
- * Only resolution decides which levels may leave the value empty, so the
- * diagnostic can name the route and model. The assertion narrows
- * schemastery's `Dict`, which types every literal key as required; dict
- * validation checks only present keys, so the runtime value is a partial record.
+ * 各个键是被提供的强度，各个值是它们的线路拼写。一个无值的键（`off:`）
+ * 能够存活下来，是因为 schemastery 会在任何成员 schema 运行之前把可空数据
+ * 原样放过——`z.const(null)` 只控制对于非 null 错误值的报错，
+ * 以及某个配置 UI 渲染什么。只有解析才会决定哪些强度可以让该值为空，
+ * 因此那条诊断信息才能指名该路由与模型。该断言收窄了 schemastery 的
+ * `Dict`，后者把每个字面量键都类型化为必填；字典校验只检查存在的键，
+ * 因此运行期的值是一个部分记录。
  */
 const reasoningEfforts = z.dict(
   z.union([z.string(), z.const(null)]),
   z.union(THINKING_LEVELS),
 ) as unknown as z<PiAiReasoningEfforts>
 
-/** The fields a `models` entry and a `modelOverrides` value share; only the id's home differs. */
+/** 一个 `models` 条目与一个 `modelOverrides` 值所共享的那些字段；只有 id 的归属不同。 */
 const modelFields = {
   name: z.string(),
   contextWindow: z.number().step(1).min(1),
   maxTokens: z.number().step(1).min(1),
-  // No explicit default, unlike the route's `defaultInput`: schemastery
-  // materializes `[]` for an absent array, and resolution reads that as "no
-  // answer here" so the catalog entry below still applies.
+  // 没有显式的默认值，这与该路由的 `defaultInput` 不同：schemastery 会把一个
+  // 缺失的数组物化为 `[]`，而解析把它读作“这里没有答案”，
+  // 于是下面的目录条目仍然适用。
   input: z.array(z.union(MODALITIES)),
-  // The union, not a bare dict: schemastery materializes an absent dict as
-  // `{}`, and absent must stay distinguishable — it means "inherit the
-  // installed catalog's capability", while `false` disables reasoning.
+  // 用这个联合，而不是一个裸字典：schemastery 把一个缺失的字典物化为 `{}`，
+  // 而缺失必须保持可区分——它意味着“继承已安装目录的能力”，
+  // 而 `false` 则是禁用推理。
   reasoningEfforts: z.union([z.const(false), reasoningEfforts]),
   compat: compatProfile,
 }
@@ -320,7 +305,7 @@ const modelProfile: z<PiAiModelProfile> = z.object({
   ...modelFields,
 })
 
-/** A {@link modelProfile} whose id lives in the `modelOverrides` dict key. */
+/** 一个其 id 位于 `modelOverrides` 字典键中的 {@link modelProfile}。 */
 const modelOverride: z<PiAiModelOverride> = z.object(modelFields)
 
 const profile = z.object({
@@ -348,18 +333,18 @@ const profile = z.object({
   retryPolicy: RetryPolicySchema,
 })
 
-/** Runtime schema for {@link Config}. */
+/** {@link Config} 的运行时 schema。 */
 export const Config = z.object({
   providers: z.dict(profile).default({}).volatile(),
 })
 
 /**
- * Reject new or changed provider profiles that cannot be served. Unchanged
- * stored profiles may need repair after a catalog upgrade and do not block
- * edits to another provider. Removed profiles require no catalog validation.
- * @param config - the resolved section to check.
- * @param previous - current resolved section; omission checks every provider.
- * @throws Error naming the route and configuration entry that cannot be served.
+ * 拒绝那些无法被服务的、新增或已变更的提供方 profile。未发生变化的
+ * 已存储 profile 在一次目录升级之后可能需要修复，而它们不会阻塞对另一个
+ * 提供方的编辑。被移除的 profile 不需要任何目录校验。
+ * @param config - 要检查的那个已解析小节。
+ * @param previous - 当前的已解析小节；省略时检查每一个提供方。
+ * @throws Error 指名那条无法被服务的路由与配置条目。
  */
 export function assertServiceable(config: Options, previous?: Options): void {
   const changed = Object.fromEntries(Object.entries(config.providers ?? {}).filter(([provider, profile]) =>
@@ -367,7 +352,7 @@ export function assertServiceable(config: Options, previous?: Options): void {
   resolveProfiles(changed)
 }
 
-/** Reject removed pre-release profile fields and name their replacements. */
+/** 拒绝被移除的预发布 profile 字段，并指名它们的替代项。 */
 function rejectRemovedFields(provider: string, source: PiAiProviderProfile): void {
   const legacy = source as PiAiProviderProfile & {
     provider?: unknown
@@ -385,7 +370,7 @@ function rejectRemovedFields(provider: string, source: PiAiProviderProfile): voi
   }
 }
 
-/** Reject a profile header that Fetch cannot put on a provider request. */
+/** 拒绝一个 Fetch 无法放到某个提供方请求上的 profile 请求头。 */
 function assertValidHeaders(provider: string, headers: Readonly<Record<string, string>> | undefined): void {
   for (const [name, value] of Object.entries(headers ?? {})) {
     try {
@@ -400,12 +385,12 @@ function assertValidHeaders(provider: string, headers: Readonly<Record<string, s
 }
 
 /**
- * Resolve scalar defaults and materialize each route's serviceable models.
- * Deferred catalog validation retains diagnostics without deleting configured
- * routes. An omitted dict resolves to the empty, dormant route set.
- * @param providers - configured provider profiles keyed by route.
- * @param validation - writes require a complete catalog; stored reads retain catalog diagnostics.
- * @returns validated profiles in configuration order.
+ * 解析各个标量的默认值，并物化每条路由的各个可服务模型。
+ * 延后的目录校验保留诊断信息，而不删除已配置的路由。
+ * 一个被省略的字典解析为那个空的、处于休眠的路由集合。
+ * @param providers - 以路由为键的各个已配置提供方 profile。
+ * @param validation - 写入需要一个完整的目录；已存储的读取保留目录诊断信息。
+ * @returns 按配置顺序排列的各个已校验 profile。
  */
 export function resolveProfiles(
   providers: Readonly<Record<string, PiAiProviderProfile>> | undefined,
@@ -446,18 +431,17 @@ export function resolveProfiles(
     if (!Number.isSafeInteger(requestImageMaxBytes) || requestImageMaxBytes <= 0) {
       throw new Error(`llm-pi-ai: provider "${provider}" requestImageMaxBytes must be a positive safe integer`)
     }
-    // Detached from the configuration object because pi-ai types `Model.input`
-    // mutable. The schema's explicit default covers an absent key, so an empty
-    // list here is always one someone typed — and unlike an entry's, nothing
-    // below it can answer instead — so it is refused rather than read as "no
-    // answer".
+    // 之所以从那个配置对象上分离出来，是因为 pi-ai 把 `Model.input`
+    // 类型化为可变的。schema 的显式默认值涵盖了一个缺失的键，
+    // 因此这里一个空列表总是某人键入的——而与某个条目的列表不同，
+    // 它之下没有任何东西可以代为作答——所以它被拒绝，而不是被读作“没有答案”。
     const defaultInput = [...source.defaultInput ?? DEFAULT_INPUT]
     if (defaultInput.length === 0) {
       throw new Error(`llm-pi-ai: provider "${provider}" defaultInput must name at least one modality`)
     }
-    // The route key, not the installed provider's own name: the directory has
-    // always shown route keys, and a catalog route must not silently rename
-    // itself on every configuration surface just because it gained a profile.
+    // 用的是那个路由键，而不是已安装提供方自己的名称：目录一直展示的是
+    // 路由键，而一条目录路由绝不能仅仅因为它获得了一份 profile，
+    // 就在每个配置界面上悄然重命名自己。
     const displayName = source.displayName ?? provider
     let catalog: RouteCatalog | undefined
     let piProvider: Provider | undefined

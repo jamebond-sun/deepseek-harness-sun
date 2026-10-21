@@ -1,6 +1,6 @@
 /**
- * Dynamic Cordis Plugin service: immutable package definitions, one active run
- * per Plugin, human-approved Client activation, and Host/Client invocation.
+ * 动态 Cordis 插件服务：不可变的包定义、每个 Plugin 一次活跃运行、
+ * 经由人工审批的 Client 激活，以及 Host/Client 调用。
  * @module @deepseek-ai/dsh-cordis-host-runner
  */
 
@@ -47,44 +47,43 @@ export { CordisInspectRegistryService } from './inspect-registry.ts'
 export type { HostCordisInspectProviderRegistration } from './inspect-registry.ts'
 
 /**
- * Brand a Host-minted Plugin ID.
- * @param id - opaque identifier minted by the Host registry.
- * @returns the branded Plugin identifier.
+ * 为一个 Host 铸造的 Plugin ID 加标签。
+ * @param id - Host 注册表铸造的不透明标识符。
+ * @returns 加标签后的 Plugin 标识符。
  */
 function brandCordisDynamicPluginId(id: string): CordisDynamicPluginId {
   return id as CordisDynamicPluginId
 }
 
 /**
- * Brand a Host-minted Package ID.
- * @param id - opaque identifier minted by the Host registry.
- * @returns the branded Package identifier.
+ * 为一个 Host 铸造的 Package ID 加标签。
+ * @param id - Host 注册表铸造的不透明标识符。
+ * @returns 加标签后的 Package 标识符。
  */
 function brandCordisDynamicPackageId(id: string): CordisDynamicPackageId {
   return id as CordisDynamicPackageId
 }
 
 /**
- * Brand a Host-minted Plugin Run ID.
- * @param id - opaque identifier minted by the Host registry.
- * @returns the branded Plugin Run identifier.
+ * 为一个 Host 铸造的 Plugin Run ID 加标签。
+ * @param id - Host 注册表铸造的不透明标识符。
+ * @returns 加标签后的 Plugin Run 标识符。
  */
 function brandCordisDynamicPluginRunId(id: string): CordisDynamicPluginRunId {
   return id as CordisDynamicPluginRunId
 }
 
 /**
- * Brand a Host-minted approval request ID.
- * @param id - opaque identifier minted by the Host registry.
- * @returns the branded approval request identifier.
+ * 为一个 Host 铸造的审批请求 ID 加标签。
+ * @param id - Host 注册表铸造的不透明标识符。
+ * @returns 加标签后的审批请求标识符。
  */
 function brandApprovalRequestId(id: string): ApprovalRequestId {
   return id as ApprovalRequestId
 }
 
-// The public names are exported separately: a local declaration sharing a name
-// with a type-only import is ambiguous for checkers that bind the import in
-// value position.
+// 公开名称单独导出：一个与仅类型导入同名、却在值位置使用的本地声明，
+// 对那些在值位置绑定该导入的检查器而言是歧义的。
 export {
   brandApprovalRequestId as ApprovalRequestId,
   brandCordisDynamicPackageId as CordisDynamicPackageId,
@@ -94,22 +93,22 @@ export {
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
-    /** Process-local dynamic Plugin registry and lifecycle service. */
+    /** 进程本地的动态 Plugin 注册表与生命周期服务。 */
     dynamicCordisRunner: DynamicCordisRunnerService
   }
 }
 
-/** Runner configuration. */
+/** 运行器配置。 */
 export interface Config {
-  /** Maximum synchronous VM evaluation time in milliseconds. */
+  /** 同步 VM 求值的最长时间，以毫秒计。 */
   vmTimeoutMs?: number
-  /** Maximum wait for a valid Client inspect response in milliseconds. */
+  /** 等待一次有效 Client inspect 响应的最长时间，以毫秒计。 */
   clientInspectTimeoutMs?: number
 }
 
 type ResolvedConfig = Required<Config>
 
-/** Host-only snapshot consumed by inspect and tool result rendering. */
+/** 仅供 Host 使用的快照，供 inspect 与工具结果渲染消费。 */
 export interface DynamicCordisSnapshotRow {
   pluginId: CordisDynamicPluginId
   currentPackageId?: CordisDynamicPackageId
@@ -137,7 +136,7 @@ interface ActivationPlan {
   mode: CordisDynamicRunMode
 }
 
-/** Dynamic Plugin registry and Host-half lifecycle. */
+/** 动态 Plugin 注册表与 Host 半区生命周期。 */
 export class DynamicCordisRunnerService extends TypertRemoteService {
   static inject = ['tools']
 
@@ -153,7 +152,7 @@ export class DynamicCordisRunnerService extends TypertRemoteService {
   private readonly resolved: ResolvedConfig
   private group: Fiber | undefined
 
-  /** Create the service under the Host composition. */
+  /** 在 Host 组合之下创建该服务。 */
   constructor(ctx: Context, config: Config) {
     super(ctx, 'dynamicCordisRunner')
     this.rootCtx = ctx
@@ -162,9 +161,9 @@ export class DynamicCordisRunnerService extends TypertRemoteService {
   }
 
   /**
-   * Define a new Plugin's first Package or append a Package to an existing Plugin.
-   * @param request - Session ownership, Plugin selection, metadata, and source code.
-   * @returns Host-minted Plugin and Package identities with declared-half metadata.
+   * 定义一个新 Plugin 的首个 Package，或把一个 Package 附加到已有 Plugin。
+   * @param request - 会话归属、Plugin 选择、元数据，以及源码。
+   * @returns Host 铸造的 Plugin 与 Package 标识，带已声明半区元数据。
    */
   define(request: DynamicCordisDefineRequest): DynamicCordisDefineReceipt {
     const name = request.name.trim()
@@ -220,10 +219,10 @@ export class DynamicCordisRunnerService extends TypertRemoteService {
   }
 
   /**
-   * Remove a Plugin, its active run, and all immutable Packages.
-   * @param agent - Agent whose Session must own the Plugin.
-   * @param pluginId - Stable Plugin identity to remove.
-   * @returns Whether removal succeeded and whether it stopped an active run.
+   * 移除一个 Plugin、其活跃运行，以及全部不可变 Package。
+   * @param agent - 其 Session 必须拥有该 Plugin 的 Agent。
+   * @param pluginId - 要移除的稳定 Plugin 标识。
+   * @returns 移除是否成功，以及是否停止了一次活跃运行。
    */
   async undefine(agent: Agent, pluginId: CordisDynamicPluginId): Promise<DynamicCordisUndefineReceipt> {
     const plugin = this.owned(agent, pluginId)
@@ -236,10 +235,10 @@ export class DynamicCordisRunnerService extends TypertRemoteService {
   }
 
   /**
-   * Remove a Plugin from the user panel and queue the resulting state change for the model's next step.
-   * @param agent - Agent whose Session owns the Plugin and receives the context.
-   * @param pluginId - Stable Plugin identity to remove.
-   * @returns Whether removal succeeded and whether it stopped an active run.
+   * 从用户面板移除一个 Plugin，并为模型的下一步把结果状态变更排入队列。
+   * @param agent - 其 Session 拥有该 Plugin 并接收上下文的 Agent。
+   * @param pluginId - 要移除的稳定 Plugin 标识。
+   * @returns 移除是否成功，以及是否停止了一次活跃运行。
    */
   @Remote('undefineFromPanel')
   async undefineFromPanel(agent: Agent, pluginId: CordisDynamicPluginId): Promise<DynamicCordisUndefineReceipt> {
@@ -254,14 +253,14 @@ export class DynamicCordisRunnerService extends TypertRemoteService {
   }
 
   /**
-   * Start or update one Package for a model tool call. An unauthorized Client
-   * Package waits for approval; Plugin-wide authorization covers later versions.
-   * @param agent - Agent whose Session must own the Plugin.
-   * @param pluginId - Stable Plugin identity to activate.
-   * @param packageId - Immutable Package version to activate.
-   * @param mode - Whether to run the current version or switch versions.
-   * @param signal - Tool-call cancellation signal while the activation request is being created.
-   * @returns The successful activation identity or an actionable refusal.
+   * 为一次模型工具调用启动或更新一个 Package。未获授权的 Client
+   * Package 等待审批；Plugin 级别的授权覆盖后续版本。
+   * @param agent - 其 Session 必须拥有该 Plugin 的 Agent。
+   * @param pluginId - 要激活的稳定 Plugin 标识。
+   * @param packageId - 要激活的不可变 Package 版本。
+   * @param mode - 是运行当前版本还是切换版本。
+   * @param signal - 在激活请求创建期间的、工具调用取消信号。
+   * @returns 成功的激活标识，或一个可操作的拒绝。
    */
   async run(
     agent: Agent,
@@ -330,14 +329,14 @@ export class DynamicCordisRunnerService extends TypertRemoteService {
   }
 
   /**
-   * Start Host code for an approved request or a direct panel gesture.
-   * @param agent - Agent whose Session must own the Plugin.
-   * @param pluginId - Stable Plugin identity to activate.
-   * @param packageId - Immutable Package version to activate.
-   * @param mode - Whether to run the current version or switch versions.
-   * @param requestId - Model-driven request identity, or null for a direct user gesture.
-   * @param approveFutureVersions - Whether this approval covers later Packages of the same Plugin.
-   * @returns The exact Host activation or a failure message.
+   * 为已审批的请求或一次直接的面板手势启动 Host 代码。
+   * @param agent - 其 Session 必须拥有该 Plugin 的 Agent。
+   * @param pluginId - 要激活的稳定 Plugin 标识。
+   * @param packageId - 要激活的不可变 Package 版本。
+   * @param mode - 是运行当前版本还是切换版本。
+   * @param requestId - 由模型驱动的请求标识，或直达用户手势时的 null。
+   * @param approveFutureVersions - 本次审批是否覆盖同一 Plugin 后续的包。
+   * @returns 确切的 Host 激活，或一条失败消息。
    */
   @Remote('runHostHalf')
   async runHostHalf(
@@ -392,11 +391,11 @@ export class DynamicCordisRunnerService extends TypertRemoteService {
   }
 
   /**
-   * Fetch Client code for the exact active run.
-   * @param agent - Agent whose Session must own the Plugin.
-   * @param pluginId - Stable Plugin identity to read.
-   * @param pluginRunId - Exact active run authorized to receive source.
-   * @returns Client source and its Plugin, Package, and run identities.
+   * 为确切的活跃运行获取 Client 代码。
+   * @param agent - 其 Session 必须拥有该 Plugin 的 Agent。
+   * @param pluginId - 要读取的稳定 Plugin 标识。
+   * @param pluginRunId - 被授权接收源码的确切活跃运行。
+   * @returns Client 源码，及其 Plugin、Package 与运行标识。
    */
   @Remote('getClientCode')
   getClientCode(
@@ -422,10 +421,10 @@ export class DynamicCordisRunnerService extends TypertRemoteService {
   }
 
   /**
-   * Resolve one model-driven Client activation request.
-   * @param requestId - Request identity to settle once.
-   * @param resolution - Browser refusal or exact Client activation result.
-   * @returns Whether the still-pending request accepted this resolution.
+   * 结算一个由模型驱动的 Client 激活请求。
+   * @param requestId - 只结算一次的请求标识。
+   * @param resolution - 浏览器的拒绝，或确切的 Client 激活结果。
+   * @returns 仍处于待定状态的请求是否接受了此结算。
    */
   @Remote('resolveRequestRun')
   async resolveRequestRun(
@@ -446,11 +445,11 @@ export class DynamicCordisRunnerService extends TypertRemoteService {
   }
 
   /**
-   * Settle a direct panel run after this page loaded or failed its Client half.
-   * @param agent - Agent whose Session must own the Plugin.
-   * @param pluginId - Stable Plugin identity being settled.
-   * @param resolution - Exact Client activation result from the acting page.
-   * @returns The committed activation or its failure.
+   * 在本页面加载了其 Client 半区、或 Client 半区失败之后，结算一次直接的面板运行。
+   * @param agent - 其 Session 必须拥有该 Plugin 的 Agent。
+   * @param pluginId - 正被结算的稳定 Plugin 标识。
+   * @param resolution - 执行页面给出的、确切的 Client 激活结果。
+   * @returns 已提交的激活，或其失败。
    */
   @Remote('settleUserRun')
   async settleUserRun(
@@ -466,10 +465,10 @@ export class DynamicCordisRunnerService extends TypertRemoteService {
   }
 
   /**
-   * Stop the active run while retaining every Package version.
-   * @param agent - Agent whose Session must own the Plugin.
-   * @param pluginId - Stable Plugin identity to stop.
-   * @returns Success or the reason no run was stopped.
+   * 停止活跃运行，同时保留每个 Package 版本。
+   * @param agent - 其 Session 必须拥有该 Plugin 的 Agent。
+   * @param pluginId - 要停止的稳定 Plugin 标识。
+   * @returns 成功，或未停止任何运行的理由。
    */
   async stop(agent: Agent, pluginId: CordisDynamicPluginId): Promise<DynamicCordisStopResponse> {
     const plugin = this.owned(agent, pluginId)
@@ -489,10 +488,10 @@ export class DynamicCordisRunnerService extends TypertRemoteService {
   }
 
   /**
-   * Stop a Plugin from the user panel and queue the resulting state change for the model's next step.
-   * @param agent - Agent whose Session owns the Plugin and receives the context.
-   * @param pluginId - Stable Plugin identity to stop.
-   * @returns Success or the reason no run was stopped.
+   * 从用户面板停止一个 Plugin，并为模型的下一步把结果状态变更排入队列。
+   * @param agent - 其 Session 拥有该 Plugin 并接收上下文的 Agent。
+   * @param pluginId - 要停止的稳定 Plugin 标识。
+   * @returns 成功，或未停止任何运行的理由。
    */
   @Remote('stopFromPanel')
   async stopFromPanel(agent: Agent, pluginId: CordisDynamicPluginId): Promise<DynamicCordisStopResponse> {
@@ -508,9 +507,9 @@ export class DynamicCordisRunnerService extends TypertRemoteService {
   }
 
   /**
-   * Replace the Host mirror of the Client inspect provider directory.
-   * @param providers - complete Client provider manifest.
-   * @returns null after accepting the manifest.
+   * 替换 Client inspect 提供方目录的 Host 镜像。
+   * @param providers - 完整的 Client 提供方清单。
+   * @returns 接受清单之后的 null。
    */
   @Remote('syncInspectManifest')
   syncInspectManifest(providers: readonly CordisInspectProviderManifest[]): null {
@@ -519,12 +518,12 @@ export class DynamicCordisRunnerService extends TypertRemoteService {
   }
 
   /**
-   * Submit a Client inspect result or failure for a pending query.
-   * @param agent - Session that owns the query.
-   * @param requestId - exact pending query identity.
-   * @param resolution - provider result or structured refusal.
-   * @returns acknowledgement with accepted true only for a valid success that settles the query;
-   * pending-query failures return { accepted: false } and retain only the first diagnostic.
+   * 为一个待定查询提交一次 Client inspect 结果或失败。
+   * @param agent - 拥有该查询的会话。
+   * @param requestId - 确切的待定查询标识。
+   * @param resolution - 提供方结果，或结构化的拒绝。
+   * @returns 确认；仅对一次能了结查询的有效成功，`accepted` 为真；
+   * 待定查询的失败返回 { accepted: false }，且只保留第一个诊断。
    */
   @Remote('resolveInspectQuery')
   resolveInspectQuery(
@@ -536,8 +535,8 @@ export class DynamicCordisRunnerService extends TypertRemoteService {
   }
 
   /**
-   * Frame-wide inventory, grouped as one row per stable Plugin.
-   * @returns Source-free metadata for every process-local Plugin.
+   * 框级清单，按每个稳定 Plugin 一行分组。
+   * @returns 每个进程本地 Plugin 的无源元数据。
    */
   /* jscpd:ignore-start */
   @Remote('inventory')
@@ -563,9 +562,9 @@ export class DynamicCordisRunnerService extends TypertRemoteService {
   /* jscpd:ignore-end */
 
   /**
-   * Read one Session's Host-rich state for inspection and result rendering.
-   * @param agent - Agent whose Session selects visible Plugins.
-   * @returns Plugin versions, active runs, Host fibers, and render failures.
+   * 读取某个 Session 的、Host 富集的状态，用于检视与结果渲染。
+   * @param agent - 其 Session 选择可见 Plugin 的 Agent。
+   * @returns 插件版本、活跃运行、Host 纤程，以及渲染失败。
    */
   snapshot(agent: Agent): DynamicCordisSnapshotRow[] {
     return this.registry.ofSession(agent.id).map(plugin => ({
@@ -593,10 +592,10 @@ export class DynamicCordisRunnerService extends TypertRemoteService {
   }
 
   /**
-   * Read source-free context for an explicit `@pluginId` user gesture.
-   * @param agent - Agent whose Session must own the Plugin.
-   * @param pluginId - Stable Plugin identity referenced by the user.
-   * @returns The preferred modification base, or undefined when unavailable.
+   * 为显式的 `@pluginId` 用户手势读取无源上下文。
+   * @param agent - 其 Session 必须拥有该 Plugin 的 Agent。
+   * @param pluginId - 用户所引用的稳定 Plugin 标识。
+   * @returns 偏好的修改基址；不可用时为 undefined。
    */
   reference(agent: Agent, pluginId: CordisDynamicPluginId): DynamicCordisReference | undefined {
     const plugin = this.owned(agent, pluginId)
@@ -622,19 +621,19 @@ export class DynamicCordisRunnerService extends TypertRemoteService {
   }
 
   /**
-   * List source-free Plugin summaries owned by one Session.
-   * @param agent - Agent whose Session selects visible Plugins.
-   * @returns one summary per Plugin in creation order.
+   * 列出一个 Session 拥有的、无源的 Plugin 摘要。
+   * @param agent - 其 Session 选择可见 Plugin 的 Agent。
+   * @returns 按创建顺序，每个 Plugin 一条摘要。
    */
   listPlugins(agent: Agent): DynamicCordisPluginInspection[] {
     return this.registry.ofSession(agent.id).map(plugin => this.inspectPlugin(agent, plugin.pluginId))
   }
 
   /**
-   * Inspect one Plugin without returning Package source.
-   * @param agent - Agent whose Session must own the Plugin.
-   * @param pluginId - stable Plugin identity.
-   * @returns version pointers, latest run, and all Package summaries.
+   * 检视一个 Plugin 而不返回 Package 源码。
+   * @param agent - 其 Session 必须拥有该 Plugin 的 Agent。
+   * @param pluginId - 稳定的 Plugin 标识。
+   * @returns 版本指针、最近运行，以及全部 Package 摘要。
    */
   inspectPlugin(agent: Agent, pluginId: CordisDynamicPluginId): DynamicCordisPluginInspection {
     const plugin = this.owned(agent, pluginId)
@@ -654,11 +653,11 @@ export class DynamicCordisRunnerService extends TypertRemoteService {
   }
 
   /**
-   * Read one exact immutable Package and its Host and Client source.
-   * @param agent - Agent whose Session must own the Plugin.
-   * @param pluginId - Stable Plugin identity that owns the Package.
-   * @param packageId - Exact immutable Package identity to inspect.
-   * @returns Package metadata, source, and the Plugin's lifecycle pointers.
+   * 读取一个确切的不可变 Package 及其 Host 与 Client 源码。
+   * @param agent - 其 Session 必须拥有该 Plugin 的 Agent。
+   * @param pluginId - 拥有该 Package 的稳定 Plugin 标识。
+   * @param packageId - 要检视的确切不可变 Package 标识。
+   * @returns 包元数据、源码，以及该 Plugin 的生命周期指针。
    */
   inspectPackage(
     agent: Agent,
@@ -692,12 +691,12 @@ export class DynamicCordisRunnerService extends TypertRemoteService {
   }
 
   /**
-   * Record a post-load render failure for the exact active run.
-   * @param agent - Agent whose Session must own the Plugin.
-   * @param pluginId - Stable Plugin identity that rendered.
-   * @param pluginRunId - Exact active run that produced the failure.
-   * @param failure - Slot, message, and entry-retirement result.
-   * @returns Null after recording or ignoring a stale report.
+   * 为确切的活跃运行记录一次加载后的渲染失败。
+   * @param agent - 其 Session 必须拥有该 Plugin 的 Agent。
+   * @param pluginId - 渲染了的稳定 Plugin 标识。
+   * @param pluginRunId - 产生了该失败的、确切的活跃运行。
+   * @param failure - 槽位、消息，以及条目退出结果。
+   * @returns 记录或忽略一份过期报告之后的 null。
    */
   @Remote('reportRenderFailure')
   async reportRenderFailure(
@@ -726,12 +725,12 @@ export class DynamicCordisRunnerService extends TypertRemoteService {
   }
 
   /**
-   * Report a Client guard rejection that happened after the Package completed activation.
-   * @param agent - Agent whose Session must own the Plugin.
-   * @param pluginId - Stable Plugin identity whose Client code was rejected.
-   * @param pluginRunId - Exact active run that produced the rejection.
-   * @param failure - Original guard message and stack.
-   * @returns Null after reporting or ignoring a stale/startup failure.
+   * 报告一次在 Package 完成激活之后发生的 Client 守卫拒绝。
+   * @param agent - 其 Session 必须拥有该 Plugin 的 Agent。
+   * @param pluginId - 其 Client 代码被拒绝的稳定 Plugin 标识。
+   * @param pluginRunId - 产生了该拒绝的、确切的活跃运行。
+   * @param failure - 原始的守卫消息与栈。
+   * @returns 报告或忽略一份过期/启动期失败之后的 null。
    */
   @Remote('reportClientGuardFailure')
   async reportClientGuardFailure(
@@ -749,12 +748,12 @@ export class DynamicCordisRunnerService extends TypertRemoteService {
   }
 
   /**
-   * Invoke an active Host method while rejecting stale Client runs.
-   * @param pluginId - Stable Plugin identity that owns the method.
-   * @param pluginRunId - Exact active run authorizing the call.
-   * @param method - Registered Host handler name.
-   * @param args - JSON argument delivered to the handler.
-   * @returns The JSON result or a typed invocation failure.
+   * 在拒绝过期的 Client 运行的同时，调用一个活跃的 Host 方法。
+   * @param pluginId - 拥有该方法的稳定 Plugin 标识。
+   * @param pluginRunId - 授权该调用的、确切的活跃运行。
+   * @param method - 已注册的 Host 处理器名。
+   * @param args - 交付给处理器的 JSON 参数。
+   * @returns JSON 结果，或一个带类型的调用失败。
    */
   @Remote('invoke')
   async invoke(

@@ -1,4 +1,4 @@
-/** Node PTC process invalidation after a committed Session file-policy change. */
+/** 在已提交的 Session 文件策略变更之后，作废 Node PTC 进程。 */
 import type { Context } from '@deepseek-ai/cordis'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import type { SandboxExecutionPolicy, SandboxMode } from '@deepseek-ai/dsh-sandbox'
@@ -12,13 +12,13 @@ interface Process {
   cleanup?: Promise<void>
 }
 
-/** Owns asynchronous process cleanup without delaying permission setters. */
+/** 负责异步进程清理，同时不拖慢权限设置方。 */
 export class PolicyProcesses {
   private readonly processes = new Set<Process>()
 
   /**
-   * Begin cleanup on policy changes, even when no subsequent program runs.
-   * @param ctx - Node provider lifecycle and Session services.
+   * 在策略变更时启动清理，即使之后不再有程序运行。
+   * @param ctx - Node provider 生命周期与 Session 服务。
    */
   constructor(private readonly ctx: Context) {
     ctx.on('session/event', (session, event) => {
@@ -35,10 +35,10 @@ export class PolicyProcesses {
   }
 
   /**
-   * Track an admitted call or retained process until its owner confirms cleanup.
-   * @param policy - Resolved process policy, including an optional Session identity.
-   * @param release - Idempotent cancellation and awaited cleanup.
-   * @returns Removal after successful process cleanup.
+   * 跟踪一次已受理的调用或一个保留进程，直到其所有者确认清理完成。
+   * @param policy - 已解析的进程策略，含可选的 Session 身份。
+   * @param release - 幂等的取消与可被 await 的清理。
+   * @returns 进程清理成功之后的移除函数。
    */
   register(policy: SandboxExecutionPolicy, release: () => Promise<void>): () => void {
     if (policy.sessionId === undefined) return () => {}
@@ -54,9 +54,9 @@ export class PolicyProcesses {
   }
 
   /**
-   * Wait for invalidated processes before admitting another program.
-   * @param sessionId - Session carried by the resolved policy.
-   * @returns Completion after prior cleanup; a failure rejects and remains retryable.
+   * 在受理另一个程序之前，等待已作废的进程清理完成。
+   * @param sessionId - 已解析策略所携带的 Session。
+   * @returns 此前清理完成后的决议；失败会拒绝且仍可重试。
    */
   async wait(sessionId: SessionId | undefined): Promise<void> {
     await this.settle([...this.processes].filter(process => process.sessionId === sessionId && process.invalidated))

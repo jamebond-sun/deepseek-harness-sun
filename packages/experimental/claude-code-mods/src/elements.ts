@@ -1,23 +1,22 @@
 /**
- * The element vocabulary a `ui.render` hook answers with — Claude Code's
- * `Box`, `Text`, and `Button` constructors — and what the host does with a
- * tree: validate it, serialize it with callbacks replaced by action ids, and
- * search it the way a mod's test does.
+ * 一个 `ui.render` 钩子所应答的元素词汇表——即 Claude Code 的 `Box`、
+ * `Text` 与 `Button` 构造函数——以及宿主会如何处理一棵树：校验它、
+ * 将回调替换成动作 id 后序列化它，并像 mod 的测试那样搜索它。
  * @module
  */
 
 import type { SerializedNode } from './types.ts'
 
-/** One element a constructor returns; `props` are the constructor's argument, frozen. */
+/** 一个构造函数所返回的元素；`props` 即该构造函数的参数，已被冻结。 */
 export interface UiElement {
   readonly type: 'Box' | 'Text' | 'Button'
   readonly props: Readonly<Record<string, unknown>>
 }
 
-/** What a `ui.render` hook returns: an element, text, nothing, or a list of those. */
+/** 一个 `ui.render` 钩子返回的内容：一个元素、文本、空，或这些内容的列表。 */
 export type UiNode = UiElement | string | number | null | undefined | false | readonly UiNode[]
 
-/** `Box` props this host lays out; a prop set to `undefined` is one a mod left out. */
+/** 本宿主所布局的 `Box` 属性；被设为 `undefined` 的属性是某个 mod 省略掉的。 */
 export interface BoxProps {
   readonly flexDirection?: 'row' | 'column' | undefined
   readonly paddingX?: number | undefined
@@ -29,7 +28,7 @@ export interface BoxProps {
   readonly children?: UiNode | undefined
 }
 
-/** `Text` props this host styles. */
+/** 本宿主所设置样式的 `Text` 属性。 */
 export interface TextProps {
   readonly color?: string | undefined
   readonly bold?: boolean | undefined
@@ -39,7 +38,7 @@ export interface TextProps {
   readonly children?: UiNode | undefined
 }
 
-/** `Button` props: a label, an optional hotkey hint, and the callback a press runs on the host. */
+/** `Button` 属性：一个标签、一个可选的快捷键提示，以及一次按下时由宿主运行的回调。 */
 export interface ButtonProps {
   readonly label: string
   readonly hotkey?: string | undefined
@@ -47,7 +46,7 @@ export interface ButtonProps {
   readonly onPress?: (() => unknown) | undefined
 }
 
-/** The constructors `$.ui.resolve(e)` returns. */
+/** `$.ui.resolve(e)` 所返回的构造函数。 */
 export interface UiElements {
   readonly Box: (props: BoxProps) => UiElement
   readonly Text: (props: TextProps) => UiElement
@@ -56,7 +55,7 @@ export interface UiElements {
 
 export type { SerializedElement, SerializedNode } from './types.ts'
 
-/** What a serialized tree may carry per prop: scalars only. */
+/** 一棵序列化后的树在每个属性上可以携带的内容：仅标量。 */
 function scalarProps(props: Readonly<Record<string, unknown>>): Record<string, string | number | boolean> {
   const scalars: Record<string, string | number | boolean> = {}
   for (const [name, value] of Object.entries(props)) {
@@ -73,17 +72,17 @@ function element(type: UiElement['type'], props: BoxProps | TextProps | ButtonPr
 }
 
 /**
- * Whether a value is an element one of this host's constructors returned.
- * @param value - the candidate.
- * @returns true for a constructor-made element.
+ * 某个值是否为本宿主某个构造函数所返回的元素。
+ * @param value - 候选值。
+ * @returns 对于构造函数所造的元素为 true。
  */
 export function isUiElement(value: unknown): value is UiElement {
   return typeof value === 'object' && value !== null && (value as Record<symbol, unknown>)[elementBrand] === true
 }
 
 /**
- * The element constructors for one render.
- * @returns `Box`, `Text`, and `Button`.
+ * 供一次渲染使用的元素构造函数。
+ * @returns `Box`、`Text` 与 `Button`。
  */
 export function uiElements(): UiElements {
   return Object.freeze({
@@ -93,7 +92,7 @@ export function uiElements(): UiElements {
   })
 }
 
-/** Flatten a node into the elements and text runs it draws, dropping what draws nothing. */
+/** 将一个节点展平为它所绘制出的元素与文本片段，并丢弃那些不绘制任何内容的部分。 */
 function childrenOf(node: UiNode): (UiElement | string)[] {
   if (node === null || node === undefined || node === false) return []
   if (typeof node === 'string') return node.length === 0 ? [] : [node]
@@ -104,9 +103,9 @@ function childrenOf(node: UiNode): (UiElement | string)[] {
 }
 
 /**
- * Check a `ui.render` answer against the vocabulary.
- * @param node - the hook's answer.
- * @returns undefined for a valid tree, or the reason it does not validate.
+ * 将某个 `ui.render` 应答对照词汇表进行校验。
+ * @param node - 该钩子的应答。
+ * @returns 对于合法的树返回 undefined，否则返回它未能通过校验的理由。
  */
 export function treeProblem(node: UiNode): string | undefined {
   try {
@@ -122,17 +121,17 @@ export function treeProblem(node: UiNode): string | undefined {
     }
     return undefined
   } catch (error: unknown) {
-    /* v8 ignore next -- childrenOf throws TypeErrors only; the String branch covers a future non-Error throw */
+    /* v8 ignore next -- childrenOf 只会抛出 TypeError；而 String 分支覆盖了未来可能的非 Error 抛出 */
     return error instanceof Error ? error.message : String(error)
   }
 }
 
 /**
- * Serialize a validated tree for a client: scalars kept, children flattened,
- * each `onPress` replaced by the id `holdAction` returns for it.
- * @param node - the hook's answer, already validated with {@link treeProblem}.
- * @param holdAction - stores one callback and returns its id.
- * @returns the serialized nodes, in drawing order.
+ * 为一客户端序列化一棵已校验的树：保留标量、展平子节点，并将每个 `onPress`
+ * 替换为 `holdAction` 为它返回的 id。
+ * @param node - 该钩子的应答，已经过 {@link treeProblem} 校验。
+ * @param holdAction - 存储一个回调并返回其 id。
+ * @returns 按绘制顺序排列的、序列化后的节点。
  */
 export function serializeTree(node: UiNode, holdAction: (callback: () => unknown) => string): SerializedNode[] {
   return childrenOf(node).map((child): SerializedNode => {
@@ -150,19 +149,19 @@ export function serializeTree(node: UiNode, holdAction: (callback: () => unknown
   })
 }
 
-/** The text a node draws, with child texts joined in order. */
+/** 一个节点所绘制的文本，其子文本按序拼接。 */
 function textOf(node: UiElement | string): string {
   if (typeof node === 'string') return node
   if (node.type === 'Button') return String(node.props['label'])
   return childrenOf(node.props['children'] as UiNode).map(textOf).join('')
 }
 
-/** What a tree search matches on. */
+/** 树搜索所匹配的依据。 */
 export interface TreePattern {
   readonly type?: UiElement['type']
-  /** Text drawn by the element, including its descendants; a string matches as a substring. */
+  /** 该元素所绘制的文本，含其后代；字符串作为子串匹配。 */
   readonly text?: string | RegExp
-  /** A Button's label. */
+  /** 一个 Button 的标签。 */
   readonly label?: string | RegExp
 }
 
@@ -171,10 +170,10 @@ function textMatches(expected: string | RegExp, actual: string): boolean {
 }
 
 /**
- * Every element of a tree matching a pattern, in drawing order.
- * @param node - the tree.
- * @param pattern - the type, text, and label to match; an empty pattern matches every element.
- * @returns the matching elements.
+ * 一棵满足某模式的所有元素，按绘制顺序。
+ * @param node - 该树。
+ * @param pattern - 要匹配的类型、文本与标签；空模式匹配每一个元素。
+ * @returns 匹配到的元素。
  */
 export function findAll(node: UiNode, pattern: TreePattern): UiElement[] {
   const found: UiElement[] = []
@@ -191,9 +190,9 @@ export function findAll(node: UiNode, pattern: TreePattern): UiElement[] {
 }
 
 /**
- * The plain text a tree draws, one line per top-level node: the test kit's and the host log's view of a surface.
- * @param node - the tree.
- * @returns the drawn text.
+ * 一棵树所绘制的纯文本，每个顶层节点一行：即测试套件与宿主日志对某个画面的视角。
+ * @param node - 该树。
+ * @returns 被绘制的文本。
  */
 export function renderText(node: UiNode): string {
   return childrenOf(node).map(textOf).join('\n')

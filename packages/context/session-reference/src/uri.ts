@@ -1,17 +1,17 @@
-/** Canonical session URI and inline mention encoding. */
+/** 规范的会话 URI 与内联提及编码。 */
 
 import { brandString } from '@deepseek-ai/dsh-brand'
 import type { SessionId as SessionIdType } from '@deepseek-ai/dsh-session'
 import { SessionReferenceError } from './config.ts'
 import type { SessionReferenceInput } from './types.ts'
 
-/** URI scheme reserved for DeepSeek Harness session snapshots. */
+/** 为 DeepSeek Harness 会话快照所保留的 URI 方案。 */
 export const SESSION_REFERENCE_SCHEME = 'dsh-session:'
 
 /**
- * Encode any JavaScript session-id string as a canonical lossless URI.
- * @param sessionId - opaque session id to serialize.
- * @returns canonical `dsh-session:` URI.
+ * 将任意 JavaScript 会话 id 字符串编码为规范的、无损的 URI。
+ * @param sessionId - 待序列化的不透明会话 id。
+ * @returns 规范的 `dsh-session:` URI。
  */
 export function encodeSessionReferenceUri(sessionId: SessionIdType): string {
   const payload = Buffer.from(JSON.stringify(sessionId), 'utf8').toString('base64url')
@@ -19,9 +19,9 @@ export function encodeSessionReferenceUri(sessionId: SessionIdType): string {
 }
 
 /**
- * Decode and canonicalize one session-reference URI.
- * @param uri - complete canonical URI.
- * @returns decoded session id.
+ * 解码并规范化一个会话引用 URI。
+ * @param uri - 完整的规范 URI。
+ * @returns 解码后的会话 id。
  */
 export function decodeSessionReferenceUri(uri: string): SessionIdType {
   if (!uri.startsWith(SESSION_REFERENCE_SCHEME)) {
@@ -41,30 +41,29 @@ export function decodeSessionReferenceUri(uri: string): SessionIdType {
 }
 
 /**
- * Render a host-neutral Markdown mention carrying the canonical URI.
- * @param reference - structured id and optional display label.
- * @returns escaped `@[label](uri)` mention.
+ * 渲染一个与宿主无关的、携带规范 URI 的 Markdown 提及。
+ * @param reference - 结构化的 id 与可选的展示标签。
+ * @returns 经过转义的 `@[label](uri)` 提及。
  */
 export function formatSessionReferenceMention(reference: SessionReferenceInput): string {
   const label = escapeLabel(reference.label ?? reference.sessionId)
   return `@[${label}](${encodeSessionReferenceUri(reference.sessionId)})`
 }
 
-/** Result of extracting canonical mentions from plain text. */
+/** 从纯文本中提取规范提及的结果。 */
 export interface ParsedSessionReferenceText {
-  /** Text with opaque tokens replaced by readable `@label` spans. */
+  /** 不透明标记被可读的 `@label` 片段替换后的文本。 */
   text: string
-  /** Structured references in first-appearance order, before service deduplication. */
+  /** 按首次出现顺序排列的结构化引用，尚未经过服务去重。 */
   references: SessionReferenceInput[]
 }
 
 /**
- * Extract Markdown mentions and bare canonical URIs from one text value.
- * Explicit Markdown mentions fail on any malformed URI. Bare text is treated
- * as a reference only when it has a non-empty base64url-shaped payload, then
- * still fails if that candidate is not canonical.
- * @param text - host text to normalize.
- * @returns readable text and structured references in appearance order.
+ * 从一个文本值中提取 Markdown 提及与孤立的规范 URI。
+ * 显式的 Markdown 提及在遇到任何畸形 URI 时会失败。孤立文本仅在具有
+ * 非空的 base64url 形态载荷时才被视为引用，若该候选并非规范者仍会失败。
+ * @param text - 待规范化的宿主文本。
+ * @returns 可读的文本与按出现顺序排列的结构化引用。
  */
 export function parseSessionReferenceText(text: string): ParsedSessionReferenceText {
   const references: SessionReferenceInput[] = []

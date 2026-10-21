@@ -1,24 +1,24 @@
-/** Title text normalization and UTF-8-safe truncation. */
+/** 标题文本归一化与 UTF-8 安全的截断。 */
 
-/** Operating-system-command escape sequences, including unterminated tails. */
+/** 操作系统命令转义序列，包括未终止的尾部。 */
 const OSC_SEQUENCE = /(?:\u001B\]|\u009D)(?:(?!\u0007|\u001B\\)[\s\S])*(?:\u0007|\u001B\\|$)/gu
-/** Control-sequence-introducer escapes such as SGR color codes. */
+/** 控制序列引入符转义，例如 SGR 颜色码。 */
 const CSI_SEQUENCE = /(?:\u001B\[|\u009B)[0-?]*[ -/]*[@-~]/gu
-/** Remaining two-byte ESC control sequences. */
+/** 余下的双字节 ESC 控制序列。 */
 const ESC_SEQUENCE = /\u001B[@-_]/gu
-/** Non-whitespace C0/C1 control characters. */
+/** 非空白的 C0/C1 控制字符。 */
 const CONTROL_CHARACTER = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/gu
-/** Directional and invisible controls that can make a displayed title deceptive. */
+/** 方向性与不可见控制字符，可能让显示出的标题具有欺骗性。 */
 const DIRECTIONAL_CONTROL = /[\u200B\u200E\u200F\u202A-\u202E\u2060-\u2064\u2066-\u206F\uFEFF]/gu
 
-/** Reject an invalid public text limit. */
+/** 拒绝一个无效的公开文本上限。 */
 function assertPositiveInteger(name: string, value: number): void {
   if (!Number.isInteger(value) || value <= 0) {
     throw new Error(`${name} must be a positive integer`)
   }
 }
 
-/** Remove controls and produce one trimmed, whitespace-normalized line. */
+/** 移除控制字符，并产出一行经过裁剪、空白已归一化的文本。 */
 function cleanTitleText(input: string): string {
   return input
     .replace(OSC_SEQUENCE, '')
@@ -31,10 +31,10 @@ function cleanTitleText(input: string): string {
 }
 
 /**
- * Truncate a string to a UTF-8 byte budget without splitting a Unicode code point.
- * @param input - normalized title text.
- * @param maxBytes - positive UTF-8 byte budget.
- * @returns the longest leading code-point prefix within the budget.
+ * 把字符串截断到 UTF-8 字节预算之内，而不拆分 Unicode 码点。
+ * @param input - 已归一化的标题文本。
+ * @param maxBytes - 正的 UTF-8 字节预算。
+ * @returns 预算之内最长的、带头码点前缀。
  */
 export function truncateTitleUtf8(input: string, maxBytes: number): string {
   assertPositiveInteger('maxBytes', maxBytes)
@@ -51,21 +51,21 @@ export function truncateTitleUtf8(input: string, maxBytes: number): string {
 }
 
 /**
- * Normalize one accepted session title and enforce its UTF-8 byte budget.
- * @param input - untrusted title text.
- * @param maxBytes - positive maximum encoded size.
- * @returns a terminal-safe one-line title, possibly empty after sanitization.
+ * 归一化一个被接受的会话标题，并强制其 UTF-8 字节预算。
+ * @param input - 不受信任的标题文本。
+ * @param maxBytes - 正的最大编码大小。
+ * @returns 一个终端安全的单行标题，在清洗之后可能为空。
  */
 export function normalizeSessionTitle(input: string, maxBytes: number): string {
   return truncateTitleUtf8(cleanTitleText(input), maxBytes).trimEnd()
 }
 
 /**
- * Derive the deterministic first-prompt fallback.
- * @param input - text from the first eligible human message.
- * @param maxWords - positive whitespace-delimited word cap.
- * @param maxBytes - positive UTF-8 byte cap.
- * @returns the normalized leading words within both limits.
+ * 推导确定性的“首提示”回退标题。
+ * @param input - 来自第一条合格人类消息的文本。
+ * @param maxWords - 正的、以空白分隔的词数上限。
+ * @param maxBytes - 正的 UTF-8 字节上限。
+ * @returns 在两个上限之内、已归一化的最靠前词。
  */
 export function fallbackSessionTitle(input: string, maxWords: number, maxBytes: number): string {
   assertPositiveInteger('maxWords', maxWords)

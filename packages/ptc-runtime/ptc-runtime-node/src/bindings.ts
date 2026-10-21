@@ -1,4 +1,4 @@
-/** Validate and capture the binding names available to one program. */
+/** 校验并捕获单个程序可用的绑定名称。 */
 import { DUNDER_MEMBER, PORTABLE_RESERVED_WORDS, RESERVED_BINDING_GLOBALS, RESERVED_ERROR_MEMBERS } from '@deepseek-ai/dsh-ptc-runtime'
 import type { PtcBindingFunction, PtcBindingNamespace, PtcJsonValue, PtcRunRequest } from '@deepseek-ai/dsh-ptc-runtime'
 import { snapshotJsonValue } from '@deepseek-ai/dsh-util-values'
@@ -6,9 +6,9 @@ import { encodePtcJsonWire } from './json-wire.ts'
 import type { ReplyMessage } from './protocol.ts'
 const IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/
 /**
- * Reject unusable namespaces before starting a process.
- * @param request - Host-owned binding declarations.
- * @returns Namespaces keyed by their declared global.
+ * 在启动进程之前拒绝不可用的命名空间。
+ * @param request - 宿主持有的绑定声明。
+ * @returns 以各自声明的全局名为键的命名空间。
  */
 export function validateBindings(request: PtcRunRequest): Map<string, PtcBindingNamespace> {
   const bindings = new Map<string, PtcBindingNamespace>()
@@ -16,12 +16,10 @@ export function validateBindings(request: PtcRunRequest): Map<string, PtcBinding
     if (!IDENTIFIER.test(namespace.global) || PORTABLE_RESERVED_WORDS.has(namespace.global)) {
       throw new Error(`dsh-ptc-runtime-node: binding global ${JSON.stringify(namespace.global)} is not a usable identifier`)
     }
-    // RESERVED_BINDING_GLOBALS is the seam's shared backend-owned set:
-    // `console` is THIS backend's log-capture slot; the dunder entries exist
-    // for the Python side — its seeded/wrapped slots plus the `__debug__`
-    // compile-time constant — refused here too so the namespace list stays
-    // portable across backends. The seam declaration is the single home for
-    // why each entry is reserved.
+    // RESERVED_BINDING_GLOBALS 是 seam 共用的“后端自有”集合：
+    // `console` 是本后端的日志捕获槽位；那些 dunder 条目是为 Python 一侧准备的 ——
+    // 它预置/包装的槽位加上 `__debug__` 编译期常量 —— 此处同样拒绝，
+    // 好让命名空间列表在各后端之间保持可移植。每条为何被保留，唯一权威在 seam 的声明处。
     if (RESERVED_BINDING_GLOBALS.has(namespace.global)) {
       throw new Error(`dsh-ptc-runtime-node: reserved binding global ${JSON.stringify(namespace.global)}`)
     }
@@ -54,11 +52,11 @@ export function validateBindings(request: PtcRunRequest): Map<string, PtcBinding
 }
 
 /**
- * Invoke a host binding and encode its lossless result or bounded-channel rejection.
- * @param id - Program-issued correlation identifier.
- * @param binding - Current evaluation's declared function, absent if it was removed.
- * @param args - Validated JSON arguments detached from the program.
- * @returns A reply suitable for the runtime's bounded control channel.
+ * 调用一个宿主绑定，并把它的无损结果或有界通道拒绝编码为回复。
+ * @param id - 程序发出的关联标识符。
+ * @param binding - 本次求值所声明的函数；若已被移除则为缺席。
+ * @param args - 已从程序中分离出来的、经校验的 JSON 参数。
+ * @returns 一条适合运行时有界控制通道的回复。
  */
 export async function replyToBinding(id: number, binding: PtcBindingFunction | undefined, args: PtcJsonValue): Promise<ReplyMessage> {
   try {

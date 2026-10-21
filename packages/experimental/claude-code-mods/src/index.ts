@@ -1,12 +1,11 @@
 /**
- * Experimental bridge for Claude Code mods. A mod is a DSH plugin built with
- * {@link defineMod} around the mod's `register(on, options)`; this service
- * keeps the loaded mods and raises their events from harness extension
- * points — `session.start` on `agent/created`, `prompt.submit` and
- * `turn.start` on `agent/pre-step`, `tool.call` around `tools/execute`,
- * `turn.complete` on `turn/end`, `session.end` on `agent/disposed`, and
- * `command.run` from the commands a mod registers. The `$` a hook receives is
- * served by {@link createHostOps} over the composed harness services.
+ * Claude Code mod 的实验性桥接。一个 mod 是用 {@link defineMod} 围绕 mod 的
+ * `register(on, options)` 构建的 DSH 插件；本服务保留已加载的 mod，并从 harness
+ * 扩展点触发它们的事件 —— `agent/created` 触发 `session.start`、`agent/pre-step`
+ * 触发 `prompt.submit` 和 `turn.start`、`tools/execute` 周围触发 `tool.call`、
+ * `turn/end` 触发 `turn.complete`、`agent/disposed` 触发 `session.end`，而
+ * mod 注册的命令触发 `command.run`。钩子收到的 `$` 由 {@link createHostOps}
+ * 在组合后的 harness 服务之上提供。
  * @module @deepseek-ai/dsh-experimental-claude-code-mods
  */
 
@@ -49,28 +48,28 @@ export { DEFAULT_TOOL_ALIASES } from './tool-names.ts'
 export { KNOWN_EVENTS } from './matcher.ts'
 export { MODS_API_VERSION } from './host-ops.ts'
 
-/** Plugin config: the limits mod hooks run under. */
+/** 插件配置：mod 钩子运行的各项上限。 */
 export interface Config {
-  /** A hook's own running-time limit in milliseconds (Claude Code: 10 seconds). */
+  /** 钩子自身的运行时间上限，单位毫秒（Claude Code：10 秒）。 */
   hookTimeoutMs?: number
-  /** A `.catch` handler's running-time limit in milliseconds (Claude Code: 1 second). */
+  /** `.catch` 处理器的运行时间上限，单位毫秒（Claude Code：1 秒）。 */
   catchTimeoutMs?: number
-  /** Default `$.process.run` and `$.http.fetch` timeout in milliseconds (Claude Code: 30 seconds). */
+  /** `$.process.run` 与 `$.http.fetch` 的默认超时，单位毫秒（Claude Code：30 秒）。 */
   processTimeoutMs?: number
-  /** Claude Code tool name → harness tool name entries added to the built-in alias table. */
+  /** 追加到内置别名表的 Claude Code 工具名 → harness 工具名 条目。 */
   toolAliases?: Record<string, string>
-  /** Columns the band above the prompt reports to `ui.render` as `bodyColumns` and `viewport.columns`. */
+  /** 提示框上方横幅向 `ui.render` 报告的列数，作为 `bodyColumns` 与 `viewport.columns`。 */
   bandColumns?: number
-  /** Rows the band reports as `maxRows`. */
+  /** 横幅报告的行数，作为 `maxRows`。 */
   bandRows?: number
 }
 
-/** Engine events this host raises; a hook on any other known event registers and is reported as unserved. */
+/** 本宿主触发的引擎事件；钩在其它已知事件上会注册并被报告为未服务。 */
 export const SERVED_EVENTS: ReadonlySet<string> = new Set([
   'session.start', 'session.end', 'prompt.submit', 'turn.start', 'turn.complete', 'tool.call', 'command.run', 'ui.render',
 ])
 
-/** Where the deferred argument-rewrite mechanism is specified. */
+/** 延迟参数改写机制的定义所在。 */
 const REWRITE_NOTE = '.agents/notes/proposed/feature/2026-06-30-pre-tool-input-rewrite.md'
 
 function assertPositive(field: string, value: number): void {
@@ -81,19 +80,18 @@ function textOf(blocks: readonly ContentBlock[]): string {
   return blocks.filter((block): block is Extract<ContentBlock, { type: 'text' }> => block.type === 'text').map(block => block.text).join('')
 }
 
-/** The human's own messages among a claim: the prompt a `prompt.submit` hook sees and may rewrite. */
+/** 多条声明中人类自己的消息：即 `prompt.submit` 钩子看到并可改写的提示词。 */
 function promptMessages(claimed: readonly UserMessage[]): UserMessage[] {
   return claimed.filter(message => message.source.kind === 'user')
 }
 
 /**
- * Replace the prompt text across the human's messages with one rewritten
- * text: the first text block carries it, other text blocks go, every
- * non-text block stays in place. A prompt without any text block, such as an
- * image alone, gains the text after its blocks.
+ * 把人类消息中的提示词文本整体替换为一段改写后的文本：第一个文本块承载它，
+ * 其余文本块丢弃，每个非文本块保持原位。一段没有任何文本块的提示词
+ * （例如仅有一张图片）会在其块之后补上这段文本。
  */
 function rewritePromptText(prompt: readonly UserMessage[], text: string): UserMessage[] {
-  // Written inside the map callback, so the flag lives on an object the later read sees current.
+  // 写在 map 回调内部，因此该标志保存在后续读取能看到当前值的对象上。
   const placement = { placed: false }
   const rewritten = prompt.map((message) => {
     if (!message.content.some(block => block.type === 'text')) return message
@@ -113,32 +111,32 @@ function rewritePromptText(prompt: readonly UserMessage[], text: string): UserMe
   return [{ ...first, content: [...first.content, { type: 'text', text }] }, ...rewritten.slice(1)]
 }
 
-/** Append the context a hook attached as blocks after the prompt as typed, on the last of the human's messages. */
+/** 把钩子以块形式附加的上下文，追加到人类最后一条消息中已输入提示词之后。 */
 function appendContext(prompt: readonly UserMessage[], context: readonly string[]): UserMessage[] {
   const last = prompt.at(-1)
-  /* v8 ignore next -- the caller only appends context to a prompt it raised, which has at least one human message */
+  /* v8 ignore next -- 调用方只把上下文追加到它自己引发的提示词上，后者至少包含一条人类消息 */
   if (last === undefined) return [...prompt]
   const blocks: ContentBlock[] = context.map(line => ({ type: 'text', text: line }))
   return [...prompt.slice(0, -1), { ...last, content: [...last.content, ...blocks] }]
 }
 
-/** Keep only the fields of a `prompt.submit` result a mod may set, each with its declared type. */
+/** 只保留 mod 可设置的 `prompt.submit` 结果字段，各字段按声明类型处理。 */
 function acceptPromptSubmit(result: PromptSubmitResult, original: string): PromptSubmitResult {
   if (typeof result.drop === 'string') return { drop: result.drop }
   const context = Array.isArray(result.context) ? result.context.filter((line): line is string => typeof line === 'string') : []
   return { text: typeof result.text === 'string' ? result.text : original, ...context.length === 0 ? {} : { context } }
 }
 
-/** What the bridge folds from one session's event stream about its open turn. */
+/** 桥接从一次会话的事件流中，关于其进行中轮次所折叠出的内容。 */
 interface TurnRecord {
   turn: number
   startedAt: number
-  /** The last committed assistant text of the turn. */
+  /** 该轮次最后一次提交的助手文本。 */
   answer: string
   usage: TurnUsage | undefined
 }
 
-/** Fold one committed assistant message into the turn's answer and usage. */
+/** 把一条已提交的助手消息折叠进该轮次的答案与用量中。 */
 function foldAssistantMessage(turnRecord: TurnRecord, data: { message: AssistantMessage; usage?: TokenUsage }): void {
   turnRecord.answer = textOf(data.message.content)
   if (data.usage === undefined) return
@@ -152,7 +150,7 @@ function foldAssistantMessage(turnRecord: TurnRecord, data: { message: Assistant
   turnRecord.usage = usage
 }
 
-/** Detached mod runs the bridge tracks so disposal can await them; a rejection is reported, never unhandled. */
+/** 桥接追踪的已脱离 mod 运行，以便卸载时可等待它们完成；拒绝会被上报，绝不会成为未处理异常。 */
 class DetachedRuns {
   private readonly pending = new Set<Promise<unknown>>()
   readonly controller = new AbortController()
@@ -160,13 +158,13 @@ class DetachedRuns {
   constructor(private readonly report: (line: string) => void) {}
 
   track(label: string, run: Promise<unknown>): void {
-    /* v8 ignore next -- the engine behaviors beneath these runs are total; the report guards a future rejecting one */
+    /* v8 ignore next -- 这些运行之下的引擎行为是完备的；report 防范了未来可能出现的拒绝 */
     const settled = run.then(() => undefined, (error: unknown) => { this.report(`${label} failed: ${messageOf(error)}`) })
     this.pending.add(settled)
     void settled.finally(() => { this.pending.delete(settled) })
   }
 
-  /** Abort every run's signal; `drain` then waits for them to settle. */
+  /** 中止每次运行的信号；随后 `drain` 会等待它们全部完成。 */
   cancel(): void {
     this.controller.abort(new Error('claude-code-mods disposed'))
   }
@@ -177,13 +175,13 @@ class DetachedRuns {
   }
 }
 
-/** The lossless-JSON copy of a mod's answer, or undefined when it has none. */
+/** 一个 mod 答案的无损 JSON 副本；当它没有答案时为 undefined。 */
 function jsonValueOf(value: unknown): JsonValue | undefined {
   const text = stringify(value)
   return text === undefined ? undefined : JSON.parse(text) as JsonValue
 }
 
-/** An error-shaped tool result carrying a mod's text in place of the tool's own. */
+/** 一个错误形态的工具结果，承载 mod 的文本以取代工具自身的文本。 */
 function modAnswered(text: string, code: 'MOD_DENIED' | 'MOD_ANSWERED', rendered = text): ToolExecutionResult {
   return {
     isError: true,
@@ -193,10 +191,9 @@ function modAnswered(text: string, code: 'MOD_DENIED' | 'MOD_ANSWERED', rendered
 }
 
 /**
- * The bridge service: loaded mods, their hooks, and the harness listeners
- * that raise their events. Mods join through {@link ClaudeCodeMods.add},
- * which {@link defineMod} calls when a mod plugin mounts. The Remote methods
- * let a Client draw each session's band above the prompt and press its buttons.
+ * 桥接服务：已加载的 mod、它们的钩子，以及触发其事件的 harness 监听器。
+ * mod 通过 {@link ClaudeCodeMods.add} 加入，这是 mod 插件挂载时 {@link defineMod}
+ * 所调用的函数。Remote 方法让 Client 绘制每个会话在提示词上方的横幅，并按下其按钮。
  */
 export class ClaudeCodeMods extends TypertRemoteService {
   static Config: z<Config> = z.object({
@@ -208,7 +205,7 @@ export class ClaudeCodeMods extends TypertRemoteService {
     bandRows: z.number().default(10),
   })
 
-  // Session initialization requires its directory owner; other services are read on demand.
+  // 会话初始化需要其目录所有者；其它服务按需读取。
   static inject = ['workingDirectory']
 
   private readonly engine: ModsEngine<AgentBinding>
@@ -217,7 +214,7 @@ export class ClaudeCodeMods extends TypertRemoteService {
 
   constructor(ctx: Context, config: Config) {
     super(ctx, 'claudeCodeMods', { namespace: 'claudeCodeMods' })
-    // The schema supplies every default; a direct construction passes the fields it needs.
+    // 模式提供全部默认值；直接构造时只传入它需要的字段。
     const { hookTimeoutMs = 10_000, catchTimeoutMs = 1_000, processTimeoutMs = 30_000, bandColumns = 120, bandRows = 10 } = config
     assertPositive('hookTimeoutMs', hookTimeoutMs)
     assertPositive('catchTimeoutMs', catchTimeoutMs)
@@ -236,7 +233,7 @@ export class ClaudeCodeMods extends TypertRemoteService {
       rows: bandRows,
       render: (sessionId, input) => {
         const agent = agentOf(sessionId)
-        /* v8 ignore next -- agent/disposed forgets the band before the registry drops the agent; a redraw racing it draws nothing */
+        /* v8 ignore next -- agent/disposed 在注册表丢弃代理之前就忘记了横幅；与之竞速的一次重绘不会绘制任何内容 */
         if (agent === undefined) return Promise.resolve(null)
         return engine.raise<UiRenderInput, UiRenderResult>('ui.render', input, () => null, {
           binding: { agent }, signal: detached.controller.signal,
@@ -252,7 +249,7 @@ export class ClaudeCodeMods extends TypertRemoteService {
       report,
     })
     this.surfaces = surfaces
-    // Deferred by one macrotask: a mod sets its own state right after the `$` call that triggers the redraw resolves.
+    // 推迟一个宏任务：mod 在触发重绘的 `$` 调用解析之后立即设置自己的状态。
     const redraw = (sessionId: string): void => {
       setTimeout(() => {
         if (agentOf(sessionId) !== undefined) void surfaces.refresh(sessionId)
@@ -275,7 +272,7 @@ export class ClaudeCodeMods extends TypertRemoteService {
     this.engine = engine
     const registrations = this.registrations
     ctx.effect(() => async () => {
-      // Cancel first: a timer callback waiting inside a `$` call ends on this signal, and engine.dispose awaits it.
+      // 先取消：在 `$` 调用内部等待的定时器回调会在此信号上结束，而 engine.dispose 会等待它。
       detached.cancel()
       surfaces.dispose()
       for (const owned of registrations.values()) for (const dispose of owned) dispose()
@@ -284,28 +281,28 @@ export class ClaudeCodeMods extends TypertRemoteService {
       await detached.drain()
     }, 'claude-code-mods: unload mods')
 
-    // Read at each use: the registry may mount after this plugin in a composition.
+    // 每次使用时读取：在组合中，注册表可能在本插件之后挂载。
     const isRoot = (agent: Agent): boolean => {
       const agents = ctx.get('agents')
       return agents === undefined || agents.roots().includes(agent)
     }
-    /** Root agents that received `session.start`; the registry no longer lists an agent once it is disposed. */
+    /** 收到过 `session.start` 的根代理；代理一旦被释放，注册表便不再列出它。 */
     const startedRoots = new Set<string>()
     const agentIdOf = (agent: Agent | undefined): { agentId: string } | Record<never, never> =>
       agent !== undefined && !isRoot(agent) ? { agentId: agent.id } : {}
 
-    /** Per-session fold of the open turn, keyed by session id. */
+    /** 按会话 id 索引、针对进行中轮次的逐会话折叠。 */
     const turns = new Map<string, TurnRecord>()
-    /** Turns whose first pre-step already raised `turn.start`, by session id. */
+    /** 已由其首次 pre-step 触发过 `turn.start` 的轮次，按会话 id 索引。 */
     const startedTurns = new Map<string, Set<number>>()
-    /** Rewritten tool results the post-execute listener installs as content. */
+    /** 由 post-execute 监听器作为内容安装的、被改写的工具结果。 */
     const replacements = new Map<ToolExecutionToken, string>()
 
     ctx.on('agent/created', async ({ agent, signal }) => {
       if (!isRoot(agent)) return
       startedRoots.add(agent.session.id)
-      // Cancelling creation also cancels directory validation and a waiting hook.
-      /* v8 ignore next -- the loop always supplies an initialization signal; the payload type keeps it optional */
+      // 取消创建同时会取消目录校验与等待中的钩子。
+      /* v8 ignore next -- 循环总是提供初始化信号；载荷类型只是把它保留为可选 */
       const abandon = signal === undefined ? detached.controller.signal : AbortSignal.any([signal, detached.controller.signal])
       const input: SessionStartInput = {
         cwd: await ctx.workingDirectory.ensure(agent, abandon),
@@ -322,7 +319,7 @@ export class ClaudeCodeMods extends TypertRemoteService {
       const sessionId = agent.session.id
       turns.delete(sessionId)
       startedTurns.delete(sessionId)
-      // The agent's scoped registrations unwound with its context; only the bookkeeping remains.
+      // 代理的作用域注册已随其上下文一起解除；仅剩簿记信息。
       registrations.delete(sessionId)
       surfaces.forget(sessionId)
       const forget = (): Promise<void> => engine.forgetSession(sessionId)
@@ -331,7 +328,7 @@ export class ClaudeCodeMods extends TypertRemoteService {
         return
       }
       const input: SessionEndInput = { reason: 'other', sessionId }
-      // `$.state` stays readable and the session's timers keep running until the mods' `session.end` hooks have settled.
+      // `$.state` 仍可读，且会话的定时器持续运行，直到 mod 的 `session.end` 钩子全部完成。
       detached.track('session.end', engine.raise<SessionEndInput, SessionEndResult>(
         'session.end', input, e => ({ sessionId: e.sessionId }), { binding: { agent }, signal: detached.controller.signal },
       ).then(forget, forget))
@@ -346,7 +343,7 @@ export class ClaudeCodeMods extends TypertRemoteService {
       const prompt = promptMessages(messages)
       const text = textOf(prompt.flatMap(message => message.content))
       let submitted: PromptSubmitResult = { text }
-      // A batch of injected context alone is not a prompt: Claude Code raises prompt.submit for typed prompts.
+      // 仅一批注入的上下文本身不算提示词：Claude Code 只为键入的提示词触发 prompt.submit。
       if (prompt.length > 0) {
         const submitter = prompt.map(message => modSubmissions.get(message.id)).find(name => name !== undefined)
         for (const message of prompt) modSubmissions.delete(message.id)
@@ -371,7 +368,7 @@ export class ClaudeCodeMods extends TypertRemoteService {
       if (downstream.kind !== 'enter' || messages.length === 0) return downstream
       const context = submitted.context ?? []
       if (submitted.text === text && context.length === 0) return downstream
-      // The rewritten text and the attached context replace the human's messages in place; every other message stays.
+      // 改写后的文本与附加的上下文就地替换人类的消息；其余消息保持不变。
       let edited = submitted.text === text ? [...prompt] : rewritePromptText(prompt, submitted.text)
       if (context.length > 0) edited = appendContext(edited, context)
       const rewritten = new Map<UserMessage, UserMessage>()
@@ -380,7 +377,7 @@ export class ClaudeCodeMods extends TypertRemoteService {
     })
 
     ctx.on('tools/execute', async (exec, next): Promise<ToolExecutionResult> => {
-      // A call a mod raised through `$.tool.call` reaches only the mods loaded before it, never itself.
+      // 一个 mod 通过 `$.tool.call` 引发的调用，只到达它之前加载的 mod，绝不会到达它自身。
       const raisedBy = callOrigins.get(exec.callId)
       const hooks = engine.registry.select('tool.call', raisedBy)
       if (hooks.length === 0) return next()
@@ -396,7 +393,7 @@ export class ClaudeCodeMods extends TypertRemoteService {
       }, {
         binding: { agent },
         signal: exec.signal,
-        // The call is logged before policy runs, so the arguments a hook passes down must be the logged ones.
+        // 调用在策略运行前已被记录，因此钩子向下传递的参数必须是已记录的那些。
         validateNext: (e) => {
           const { tool, tool_use_id: _id, agentId: _agentId, ...rest } = e
           if (tool !== modName) {
@@ -413,15 +410,15 @@ export class ClaudeCodeMods extends TypertRemoteService {
       if (beneath !== undefined) {
         const mapped = toolCallResultOf(beneath)
         if (mapped.result === answer.result && mapped.isError === answer.isError) return beneath
-        // A success the hook marked as failed becomes a failure; a failure stays one, with the hook's text.
+        // 钩子标记为失败的成功会变成失败；失败仍是失败，且携带钩子的文本。
         if (answer.isError === true && !beneath.isError) return modAnswered(text, 'MOD_ANSWERED')
         replacements.set(exec.token, text)
         return beneath
       }
       if (answer.isError === true) return modAnswered(text, 'MOD_ANSWERED')
       if (modTools.has(exec.name)) return { isError: false, value: text, content: [{ type: 'text', text }] }
-      // A built-in tool's success value must satisfy its own output schema: a
-      // conforming answer is the tool's result, any other is error-shaped.
+      // 内置工具的成功值必须满足其自身的输出模式：符合模式的就是工具结果，
+      // 其余一律视为错误形态。
       const definition = ctx.get('tools')?.get(exec.name, agent === undefined ? undefined : scopeOf(agent.ctx))
       const value = jsonValueOf(answer.result)
       if (definition !== undefined && value !== undefined && validateJsonSchemaValue(definition.output.schema, value).length === 0) {
@@ -430,7 +427,7 @@ export class ClaudeCodeMods extends TypertRemoteService {
       return modAnswered(text, 'MOD_ANSWERED')
     })
 
-    // A call that never reaches post-execute (an earlier listener answered, or a pipeline failure) still clears its entry.
+    // 一次从未到达 post-execute 的调用（更早的监听器已应答，或管道失败）仍会清除其条目。
     ctx.on('tools/result', (exec) => { replacements.delete(exec.token) })
 
     ctx.on('tools/post-execute', async (exec, _result, next): Promise<PostToolDecision> => {
@@ -483,11 +480,10 @@ export class ClaudeCodeMods extends TypertRemoteService {
   }
 
   /**
-   * Watch the band above the prompt of one session: the current drawing, then
-   * every redraw, until the Client stops watching.
-   * @param agent - the session's agent, resolved by the Gateway.
-   * @param signal - carrier cancellation.
-   * @returns the band's snapshots.
+   * 观察一次会话在提示词上方的横幅：先是当前画面，然后每次重绘，直到 Client 停止观察。
+   * @param agent - 该会话的代理，由 Gateway 解析。
+   * @param signal - 承载的取消信号。
+   * @returns 横幅的快照。
    */
   @Remote({ mode: 'stream' })
   watchBand(agent: Agent, signal: AbortSignal): AsyncIterable<SurfaceSnapshot> {
@@ -495,11 +491,11 @@ export class ClaudeCodeMods extends TypertRemoteService {
   }
 
   /**
-   * Press a button of the band's current drawing: runs the mod's `onPress` and redraws.
-   * @param agent - the session's agent, resolved by the Gateway.
-   * @param generation - the drawing the Client saw.
-   * @param actionId - the button's action id in that drawing.
-   * @returns the snapshot after the press.
+   * 按下横幅当前画面中的一个按钮：运行 mod 的 `onPress` 并重绘。
+   * @param agent - 该会话的代理，由 Gateway 解析。
+   * @param generation - Client 看到的画面。
+   * @param actionId - 该画面中按钮的 action id。
+   * @returns 按下后的快照。
    */
   @Remote
   pressBand(agent: Agent, generation: number, actionId: string): Promise<SurfaceSnapshot> {
@@ -508,11 +504,11 @@ export class ClaudeCodeMods extends TypertRemoteService {
 
 
   /**
-   * Load one mod beneath every mod loaded before it: run its `register`,
-   * keep its hooks, and report which of its events this host never raises.
-   * @param definition - the mod as its plugin defined it.
-   * @returns the disposer that removes the mod's hooks, closes its timers, and releases its registrations.
-   * @throws Error when the name is invalid or taken, or when `register` throws (Claude Code's `hooks module did not load` wording).
+   * 在所有已加载 mod 之下加载一个 mod：运行它的 `register`，保留它的钩子，
+   * 并报告本宿主从未触发的那些事件。
+   * @param definition - 其插件所定义的 mod。
+   * @returns 处置器，移除该 mod 的钩子、关闭其定时器并释放其注册。
+   * @throws 当名称无效或已被占用，或 `register` 抛出异常时（对应 Claude Code 的 `hooks module did not load` 措辞）。
    */
   async add(definition: ModDefinition): Promise<() => Promise<void>> {
     const mod = await this.engine.add(definition)
@@ -526,7 +522,7 @@ export class ClaudeCodeMods extends TypertRemoteService {
     }
   }
 
-  /** The loaded mods in chain order. */
+  /** 按链接顺序的已加载 mod。 */
   get mods(): readonly LoadedMod[] {
     return this.engine.registry.list()
   }

@@ -1,8 +1,7 @@
 /**
- * The band above the prompt as the host draws it for one session: renders
- * through the mods' `ui.render` hooks, keeps the latest tree with its button
- * callbacks held host-side, redraws when a `$.state` value a render read
- * changes or a mod asks, and hands watchers each new generation.
+ * 宿主为一次会话绘制的提示词上方横幅：经由 mod 的 `ui.render` 钩子渲染，
+ * 保留最新树形结构并把按钮回调握在宿主一侧，当某次渲染读到的 `$.state`
+ * 值发生变化或 mod 主动请求时重绘，并向观察者交付每一代新画面。
  * @module
  */
 
@@ -13,36 +12,36 @@ import type { SerializedNode, SurfaceSnapshot, UiRenderInput } from './types.ts'
 
 export type { SurfaceSnapshot } from './types.ts'
 
-/** What the table needs from the host. */
+/** 该表从宿主处需要的内容。 */
 export interface SurfaceHost {
-  /** Columns the band reports to `ui.render` as `bodyColumns` and `viewport.columns`. */
+  /** 横幅向 `ui.render` 报告的列数，作为 `bodyColumns` 与 `viewport.columns`。 */
   readonly columns: number
-  /** Rows the band reports as `maxRows`. */
+  /** 横幅报告的行数，作为 `maxRows`。 */
   readonly rows: number
-  /** Raise `ui.render` for one session through the mods and return the tree. */
+  /** 为一次会话经由 mod 触发 `ui.render` 并返回树形结构。 */
   render(sessionId: string, input: UiRenderInput): Promise<UiNode>
-  /** Run one button's callback inside the session; the host owns the invocation and its reporting. */
+  /** 在会话内部运行某个按钮的回调；宿主拥有调用及其上报。 */
   runAction(sessionId: string, callback: () => unknown): Promise<void>
-  /** Receives diagnostics: invalid trees, failed presses. */
+  /** 接收诊断信息：无效树、失败的按下操作。 */
   report(line: string): void
 }
 
 class SessionBand {
   generation = 0
   tree: readonly SerializedNode[] | null = null
-  /** `$.state` slots the last render read, as `<plugin>\u0000<key>`. */
+  /** 最近一次渲染读到的 `$.state` 槽位，形如 `<plugin>\u0000<key>`。 */
   readonly subscribed = new Set<string>()
-  /** Button callbacks of the current generation, by the `actionId` the serialized tree carries. */
+  /** 当前这一代的按钮回调，按序列化树携带的 `actionId` 索引。 */
   readonly actions = new Map<string, () => unknown>()
   readonly watchers = new Set<(snapshot: SurfaceSnapshot) => void>()
-  /** The render in flight; a refresh during it joins one more pass that starts when it ends. */
+  /** 正在进行的渲染；渲染期间的刷新会并入它在结束时启动的下一轮。 */
   rendering: Promise<void> | undefined
   pending: Promise<void> | undefined
-  /** Set by `forget`: watchers end at their next wake and no further pass renders. */
+  /** 由 `forget` 设置：观察者在下次唤醒时结束，不再有后续渲染。 */
   closed = false
-  /** Wakes every parked watcher, so a closed band ends its streams. */
+  /** 唤醒每一个停驻的观察者，使已关闭的横幅结束其流。 */
   readonly wakers = new Set<() => void>()
-  /** Set while a render runs: `$.state` reads subscribe. */
+  /** 渲染进行期间设置：`$.state` 读取会订阅。 */
   collecting: Set<string> | undefined
 
   snapshot(): SurfaceSnapshot {
@@ -51,7 +50,7 @@ class SessionBand {
 }
 
 /**
- * Bands by session id.
+ * 按会话 id 索引的横幅。
  */
 export class SurfaceTable {
   private readonly bands = new Map<string, SessionBand>()
@@ -60,9 +59,9 @@ export class SurfaceTable {
   constructor(private readonly host: SurfaceHost) {}
 
   /**
-   * The latest snapshot of a session's band, drawing it first when nothing was drawn yet.
-   * @param sessionId - the session.
-   * @returns the current generation.
+   * 一次会话横幅的最新快照，若尚未绘制则先绘制。
+   * @param sessionId - 会话。
+   * @returns 当前代。
    */
   async current(sessionId: string): Promise<SurfaceSnapshot> {
     const band = this.bandOf(sessionId)
@@ -71,10 +70,10 @@ export class SurfaceTable {
   }
 
   /**
-   * Watch a session's band: the current snapshot first, then every redraw, until the signal aborts.
-   * @param sessionId - the session.
-   * @param signal - ends the watch.
-   * @returns the snapshots.
+   * 观察一次会话的横幅：先是当前快照，之后每次重绘，直到信号中止。
+   * @param sessionId - 会话。
+   * @param signal - 结束观察。
+   * @returns 快照。
    */
   async *watch(sessionId: string, signal: AbortSignal): AsyncIterable<SurfaceSnapshot> {
     const band = this.bandOf(sessionId)
@@ -96,7 +95,7 @@ export class SurfaceTable {
       while (!signal.aborted && !band.closed) {
         const next = queue.shift()
         if (next !== undefined) {
-          // The first drawing may arrive both as the current snapshot and as a watcher notification.
+          // 第一幅画面可能既作为当前快照、又作为观察者通知到达。
           if (next.generation <= delivered) continue
           delivered = next.generation
           yield next
@@ -113,9 +112,9 @@ export class SurfaceTable {
   }
 
   /**
-   * Redraw a session's band through the mods and notify watchers when the tree changed.
-   * @param sessionId - the session.
-   * @returns settles once the redraw landed.
+   * 经 mod 重绘一次会话的横幅，并在树形变化后通知观察者。
+   * @param sessionId - 会话。
+   * @returns 重绘落地后结束。
    */
   refresh(sessionId: string): Promise<void> {
     const band = this.bandOf(sessionId)
@@ -123,7 +122,7 @@ export class SurfaceTable {
       band.rendering = this.renderOnce(sessionId, band).finally(() => { band.rendering = undefined })
       return band.rendering
     }
-    // One more pass after the one in flight serves every refresh asked for meanwhile.
+    // 在途渲染结束后再跑一轮，即可覆盖期间被请求的所有刷新。
     band.pending ??= band.rendering.then(() => {
       band.pending = undefined
       return this.refresh(sessionId)
@@ -132,12 +131,12 @@ export class SurfaceTable {
   }
 
   /**
-   * Run the callback a button holds and redraw. A press from an earlier
-   * generation is ignored: the button it names may no longer exist.
-   * @param sessionId - the session.
-   * @param generation - the generation the client saw.
-   * @param actionId - the id the serialized Button carried.
-   * @returns the snapshot after the press.
+   * 运行按钮所持有的回调并重绘。来自更早一代的按下会被忽略：它所命名的
+   * 按钮可能已不存在。
+   * @param sessionId - 会话。
+   * @param generation - Client 看到的代。
+   * @param actionId - 序列化 Button 携带的 id。
+   * @returns 按下后的快照。
    */
   async press(sessionId: string, generation: number, actionId: string): Promise<SurfaceSnapshot> {
     const band = this.bandOf(sessionId)
@@ -152,18 +151,18 @@ export class SurfaceTable {
   }
 
   /**
-   * Note a `$.state` read: during a render it subscribes the band to the slot.
-   * @param sessionId - the session the state belongs to.
-   * @param slot - the `<plugin>\u0000<key>` slot.
+   * 记录一次 `$.state` 读取：渲染期间会把横幅订阅到该槽位。
+   * @param sessionId - 状态所属的会话。
+   * @param slot - `<plugin>\u0000<key>` 槽位。
    */
   stateRead(sessionId: string, slot: string): void {
     this.bands.get(sessionId)?.collecting?.add(slot)
   }
 
   /**
-   * Note a `$.state` write: a subscribed band redraws.
-   * @param sessionId - the session the state belongs to.
-   * @param slot - the `<plugin>\u0000<key>` slot.
+   * 记录一次 `$.state` 写入：已订阅的横幅会重绘。
+   * @param sessionId - 状态所属的会话。
+   * @param slot - `<plugin>\u0000<key>` 槽位。
    */
   stateWritten(sessionId: string, slot: string): void {
     const band = this.bands.get(sessionId)
@@ -172,8 +171,8 @@ export class SurfaceTable {
   }
 
   /**
-   * Forget a session's band: its watch streams end and no further pass renders it.
-   * @param sessionId - the disposed session.
+   * 遗忘一次会话的横幅：其观察流结束，不再有后续渲染。
+   * @param sessionId - 已被释放的会话。
    */
   forget(sessionId: string): void {
     const band = this.bands.get(sessionId)
@@ -184,7 +183,7 @@ export class SurfaceTable {
     for (const waker of [...band.wakers]) waker()
   }
 
-  /** Stop drawing: every band is forgotten and its watch streams end. */
+  /** 停止绘制：所有横幅被遗忘，其观察流结束。 */
   dispose(): void {
     this.disposed = true
     for (const sessionId of [...this.bands.keys()]) this.forget(sessionId)
@@ -223,7 +222,7 @@ export class SurfaceTable {
       this.host.report(`a ui.render hook returned a tree that does not validate: ${problem}`)
       tree = null
     }
-    // Action ids count up per drawing, so an unchanged tree serializes identically and keeps its generation.
+    // 每次绘制 action id 递增，因此未变化的树序列化结果相同，从而保持其代不变。
     const actions = new Map<string, () => unknown>()
     const serialized = serializeTree(tree, (callback) => {
       const id = `a${actions.size}`
@@ -232,7 +231,7 @@ export class SurfaceTable {
     })
     const next = serialized.length === 0 ? null : serialized
     if (band.generation > 0 && JSON.stringify(next) === JSON.stringify(band.tree)) {
-      // The same drawing with possibly fresh closures: keep the generation, hold the new callbacks.
+      // 同一幅画面，但闭包可能已更新：保留代，持有新的回调。
       band.actions.clear()
       for (const [id, action] of actions) band.actions.set(id, action)
       return

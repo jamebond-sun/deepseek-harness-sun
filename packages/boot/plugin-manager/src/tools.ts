@@ -70,7 +70,7 @@ function withNextStep(result: ChangeResult): ChangeResult & { nextStep?: string 
       const kind = code === 'operation-error' ? result.packageResult?.kind : undefined
       return { ...result, nextStep: (kind === undefined ? undefined : FAILURE_STEPS[kind]) ?? ERROR_STEPS[code] }
     }
-    /* v8 ignore next -- ChangeResult.application is a closed union */
+    /* v8 ignore next -- ChangeResult.application 是一个封闭联合 */
     default: return assertNever(result.application)
   }
 }
@@ -150,7 +150,7 @@ export function apply(ctx: Context): void {
         case 'remove_bundle':
           if (args.target === undefined) throw new Error('target bundle name is required')
           return JSON.stringify(withNextStep(await manager.removeBundle(args.target)))
-        /* v8 ignore next -- tool JSON validation rejects actions outside the declared enum */
+        /* v8 ignore next -- 工具 JSON 校验会拒绝声明枚举之外的动作 */
         default: return assertNever(args.action)
       }
     },

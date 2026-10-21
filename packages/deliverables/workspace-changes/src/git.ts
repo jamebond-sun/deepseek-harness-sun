@@ -1,43 +1,43 @@
-/** Git working-tree snapshots, tree diffs, and ignore checks through the subprocess capability. */
+/** 通过子进程能力实现的 git 工作树快照、树差异与忽略检查。 */
 import { copyFile, mkdir, mkdtemp, rm } from 'node:fs/promises'
 import { join, relative, resolve } from 'node:path'
 import type { SubprocessRuntime } from '@deepseek-ai/dsh-subprocess'
 import { parseNumstat, type NumstatEntry } from './numstat.ts'
 import { canonicalPath, isInside, toPosix } from './paths.ts'
 
-/** Milliseconds a git child gets to exit after termination starts; a fixed lifecycle constant. */
+/** git 子进程在终止开始之后获准退出的毫秒数；一个固定的生命周期常量。 */
 const TERMINATE_GRACE_MS = 2_000
-/** Retained stderr tail for diagnostics. */
+/** 为诊断而保留的 stderr 尾部。 */
 const STDERR_TAIL_BYTES = 16 * 1024
 
-/** Settled git command facts; a nonzero exit is a result, not an exception. */
+/** 已落定的 git 命令事实；非零退出码是一种结果，而非异常。 */
 export interface GitRunResult {
   exitCode: number | null
   stdout: string
   stderr: string
-  /** True when stdout exceeded the output cap and lost its head. */
+  /** 当 stdout 超过输出上限并丢失了头部时为真。 */
   truncated: boolean
 }
 
-/** Per-command spawn facts. */
+/** 每次命令的生成事实。 */
 export interface GitRunOptions {
   cwd: string
   env?: Readonly<Record<string, string>> | undefined
   stdin?: string | undefined
-  /** In-memory stdout cap for this command, replacing the runner's `outputMaxBytes`. */
+  /** 此命令的内存 stdout 上限，取代运行器的 `outputMaxBytes`。 */
   maxBytes?: number | undefined
   signal: AbortSignal
 }
 
-/** Bounds every git command runs under. */
+/** 每条 git 命令运行所遵守的边界。 */
 export interface GitLimits {
-  /** Milliseconds before a command is terminated. */
+  /** 命令被终止之前的毫秒数。 */
   timeoutMs: number
-  /** In-memory stdout cap in bytes. */
+  /** 内存 stdout 上限（以字节计）。 */
   outputMaxBytes: number
 }
 
-/** Runs one resolved git executable with scrubbed environment, timeout, and bounded output. */
+/** 运行一个已解析的 git 可执行文件，带有清洗后的环境、超时与受限输出。 */
 export class GitRunner {
   constructor(
     private readonly subprocess: SubprocessRuntime,
@@ -46,11 +46,11 @@ export class GitRunner {
   ) {}
 
   /**
-   * Run `git <args>` to completion.
-   * @param args - git arguments; never shell-interpreted.
-   * @param options - working directory, extra environment, stdin data, and cancellation.
-   * @returns exit facts and collected output.
-   * @throws when the command times out, is aborted, or cannot spawn.
+   * 完整运行 `git <args>`。
+   * @param args - git 参数；永不被 shell 解释。
+   * @param options - 工作目录、额外环境、stdin 数据与取消信号。
+   * @returns 退出事实与收集到的输出。
+   * @throws 当命令超时、被中止，或无法生成时抛出。
    */
   async run(args: readonly string[], options: GitRunOptions): Promise<GitRunResult> {
     const timeout = AbortSignal.timeout(this.limits.timeoutMs)
@@ -65,14 +65,14 @@ export class GitRunner {
       },
       graceMs: TERMINATE_GRACE_MS,
       signal,
-      // The subprocess credential scrub removes ambient GIT_CONFIG_KEY_n entries.
+      // 子进程的凭据清洗会移除环境里的 GIT_CONFIG_KEY_n 条目。
       env: { GIT_CONFIG_COUNT: '0', GIT_TERMINAL_PROMPT: '0', GIT_OPTIONAL_LOCKS: '0', LC_ALL: 'C', ...options.env },
     })
     const outcome = await handle.done
     if (signal.aborted) {
       throw new Error(`git ${args.join(' ')} ${timeout.aborted ? `timed out after ${this.limits.timeoutMs}ms` : 'was aborted'}`)
     }
-    /* v8 ignore start -- collect-mode stdio always yields both readers. */
+    /* v8 ignore start -- 收集模式的 stdio 总是产出两个读取器。 */
     const stdout = handle.collected.stdout?.readFrom(0) ?? { text: '', lossy: false }
     const stderr = handle.collected.stderr?.readFrom(0).text ?? ''
     /* v8 ignore stop */
@@ -81,48 +81,46 @@ export class GitRunner {
 }
 
 /**
- * Reject a failed command with its stderr.
- * @param result - settled command facts.
- * @param what - command description for the error message.
- * @returns the same result when it exited zero.
+ * 以命令的 stderr 拒绝一次失败的执行。
+ * @param result - 已落定的命令事实。
+ * @param what - 用于错误消息的命令描述。
+ * @returns 当退出码为 0 时返回同一结果。
  */
 function ok(result: GitRunResult, what: string): GitRunResult {
   if (result.exitCode !== 0) throw new Error(`${what} failed: ${result.stderr.trim()}`)
   return result
 }
 
-/** The repository enclosing a Session working directory and the private directory its snapshots write to. */
+/** 包围一个 Session 工作目录的仓库，及其快照所写入的私有目录。 */
 export interface GitWorkspace {
-  /** Repository top-level directory, the root every diff path is relative to. */
+  /** 仓库顶层目录，每个差异路径都相对于它。 */
   root: string
-  /** Absolute git directory holding the repository's index. */
+  /** 持有仓库索引的绝对 git 目录。 */
   gitDir: string
-  /** Private directory holding the snapshot object store and each snapshot's scratch index. */
+  /** 持有快照对象存储与每个快照的临时索引的私有目录。 */
   scratch: string
-  /** Environment that routes object writes to the private store and object reads through the repository's store. */
+  /** 将对象写入路由到私有存储、并将对象读取透过仓库存储进行的环境。 */
   env: Readonly<Record<string, string>>
-  /** Work-tree paths a snapshot must skip: the private directory when a temporary root lies inside the work tree. */
+  /** 快照必须跳过的、工作树中的路径：当临时根位于工作树之内时，即私有目录。 */
   excludes: readonly string[]
 }
 
-/** Whether a filesystem error names a missing path. */
+/** 一个文件系统错误是否指向缺失的路径。 */
 function isMissing(error: unknown): boolean {
   return typeof error === 'object' && error !== null && (error as { code?: unknown }).code === 'ENOENT'
 }
 
 /**
- * Locate the repository enclosing a working directory and prepare the private
- * directory its snapshots write to. The repository's own object store is
- * attached read-only as an alternate, so snapshots read committed content from
- * it and write nothing into it. A private directory that lies inside the work
- * tree, as a temporary root under the workspace does, is excluded from every
- * snapshot. A directory outside any repository yields null; any other git
- * failure throws.
- * @param git - command runner.
- * @param cwd - absolute Session working directory.
- * @param scratch - yields the private directory for snapshot objects and scratch indexes; called only for a located repository.
- * @param signal - cancellation.
- * @returns the repository, or null when the directory is not inside one.
+ * 定位包围工作目录的仓库，并准备其快照所写入的私有
+ * 目录。仓库自身的对象存储被以只读方式作为备用附加，从而快照从
+ * 它读取已提交内容，而不向其中写入任何内容。位于工作树
+ * 之内的私有目录（如同工作区下的临时根那样）会在每次快照中被排除。
+ * 位于任何仓库之外的目录返回 null；其它任何 git 失败都会抛出。
+ * @param git - 命令运行器。
+ * @param cwd - 绝对的 Session 工作目录。
+ * @param scratch - 产出快照对象与临时索引所用的私有目录；仅对定位到的仓库调用。
+ * @param signal - 取消信号。
+ * @returns 仓库；当目录不在任何仓库内时为 null。
  */
 export async function locateGitWorkspace(
   git: GitRunner, cwd: string, scratch: () => Promise<string>, signal: AbortSignal,
@@ -131,7 +129,7 @@ export async function locateGitWorkspace(
   if (found.exitCode === 128 && /not a git repository/i.test(found.stderr)) return null
   const lines = ok(found, 'git rev-parse').stdout.split('\n').map(line => resolve(cwd, line))
   const [root, gitDir, repositoryObjects] = lines as [string, string, string]
-  // git reports the canonical root; compare the private directory in the same spelling.
+  // git 报告规范根目录；以相同的拼写比较私有目录。
   const directory = await canonicalPath(await scratch())
   const objects = join(directory, 'objects')
   await mkdir(objects, { recursive: true })
@@ -141,29 +139,28 @@ export async function locateGitWorkspace(
 }
 
 /**
- * Write the complete work tree, including untracked and modified files but
- * not ignored ones, as a tree object through a private index seeded from the
- * repository's index. New blobs and the tree land in the private object store;
- * the repository's index, object store, work tree, and refs stay unchanged,
- * and an in-progress merge keeps its unmerged entries.
- * @param git - command runner.
- * @param workspace - addressed repository.
- * @param signal - cancellation.
- * @returns the tree object id.
+ * 将完整的工作树（包含未跟踪与已修改的文件，但不包含被忽略的文件）
+ * 作为一个树对象写入，通过一个由仓库索引播种的私有索引。新的 blob 与树
+ * 落在私有对象存储中；仓库的索引、对象存储、工作树与引用保持
+ * 不变，且进行中的合并保留其未合并条目。
+ * @param git - 命令运行器。
+ * @param workspace - 被寻址的仓库。
+ * @param signal - 取消信号。
+ * @returns 树对象 id。
  */
 export async function snapshotTree(git: GitRunner, workspace: GitWorkspace, signal: AbortSignal): Promise<string> {
   const scratch = await mkdtemp(join(workspace.scratch, 'index-'))
   try {
     const index = join(scratch, 'index')
-    // A repository without an index yet (fresh `git init`) starts from scratch.
+    // 尚未拥有索引的仓库（全新的 `git init`）从零开始。
     await copyFile(join(workspace.gitDir, 'index'), index).catch((error: unknown) => {
       if (!isMissing(error)) throw error
     })
     const env = { ...workspace.env, GIT_INDEX_FILE: index }
-    // `--ignore-errors` skips unreadable files and reports them through exit code 1; the index is still complete.
+    // `--ignore-errors` 会跳过不可读的文件，并通过退出码 1 报告它们；索引仍然是完整的。
     const pathspec = workspace.excludes.length === 0 ? [] : ['--', '.', ...workspace.excludes.map(path => `:(exclude)${path}`)]
     const added = await git.run(['add', '--all', '--ignore-errors', ...pathspec], { cwd: workspace.root, env, signal })
-    /* v8 ignore next -- git reports a skipped unreadable file only on hosts whose permissions the tests can revoke. */
+    /* v8 ignore next -- git 仅在权限可被测试撤销的宿主上才会报告被跳过的不可读文件。 */
     if (added.exitCode !== 1) ok(added, `git add in ${workspace.root}`)
     return ok(await git.run(['write-tree'], { cwd: workspace.root, env, signal }), 'git write-tree').stdout.trim()
   } finally {
@@ -171,26 +168,26 @@ export async function snapshotTree(git: GitRunner, workspace: GitWorkspace, sign
   }
 }
 
-/** A blob one snapshot tree holds at a path. */
+/** 一个快照树在某一路径处持有的 blob。 */
 export interface TreeBlob {
   oid: string
-  /** Object size in bytes. */
+  /** 对象大小（以字节计）。 */
   size: number
 }
 
 /**
- * The blob a snapshot tree holds at one path.
- * @param git - command runner.
- * @param workspace - addressed repository.
- * @param tree - snapshot tree id.
- * @param path - slash-separated path relative to the repository root.
- * @param signal - cancellation.
- * @returns the blob, or null when the tree holds nothing at the path or holds a gitlink or tree there.
+ * 一个快照树在某一路径处持有的 blob。
+ * @param git - 命令运行器。
+ * @param workspace - 被寻址的仓库。
+ * @param tree - 快照树 id。
+ * @param path - 相对于仓库根的、以斜杠分隔的路径。
+ * @param signal - 取消信号。
+ * @returns blob；当树在该路径处没有任何内容、或持有 gitlink 或树时，为 null。
  */
 export async function treeBlob(
   git: GitRunner, workspace: GitWorkspace, tree: string, path: string, signal: AbortSignal,
 ): Promise<TreeBlob | null> {
-  // The path is a pathspec; literal matching keeps `*`, `?`, and `[` in a file name from selecting another entry.
+  // 该路径是一个 pathspec；字面匹配可避免文件名中的 `*`、`?` 与 `[` 选中其它条目。
   const result = ok(await git.run(['ls-tree', '-z', '-l', tree, '--', path], {
     cwd: workspace.root, env: { ...workspace.env, GIT_LITERAL_PATHSPECS: '1' }, signal,
   }), 'git ls-tree')
@@ -201,32 +198,32 @@ export async function treeBlob(
 }
 
 /**
- * The text of one blob whose size {@link treeBlob} reported within the cap.
- * @param git - command runner.
- * @param workspace - addressed repository.
- * @param oid - blob id.
- * @param maxBytes - inclusive byte cap the caller checked the blob's size against.
- * @param signal - cancellation.
- * @returns the blob decoded as UTF-8.
+ * 一个 blob 的文本，其大小已由 {@link treeBlob} 报告在上限之内。
+ * @param git - 命令运行器。
+ * @param workspace - 被寻址的仓库。
+ * @param oid - blob id。
+ * @param maxBytes - 调用方据以检查 blob 大小的、含上限的字节数。
+ * @param signal - 取消信号。
+ * @returns 以 UTF-8 解码的 blob。
  */
 export async function blobText(
   git: GitRunner, workspace: GitWorkspace, oid: string, maxBytes: number, signal: AbortSignal,
 ): Promise<string> {
   const result = ok(await git.run(['cat-file', 'blob', oid], { cwd: workspace.root, env: workspace.env, maxBytes, signal }), 'git cat-file')
-  /* v8 ignore next -- callers size the blob with treeBlob first; a blob is immutable, so the cap cannot be exceeded here. */
+  /* v8 ignore next -- 调用方先用 treeBlob 量取 blob 大小；blob 不可变，因此上限在此不可能被超过。 */
   if (result.truncated) throw new Error(`blob ${oid} exceeds ${maxBytes} bytes`)
   return result.stdout
 }
 
 /**
- * Per-file line counts between two snapshot trees, with renames detected.
- * @param git - command runner.
- * @param workspace - addressed repository.
- * @param before - turn-start tree id.
- * @param after - turn-end tree id.
- * @param signal - cancellation.
- * @returns changed files relative to the repository root.
- * @throws when git fails or the output exceeded the cap.
+ * 两棵快照树之间、逐文件的行数，并检测重命名。
+ * @param git - 命令运行器。
+ * @param workspace - 被寻址的仓库。
+ * @param before - 回合开始的树 id。
+ * @param after - 回合结束的树 id。
+ * @param signal - 取消信号。
+ * @returns 相对于仓库根的被更改文件。
+ * @throws 当 git 失败或输出超过上限时抛出。
  */
 export async function diffTrees(
   git: GitRunner, workspace: GitWorkspace, before: string, after: string, signal: AbortSignal,
@@ -240,13 +237,12 @@ export async function diffTrees(
 }
 
 /**
- * Work-tree directories the index records as gitlinks: nested repositories and
- * submodules, whose contents snapshots never descend into and `check-ignore`
- * refuses to classify.
- * @param git - command runner.
- * @param workspace - addressed repository.
- * @param signal - cancellation.
- * @returns slash-separated gitlink paths relative to the repository root.
+ * 索引记录为 gitlink 的工作树目录：嵌套仓库与
+ * 子模块，其内容是快照永远不会深入、且 `check-ignore` 拒绝分类的。
+ * @param git - 命令运行器。
+ * @param workspace - 被寻址的仓库。
+ * @param signal - 取消信号。
+ * @returns 相对于仓库根的、以斜杠分隔的 gitlink 路径。
  */
 export async function gitlinkPaths(git: GitRunner, workspace: GitWorkspace, signal: AbortSignal): Promise<Set<string>> {
   const result = ok(await git.run(['ls-files', '-z', '--stage'], { cwd: workspace.root, env: workspace.env, signal }), 'git ls-files')
@@ -258,14 +254,14 @@ export async function gitlinkPaths(git: GitRunner, workspace: GitWorkspace, sign
 }
 
 /**
- * The subset of work-tree paths that the repository ignores. Tracked files
- * are never reported, so a tracked file matching an ignore pattern still
- * counts as covered by snapshots.
- * @param git - command runner.
- * @param workspace - addressed repository.
- * @param paths - slash-separated paths relative to the repository root.
- * @param signal - cancellation.
- * @returns the ignored members of `paths`.
+ * 仓库所忽略的那部分工作树路径。被跟踪的文件
+ * 永不被报告，因此与忽略模式匹配的被跟踪文件仍
+ * 算作被快照覆盖。
+ * @param git - 命令运行器。
+ * @param workspace - 被寻址的仓库。
+ * @param paths - 相对于仓库根的、以斜杠分隔的路径。
+ * @param signal - 取消信号。
+ * @returns `paths` 中被忽略的成员。
  */
 export async function ignoredPaths(
   git: GitRunner, workspace: GitWorkspace, paths: readonly string[], signal: AbortSignal,

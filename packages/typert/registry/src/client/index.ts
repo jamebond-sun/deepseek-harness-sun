@@ -1,14 +1,14 @@
-/** Browser face of the shared Typert runtime registry. */
+/** 共享 Typert 运行时注册表的浏览器端。 */
 
 import type { Context } from '@deepseek-ai/cordis'
 import { TypertRegistry } from '../service.ts'
 
-/** Required services: none; this is the Client reflection root. */
+/** 所需服务：无；这是 Client 反射根。 */
 export const inject: string[] = []
 
 /**
- * Install the same registry implementation used by the Host face.
- * @param ctx - Client Cordis root.
+ * 安装与 Host 端所用的同一套注册表实现。
+ * @param ctx - Client Cordis 根。
  */
 export function apply(ctx: Context): void {
   new TypertRegistry(ctx)

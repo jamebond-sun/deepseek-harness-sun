@@ -1,4 +1,4 @@
-/** Parent-side invocation and bootstrap state for the private native runner. */
+/** 私有原生 runner 的父进程侧调用与引导状态。 */
 
 import type { StdioOptions } from 'node:child_process'
 import { accessSync, constants as fsConstants, lstatSync, statSync } from 'node:fs'
@@ -10,21 +10,21 @@ import { childEnv } from './spawn.ts'
 import { controlEnvironment } from './control-spawn.ts'
 import { SUBPROCESS_CONTROL_FD } from '@deepseek-ai/dsh-subprocess/control'
 
-/** The one private environment variable consumed before target state is restored. */
+/** 在目标状态恢复之前被消费的唯一私有环境变量。 */
 export const SUBPROCESS_RUNNER_ENV = 'DSH_SUBPROCESS_RUNNER' as const
 
-/** Sentinel used by the packaged bootstrap for the Windows IPC runner. */
+/** 打包引导程序用于 Windows IPC runner 的哨兵值。 */
 export const WINDOWS_RUNNER_SELECTION = 'windows' as const
 
-/** Non-empty command tuple used to launch the private runner entry. */
+/** 用于启动私有 runner 入口的非空命令元组。 */
 export type RunnerInvocation = [string, ...string[]]
 
 const SOURCE_TSCONFIG_PATH = fileURLToPath(new URL('../../../../tsconfig.base.json', import.meta.url))
 const RUNNER_CONTROL_ENV_PREFIXES = ['NODE_', 'TSX_'] as const
 
 /**
- * Resolve the source, built, or packaged entry that calls the same runner core.
- * @returns executable and arguments for the active runtime form.
+ * 解析调用同一 runner 核心的源码、构建产物或打包入口。
+ * @returns 当前运行时形态的可执行文件与参数。
  */
 export function spawnRunnerInvocation(): RunnerInvocation {
   if ('pkg' in process) return [process.execPath]
@@ -42,9 +42,9 @@ export function spawnRunnerInvocation(): RunnerInvocation {
 }
 
 /**
- * Check the concrete runner executable and entry paths without executing a probe mode.
- * @param invocation - resolved executable and runner-entry arguments.
- * @returns whether every concrete executable or entry path is accessible.
+ * 在不执行探测模式的前提下，检查具体的 runner 可执行文件与入口路径。
+ * @param invocation - 已解析的可执行文件与 runner 入口参数。
+ * @returns 每一个具体的可执行文件或入口路径是否都可访问。
  */
 export function runnerInvocationAvailable(invocation: RunnerInvocation = spawnRunnerInvocation()): boolean {
   try {
@@ -60,10 +60,10 @@ export function runnerInvocationAvailable(invocation: RunnerInvocation = spawnRu
 }
 
 /**
- * Build the bootstrap-safe environment; target overrides arrive through request/IPC.
- * @param selection - private runner selector or Linux launch-request locator.
- * @param invocation - resolved runner invocation whose source form needs the workspace paths map.
- * @returns environment for the runner before target state is restored.
+ * 构建对引导程序安全的环境；目标覆盖项经由请求/IPC 到达。
+ * @param selection - 私有 runner 选择器或 Linux 启动请求定位符。
+ * @param invocation - 已解析的 runner 调用，其源码形态需要工作区路径映射。
+ * @returns 在目标状态恢复之前、供 runner 使用的环境。
  */
 export function runnerEnvironment(
   selection: string,
@@ -86,9 +86,9 @@ export function runnerEnvironment(
 }
 
 /**
- * Read and delete the private selector before importing or restoring target state.
- * @param env - mutable environment containing the private selector.
- * @returns the consumed selector, or undefined when no runner was requested.
+ * 在导入或恢复目标状态之前，读取并删除私有选择器。
+ * @param env - 包含私有选择器的可变环境。
+ * @returns 被消费的选择器；当没有请求 runner 时为 undefined。
  */
 export function consumeRunnerSelection(env: NodeJS.ProcessEnv = process.env): string | undefined {
   const selection = env[SUBPROCESS_RUNNER_ENV]
@@ -97,9 +97,9 @@ export function consumeRunnerSelection(env: NodeJS.ProcessEnv = process.env): st
 }
 
 /**
- * Require the private argv delimiter and at least one target argv entry.
- * @param argv - private runner arguments.
- * @returns copied target argv after the private delimiter.
+ * 要求存在私有 argv 分隔符，且其后至少有一个目标 argv 条目。
+ * @param argv - 私有 runner 参数。
+ * @returns 私有分隔符之后的、被复制的目标 argv。
  */
 export function parseRunnerTargetArgv(argv: readonly string[]): string[] {
   if (argv[0] !== '--' || argv.length < 2) {
@@ -109,12 +109,12 @@ export function parseRunnerTargetArgv(argv: readonly string[]): string[] {
 }
 
 /**
- * Build direct Linux target stdio, or isolated Windows runner stdio with IPC
- * on fd 3 and target carriers on fd 4 through fd 6; optional control uses fd 7.
- * @param spec - ordinary subprocess request whose stdio modes are preserved.
- * @param ipc - whether to isolate the runner and add its private Node IPC descriptor.
- * @param stdinCarrier - runner fd 4 carrier; Windows ignore passes an opened null-device fd.
- * @returns child-process stdio options for the runner.
+ * 构建直接的 Linux 目标 stdio，或隔离的 Windows runner stdio：fd 3 上承载 IPC，
+ * fd 4 到 fd 6 承载目标，可选的 control 使用 fd 7。
+ * @param spec - stdio 模式被保留的普通 subprocess 请求。
+ * @param ipc - 是否隔离 runner 并加入其私有 Node IPC 描述符。
+ * @param stdinCarrier - runner 的 fd 4 载体；Windows 的 ignore 传入一个已打开的空设备 fd。
+ * @returns 供 runner 使用的子进程 stdio 选项。
  */
 export function runnerStdio(
   spec: SubprocessSpawnSpec,
@@ -240,14 +240,14 @@ function windowsExecutableNames(command: string, name: string): string[] {
 }
 
 /**
- * Resolve the executable path with libuv/Node Windows spawn search order while
- * preserving the caller's original command-line argv entry separately.
- * @param command - original target argv[0].
- * @param cwd - final target working directory used for relative search roots.
- * @param env - final target environment containing the child PATH.
- * @param exists - injectable non-directory candidate probe used by tests.
- * @param currentEnv - runner environment supplying PATH fallback and cwd-search policy.
- * @returns a resolved application name suitable for `CreateProcessW`, or undefined when no candidate exists.
+ * 以 libuv/Node 的 Windows 启动搜索顺序解析可执行文件路径，同时把调用方原始的
+ * 命令行 argv 条目单独保留下来。
+ * @param command - 原始目标 argv[0]。
+ * @param cwd - 用于相对搜索根的最终目标工作目录。
+ * @param env - 包含子进程 PATH 的最终目标环境。
+ * @param exists - 由测试使用的、可注入的非目录候选探测。
+ * @param currentEnv - 提供 PATH 回退与 cwd 搜索策略的 runner 环境。
+ * @returns 适用于 `CreateProcessW` 的、已解析的应用名；当不存在任何候选时为 undefined。
  */
 export function resolveWindowsExecutable(
   command: string,
@@ -293,9 +293,9 @@ function validateNoNullByte(property: string, value: string, argument = false): 
 }
 
 /**
- * Materialize and synchronously validate the final target environment.
- * @param spec - final target argv, cwd, and environment overrides.
- * @returns complete target environment after Node-equivalent validation.
+ * 物化并同步校验最终的目标环境。
+ * @param spec - 最终目标的 argv、cwd 与环境覆盖项。
+ * @returns 经过等同于 Node 的校验之后的完整目标环境。
  */
 export function targetEnvironment(
   spec: Pick<SubprocessSpawnSpec, 'argv' | 'cwd' | 'env'> & { stdio?: SubprocessSpawnSpec['stdio'] },

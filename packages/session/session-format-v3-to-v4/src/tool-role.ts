@@ -1,4 +1,4 @@
-/** First-class tool-role messages in the V4 representation. */
+/** V4 表示中的一等 tool-role 消息。 */
 
 import { SessionFormatError, SessionFormatUnsupportedMigrationError, isSessionFormatJsonObject } from '@deepseek-ai/dsh-session-format'
 import type { SessionFormatEvent, SessionFormatJsonValue } from '@deepseek-ai/dsh-session-format'
@@ -6,7 +6,7 @@ import type { SessionFormatEvent, SessionFormatJsonValue } from '@deepseek-ai/ds
 const WRAPPER_FIELDS = new Set(['type', 'toolCallId', 'content', 'isError'])
 const MESSAGE_FIELDS = new Set(['id', 'role', 'source', 'content'])
 
-/** Preserve unknown fields without merging their original message and result owners. */
+/** 保留未知字段，但不合并它们原本所属的消息与结果持有者。 */
 function extensionFields(
   value: Record<string, SessionFormatJsonValue>, fields: ReadonlySet<string>, owner: 'message' | 'result',
 ): Record<string, SessionFormatJsonValue> {
@@ -25,13 +25,13 @@ function resultContent(value: SessionFormatJsonValue | undefined, subject: strin
 }
 
 /**
- * Lift one released-V3 wrapper tool/result row into the first-class V4 message.
- * Validate the wrapper before dropping it so malformed historical content is
- * rejected instead of being silently truncated.
- * @param event - released wrapper tool/result event.
- * @returns the same event with a first-class tool-role message.
- * @throws {SessionFormatError} when the wrapper, tool source, content, or error flag is malformed.
- * @throws {SessionFormatUnsupportedMigrationError} when the result contains another result.
+ * 将一条已发布的 V3 包装式 tool/result 行提升为一等的 V4 消息。
+ * 在丢弃包装器之前先校验它，这样格式错误的历史内容会被拒绝，
+ * 而不是被静默截断。
+ * @param event - 已发布的包装式 tool/result 事件。
+ * @returns 同一个事件，但携带一等 tool-role 消息。
+ * @throws {SessionFormatError} 当包装器、工具源、内容或错误标记格式错误时抛出。
+ * @throws {SessionFormatUnsupportedMigrationError} 当结果中嵌套了另一个结果时抛出。
  */
 export function liftToolResult(event: SessionFormatEvent): SessionFormatEvent {
   if (event.type !== 'tool/result' || !isSessionFormatJsonObject(event.data)) return event
@@ -71,9 +71,9 @@ export function liftToolResult(event: SessionFormatEvent): SessionFormatEvent {
 }
 
 /**
- * Validate the native V4 first-class tool-role message of one tool/result row.
- * @param event - canonical V4 event.
- * @throws {SessionFormatError} when the row is not an exact first-class tool result.
+ * 校验某个 tool/result 行的原生 V4 一等 tool-role 消息。
+ * @param event - 规范化的 V4 事件。
+ * @throws {SessionFormatError} 当该行不是精确的一等工具结果时抛出。
  */
 export function assertV4ToolResultMessage(event: SessionFormatEvent): void {
   if (event.type !== 'tool/result') return

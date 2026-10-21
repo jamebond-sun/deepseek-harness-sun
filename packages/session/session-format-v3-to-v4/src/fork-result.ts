@@ -1,11 +1,11 @@
-/** Native V4 fork-result identity and not-started error validation. */
+/** 原生 V4 的 fork 结果身份与未启动错误校验。 */
 
 import { SessionFormatError, isSessionFormatJsonObject } from '@deepseek-ai/dsh-session-format'
 
 /**
- * Validate fork-generated not-started results without changing their identity or text.
- * Append results carry their own sequence; replacement results retain an earlier identity.
- * @param row - logical event or physical event row.
+ * 校验 fork 生成的未启动结果，不改变其身份或文本。
+ * 追加结果携带自身的序号；替换结果保留更早的身份。
+ * @param row - 逻辑事件或物理事件行。
  */
 export function assertV4ForkResult(row: unknown): void {
   if (!isSessionFormatJsonObject(row) || row['type'] !== 'tool/result') return

@@ -21,7 +21,7 @@ const HEADER_OPTIONAL = ['cwd', 'parentSession', 'origin', 'agentPreset'] as con
 const EVENT_REQUIRED = ['type', 'seq', 'time', 'data'] as const
 const EVENT_OPTIONAL = ['ignorable', 'sourceEventSeqs', 'surfaceOp'] as const
 const EVENT_KEYS: ReadonlySet<string> = new Set([...EVENT_REQUIRED, ...EVENT_OPTIONAL])
-/** Frozen physical JSON codec for released v2. */
+/** 已发布 v2 使用的冻结物理 JSON 编解码器。 */
 export const releasedV2SessionFormatCodec = Object.freeze({
   version: 2,
   decodeHeader(value: unknown) {

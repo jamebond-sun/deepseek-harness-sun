@@ -1,8 +1,7 @@
 /**
- * Token-budgeted tool content with recoverable text and image addresses.
- * Post-execute policies settle before retention; canonical program values
- * remain intact. Missing recovery storage or image pricing keeps the original
- * content and reports the reason through the logger.
+ * 带 token 预算的工具内容，附带可恢复的文本与图片地址。
+ * 执行后策略在保留之前先结算；规范的程序值保持完整。
+ * 缺少恢复存储或图片定价时保留原始内容，并通过日志记录原因。
  * @module @deepseek-ai/dsh-spill-policy
  */
 import type { Context } from '@deepseek-ai/cordis'
@@ -21,19 +20,19 @@ import type { RetainableBlock } from './retention.ts'
 
 export type { SpillPolicyExec } from './types.ts'
 
-/** Optional result-retention budget. */
+/** 可选的结果保留预算。 */
 export interface Config {
-  /** Maximum estimated tokens in a retained result, including image descriptors and omission notices. Omitted disables retention. */
+  /** 保留结果中的最大估算 token 数，含图片描述符与省略通知。省略则禁用保留。 */
   maxInlineTokens?: number
 }
 
-/** Cordis plugin identity. */
+/** Cordis 插件身份。 */
 export const name = 'spill-policy'
-/** Tools own both model-facing results and PTC dispatch logs. */
+/** 工具同时拥有面向模型的结果与 PTC 派发日志。 */
 export const inject = ['tools']
 export const Config: z<Config> = z.object({ maxInlineTokens: z.number() })
 
-/** Narrow the model's ordered content without rewriting unsupported blocks. */
+/** 收窄模型的有序内容，但不重写不支持的块。 */
 function retainable(content: readonly ContentBlock[]): content is RetainableBlock[] {
   return content.every(block => block.type === 'text' || block.type === 'image')
 }
@@ -41,9 +40,9 @@ function retainable(content: readonly ContentBlock[]): content is RetainableBloc
 const GAP = { type: 'text', text: '\n\n[...]\n\n' } as const
 
 /**
- * Mount token retention for accepted tool results and PTC log copies.
- * @param ctx - tool registry and optional pricing, filesystem, attachment, and spill services.
- * @param config - maximum estimated result tokens; omission disables the plugin.
+ * 为被接受的工具结果与 PTC 日志副本挂载 token 保留。
+ * @param ctx - 工具注册表，以及可选的定价、文件系统、附件与溢出服务。
+ * @param config - 结果的最大估算 token 数；省略则禁用该插件。
  */
 export function apply(ctx: Context, config: Config): void {
   const cap = config.maxInlineTokens
@@ -53,7 +52,7 @@ export function apply(ctx: Context, config: Config): void {
   }
   const maxTokens = cap
 
-  /** Price actual request images and their accompanying descriptor text. */
+  /** 为实际请求中的图片及其随附的描述符文本定价。 */
   function pricing(exec: ToolExecution, images: ImageBlock[]): (block: RetainableBlock) => number {
     const costs = new Map<ImageBlock, number>()
     if (images.length > 0) {
@@ -74,7 +73,7 @@ export function apply(ctx: Context, config: Config): void {
     return block => block.type === 'image' ? costs.get(block) as number : estimateContent([block])
   }
 
-  /** Full ordered text with an execution-readable attachment path at each image position. */
+  /** 完整的有序文本，并在每个图片位置给出执行方可读取的附件路径。 */
   function fullText(content: RetainableBlock[]): string {
     return content.map((block) => {
       if (block.type === 'text') return block.text
@@ -87,7 +86,7 @@ export function apply(ctx: Context, config: Config): void {
     }).join('')
   }
 
-  /** Recoverably bound one display copy; failures leave successful tool content visible. */
+  /** 以可恢复的方式约束一份展示副本；失败时保留成功工具内容的可见性。 */
   async function bound(
     exec: ToolExecution, content: ContentBlock[], toolName: string, callId: ToolCallId, label: 'result' | 'dispatch',
   ): Promise<ContentBlock[] | undefined> {
@@ -116,7 +115,7 @@ export function apply(ctx: Context, config: Config): void {
       const result = retained.head.length + retained.tail.length === 0
         ? [footer]
         : [...retained.head, GAP, ...retained.tail, { type: 'text' as const, text: `\n\n${footer.text}` }]
-      // Adjacent text has one framing cost on the wire and in the spill preview.
+      // 相邻文本在线路上与溢出预览中都只承担一份框架成本。
       const merged: ContentBlock[] = []
       for (const block of result) {
         const previous = merged.at(-1)
@@ -135,7 +134,7 @@ export function apply(ctx: Context, config: Config): void {
     if (decision.kind !== 'accept' || Object.hasOwn(decision, 'value') || exec.name === 'read') return decision
     const content = decision.content ?? result.content
     const hasImages = content.some(block => block.type === 'image')
-    // Text-only PTC bindings retain their asynchronous log-only spill path.
+    // 纯文本 PTC 绑定保留其异步的、仅日志的溢出路径。
     if (exec.parent !== undefined && !hasImages) return decision
     const retained = await bound(exec, content, exec.name, exec.callId, exec.parent === undefined ? 'result' : 'dispatch')
     if (retained === undefined) return decision

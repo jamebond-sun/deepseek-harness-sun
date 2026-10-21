@@ -1,4 +1,4 @@
-/** Map system snapshots, tool changes, and conversation turns to Messages using the configured route capability. */
+/** 依据已配置的路由能力，把系统快照、工具变更与对话轮次映射为 Messages。 */
 
 import { LlmError, requestImageHandleText } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock, GenerateOptions, ImageAttachmentAccessResolver, Message, RequestMessage } from '@deepseek-ai/dsh-llm'
@@ -12,7 +12,7 @@ function unsupported(type: string): never {
   throw new LlmError(`DeepSeek Messages cannot represent ${type}`, 'UNSUPPORTED_CONTENT')
 }
 
-/** Historical arguments that Messages cannot represent use empty input; durable content stays unchanged. */
+/** Messages 无法表示的历史参数使用空输入；持久化内容保持不变。 */
 function toolInput(raw: string): Record<string, unknown> {
   let value: unknown
   try { value = JSON.parse(raw) } catch (_invalidToolHistoryJson) {
@@ -38,21 +38,21 @@ function assistant(message: Message, model: string, onReplayDegrade?: (reason: s
   })
 }
 
-/** Serialize one complete request using already prepared image bytes.
- * User and tool-result content omits reasoning and tool-call blocks.
- * Empty assistant text blocks and empty user/assistant messages are skipped;
- * empty tool results retain their call ids.
- * Developer messages, already projected for this route by `LlmRuntime`, become
- * system-role updates after the preceding user turn, with tool changes as
- * `tool_addition` and `tool_removal` references to the declared tool.
- * @param options - provider-neutral request.
- * @param connection - validated defaults and thinking policy.
- * @param history - image-projected history with complete system snapshots; durable messages remain unchanged.
- * @param images - request versions for retained images.
- * @param access - execution-world paths for image descriptions.
- * @param onReplayDegrade - diagnostic for discarded native replay metadata.
- * @param fileIds - resolved Files references; omission selects inline image bytes.
- * @returns the Messages API JSON body.
+/** 使用已准备好的图像字节序列化一次完整的请求。
+ * 用户与工具结果内容会省略推理与工具调用块。
+ * 空的助手文本块，以及空的用户/助手消息会被跳过；
+ * 空的工具结果保留其调用 id。
+ * 已由 `LlmRuntime` 为本路由投影过的 developer 消息，会成为前一个用户轮次之后的
+ * system 角色更新，其中工具变更表现为指向已声明工具的 `tool_addition`
+ * 与 `tool_removal` 引用。
+ * @param options - 与提供方无关的请求。
+ * @param connection - 已校验的默认值与 thinking 策略。
+ * @param history - 已完成图像投影、并带有完整系统快照的历史；持久化消息保持不变。
+ * @param images - 被保留图像的请求版本。
+ * @param access - 供图像描述使用的执行世界路径。
+ * @param onReplayDegrade - 针对被丢弃的原生回放元数据的诊断。
+ * @param fileIds - 已解析的 Files 引用；省略时选择内联图像字节。
+ * @returns Messages API 的 JSON 请求体。
  */
 export function serialize(
   options: GenerateOptions, connection: Connection, history: readonly RequestMessage[],
@@ -80,8 +80,8 @@ export function serialize(
   const messages: WireMessage[] = []
   let historySystem: string | undefined
   const systemUpdates: WireMessage[] = []
-  // Harness admits system updates before user input. Messages places the same
-  // update after that user/tool-result turn and before the next assistant.
+  // Harness 在用户输入之前接受系统更新。Messages 会把同样的更新放在
+  // 该用户/工具结果轮次之后、下一个助手之前。
   const flushSystemUpdates = () => {
     if (systemUpdates.length === 0) return
     if (messages.at(-1)?.role !== 'user') return unsupported('system update without a preceding user or tool-result turn')

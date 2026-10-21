@@ -1,6 +1,6 @@
 /**
- * Model-facing `get_goal`, `create_goal`, and `update_goal` tools over the
- * persisted same-session goal domain.
+ * 面向模型的 `get_goal`、`create_goal` 与 `update_goal` 工具，构建在已持久化
+ * 的同会话 goal 领域之上。
  * @module @deepseek-ai/dsh-tool-goal
  */
 
@@ -28,18 +28,18 @@ import { renderWrapupContext } from './wrapup.ts'
 export const name = 'tool-goal'
 export const inject = ['agents', 'goals', 'tools', 'systemPrompt', 'sessionProjections']
 
-/** Model policy and hard lower bounds for goal-state updates. */
+/** 目标状态更新所用的模型策略与硬性下限。 */
 export interface Config {
-  /** Minimum admitted goal rounds before the model may self-report `blocked`. */
+  /** 模型可自报 `blocked` 之前所需的最少已准入目标轮次。 */
   blockedAfterConsecutiveRounds?: number
 }
 
-/** Schemastery config for the goal-tool policy. */
+/** goal 工具策略的 Schemastery 配置。 */
 export const Config: z<Config> = z.object({
   blockedAfterConsecutiveRounds: z.number().step(1).min(1).default(3),
 })
 
-/** Fully materialized tool policy. */
+/** 完全具化后的工具策略。 */
 interface ResolvedConfig {
   readonly blockedAfterConsecutiveRounds: number
 }
@@ -55,7 +55,7 @@ const CREATE_DESCRIPTION =
 
 const GET_DESCRIPTION = 'Read the current session goal, including the id and revision that update_goal requires.'
 
-/** Canonical goal-tool output, matching the existing compact Native JSON. */
+/** 规范的 goal 工具输出，与既有的紧凑 Native JSON 保持一致。 */
 type GoalToolValue =
   | { goal: null }
   | {
@@ -111,7 +111,7 @@ const GOAL_VALUE_SCHEMA = {
   ],
 } as const
 
-/** Render policy guidance with its deployment-selected blocked threshold. */
+/** 渲染策略指引，含部署所选定的阻塞阈值。 */
 function guidance(blockedAfter: number): string {
   return 'create_goal may infer goal intent from a direct human request in any language. '
     + 'After session resume or fork, an active goal is disarmed: when '
@@ -122,7 +122,7 @@ function guidance(blockedAfter: number): string {
     + 'or useful remaining work is not blocked.'
 }
 
-/** Validate config even when apply is called directly outside Loader normalization. */
+/** 即使 apply 在 Loader 归一化之外被直接调用，也要校验配置。 */
 function resolveConfig(config: Config): ResolvedConfig {
   const blockedAfter = config.blockedAfterConsecutiveRounds ?? 3
   if (!Number.isSafeInteger(blockedAfter) || blockedAfter < 1) {
@@ -131,17 +131,17 @@ function resolveConfig(config: Config): ResolvedConfig {
   return { blockedAfterConsecutiveRounds: blockedAfter }
 }
 
-/** Whether optional text is meaningful rather than a strict-schema empty filler. */
+/** 判断可选文本是否有意义，而非严格 schema 下的空填充值。 */
 function hasText(value: string | undefined): value is string {
   return value !== undefined && value !== ''
 }
 
-/** Whether an optional round cap is meaningful rather than a strict-schema zero filler. */
+/** 判断可选轮次上限是否有意义，而非严格 schema 下的零填充值。 */
 function hasRoundCap(value: number | undefined): value is number {
   return value !== undefined && value !== 0
 }
 
-/** Build the exact compare-and-set ref from model arguments. */
+/** 从模型入参构造精确的比较并设置（CAS）ref。 */
 function goalRef(goalId: string, revision: number): GoalRef {
   if (goalId.length === 0 || goalId !== goalId.trim()
     || !Number.isSafeInteger(revision) || revision < 1) {
@@ -153,7 +153,7 @@ function goalRef(goalId: string, revision: number): GoalRef {
   return { id: GoalId(goalId), revision }
 }
 
-/** Stable compact model result; activation is an observation, not replay state. */
+/** 稳定紧凑的模型结果；激活状态只是一种观测，而非重放状态。 */
 function goalValue(goal: GoalView | undefined): GoalToolValue {
   if (goal === undefined) return { goal: null }
   return {
@@ -172,18 +172,18 @@ function goalValue(goal: GoalView | undefined): GoalToolValue {
   }
 }
 
-/** Reusable canonical output declaration for all three goal controls. */
+/** 三个 goal 控件共用的规范输出声明。 */
 const GOAL_OUTPUT = {
   schema: GOAL_VALUE_SCHEMA,
   render: (_args: unknown, value: GoalToolValue) => [{ type: 'text' as const, text: JSON.stringify(value) }],
 }
 
-/** Generic, args-only pending presentation shared by the goal tools. */
+/** goal 工具共用的通用、仅含入参的待处理呈现。 */
 function present(title: string, kind: 'read' | 'other', rawInput?: unknown): GenericCallView {
   return { card: 'generic', title, kind, ...rawInput === undefined ? {} : { rawInput } }
 }
 
-/** Register the three Codex-shaped goal tools and their shared policy section. */
+/** 注册三个 Codex 风格的 goal 工具及其共享的策略段落。 */
 export function apply(ctx: Context, config: Config): void {
   const resolved = resolveConfig(config)
   ctx.systemPrompt.section({

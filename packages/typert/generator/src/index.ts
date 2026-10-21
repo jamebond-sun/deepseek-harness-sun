@@ -1,7 +1,6 @@
 /**
- * Public API of the Typert analyzer, compiler-independent model, and
- * model-driven artifact emitters. Build wiring lives in the `./tsdown`
- * subpath.
+ * Typert 分析器、与编译器无关的模型，以及模型驱动的产物发射器的公共 API。
+ * 构建装配位于 `./tsdown` 子路径。
  * @module @deepseek-ai/dsh-typert-generator
  */
 

@@ -1,46 +1,39 @@
 /**
- * The windows-acl confinement runner: the argv-prefix wrapper the sandbox
- * seam spawns in place of the caller's command. It creates the
- * WRITE_RESTRICTED token with the workspace write-SID allowlist, spawns the
- * wrapped argv under it with the CALLER'S stdio inherited (bytes flow
- * straight through), mirrors the child's exit code, and revokes its temp
- * grant on exit (workspace ACEs stay standing as the reuse cache).
+ * windows-acl 限制运行器：沙箱接缝用它作为 argv 前缀包装器，替代调用方的
+ * 命令去 spawn。它创建带有工作区写入 SID 允许列表的 WRITE_RESTRICTED 令牌，
+ * 在该令牌之下、以继承调用方 stdio 的方式（字节直通）派生被包装的 argv，
+ * 原样镜像子进程的退出码，并在退出时撤销其临时授予（工作区 ACE 作为复用
+ * 缓存保持常驻）。
  *
- * Stable argv contract (the seam builds it; a native-exe replacement would
- * keep the same contract):
+ * 稳定的 argv 契约（由该接缝构建；一个原生 exe 的替代实现会沿用同一契约）：
  *   [node, runner.js, '--workspace', <dir>, '--temp', <dir>,
  *    '--mode', <read-only|workspace-write>,
  *    ['--write-sid', <S-1-4-…>,
  *     '--temp-write-sid', <S-1-4-…>], '--', <argv...>]
  *
- * Modes:
- *  - workspace-write: the workspace and temp directories carry distinct
- *    capability-SID Write grants; other ACL-addressable writes are denied
- *    except for the documented Everyone and hard-link boundaries.
- *  - read-only: no capability-SID grants; the restricting list carries no
- *    capability SID, so a standing grant ACE from an earlier
- *    workspace-write period stays inert. BOTH modes drop Authenticated Users
- *    (CIM unavailable — documented in README) and INTERACTIVE/LOCAL (the
- *    Public tree writes are denied); the two lists share the keep-alive group
- *    (logon SID, EVERYONE) and differ only by the capabilities.
+ * 模式：
+ *  - workspace-write：工作区与临时目录各自带有不同的能力 SID 写入授予；
+ *    除已记录的 Everyone 与硬链接边界之外，其他可由 ACL 触达的写入都被拒绝。
+ *  - read-only：没有任何能力 SID 授予；限制列表不携带任何能力 SID，因此
+ *    来自更早一段 workspace-write 时期的常驻授予 ACE 保持惰性。两种模式都
+ *    丢弃 Authenticated Users（CIM 不可用——已记录在 README 中）与
+ *    INTERACTIVE/LOCAL（Public 目录树的写入被拒绝）；两份列表共用同一个保活
+ *    组（登录 SID、EVERYONE），只在能力上有差别。
  *
- * `--write-sid` + `--temp-write-sid`: the seam's grant contract — the
- * CALLER has already materialized distinct workspace and private-temp ACEs
- * and owns their revocation, so the runner neither grants nor revokes
- * (`manageDacls: false`). Both values are checked against their owning paths.
- * Without the pair (standalone/agentless use), workspace-write treats
- * `--temp` as a ROOT, creates a random private child directory, derives its
- * own temp SID, and removes that directory after the child exits. In both
- * flows the runner rewrites TMP/TEMP in its OWN environment to the private
- * directory before spawning; the child inherits that block (`lpEnvironment`
- * NULL; an explicit block through koffi trips ERROR_INVALID_PARAMETER in
- * CreateProcessAsUserW, verified empirically). Read-only leaves the ambient
- * temp entries untouched (writes there are denied anyway).
+ * `--write-sid` + `--temp-write-sid`：该接缝的授予契约——调用方已经物化了
+ * 互不相同的工作区与私有临时 ACE 并持有其撤销权，因此运行器既不授予也不
+ * 撤销（`manageDacls: false`）。这两个值都会对照其所属路径做校验。若没有
+ * 这一对参数（独立/无 agent 的用法），workspace-write 会把 `--temp` 当作
+ * 一个根，创建一个随机的私有子目录，自行派生它的临时 SID，并在子进程退出
+ * 之后删除该目录。两种流程中，运行器都会在派生之前把自身环境中的
+ * TMP/TEMP 改写为该私有目录；子进程继承那个环境块（`lpEnvironment` 为
+ * NULL；通过 koffi 传一个显式块会在 CreateProcessAsUserW 中触发
+ * ERROR_INVALID_PARAMETER，已实测验证）。read-only 则让环境临时目录项
+ * 保持原样（那里的写入本来就被拒绝）。
  *
- * Failure contract: every runner-side failure (bad args, missing
- * directories, token/grant/spawn errors) prints `windows-acl-run: <detail>`
- * to stderr and exits 127 — the seam's RUNNER_FAILURE_RULES matches that
- * signature. The child is NEVER spawned unrestricted.
+ * 失败契约：每一个运行器侧的失败（参数错误、目录缺失、令牌/授予/派生错误）
+ * 都会向 stderr 打印 `windows-acl-run: <detail>` 并以 127 退出——该接缝的
+ * RUNNER_FAILURE_RULES 正是匹配这一特征串。子进程绝不会被不受限地派生。
  * @module @deepseek-ai/dsh-sandbox-windows-acl/runner
  */
 
@@ -57,7 +50,7 @@ const RUNNER_FAILURE_EXIT = 127
 
 class RunnerFailure extends Error {}
 
-/** Print the runner-failure signature line and unwind. */
+/** 打印运行器失败特征串所在行并展开清理。 */
 function fail(detail: string): never {
   process.stderr.write(`${RUNNER_SIGNATURE}: ${detail}\n`)
   throw new RunnerFailure(detail)
@@ -115,8 +108,8 @@ function requireDirectory(label: string, path: string): void {
 
 async function main(): Promise<number> {
   const parsed = parseArgs(process.argv.slice(2))
-  // Both directories are validated in both modes: a provider bug that passes
-  // a bogus root must fail loudly at the runner boundary, never mid-child.
+  // 两种模式都会校验这两个目录：一个传入伪造根的提供者缺陷必须在运行器
+  // 边界上响亮失败，而绝不能失败于子进程运行中途。
   requireDirectory('--workspace', parsed.workspace)
   requireDirectory('--temp', parsed.temp)
 
@@ -132,9 +125,8 @@ async function main(): Promise<number> {
   }
 
   const api = await win32()
-  // Ignore this process's own CTRL+C: the confined child (same console) keeps
-  // handling its own; the runner must survive to revoke grants and mirror the
-  // child's exit code.
+  // 忽略本进程自己的 CTRL+C：受限子进程（同一控制台）继续按自己的方式处理；
+  // 运行器必须存活下来，以便撤销授予并镜像子进程的退出码。
   if (api.setConsoleCtrlHandler(null, 1) === 0) {
     fail(`SetConsoleCtrlHandler failed (Win32 ${api.getLastError()})`)
   }
@@ -189,7 +181,7 @@ async function main(): Promise<number> {
     const result = await child.wait()
     return result.exitCode
   } finally {
-    // Cleanup failures must not mask the child's exit code: report and keep going.
+    // 清理失败不得掩盖子进程的退出码：上报并继续。
     if (initialized) {
       try {
         sandbox?.dispose()
@@ -209,15 +201,14 @@ async function main(): Promise<number> {
 
 main().then(
   (exitCode) => {
-    // Exit-code mirroring is full-width on Windows, verified empirically on
-    // this machine (Windows 11 build 26200, Node 24): a child that exits
-    // with the NTSTATUS 0xC0000005 (STATUS_ACCESS_VIOLATION) is read back
-    // by GetExitCodeProcess as the uint32 3221225477, and after
-    // process.exitCode = 3221225477 the parent observes exactly
-    // 3221225477 (spawnSync status). PowerShell's $LASTEXITCODE and cmd
-    // print the signed view (-1073741819), but no truncation or masking
-    // happens anywhere in the chain — the mirror contract holds for the
-    // full 32-bit range, so no re-mapping is needed.
+    // 在 Windows 上，退出码镜像是全位宽的，已在本机（Windows 11 build
+    // 26200，Node 24）实测验证：一个以 NTSTATUS 0xC0000005
+    // （STATUS_ACCESS_VIOLATION）退出的子进程，经 GetExitCodeProcess 读回
+    // 的是 uint32 的 3221225477，而在 process.exitCode = 3221225477 之后，
+    // 父进程观测到的正是 3221225477（spawnSync status）。PowerShell 的
+    // $LASTEXITCODE 与 cmd 打印的是有符号视图（-1073741819），但这条链上
+    // 任何环节都没有发生截断或掩码——镜像契约在整个 32 位范围内成立，
+    // 因此无需重映射。
     process.exitCode = exitCode
   },
   (error: unknown) => {

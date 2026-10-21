@@ -1,36 +1,33 @@
 /**
- * Structured index injections: the typed rows plugins contribute to the boot
- * HTML instead of raw `tapIndex` string transforms. Rows are pure
- * JSON-serializable data because one table feeds two renderers: the served
- * form renders rows into the index.html text ({@link renderIndexInjections}),
- * and a static worker deployment ships the same rows over its boot payload
- * for a page-side interpreter. Anything not expressible as a row stays on
- * `tapIndex`, which runs after row rendering.
+ * 结构化 index 注入：插件以带类型的行（row）贡献给启动 HTML，而不是用 `tapIndex` 做原始
+ * 字符串变换。行是纯 JSON 可序列化的数据，因为同一张表要喂给两个渲染器：服务形态把行渲染
+ * 进 index.html 文本（{@link renderIndexInjections}），而静态 worker 部署则通过启动载荷把
+ * 同样的行发给页面侧的解释器。任何无法表达为一行的东西仍留在 `tapIndex` 上，它在行渲染
+ * 之后运行。
  */
 
-/** Document region a rendered row lands in: after the opening head or body tag. */
+/** 渲染后的行所落入的文档区域：起始 head 标签或 body 标签之后。 */
 export type IndexInjectionPlacement = 'head' | 'body'
 
-/** One structured index injection row. */
+/** 一条结构化 index 注入行。 */
 export type IndexInjection =
-  /** Assign a JSON-serializable value to a `globalThis` property, ahead of later script rows. */
+  /** 把一个 JSON 可序列化的值赋给某个 `globalThis` 属性，排在后面的 script 行之前。 */
   | { kind: 'global'; name: string; value: unknown }
-  /** Inline classic script. `text` must not contain `</script`, which would close the element early. */
+  /** 内联的经典脚本。`text` 不得包含 `</script`，否则会提前闭合该元素。 */
   | { kind: 'script'; placement: IndexInjectionPlacement; text: string }
   /**
-   * External classic script, executed in table order: a parser-blocking tag
-   * when served, an awaited fetch-and-execute in the worker form (whose
-   * loader resolves worker-only references such as `plugins/...`).
+   * 外部经典脚本，按表顺序执行：服务形态下是解析器阻塞标签，worker 形态下则是被 await 的
+   * 取回并执行（其加载器会解析诸如 `plugins/...` 这类仅 worker 可见的引用）。
    */
   | { kind: 'script-src'; placement: IndexInjectionPlacement; src: string }
-  /** Advisory preload for an external classic script; static workers may ignore it. */
+  /** 对外部经典脚本的建议性预加载；静态 worker 可以忽略它。 */
   | { kind: 'script-preload'; src: string }
-  /** A `<style>` element in the head. `text` must not contain `</style`, which would close the element early. */
+  /** head 中的一个 `<style>` 元素。`text` 不得包含 `</style`，否则会提前闭合该元素。 */
   | { kind: 'style'; text: string }
-  /** Raw markup fragment. */
+  /** 原始标记片段。 */
   | { kind: 'html'; placement: IndexInjectionPlacement; html: string }
 
-/** Escape a row value before placing it in a quoted HTML attribute. */
+/** 在把行值放入带引号的 HTML 属性之前对其进行转义。 */
 function escapeHtmlAttribute(value: string): string {
   return value
     .replaceAll('&', '&amp;')
@@ -43,12 +40,11 @@ function assertNever(row: never): never {
   throw new Error(`webserver: unknown index injection row ${JSON.stringify(row)}`)
 }
 
-/** Render one row to markup with its placement. */
+/** 把一行连同其放置位置渲染为标记。 */
 function renderRow(row: IndexInjection): { placement: IndexInjectionPlacement; markup: string } {
   switch (row.kind) {
     case 'global': {
-      // `<` is escaped in JSON so a row-controlled string cannot break out of
-      // the script element.
+      // 在 JSON 中转义 `<`，使行所控制的字符串无法跳出该 script 元素。
       const name = JSON.stringify(row.name).replaceAll('<', '\\u003c')
       const value = row.value === undefined
         ? 'undefined'
@@ -70,28 +66,25 @@ function renderRow(row: IndexInjection): { placement: IndexInjectionPlacement; m
   }
 }
 
-/** Insert `markup` into `html` at `at`. */
+/** 把 `markup` 插入 `html` 的 `at` 位置。 */
 function splice(html: string, at: number, markup: string): string {
   return `${html.slice(0, at)}${markup}${html.slice(at)}`
 }
 
 /**
- * Tail script settling the boot-readiness deferred (`__DSH_BOOT_READY__`):
- * the client entry awaits its `.promise` before reading any injected state.
- * Whichever side runs first creates the deferred (`??=`), so a bootstrap that
- * applies the table asynchronously installs it ahead of the entry module and
- * settles it after the last row; the served form below creates and resolves
- * it in one statement, because every row is already in the document text.
+ * 收尾脚本，用于结算启动就绪的 deferred（`__DSH_BOOT_READY__`）：客户端入口在读取任何
+ * 注入状态之前会 await 它的 `.promise`。哪一侧先运行就由哪一侧创建该 deferred（`??=`），
+ * 因此异步应用这张表的引导过程会在入口模块之前装上它，并在最后一行之后结算它；下面的
+ * 服务形态用一条语句创建并 resolve 它，因为每一行都已经在文档文本中了。
  */
 const READY_MARKUP = '<script>(globalThis.__DSH_BOOT_READY__ ??= Promise.withResolvers()).resolve()</script>'
 
 /**
- * Render rows into an index.html body: head rows immediately after the
- * opening head tag, body rows immediately after the opening body tag, each
- * group in table order, and the boot-readiness tail after the last body row.
- * @param html - the raw index.html body.
- * @param rows - the collected injection table.
- * @returns the html with every row rendered.
+ * 把各行渲染进一个 index.html 消息体：head 行紧跟在起始 head 标签之后，body 行紧跟在起始
+ * body 标签之后，每组按表顺序排列，而启动就绪的收尾脚本位于最后一个 body 行之后。
+ * @param html - 原始 index.html 消息体。
+ * @param rows - 收集到的注入表。
+ * @returns 渲染了每一行的 html。
  */
 export function renderIndexInjections(html: string, rows: readonly IndexInjection[]): string {
   let head = ''
@@ -105,14 +98,12 @@ export function renderIndexInjections(html: string, rows: readonly IndexInjectio
   let out = html
   if (head !== '') {
     const open = /<head(?:\s[^>]*)?>/i.exec(out)
-    // Headless fixture pages may lack <head>; prepending keeps the rows ahead
-    // of every document script.
+    // 无头（headless）夹具页面可能没有 <head>；前置追加可以让这些行排在文档的每个脚本之前。
     out = open === null ? `${head}${out}` : splice(out, open.index + open[0].length, head)
   }
   if (body !== '') {
     const open = /<body(?:\s[^>]*)?>/i.exec(out)
-    // Body-less fragments receive the rows at the end, where the HTML parser
-    // has already synthesized a body.
+    // 没有 body 的片段把行接在末尾，那里 HTML 解析器已经合成出了一个 body。
     out = open === null ? `${out}${body}` : splice(out, open.index + open[0].length, body)
   }
   return out

@@ -1,4 +1,4 @@
-/** Pure replay fold and strict decoder for durable goal changes. */
+/** 持久化目标变更的纯重放折叠与严格解码器。 */
 
 import type { MessageSource } from '@deepseek-ai/dsh-llm'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
@@ -23,7 +23,7 @@ const SNAPSHOT_OPERATIONS: ReadonlySet<Exclude<GoalOperation, 'clear'>> = new Se
 ])
 const PHASES: ReadonlySet<GoalPhase> = new Set(['active', 'paused', 'blocked', 'complete'])
 
-/** Mutable accumulator kept private to the pure fold. */
+/** 纯折叠内部私有的可变累加器。 */
 export interface GoalFoldState {
   goal: GoalSnapshot | undefined
   roundsStarted: number
@@ -34,8 +34,8 @@ export interface GoalFoldState {
 }
 
 /**
- * Build an empty replay accumulator.
- * @returns mutable state with no current goal or prior ref.
+ * 构造一个空的重放累加器。
+ * @returns 没有当前目标、也没有先前 ref 的可变状态。
  */
 export function emptyGoalFoldState(): GoalFoldState {
   return {
@@ -48,12 +48,12 @@ export function emptyGoalFoldState(): GoalFoldState {
   }
 }
 
-/** Whether a value is a JSON record rather than an array. */
+/** 判断一个值是否为 JSON 记录而非数组。 */
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-/** Require one positive safe integer. */
+/** 要求一个正的安全整数。 */
 function positiveInteger(value: unknown, field: string): number {
   if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 1) {
     throw new Error(`goal change ${field} must be a positive safe integer`)
@@ -61,7 +61,7 @@ function positiveInteger(value: unknown, field: string): number {
   return value
 }
 
-/** Require one non-negative safe integer. */
+/** 要求一个非负的安全整数。 */
 function nonNegativeInteger(value: unknown, field: string): number {
   if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) {
     throw new Error(`goal change ${field} must be a non-negative safe integer`)
@@ -69,7 +69,7 @@ function nonNegativeInteger(value: unknown, field: string): number {
   return value
 }
 
-/** Decode one canonical blocker explanation. */
+/** 解码一个规范的阻塞说明。 */
 function decodeBlockReason(value: unknown): GoalBlockReason {
   if (!isRecord(value) || Object.keys(value).sort().join(',') !== 'code,message') {
     throw new Error('goal change goal.blockedReason must have exactly code and message fields')
@@ -84,7 +84,7 @@ function decodeBlockReason(value: unknown): GoalBlockReason {
   return { code: value['code'], message: value['message'] }
 }
 
-/** Decode and validate one snapshot. */
+/** 解码并校验一个快照。 */
 function decodeSnapshot(value: unknown): GoalSnapshot {
   if (!isRecord(value)) throw new Error('goal change goal must be a record')
   if (typeof value['id'] !== 'string' || value['id'].length === 0) {
@@ -114,7 +114,7 @@ function decodeSnapshot(value: unknown): GoalSnapshot {
   }
 }
 
-/** Decode and validate one ref. */
+/** 解码并校验一个 ref。 */
 function decodeRef(value: unknown): GoalRef {
   if (!isRecord(value) || Object.keys(value).sort().join(',') !== 'id,revision') {
     throw new Error('goal clear tombstone must have exactly id and revision fields')
@@ -126,10 +126,10 @@ function decodeRef(value: unknown): GoalRef {
 }
 
 /**
- * Decode a value that declares itself as a goal change. Unrelated values
- * return `undefined`; malformed goal changes fail replay loudly.
- * @param value - candidate source change.
- * @returns validated goal change or `undefined` for another value kind.
+ * 解码一个自称是目标变更的值。无关的值返回 `undefined`；格式错误的目标
+ * 变更会大声失败，中断重放。
+ * @param value - 候选的源变更。
+ * @returns 校验通过的目标变更，或对其它值种类返回 `undefined`。
  */
 export function decodeGoalChange(value: unknown): GoalChangeMeta | undefined {
   if (!isRecord(value) || value['kind'] !== 'goal/change') return undefined
@@ -171,7 +171,7 @@ export function decodeGoalChange(value: unknown): GoalChangeMeta | undefined {
   } satisfies GoalSnapshotChangeMeta
 }
 
-/** Narrow model attribution to a valid goal source. */
+/** 把模型归属收窄为一个合法的 goal 来源。 */
 function goalSource(source: MessageSource): GoalMessageSource | undefined {
   if (source.kind !== 'goal') return undefined
   if (typeof source.goalId !== 'string' || source.goalId.length === 0
@@ -182,21 +182,21 @@ function goalSource(source: MessageSource): GoalMessageSource | undefined {
   return source
 }
 
-/** Require two snapshots to retain fields that only `edit` may replace. */
+/** 要求两个快照保留只有 `edit` 才能替换的字段。 */
 function requireSameDefinition(current: GoalSnapshot, next: GoalSnapshot, operation: GoalOperation): void {
   if (next.objective !== current.objective || next.maxGoalRounds !== current.maxGoalRounds) {
     throw new Error(`goal ${operation} cannot change objective or maxGoalRounds`)
   }
 }
 
-/** Require one exact next revision of the current goal. */
+/** 要求是目标当前版本的精确下一个修订号。 */
 function requireNextRevision(current: GoalSnapshot, next: GoalRef, operation: GoalOperation): void {
   if (next.id !== current.id || next.revision !== current.revision + 1) {
     throw new Error(`goal ${operation} must advance the current goal by one revision`)
   }
 }
 
-/** Validate one non-create snapshot operation against the preceding projection. */
+/** 对照前一个投影校验一个非 create 的快照操作。 */
 function validateSnapshotTransition(
   state: GoalFoldState,
   change: GoalSnapshotChangeMeta,
@@ -204,7 +204,7 @@ function validateSnapshotTransition(
 ): void {
   const next = change.goal
   requireNextRevision(current, next, change.operation)
-  /* v8 ignore next -- a current goal established by this fold always has an updatedAt */
+  /* v8 ignore next -- 本折叠建立的当前目标总是带有 updatedAt */
   if (state.updatedAt === undefined) throw new Error('current goal fold lacks updatedAt')
   if (change.createdAt !== state.createdAt
     || change.updatedAt < state.updatedAt
@@ -242,7 +242,7 @@ function validateSnapshotTransition(
       requireSameDefinition(current, next, change.operation)
       if (current.phase !== 'active' || next.phase !== 'blocked') throw new Error('goal block has an invalid phase transition')
       break
-    /* v8 ignore start -- the caller excludes create and GoalOperation is closed; these arms retain fail-loud exhaustiveness */
+    /* v8 ignore start -- 调用方已排除 create，且 GoalOperation 是封闭联合；保留这些分支以维持失败即报错的穷尽性 */
     case 'create':
       throw new Error('goal create cannot be validated as a current-goal transition')
     default:
@@ -253,9 +253,9 @@ function validateSnapshotTransition(
 }
 
 /**
- * Return the revision identity carried by a snapshot or tombstone.
- * @param change - decoded goal mutation.
- * @returns stable identity used to reconcile a deferred change with its log event.
+ * 返回快照或墓碑所携带的修订标识。
+ * @param change - 已解码的目标变更。
+ * @returns 用于把一个延迟变更与其日志事件对齐的稳定标识。
  */
 export function goalChangeRef(change: GoalChangeMeta): GoalRef {
   return change.operation === 'clear'
@@ -264,9 +264,9 @@ export function goalChangeRef(change: GoalChangeMeta): GoalRef {
 }
 
 /**
- * Validate and apply one decoded change to a mutable accumulator.
- * @param state - preceding durable goal projection.
- * @param change - decoded full snapshot or clear tombstone.
+ * 校验一个已解码的变更并把它应用到可变累加器上。
+ * @param state - 先前的持久化目标投影。
+ * @param change - 已解码的全量快照或 clear 墓碑。
  */
 export function applyGoalChange(state: GoalFoldState, change: GoalChangeMeta): void {
   const ref = goalChangeRef(change)
@@ -274,7 +274,7 @@ export function applyGoalChange(state: GoalFoldState, change: GoalChangeMeta): v
     const current = state.goal
     if (current === undefined) throw new Error('goal clear requires a current goal')
     requireNextRevision(current, change.cleared, change.operation)
-    /* v8 ignore next -- a current goal established by this fold always has an updatedAt */
+    /* v8 ignore next -- 本折叠建立的当前目标总是带有 updatedAt */
     if (state.updatedAt === undefined) throw new Error('current goal fold lacks updatedAt')
     if (change.clearedAt < state.updatedAt) {
       throw new Error('goal clear timestamp cannot precede the current goal update')
@@ -306,14 +306,14 @@ export function applyGoalChange(state: GoalFoldState, change: GoalChangeMeta): v
 }
 
 /**
- * Apply one session event to the strict durable goal fold.
- * @param state - mutable fold accumulator.
- * @param event - next event in sequence order.
+ * 把一个会话事件应用到严格的持久化目标折叠上。
+ * @param state - 可变的折叠累加器。
+ * @param event - 按序号顺序的下一个事件。
  */
 export function applyGoalEvent(state: GoalFoldState, event: SessionEvent): void {
   if (event.type === 'goal/change') {
     const change = decodeGoalChange(event.data)
-    /* v8 ignore next -- the event's declared payload always identifies itself as a goal change. */
+    /* v8 ignore next -- 该事件声明的载荷总是把自己标识为目标变更。 */
     if (change === undefined) throw new Error(`goal change at session event ${event.seq} has an invalid kind`)
     applyGoalChange(state, change)
     return
@@ -332,9 +332,9 @@ export function applyGoalEvent(state: GoalFoldState, event: SessionEvent): void 
 }
 
 /**
- * Fold current goal state from a contiguous session event log.
- * @param events - session events in sequence order.
- * @returns a fresh durable projection; activation is deliberately absent.
+ * 从一段连续的会话事件日志折叠出当前目标状态。
+ * @param events - 按序号顺序排列的会话事件。
+ * @returns 一个全新的持久化投影；激活状态刻意缺席。
  */
 export function foldGoal(events: readonly SessionEvent[]): FoldedGoal {
   const state = emptyGoalFoldState()

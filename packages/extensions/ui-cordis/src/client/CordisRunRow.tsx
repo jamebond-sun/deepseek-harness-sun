@@ -1,4 +1,4 @@
-/** `cordis_run` card and the host seat for Package-owned interactive UI. */
+/** `cordis_run` 卡片，以及 Package 自有交互式 UI 的宿主席位。 */
 
 import { useEffect } from 'react'
 import {
@@ -14,7 +14,7 @@ import type { CordisKey } from './locales.ts'
 import css from './CordisRunRow.module.css'
 import { CordisPreparingRow } from './CordisPreparingRow.tsx'
 
-/** Full Run-card props including its declared Package business-view child slot. */
+/** 完整 Run 卡片 props，含其声明的 Package 业务视图子槽位。 */
 export type CordisRunRowProps = ToolCallViewProps
   & InjectFace<CordisRunCardFace>
   & PropsRenderSlots<'tool.view.cordis'>
@@ -32,7 +32,7 @@ const READING_LABELS = {
   superseded: 'status.superseded',
 } as const satisfies Record<RunReading, CordisKey>
 
-/** Render one activation result and, when eligible, its Package-owned view. */
+/** 渲染一次激活结果，并在符合条件时渲染其 Package 自有的视图。 */
 export function CordisRunRow(props: CordisRunRowProps) {
   if (props.phase === 'preparing') return <CordisPreparingRow {...props}
     icon={<IconCodeOutlineRegular size={14} />} title={props.t('row.runTitle')}

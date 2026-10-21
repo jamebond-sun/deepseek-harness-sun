@@ -1,9 +1,8 @@
 /**
- * Durable whole-generation publication for JSONL Session artifacts.
+ * JSONL Session 制品的持久整代际发布。
  *
- * Format packages transform parsed JSON values. This module owns the physical
- * encoding, exact source identity, immutable generation files, and exclusive
- * current-generation publication for both configured JSONL suffixes.
+ * 格式包负责转换已解析的 JSON 值。本模块拥有物理编码、精确的源身份、
+ * 不可变的代际文件，以及针对两种已配置 JSONL 后缀的独占当前代际发布。
  * @module @deepseek-ai/dsh-session-persistence-jsonl/generation
  */
 
@@ -45,7 +44,7 @@ import {
   scanZstdFrames,
 } from './zstd.ts'
 
-/** Internal scheduling bounds: preserve old decode cadence and cap each synchronous encode slice. */
+/** 内部调度上限：保留旧的解码节奏，并为每个同步编码切片设上限。 */
 const MIGRATION_DECODE_YIELD_INTERVAL_MS = 500
 const MIGRATION_WORK_CHUNK_BYTES = 1024 * 1024
 const MIGRATION_WRITE_CHUNK_BYTES = 4 * 1024 * 1024
@@ -54,36 +53,36 @@ const ZSTD_CHECKSUM_OPTIONS = {
   params: { [constants.ZSTD_c_checksumFlag]: 1 },
 }
 
-/** Pure adapter between backend-owned JSONL framing and the format catalog. */
+/** 后端持有的 JSONL 分帧与格式目录之间的纯适配器。 */
 export interface JsonlGenerationFormatAdapter {
   readonly currentVersion: number
-  /** Create the single-pass codec and migration state for a historical header. */
+  /** 为一个历史头部创建单趟编解码器与迁移状态。 */
   createRestore(header: Record<string, unknown>): SessionFormatRestore
-  /** Encode one current header record without materializing body rows. */
+  /** 编码一条当前头部记录，无需物化事件体行。 */
   encodeHeader(header: SessionFormatArtifact['header'], inheritedEventCount: number): SessionFormatJsonValue
-  /** Encode one current event record. */
+  /** 编码一条当前事件记录。 */
   encodeEvent(event: SessionFormatArtifact['events'][number]): SessionFormatJsonValue
-  /** Classify a supported-version artifact that policy refuses to migrate. */
+  /** 对策略拒绝迁移的、版本受支持的制品做分类。 */
   isUnsupportedMigrationError?(error: unknown): error is Error
 }
 
-/** Inputs for preparing one historical generation and publishing its current successor later. */
+/** 准备一个历史代际并在之后发布其当前后继者所需的输入。 */
 export interface PrepareJsonlMigrationOptions {
-  /** Revalidate related source facts before preparation returns and immediately before publication. */
+  /** 在 preparation 返回之前以及发布之前立即重新校验相关的源事实。 */
   readonly validateRelatedSources?: () => Promise<void>
-  /** Immutable generation selected by the backend resolver. */
+  /** 由后端解析器选定的不可变代际。 */
   readonly sourcePath: string
-  /** Version selected from the source filename and independently checked against its header. */
+  /** 从源文件名选出、并独立地与自身头部核对过的版本。 */
   readonly sourceVersion: number
-  /** Canonical filename for `format.currentVersion` in the same Session directory. */
+  /** 同一 Session 目录中 `format.currentVersion` 的规范文件名。 */
   readonly currentPath: string
   readonly compression: JsonlCompression
   readonly format: JsonlGenerationFormatAdapter
-  /** Validate one selected historical header's identity before any migration write. */
+  /** 在任何迁移写入之前校验一个所选历史头部的身份。 */
   readonly validateHistoricalHeader?: (
     header: Readonly<Record<string, unknown>>,
   ) => void | Promise<void>
-  /** Validate the staged file in an isolated worker before publication. */
+  /** 在发布之前，于一个隔离的 worker 中校验已暂存的文件。 */
   readonly verifyCurrentFile: (
     path: string,
     compression: JsonlCompression,
@@ -95,44 +94,44 @@ export interface PrepareJsonlMigrationOptions {
   readonly signal?: AbortSignal
 }
 
-/** Small physical identity returned by an isolated generation verifier. */
+/** 由隔离的代际校验器返回的精简物理身份。 */
 export interface JsonlVerifiedGeneration {
   readonly identity: JsonlPhysicalIdentity
   readonly bytes: number
   readonly digest: string
 }
 
-/** Physical byte prefix already proven to be a valid complete generation. */
+/** 已被证明是一个有效完整代际的物理字节前缀。 */
 export interface JsonlExpectedPrefix {
   readonly bytes: number
   readonly digest: string
 }
 
-/** A historical source changed after its single decode and migration pass. */
+/** 某个历史源在其唯一一次解码与迁移过程之后发生了变化。 */
 export class JsonlGenerationSourceChangedError extends Error {
   override readonly name = 'JsonlGenerationSourceChangedError'
 
-  /** @param path - historical generation whose revision changed. */
+  /** @param path - 修订已发生变化的历史代际。 */
   constructor(readonly path: string) {
     super(`historical session generation changed during migration: "${path}"`)
   }
 }
 
-/** Current logical state prepared independently from durable publication. */
+/** 独立于持久发布而准备好的当前逻辑状态。 */
 export interface PreparedJsonlMigration {
   readonly sourceIdentity: JsonlPhysicalIdentity
   readonly artifact: SessionFormatArtifact
-  /** Encode, verify, and exclusively publish once; every call shares the same success or failure. */
+  /** 只编码、校验并独占发布一次；每次调用共享同样的成功或失败结果。 */
   publish(): Promise<JsonlPhysicalIdentity>
 }
 
-/** A historical artifact is intact, but the format edge refuses its contents. */
+/** 某个历史制品完好无损，但格式边拒绝其内容。 */
 export class JsonlGenerationUnsupportedMigrationError extends Error {
   override readonly name = 'JsonlGenerationUnsupportedMigrationError'
 
   /**
-   * @param fromVersion - unchanged source generation version.
-   * @param reason - format-edge refusal.
+   * @param fromVersion - 未发生变化的源代际版本。
+   * @param reason - 格式边的拒绝原因。
    */
   constructor(
     readonly fromVersion: number,
@@ -142,13 +141,13 @@ export class JsonlGenerationUnsupportedMigrationError extends Error {
   }
 }
 
-/** A current-generation filename already names different or invalid bytes. */
+/** 某个当前代际文件名已经指向不同或无效的字节。 */
 export class JsonlGenerationTargetConflictError extends Error {
   override readonly name = 'JsonlGenerationTargetConflictError'
 
   /**
-   * @param path - immutable target that prevented exclusive publication.
-   * @param reason - why the existing target cannot be accepted.
+   * @param path - 阻止了独占发布的不可变目标。
+   * @param reason - 现有目标为何无法被接受。
    */
   constructor(
     readonly path: string,
@@ -158,7 +157,7 @@ export class JsonlGenerationTargetConflictError extends Error {
   }
 }
 
-/** Stat identity captured together with exact generation bytes. */
+/** 与精确的代际字节一同捕获的 stat 身份。 */
 export interface JsonlPhysicalIdentity {
   readonly dev: bigint
   readonly ino: bigint
@@ -167,7 +166,7 @@ export interface JsonlPhysicalIdentity {
   readonly ctimeNs: bigint
 }
 
-/** Exact bytes of one stable file revision together with the stat identity that proved it stable. */
+/** 某个稳定文件修订的精确字节，连同证明其稳定的 stat 身份。 */
 export interface StablePhysicalFile {
   readonly bytes: Buffer
   readonly identity: JsonlPhysicalIdentity
@@ -195,12 +194,12 @@ interface JsonlGenerationInternals {
   readonly barrier: (phase: GenerationBarrierPhase, attempt: number) => void | Promise<void>
 }
 
-/** Dependency overrides for an isolated generation runtime. */
+/** 一个隔离代际运行时的依赖覆盖项。 */
 export type JsonlGenerationRuntimeOverrides = Partial<Omit<JsonlGenerationInternals, 'fs'>> & {
   readonly fs?: Partial<GenerationFileSystem>
 }
 
-/** Bound generation operations used by production defaults and deterministic tests. */
+/** 供生产默认值与确定性测试使用的已绑定代际操作。 */
 export interface JsonlGenerationRuntime {
   readStable(path: string, signal?: AbortSignal): Promise<StablePhysicalFile>
   prepare(options: PrepareJsonlMigrationOptions): Promise<PreparedJsonlMigration>
@@ -235,7 +234,7 @@ function isEEXIST(error: unknown): boolean {
   return (error as NodeJS.ErrnoException | null)?.code === 'EEXIST'
 }
 
-/** Whether a filesystem-owned failure should retain its original errno and path. */
+/** 判断一个文件系统持有的失败是否应保留其原始 errno 与路径。 */
 function isErrnoException(error: unknown): error is NodeJS.ErrnoException {
   return typeof (error as NodeJS.ErrnoException | null)?.code === 'string'
 }
@@ -245,12 +244,11 @@ function identity(value: JsonlPhysicalIdentity): string {
 }
 
 /**
- * Read one stable revision of a JSONL file with a single retry. If an append
- * overlaps both reads, return the second read's committed pre-read prefix
- * instead of starving behind a continuous writer.
- * @param path - the generation file to read.
- * @param signal - optional cancellation for the stat/read work.
- * @returns the stable bytes (or the committed prefix) and their stat identity.
+ * 以一次重试读取 JSONL 文件的一个稳定修订。如果一次追加与两次读取都重叠，
+ * 则返回第二次读取在读取前已提交的前缀，而不是在持续写入者之后一直挨饿。
+ * @param path - 要读取的代际文件。
+ * @param signal - 可选取消信号，用于 stat/读取工作。
+ * @returns 稳定的字节（或已提交的前缀）及其 stat 身份。
  */
 export async function readStableJsonlFile(
   path: string,
@@ -281,7 +279,7 @@ async function readStableSnapshot(
   }
 }
 
-/** Parse the version discriminator without validating any version-specific field. */
+/** 解析版本判别字段，不校验任何与版本相关的字段。 */
 function storedVersion(header: unknown): number {
   if (typeof header !== 'object' || header === null || Array.isArray(header)) {
     throw new Error('corrupt session log: first line is not a JSON object')
@@ -301,7 +299,7 @@ function parseJson(text: string, subject: string): unknown {
   }
 }
 
-/** Incremental JSONL parser that retains only one cross-frame record fragment. */
+/** 只保留一个跨帧记录片段的增量 JSONL 解析器。 */
 class MigratingJsonlRows {
   private fragments: Buffer[] = []
   private fragmentBytes = 0
@@ -310,9 +308,9 @@ class MigratingJsonlRows {
 
   constructor(private readonly restore: SessionFormatRestore) {}
 
-  /** Consume plaintext bytes following the independently decoded header. */
+  /** 消费紧跟在独立解码的头部之后的明文字节。 */
   write(chunk: Buffer): void {
-    /* jscpd:ignore-start -- migration parsing and readable-log scanning own different recovery and byte-accounting state. */
+    /* jscpd:ignore-start -- 迁移解析与可读日志扫描各自拥有不同的恢复与字节记账状态。 */
     let lineStart = 0
     for (
       let newline = chunk.indexOf(0x0A);
@@ -338,7 +336,7 @@ class MigratingJsonlRows {
     /* jscpd:ignore-end */
   }
 
-  /** Refuse a record fragment left by structurally complete Zstandard frames. */
+  /** 拒绝结构上完整的 Zstandard 帧所留下的记录片段。 */
   assertCompleteFramesEndOnRecord(): void {
     if (this.fragments.length > 0) {
       throw new Error('corrupt Zstandard session log: complete frame contains a torn JSONL record')
@@ -444,7 +442,7 @@ async function decodeStreamingMigration(
   try {
     const decoded = decoder.decode(bytes, frames)
     const first = decoded.next()
-    /* v8 ignore next -- a non-empty structural frame list yields once or throws. */
+    /* v8 ignore next -- 非空的机构化帧列表要么产出一次，要么抛出。 */
     if (first.done) throw new Error('empty or header-less Zstandard session log')
     assertIndependentHeaderFrame(first.value)
     const stream = await startMigrationStream(
@@ -461,7 +459,7 @@ async function decodeStreamingMigration(
       try {
         recovered = await decompressZstdPrefix(bytes.subarray(tornStart))
       } catch {
-        /* v8 ignore next -- decoder failure plus concurrent abort is timing-dependent. */
+        /* v8 ignore next -- 解码失败叠加并发中止取决于时序。 */
         if (signal?.aborted) signal.throwIfAborted()
       }
       signal?.throwIfAborted()
@@ -481,13 +479,13 @@ async function decodeStreamingMigration(
 }
 
 /**
- * Read and validate one complete current generation for an isolated verifier.
- * @param path - staged or competing current-generation path.
- * @param compression - configured physical encoding.
- * @param expectedId - Session identity expected in the header.
- * @param expectedEventCount - exact logical event count expected after decoding.
- * @param expectedPrefix - verified migration prefix; an append tail may be present and is not validated.
- * @returns stable physical identity and digest for publication comparison.
+ * 为一个隔离的校验器读取并校验一个完整的当前代际。
+ * @param path - 已暂存或与之竞争的当前代际路径。
+ * @param compression - 已配置的物理编码方式。
+ * @param expectedId - 头部中预期的 Session 身份。
+ * @param expectedEventCount - 解码之后预期的精确逻辑事件数。
+ * @param expectedPrefix - 已校验的迁移前缀；可能存在追加尾部，且不会被校验。
+ * @returns 用于发布比较的稳定物理身份与摘要。
  */
 export async function verifyJsonlCurrentGeneration(
   path: string,
@@ -550,7 +548,7 @@ async function verifyCurrentGeneration(
   }
 }
 
-/** Fully replay embedded streams only inside isolated current-generation verification. */
+/** 只在隔离的当前代际校验中完整回放内嵌的流。 */
 function assertCurrentAssistantStreams(events: readonly SessionEvent[]): void {
   for (const [index, event] of events.entries()) {
     if (event.type !== 'assistant/message' && event.type !== 'assistant/attempt') continue
@@ -594,7 +592,7 @@ function decodeCurrentGeneration(
   try {
     const plaintext = decoder.decode(bytes, frames)
     const header = plaintext.next()
-    /* v8 ignore next -- a non-empty structural frame list yields once or throws. */
+    /* v8 ignore next -- 非空的机构化帧列表要么产出一次，要么抛出。 */
     if (header.done) throw new Error('empty or header-less Zstandard session log')
     assertIndependentHeaderFrame(header.value)
     const scanner = new SessionLogScanner(header.value, 'strict')
@@ -653,7 +651,7 @@ function assertGenerationPaths(
 }
 
 async function syncDirectory(path: string, internals: JsonlGenerationInternals): Promise<void> {
-  /* v8 ignore next -- Windows namespace operations request write-through directly. */
+  /* v8 ignore next -- Windows 命名空间操作直接请求直写。 */
   if (internals.platform === 'win32') return
   const handle = await internals.fs.open(path, 'r')
   try {
@@ -669,7 +667,7 @@ interface StreamedMigrationStage {
   readonly digest: string
 }
 
-/** Produce bounded JSONL chunks while yielding between main-thread encoding slices. */
+/** 在主线程编码切片之间让出控制权的同时，产出有界的 JSONL 块。 */
 async function* encodeMigrationRows(
   artifact: SessionFormatArtifact,
   format: JsonlGenerationFormatAdapter,
@@ -711,7 +709,7 @@ async function writeMigrationChunks(
   if (bytes > 0) await write(pending.length === 1 ? pending[0] as Buffer : Buffer.concat(pending, bytes))
 }
 
-/** Encode directly into one synced stage without a whole-artifact row or byte buffer. */
+/** 直接编码到一个已同步的暂存文件中，无需整个制品的行缓冲区或字节缓冲区。 */
 async function writeSyncedTemp(
   currentPath: string,
   suffix: string,
@@ -786,7 +784,7 @@ async function writeSyncedTemp(
   return { path, bytes, digest: hash.digest('hex') }
 }
 
-/** Remove one temporary file without hiding the operation failure that made it disposable. */
+/** 删除一个临时文件，但不掩盖使它变为可丢弃的那次操作失败。 */
 async function removeTemporary(
   path: string,
   primaryFailure: unknown,
@@ -802,7 +800,7 @@ async function removeTemporary(
   }
 }
 
-/** Remove a redundant stage after the target has been validated as committed. */
+/** 在目标已被校验为已提交之后删除一个多余的暂存文件。 */
 async function removeCommittedTemporary(
   path: string,
   internals: JsonlGenerationInternals,
@@ -810,7 +808,7 @@ async function removeCommittedTemporary(
   try {
     await internals.fs.rm(path)
   } catch {
-    // The validated target owns the committed bytes; a redundant link cannot turn success into failure.
+    // 已校验的目标持有已提交的字节；多余的链接不能把成功变成失败。
   }
 }
 
@@ -824,18 +822,18 @@ async function publishCurrentExclusive(
       await internals.publishNewWin32(staged, currentPath)
       return true
     } catch (error) {
-      /* v8 ignore else -- native helper tests own non-collision Win32 failures. */
+      /* v8 ignore else -- 原生辅助函数的测试负责非冲突的 Win32 失败。 */
       if (isEEXIST(error)) return false
-      /* v8 ignore next -- the filesystem error is already complete. */
+      /* v8 ignore next -- 文件系统错误本身已经完整。 */
       throw error
     }
   }
   try {
     await internals.fs.link(staged, currentPath)
   } catch (error) {
-    /* v8 ignore else -- a non-collision filesystem error propagates unchanged. */
+    /* v8 ignore else -- 非冲突的文件系统错误原样向上传播。 */
     if (isEEXIST(error)) return false
-    /* v8 ignore next -- the filesystem error is already complete. */
+    /* v8 ignore next -- 文件系统错误本身已经完整。 */
     throw error
   }
   await syncDirectory(dirname(currentPath), internals)
@@ -1000,9 +998,9 @@ async function prepareMigration(
 }
 
 /**
- * Decode and migrate one historical generation without writing its successor.
- * @param options - resolved source, current target, format adapter, and load cancellation.
- * @returns the current artifact and an idempotent explicit publication operation.
+ * 解码并迁移一个历史代际，但不写入其后继者。
+ * @param options - 已解析的源、当前目标、格式适配器与加载取消信号。
+ * @returns 当前制品，以及一个幂等的显式发布操作。
  */
 export function prepareJsonlMigration(
   options: PrepareJsonlMigrationOptions,
@@ -1011,9 +1009,9 @@ export function prepareJsonlMigration(
 }
 
 /**
- * Create one generation runtime with fixed filesystem and publication dependencies.
- * @param overrides - deterministic filesystem, platform, and race dependencies.
- * @returns bound generation operations.
+ * 创建一个文件系统与发布依赖均已固定的代际运行时。
+ * @param overrides - 确定性的文件系统、平台与竞态依赖。
+ * @returns 已绑定的代际操作。
  */
 export function createJsonlGenerationRuntime(
   overrides: JsonlGenerationRuntimeOverrides = {},
@@ -1031,14 +1029,14 @@ export function createJsonlGenerationRuntime(
 const defaultGenerationRuntime = createJsonlGenerationRuntime()
 
 /**
- * Read one stable source through the shared streaming parser without publishing a generation.
- * @param path - selected source generation path.
- * @param version - physical source version identified by its filename.
- * @param compression - source encoding.
- * @param format - codec/restore factory, independent of current-generation publication.
- * @param signal - cancellation observed during source reads and decode yields.
- * @returns decoded artifact and physical source identity for later revalidation.
- * @throws SessionFormatError for physical decoding failures; storage, cancellation, and unsupported migration errors retain their category.
+ * 通过共享的流式解析器读取一个稳定源，不发布任何代际。
+ * @param path - 所选的源代际路径。
+ * @param version - 由文件名标识的物理源版本。
+ * @param compression - 源编码方式。
+ * @param format - 编解码器/恢复工厂，与当前代际发布无关。
+ * @param signal - 在源读取与解码让出期间被观测的取消信号。
+ * @returns 已解码的制品与物理源身份，供之后重新校验。
+ * @throws SessionFormatError 物理解码失败时抛出；存储类、取消类与不受支持的迁移错误保留其原有类别。
  */
 export async function readDecodedJsonlSource(
   path: string,

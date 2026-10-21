@@ -1,4 +1,4 @@
-/** Read plugin display text and icons through exported resources without evaluating plugin code. */
+/** 通过导出的资源读取插件展示文本与图标，而不求值插件代码。 */
 
 import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs'
 import { dirname, extname, isAbsolute, join, relative, resolve, sep, win32 } from 'node:path'
@@ -12,7 +12,7 @@ const LANGUAGE_ID = /^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$/u
 
 type DisplayFields = Record<'title' | 'description', string | undefined>
 
-/** Maximum raw icon bytes admitted to plugin metadata. */
+/** 被插件元数据接纳的、原始图标的最大字节数。 */
 const MAX_ICON_BYTES = 256 * 1024
 const ICON_MEDIA_TYPES = new Map([
   ['.svg', 'image/svg+xml'], ['.png', 'image/png'], ['.jpg', 'image/jpeg'],
@@ -24,7 +24,7 @@ function iconOf(
 ): string | undefined {
   const icon = manifestPath === undefined ? undefined : textOf(value, `${manifestPath}: icon`)
   let target: string
-  // Diagnostics name the file the author edits: the declaring manifest or the exported image.
+  // 诊断会点名作者所编辑的文件：声明清单或导出的图像。
   let label: string
   if (manifestPath !== undefined && icon !== undefined) {
     if (isAbsolute(icon) || win32.isAbsolute(icon) || /^[A-Za-z][A-Za-z\d+.-]*:/u.test(icon)) {
@@ -54,7 +54,7 @@ function iconOf(
   return `data:${mediaType};base64,${bytes.toString('base64')}`
 }
 
-/** Require an ancestor of the real file whose package.json names the owning package. */
+/** 要求真实文件的一个祖先，其 package.json 命名了所属包。 */
 function assertPackageOwned(file: string, name: string): void {
   for (let directory = dirname(file); ; directory = dirname(directory)) {
     const manifest = join(directory, 'package.json')
@@ -64,11 +64,11 @@ function assertPackageOwned(file: string, name: string): void {
 }
 
 /**
- * Resolve a plugin resource through the active Node ESM resolver without evaluating it.
- * @param specifier - plugin module or exported resource specifier.
- * @param parentURL - owning module-resolution base.
- * @returns the local filesystem path selected by Node and the active profile.
- * @throws when the resolver is unavailable or the resource cannot resolve to a local file.
+ * 在不求值的前提下，通过活跃的 Node ESM 解析器解析一个插件资源。
+ * @param specifier - 插件模块或导出的资源指示符。
+ * @param parentURL - 所属模块的解析基址。
+ * @returns Node 与活跃 profile 所选择的本地文件系统路径。
+ * @throws 当解析器不可用，或资源无法解析为本地文件时。
  */
 export function resolvePluginResource(specifier: string, parentURL: string): string {
   const loader = ModuleLoader.fromInternal()
@@ -156,21 +156,17 @@ function localizedText(
 }
 
 /**
- * Read plugin locale JSON display text and icon without evaluating JavaScript entries.
- * Only a package-root specifier reads its exported package.json: `name`/`description` fill missing
- * locale fields, and a declared `icon` takes priority over the `<specifier>/icon` resource.
- * A subpath specifier never reads package.json; its icon comes only from `<specifier>/icon`.
- * Manifest icons remain inside their declaring directory; exported icons remain inside their
- * owning package after realpath resolution. Both accept SVG, PNG, JPEG, or WebP up to 256 KiB.
- * Icon failures retain display text without falling back.
- * Non-package specifiers are skipped without invoking the resource resolver.
- * Language files share the directory containing the resolved English resource;
- * each file is resolved through the complete plugin specifier before reading.
- * Translation maps retain an English fallback, ultimately the full module specifier
- * for titles and empty for descriptions.
- * @param specifier - configured plugin module name, including any package subpath.
- * @param parentURL - owning Loader tree's module-resolution base.
- * @returns display fields and any resource diagnostic, or undefined for non-package specifiers or absent metadata.
+ * 在不求值 JavaScript 条目的前提下，读取插件 locale JSON 展示文本与图标。
+ * 只有包根指示符会读取其导出的 package.json：`name`/`description` 填充缺失的
+ * locale 字段，而声明的 `icon` 优先于 `<specifier>/icon` 资源。子路径指示符从不读取
+ * package.json；其图标只来自 `<specifier>/icon`。清单图标保留在其声明目录之内；导出的
+ * 图标在 realpath 解析之后仍保留在其所属包之内。两者都接受 SVG、PNG、JPEG 或 WebP，最大 256 KiB。
+ * 图标失败会保留展示文本而不回退。非包指示符会被跳过，而不调用资源解析器。语言文件共享
+ * 包含已解析 English 资源的目录；每个文件在读取之前都通过完整的插件指示符解析。翻译映射
+ * 保留一个 English 回退，最终对标题为完整模块指示符、对描述为空。
+ * @param specifier - 已配置的插件模块名，包括任何包子路径。
+ * @param parentURL - 所属 Loader 树的模块解析基址。
+ * @returns 展示字段与任意资源诊断；对于非包指示符或缺失的元数据为 undefined。
  */
 export function readPluginMeta(specifier: string, parentURL: string): PluginLocalizedMeta | undefined {
   const packageName = barePackageName(specifier)

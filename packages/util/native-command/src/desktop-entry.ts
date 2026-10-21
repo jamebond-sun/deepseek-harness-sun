@@ -1,17 +1,17 @@
-/** Shared XDG desktop-entry fields and icon lookup for directory and file application catalogs. */
+/** 目录与文件应用目录所共享的 XDG desktop-entry 字段与图标查找。 */
 import { readFile, stat } from 'node:fs/promises'
 import { isAbsolute, join } from 'node:path'
 
-/** Decoded application icon bytes suitable for an image response or data URL. */
+/** 适合作为图像响应或 data URL 的已解码应用图标字节。 */
 export interface DesktopIcon {
   readonly bytes: Buffer
   readonly contentType: 'image/png' | 'image/svg+xml'
 }
 
 /**
- * Read the main desktop-entry section without interpreting executable commands.
- * @param text - installed desktop-entry text.
- * @returns its literal field values; action sections are excluded.
+ * 读取主 desktop-entry 段，而不解释可执行命令。
+ * @param text - 已安装的 desktop-entry 文本。
+ * @returns 其字面的字段值；操作段被排除。
  */
 export function desktopEntryFields(text: string): Readonly<Record<string, string>> {
   let main = false
@@ -27,17 +27,17 @@ export function desktopEntryFields(text: string): Readonly<Record<string, string
 }
 
 /**
- * Resolve XDG application and icon roots in desktop precedence order.
- * @param home - user's home directory.
- * @param env - desktop environment values.
- * @returns data-home followed by system data directories.
+ * 按桌面优先级顺序解析 XDG 应用与图标根。
+ * @param home - 用户 home 目录。
+ * @param env - 桌面环境值。
+ * @returns data-home，其后为系统数据目录。
  */
 export function desktopDataDirectories(home: string, env: Readonly<Record<string, string | undefined>>): readonly string[] {
   return [env.XDG_DATA_HOME ?? join(home, '.local', 'share'),
     ...(env.XDG_DATA_DIRS ?? '/usr/local/share:/usr/share').split(':').filter(Boolean)]
 }
 
-/** Read an installed PNG or SVG icon; absent paths and directories have no pixels. */
+/** 读取一个已安装的 PNG 或 SVG 图标；缺失路径与目录没有像素。 */
 async function readIcon(path: string): Promise<DesktopIcon | null> {
   const contentType = path.endsWith('.png') ? 'image/png' : path.endsWith('.svg') ? 'image/svg+xml' : null
   if (contentType === null) return null
@@ -45,16 +45,16 @@ async function readIcon(path: string): Promise<DesktopIcon | null> {
     if (!(await stat(path)).isFile()) return null
     return { bytes: await readFile(path), contentType }
   } catch (_error) {
-    // Missing or unreadable artwork does not remove an otherwise usable application.
+    // 缺失或不可读的艺术资源不会移除一个本可用应用。
     return null
   }
 }
 
 /**
- * Resolve an absolute icon path or an installed hicolor/pixmaps icon name.
- * @param name - desktop-entry Icon field.
- * @param directories - XDG data roots in precedence order.
- * @returns image bytes and media type, or null when artwork is unavailable.
+ * 解析一个绝对图标路径或一个已安装的 hicolor/pixmaps 图标名。
+ * @param name - desktop-entry 的 Icon 字段。
+ * @param directories - 按优先级顺序的 XDG 数据根。
+ * @returns 图像字节与媒体类型，或当艺术资源不可用时为 null。
  */
 export async function desktopApplicationIcon(name: string, directories: readonly string[]): Promise<DesktopIcon | null> {
   if (isAbsolute(name)) return readIcon(name)

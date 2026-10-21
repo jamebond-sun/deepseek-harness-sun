@@ -1,32 +1,31 @@
-/** One-shot cold session read through the handle-based persistence seam. */
+/** 通过基于句柄的持久化接缝完成的一次性冷会话读取。 */
 
 import { interruptedTurnClosers } from '@deepseek-ai/dsh-session'
 import type { SessionEvent, SessionHeader, SessionId, SessionLogOffset, SessionSeedEventState } from '@deepseek-ai/dsh-session'
 import type SessionPersistence from '@deepseek-ai/dsh-session-persistence'
 import type { SessionHandleReadResult } from '@deepseek-ai/dsh-session-persistence'
 
-/** A stored session log balanced for read-only viewing. */
+/** 为只读查看做过平衡处理的已存储会话日志。 */
 export interface ColdSessionLog {
-  /** Aliasing state of the persisted events; synthetic closers are locally owned. */
+  /** 已持久化事件的别名状态；合成的闭合事件由本地持有。 */
   readonly eventState: SessionSeedEventState
-  /** The stored header, fixed when the read handle opened. */
+  /** 已存储的头部，在读取句柄打开时即固定。 */
   readonly header: SessionHeader
-  /** Exact fork-inherited event count paired with {@link header}. */
+  /** 与 {@link header} 配对、精确的 fork 继承事件数。 */
   readonly inheritedEventCount: SessionLogOffset
-  /** Stored events plus deterministic in-memory closers for an interrupted final turn; nothing is written back. */
+  /** 已存储事件加上为被中断的最后一轮生成的确定性内存闭合事件；不会写回任何内容。 */
   readonly events: SessionEvent[]
 }
 
 /**
- * Read one complete stored session log without taking ownership or mutating
- * storage: open a read handle, read the validated contiguous log, close the
- * handle, and append `interruptedTurnClosers` so a log whose writer crashed
- * mid-turn folds as a balanced transcript. Backend failures propagate
- * unmapped — each caller owns its error taxonomy.
- * @param persistence - the mounted persistence service.
- * @param sessionId - the stored session to read.
- * @param signal - optional cancellation for the open and read work.
- * @returns an adoptable seed in a caller-owned outer array, ready for in-place Session restoration.
+ * 读取一份完整的已存储会话日志，既不获取所有权也不改动存储：打开读取句柄、
+ * 读取经过校验的连续日志、关闭句柄，并追加 `interruptedTurnClosers`，
+ * 使写入者在回合中途崩溃的日志也能折叠成一份平衡的 transcript。
+ * 后端错误原样向上传播、不做映射——每个调用方各自拥有自己的错误分类。
+ * @param persistence - 已挂载的持久化服务。
+ * @param sessionId - 要读取的已存储会话。
+ * @param signal - open 与 read 工作的可选取消信号。
+ * @returns 位于调用方持有的外层数组中的可领养种子，可直接用于原地恢复 Session。
  */
 export async function readColdSessionLog(
   persistence: SessionPersistence,
@@ -42,7 +41,7 @@ export async function readColdSessionLog(
     try {
       await handle.close()
     } catch {
-      // The read failure is the actionable cause; a close failure on the same broken handle adds nothing.
+      // 读取失败才是可据以行动的原因；同一个已损坏句柄上的关闭失败不带来额外信息。
     }
     throw error
   }

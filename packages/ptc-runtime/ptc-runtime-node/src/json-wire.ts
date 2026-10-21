@@ -1,11 +1,11 @@
 /**
- * Lossless-JSON snapshots for the dependency-free source bootstrap closure.
+ * 为无依赖的源码 bootstrap 闭包提供的无损 JSON 快照。
  * @module @deepseek-ai/dsh-ptc-runtime-node/json-wire
  */
 
 import type { PtcJsonValue } from '@deepseek-ai/dsh-ptc-runtime'
 
-/* jscpd:ignore-start -- the source bootstrap mirrors session JSON helpers without workspace runtime imports */
+/* jscpd:ignore-start -- 源码 bootstrap 在不引入工作区运行时依赖的前提下镜像了会话 JSON 辅助函数 */
 type IntrinsicCallable = (this: unknown, ...args: unknown[]) => unknown
 
 const intrinsicFunctionToString = Reflect.get(Function.prototype, 'toString') as IntrinsicCallable
@@ -34,14 +34,14 @@ const intrinsicSetAdd = Reflect.get(Set.prototype, 'add') as IntrinsicCallable
 const intrinsicSetDelete = Reflect.get(Set.prototype, 'delete') as IntrinsicCallable
 const intrinsicSetHas = Reflect.get(Set.prototype, 'has') as IntrinsicCallable
 
-/** Build a data descriptor that cannot inherit model-defined accessor fields. */
+/** 构造一个不会继承到模型自定义访问器字段的数据描述符。 */
 function dataDescriptor(value: unknown): PropertyDescriptor {
   const descriptor = intrinsicObjectCreate(null) as PropertyDescriptor
   descriptor.value = value
   return descriptor
 }
 
-/** Define an ordinary enumerable data slot without a prototype-bearing descriptor. */
+/** 定义一个普通的可枚举数据槽位，不使用带原型的描述符。 */
 function defineEnumerableDataProperty(target: object, key: PropertyKey, value: unknown): void {
   const descriptor = dataDescriptor(value)
   descriptor.enumerable = true
@@ -50,12 +50,12 @@ function defineEnumerableDataProperty(target: object, key: PropertyKey, value: u
   intrinsicObjectDefineProperty(target, key, descriptor)
 }
 
-/** Append without consulting a model-mutated `Array.prototype`. */
+/** 追加元素，不查阅可能被模型改过的 `Array.prototype`。 */
 function append<T>(target: T[], value: T): void {
   defineEnumerableDataProperty(target, target.length, value)
 }
 
-/** Pop without consulting a model-mutated `Array.prototype`. */
+/** 弹出末尾元素，不查阅可能被模型改过的 `Array.prototype`。 */
 function takeLast<T>(target: T[]): T | undefined {
   if (target.length === 0) return undefined
   const index = target.length - 1
@@ -64,22 +64,22 @@ function takeLast<T>(target: T[]): T | undefined {
   return value
 }
 
-/** Whether one captured-intrinsic Set contains a value. */
+/** 判断一个捕获内部函数所用的 Set 是否包含某个值。 */
 function setHas<T>(target: Set<T>, value: T): boolean {
   return intrinsicReflectApply(intrinsicSetHas, target, [value]) as boolean
 }
 
-/** Add to one captured-intrinsic Set. */
+/** 向一个捕获内部函数所用的 Set 添加元素。 */
 function setAdd<T>(target: Set<T>, value: T): void {
   intrinsicReflectApply(intrinsicSetAdd, target, [value])
 }
 
-/** Delete from one captured-intrinsic Set. */
+/** 从一个捕获内部函数所用的 Set 删除元素。 */
 function setDelete<T>(target: Set<T>, value: T): void {
   intrinsicReflectApply(intrinsicSetDelete, target, [value])
 }
 
-/** Whether a realm-owned intrinsic prototype is backed by its native constructor. */
+/** 判断某个 realm 自有的内部原型是否由其原生构造器支撑。 */
 function hasIntrinsicConstructor(prototype: object, name: 'Array' | 'Object'): boolean {
   const descriptor = intrinsicObjectGetOwnPropertyDescriptor(prototype, 'constructor')
   const constructor: unknown = descriptor?.value
@@ -93,12 +93,12 @@ function hasIntrinsicConstructor(prototype: object, name: 'Array' | 'Object'): b
   }
 }
 
-/** Whether a candidate is a foreign realm's intrinsic `Object.prototype`. */
+/** 判断候选对象是否为某个外部 realm 的内部 `Object.prototype`。 */
 function isForeignIntrinsicObjectPrototype(value: object): boolean {
   return intrinsicObjectGetPrototypeOf(value) === null && hasIntrinsicConstructor(value, 'Object')
 }
 
-/** Whether an array uses one realm's intrinsic `Array.prototype`, not a subclass or forged prototype. */
+/** 判断数组是否使用了某个 realm 的内部 `Array.prototype`，而非子类或伪造的原型。 */
 function hasPlainArrayPrototype(value: unknown[]): boolean {
   const prototype: unknown = intrinsicObjectGetPrototypeOf(value)
   if (prototype === intrinsicArrayPrototype) return true
@@ -109,7 +109,7 @@ function hasPlainArrayPrototype(value: unknown[]): boolean {
     && isForeignIntrinsicObjectPrototype(objectPrototype)
 }
 
-/** Whether an object is a plain or null-prototype record from any JavaScript realm. */
+/** 判断对象是否为来自任意 JavaScript realm 的普通记录或 null 原型记录。 */
 function hasPlainObjectPrototype(value: object): boolean {
   const prototype: unknown = intrinsicObjectGetPrototypeOf(value)
   return prototype === null
@@ -117,7 +117,7 @@ function hasPlainObjectPrototype(value: object): boolean {
     || typeof prototype === 'object' && isForeignIntrinsicObjectPrototype(prototype)
 }
 
-/** Return every JSON-visible object key, or reject own data JSON would discard. */
+/** 返回对象上所有 JSON 可见的键；若存在 JSON 会丢弃的自有数据则返回 undefined。 */
 function enumerableStringKeys(value: object): string[] | undefined {
   const keys = intrinsicReflectOwnKeys(value)
   for (let index = 0; index < keys.length; index++) {
@@ -139,13 +139,12 @@ type SnapshotTask =
   | { kind: 'leave'; source: object }
 
 /**
- * Validate and detach one process-boundary value without loading another
- * workspace package at runtime. This mirrors the session-owned canonical
- * JSON boundary while remaining safe to import from the unbuilt bootstrap.
- * Its iterative traversal adds no JavaScript call-stack depth limit.
+ * 校验并分离一个进程边界上的值，而不在运行时加载另一个工作区包。
+ * 它镜像了会话所拥有的权威 JSON 边界，同时保持可被未构建的 bootstrap 安全导入。
+ * 其迭代式遍历不会引入 JavaScript 调用栈深度限制。
  *
- * @param value - the candidate completion value.
- * @returns a detached lossless-JSON snapshot, or `undefined` when invalid.
+ * @param value - 候选的完成值。
+ * @returns 分离出来的无损 JSON 快照；非法时为 `undefined`。
  */
 export function snapshotPtcJsonValue(value: unknown): PtcJsonValue | undefined {
   const active = new IntrinsicSet<object>()
@@ -224,7 +223,7 @@ export function snapshotPtcJsonValue(value: unknown): PtcJsonValue | undefined {
     append(tasks, { kind: 'leave', source: candidate })
     for (let index = keys.length - 1; index >= 0; index--) {
       const key = keys[index]
-      /* v8 ignore next -- the loop is bounded by the captured key count. */
+      /* v8 ignore next -- 循环由已捕获的键数量界定上界。 */
       if (key === undefined) return undefined
       append(tasks, { kind: 'object-property', source: candidate as Record<string, unknown>, key, target })
     }
@@ -245,16 +244,15 @@ interface ObjectWireToken {
 type PtcJsonToken = null | boolean | number | string | ArrayWireToken | ObjectWireToken
 
 /**
- * A pre-order, bounded-depth transport for one lossless JSON value. Container
- * markers and scalar leaves share one flat token array, so JSON serialization
- * does not recurse through the value's application nesting.
+ * 单个无损 JSON 值的前序、深度有界的传输形式。容器标记与标量叶子共用
+ * 一个扁平 token 数组，因此 JSON 序列化不会沿着该值的应用层嵌套递归下去。
  */
 export type PtcJsonWire = PtcJsonToken[]
 
 /**
- * Flatten one validated JSON value for the process control channel.
- * @param value - the lossless JSON value to transport.
- * @returns a pre-order token stream whose own nesting is bounded.
+ * 把一个已校验的 JSON 值压平，以便在进程控制通道上传输。
+ * @param value - 要传输的无损 JSON 值。
+ * @returns 一个前序 token 流，其自身的嵌套深度是有界的。
  */
 export function encodePtcJsonWire(value: PtcJsonValue): PtcJsonWire {
   const wire: PtcJsonWire = []
@@ -277,7 +275,7 @@ export function encodePtcJsonWire(value: PtcJsonValue): PtcJsonWire {
     append(wire, { kind: 'object', keys })
     for (let index = keys.length - 1; index >= 0; index--) {
       const key = keys[index]
-      /* v8 ignore next -- the loop is bounded by the captured key count. */
+      /* v8 ignore next -- 循环由已捕获的键数量界定上界。 */
       if (key === undefined) throw new IntrinsicError('cannot encode a missing JSON object key')
       const item = current[key]
       if (item === undefined) throw new IntrinsicError('cannot encode an undefined JSON object property')
@@ -291,7 +289,7 @@ type DecodeFrame =
   | { kind: 'array'; target: PtcJsonValue[]; length: number; index: number }
   | { kind: 'object'; target: Record<string, PtcJsonValue>; keys: string[]; index: number }
 
-/** Whether an array contains exactly its dense indexed slots and `length`. */
+/** 判断数组是否恰好只包含其稠密索引槽位与 `length`。 */
 function isDenseArray(value: unknown[]): boolean {
   if (!hasPlainArrayPrototype(value) || intrinsicReflectOwnKeys(value).length !== value.length + 1) return false
   for (let index = 0; index < value.length; index++) {
@@ -300,7 +298,7 @@ function isDenseArray(value: unknown[]): boolean {
   return true
 }
 
-/** Whether one exact string-key list contains a key, without consulting its prototype. */
+/** 判断一个精确的键名列表是否包含某个键，不查阅其原型。 */
 function keysContain(keys: string[], expected: string): boolean {
   for (let index = 0; index < keys.length; index++) {
     if (keys[index] === expected) return true
@@ -308,7 +306,7 @@ function keysContain(keys: string[], expected: string): boolean {
   return false
 }
 
-/** Return one exact container marker, or reject any extra/missing fields. */
+/** 返回一个精确的容器标记；任何多余或缺失字段都会被拒绝。 */
 function containerToken(value: object): ArrayWireToken | ObjectWireToken | undefined {
   if (intrinsicArrayIsArray(value) || !hasPlainObjectPrototype(value)) return undefined
   const keys = enumerableStringKeys(value)
@@ -340,11 +338,11 @@ function containerToken(value: object): ArrayWireToken | ObjectWireToken | undef
 }
 
 /**
- * Rebuild one lossless JSON value from the flat process wire format.
- * Malformed or incomplete traffic returns `undefined`; traversal is iterative
- * and therefore independent of the transported value's application depth.
- * @param input - untrusted message-port payload.
- * @returns the detached JSON value, or `undefined` when the wire is invalid.
+ * 从扁平的进程 wire 格式重建一个无损 JSON 值。
+ * 畸形或不完整的流量返回 `undefined`；遍历是迭代式的，
+ * 因此与被传输值的应用层深度无关。
+ * @param input - 不可信的消息端口载荷。
+ * @returns 分离出来的 JSON 值；wire 非法时为 `undefined`。
  */
 export function decodePtcJsonWire(input: unknown): PtcJsonValue | undefined {
   try {
@@ -362,13 +360,13 @@ export function decodePtcJsonWire(input: unknown): PtcJsonValue | undefined {
         rootAssigned = true
         return true
       }
-      /* v8 ignore next -- completed frames are popped before another token can attach. */
+      /* v8 ignore next -- 已完成的帧会在下一个 token 挂载之前弹出。 */
       if (parent.index >= (parent.kind === 'array' ? parent.length : parent.keys.length)) return false
       if (parent.kind === 'array') {
         append(parent.target, value)
       } else {
         const key = parent.keys[parent.index]
-        /* v8 ignore next -- object frames are built from validated keys and their exact length. */
+        /* v8 ignore next -- 对象帧由已校验的键及其精确长度构建。 */
         if (key === undefined) return false
         defineEnumerableDataProperty(parent.target, key, value)
       }
@@ -406,7 +404,7 @@ export function decodePtcJsonWire(input: unknown): PtcJsonValue | undefined {
       if (frame) append(frames, frame)
       while (frames.length > 0) {
         const current = frames[frames.length - 1]
-        /* v8 ignore next -- the loop condition guarantees a final frame. */
+        /* v8 ignore next -- 循环条件保证了一定存在末帧。 */
         if (current === undefined) break
         if (current.index < (current.kind === 'array' ? current.length : current.keys.length)) break
         takeLast(frames)

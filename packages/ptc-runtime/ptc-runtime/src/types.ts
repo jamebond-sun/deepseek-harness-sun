@@ -1,7 +1,6 @@
 /**
- * Vocabulary types for the PTC execution seam: what a caller hands a
- * {@link ../index.ts | PtcRuntime} and what it gets back. Pure types — no
- * runtime code lives here.
+ * PTC 执行 seam 的词汇类型：调用方交给 {@link ../index.ts | PtcRuntime} 什么，
+ * 以及拿回什么。纯类型 —— 此处不存放任何运行时代码。
  *
  * @module @deepseek-ai/dsh-ptc-runtime/src/types
  */
@@ -9,161 +8,147 @@
 import type { SandboxEnforcement, SandboxExecutionPolicy, SandboxMode } from '@deepseek-ai/dsh-sandbox'
 
 /**
- * One host-side function exposed to the program as an async callable. The
- * runtime bridges calls to it (possibly across a serialization boundary), so
- * `args` and the resolution value MUST be lossless JSON. A runtime rejects a
- * lossy or non-cloneable value with a descriptive error rather than corrupting
- * the run. No seam-level byte cap applies to a binding resolution. A rejection
- * of this function surfaces inside the program as a rejection of the
- * corresponding call.
+ * 以异步可调用形式暴露给程序的一个宿主侧函数。运行时会桥接对它的调用
+ * （可能跨越序列化边界），因此 `args` 与决议值必须是无损 JSON。运行时遇到有损
+ * 或不可克隆的值时，会以描述性错误拒绝，而不是破坏这次运行。seam 层面不对绑定
+ * 决议值施加字节上限。该函数的拒绝会以对应调用被拒绝的形式呈现于程序内部。
  */
 export type PtcBindingFunction = (args: unknown) => Promise<PtcJsonValue>
 
-/** A lossless JSON value transferable through the dependency-light Service Definition. */
+/** 可经由依赖精简的 Service Definition 传输的无损 JSON 值。 */
 export type PtcJsonValue = null | boolean | number | string | PtcJsonValue[] | { [key: string]: PtcJsonValue }
 
 /**
- * Program-visible typed rejection for one binding namespace. The runtime
- * injects a real error constructor under `name`; rejected member calls become
- * its instances and expose the exact member name through
- * `memberNameProperty`. Both strings are runtime data rather than knowledge
- * of a particular consumer such as PTC mode.
+ * 某个绑定命名空间在程序可见的类型化拒绝形式。运行时会在 `name` 下注入一个
+ * 真实的错误构造器；被拒绝的成员调用成为它的实例，并通过 `memberNameProperty`
+ * 暴露精确的成员名。两个字符串都是运行时数据，而不是对某个具体消费者
+ * （例如 PTC 模式）的假定。
  */
 export interface PtcBindingErrorClass {
-  /** Constructor global and resulting `Error.name`; same portable identifier rule as {@link PtcBindingNamespace.global}. */
+  /** 构造器全局名与结果中的 `Error.name`；与 {@link PtcBindingNamespace.global} 使用同一套可移植标识符规则。 */
   name: string
   /**
-   * Non-empty own property for the member name. The portable exclusion set is
-   * `RESERVED_ERROR_MEMBERS` plus dunder-form names (`__x__`, non-empty
-   * middle), enforced identically by every backend; any other name —
-   * identifiers or not — is accepted everywhere.
+   * 承载成员名的非空自有属性。可移植排除集是 `RESERVED_ERROR_MEMBERS` 加上
+   * dunder 形式名（`__x__`，中间非空），由各后端一致执行；其他任何名称 ——
+   * 无论是否为标识符 —— 都在所有后端被接受。
    */
   memberNameProperty: string
 }
 
 /**
- * A named group of {@link PtcBindingFunction}s the runtime exposes to the
- * program as one global object (e.g. `tools`). Function names are arbitrary
- * strings — a runtime must treat names like `__proto__` or `constructor` as
- * ordinary own properties (null-prototype construction), never as prototype
- * collisions.
+ * 运行时以单个全局对象（例如 `tools`）暴露给程序的一组具名
+ * {@link PtcBindingFunction}。函数名是任意字符串 —— 运行时必须把 `__proto__`、
+ * `constructor` 这类名称当作普通自有属性（null 原型构造），绝不能视为原型冲突。
  */
 export interface PtcBindingNamespace {
   /**
-   * The global identifier the program sees. Must match the LANGUAGE-PORTABLE
-   * identifier subset `[A-Za-z_][A-Za-z0-9_]*` and no language's reserved
-   * words, so the same namespace list works against every backend regardless
-   * of `language` — a JS-only spelling like `$tools` is rejected by design,
-   * not just by the Python backend. Names that satisfy the identifier rule but
-   * name a backend-owned slot (`RESERVED_BINDING_GLOBALS`, e.g. `console`,
-   * `__dsh_main__`) are also refused everywhere; see its declaration for the
-   * exact set and why each entry is reserved.
+   * 程序看到的全局标识符。必须匹配语言可移植标识符子集 `[A-Za-z_][A-Za-z0-9_]*`，
+   * 且不属于任何语言的保留字，这样同一份命名空间列表在任意后端都成立，与 `language`
+   * 无关 —— 像 `$tools` 这种只有 JS 能用的拼写，是设计上就被拒绝的，而非仅在
+   * Python 后端被拒绝。满足标识符规则但指向后端自有槽位的名称
+   * （`RESERVED_BINDING_GLOBALS`，例如 `console`、`__dsh_main__`）同样在所有后端被拒绝；
+   * 完整集合与每条的保留理由见其声明处。
    */
   global: string
-  /** The callable members, keyed by the exact name the program calls. */
+  /** 可调用成员，键为程序调用时使用的精确名称。 */
   functions: Record<string, PtcBindingFunction>
-  /** Optional program-visible typed rejection contract for this namespace. */
+  /** 该命名空间可选的程序可见类型化拒绝契约。 */
   errorClass?: PtcBindingErrorClass
 }
 
 /**
- * Caller inputs for one program. The provider's resolve method validates supported
- * options and supplies directory, deadline, and authority before execution.
+ * 单个程序的调用方输入。provider 的 resolve 方法会在执行前校验受支持的选项，
+ * 并补全工作目录、截止时间与权限。
  */
 export interface PtcRunRequest {
   /**
-   * The program source, in the runtime's {@link ../index.ts | language}. It
-   * follows the provider's programFormat: an async function body supports
-   * top-level `await` and `return`; a REPL supports top-level declarations,
-   * `await`, and a final expression. The completion value becomes
-   * {@link PtcRunResult.value}.
+   * 程序源码，使用运行时的 {@link ../index.ts | language}。它遵循 provider 的
+   * programFormat：async 函数体支持顶层 `await` 与 `return`；REPL 支持顶层声明、
+   * `await` 与末尾表达式。完成值即 {@link PtcRunResult.value}。
    */
   program: string
   /**
-   * Object-identity owner for optional in-memory state. Omission requests a fresh
-   * environment. Consumers must await runtime.release(owner) when the owner ends.
-   * Stateless providers ignore this field; retained state is never durable.
+   * 可选内存状态的对象标识所有者。省略表示请求一个全新环境。
+   * 所有者生命周期结束时，消费者必须 await runtime.release(owner)。
+   * 无状态 provider 忽略该字段；保留状态从不持久化。
    */
   stateOwner?: object
-  /** Host functions exposed to the program, one global object per namespace. */
+  /** 暴露给程序的宿主函数，每个命名空间一个全局对象。 */
   bindings: PtcBindingNamespace[]
-  /** Working directory in the mounted filesystem and subprocess execution world. */
+  /** 已挂载文件系统与子进程执行世界中的工作目录。 */
   cwd?: string
   /**
-   * Elapsed execution budget in milliseconds. Omission uses provider defaults;
-   * null requests no deadline. Providers validate and cap numeric budgets or reject unsupported choices.
+   * 以毫秒计的执行时间预算。省略时使用 provider 默认值；null 表示不设截止时间。
+   * provider 会校验并为数值预算设限，或拒绝不受支持的取值。
    */
   timeoutMs?: number | null
-  /** Resolved authority for this execution. Providers without confinement reject an explicit policy. */
+  /** 本次执行所解析出的权限。不具备隔离能力的 provider 会拒绝显式策略。 */
   sandboxPolicy?: SandboxExecutionPolicy
   /**
-   * Abort the run: the runtime stops the program (hard, even mid-loop) and
-   * resolves with a {@link PtcRunFailure} of kind `'abort'`. In-flight
-   * binding calls are the CALLER's to settle — the runtime only stops asking.
+   * 中止本次运行：运行时停止程序（硬停止，即使在循环中途），并以 kind 为
+   * `'abort'` 的 {@link PtcRunFailure} 决议。进行中的绑定调用由调用方自行了结 ——
+   * 运行时只是不再继续请求。
    */
   signal?: AbortSignal
 }
 
-/** Fully resolved execution inputs; run never supplies a missing directory or deadline choice. */
+/** 已完全解析的执行输入；run 绝不替调用方补上缺失的目录或截止时间选择。 */
 export interface PtcRunSpec extends PtcRunRequest {
-  /** Absolute directory in the provider's execution world. */
+  /** provider 执行世界中的绝对目录。 */
   cwd: string
-  /** Positive finite elapsed budget in milliseconds after provider capping, or null for no deadline. */
+  /** provider 设限之后的正有限执行时间预算（毫秒），或 null 表示无截止时间。 */
   timeoutMs: number | null
 }
 
-/** File confinement applied to a program, independently of its terminal outcome. */
+/** 施加于程序的文件隔离，与其最终成败无关。 */
 export interface PtcRunSandbox {
-  /** File-effect mode used for this execution. */
+  /** 本次执行使用的文件效果模式。 */
   mode: SandboxMode
-  /** Program failure text matched backend diagnostics; not enforcement proof or an exhaustive denial record. */
+  /** 程序失败文本命中了后端诊断特征；这不是强制执行的证明，也不是完整的拒绝记录。 */
   denied: boolean
-  /** Completeness reported by the selected confining backend; absent for full access. */
+  /** 所选隔离后端报告的完备性；完全访问时缺省。 */
   enforcement?: SandboxEnforcement
 }
 
 /**
- * Why a run failed. The kinds are orthogonal outcomes reported independently
- * (per docs/defensive-patterns/general.md): a budget expiry is not an exception, an
- * abort is not a timeout, and a substrate death is neither.
+ * 一次运行为何失败。这些 kind 是彼此正交、各自独立上报的结果
+ * （参见 docs/defensive-patterns/general.md）：预算耗尽不是异常，中止不是超时，
+ * 执行基座死亡既不是前者也不是后者。
  *
- * - `'exception'` — the program threw or failed to parse/transform.
- * - `'timeout'` — an implementation-owned budget expired; the message says which.
- * - `'abort'` — {@link PtcRunRequest.signal} fired.
- * - `'worker-exit'` — the execution substrate died without settling (e.g. OOM).
- * - `'invalid-output'` — the completion value was not lossless JSON.
- * - `'output-limit'` — the serialized outer logs/value/diagnostic exceeded the configured cap.
- * - `'protocol'` — the program sent invalid or over-budget control traffic.
- * - `'sandbox-unavailable'` — required confinement could not be established.
+ * - `'exception'` —— 程序抛出异常，或解析/转换失败。
+ * - `'timeout'` —— 实现方自有的预算到期；消息会说明是哪一项。
+ * - `'abort'` —— {@link PtcRunRequest.signal} 被触发。
+ * - `'worker-exit'` —— 执行基座未给出结果就退出了（例如 OOM）。
+ * - `'invalid-output'` —— 完成值不是无损 JSON。
+ * - `'output-limit'` —— 序列化后的外层日志/值/诊断超出配置上限。
+ * - `'protocol'` —— 程序发送了非法或超预算的控制流量。
+ * - `'sandbox-unavailable'` —— 无法建立所需的隔离。
  */
 export interface PtcRunFailure {
-  /** The failure class (see the interface doc for each kind's meaning). */
+  /** 失败类别（各 kind 的含义见接口文档）。 */
   kind: 'exception' | 'timeout' | 'abort' | 'worker-exit' | 'invalid-output' | 'output-limit' | 'protocol' | 'sandbox-unavailable'
-  /** Human-readable detail, suitable for feeding back to a model to self-correct. */
+  /** 人类可读的细节，适合回喂给模型让它自行纠错。 */
   message: string
 }
 
 /**
- * The outcome of one run. An error is a FIELD on a resolved result, never a
- * rejection of `run()` — reporting a failed program is the caller's job, not
- * an exception path.
+ * 一次运行的结果。错误是已决议结果上的一个字段，绝不是 `run()` 的拒绝 ——
+ * 上报程序失败是调用方的职责，而不是异常路径。
  */
 export interface PtcRunResult {
-  /** Applied file policy and observed denial, when the provider enforces file policy. */
+  /** 当 provider 执行文件策略时，所应用的文件策略与观测到的拒绝。 */
   sandbox?: PtcRunSandbox
   /**
-   * The program's completion value (a return or final REPL expression), when it ran to
-   * completion and the value crossed the runtime's lossless-JSON boundary.
-   * Invalid or over-limit completions fail the run instead of substituting a
-   * rendered string; a failed or value-less run leaves this absent.
+   * 程序的完成值（return 或 REPL 末尾表达式），当程序运行至结束且该值跨过了运行时的
+   * 无损 JSON 边界时存在。非法或超限的完成值会让本次运行失败，而不是替换成一段
+   * 渲染出来的字符串；失败或无值的运行不含该字段。
    */
   value?: PtcJsonValue
   /**
-   * Captured text. Each source channel preserves emission order; interleaving
-   * across independent channels is backend-dependent. Bounded only as part of
-   * the outer result.
+   * 捕获到的文本。每个来源通道各自保持发送顺序；相互独立的通道之间如何交错
+   * 取决于后端。仅作为外层结果的一部分受限。
    */
   logs: string[]
-  /** Present iff the run failed; see {@link PtcRunFailure} for the taxonomy. */
+  /** 仅在运行失败时存在；分类体系见 {@link PtcRunFailure}。 */
   error?: PtcRunFailure
 }

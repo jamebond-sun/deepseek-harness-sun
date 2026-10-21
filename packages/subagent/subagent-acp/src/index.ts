@@ -1,9 +1,8 @@
 /**
- * Out-of-process ACP subagent backend. Each child has its own process, session, model, and
- * tools, so it shares no Cordis context and advertises no parent-enforced start capabilities;
- * the subagent service supplies the captured child working directory. This plugin uses
- * named exports only; a default would hide its
- * loader metadata (see `docs/postmortem/0001-acp-default-export-drops-inject.md`).
+ * 进程外 ACP 子代理后端。每个子代理拥有自己的进程、session、模型与工具，
+ * 因此它不共享任何 Cordis 上下文，也不声明任何由父代理强制的启动能力；
+ * 子代理 service 提供所捕获的子工作目录。本插件只使用具名导出；默认导出会
+ * 隐藏其 loader 元数据（见 `docs/postmortem/0001-acp-default-export-drops-inject.md`）。
  * @module @deepseek-ai/dsh-subagent-acp
  */
 
@@ -21,35 +20,33 @@ import { acpConfigurationFailure, type AcpRunSpec, DEFAULT_DISPOSE_EOF_GRACE_MS,
 export const name = 'subagent-acp'
 export const inject = ['subagents', 'subprocess']
 
-/** Config: how to spawn and drive the child ACP agent process. */
+/** 配置：如何 spawn 并驱动子 ACP agent 进程。 */
 export interface Config {
-  /** Provider name on `ctx.subagents` (default `acp`). */
+  /** `ctx.subagents` 上的提供方名称（默认 `acp`）。 */
   providerName: string
-  /** The executable to spawn for each run (the child ACP agent). */
+  /** 为每次运行 spawn 的可执行文件（子 ACP agent）。 */
   command: string
-  /** Arguments passed to {@link command}. */
+  /** 传给 {@link command} 的实参。 */
   args: string[]
   /**
-   * How to auto-answer the child's `session/request_permission` prompts:
-   * `reject` (default — decline every prompt) or `allow` (approve via the first
-   * `allow_once` or `allow_always` option). No prompt is surfaced to a human.
+   * 如何自动应答子代理的 `session/request_permission` 提示：
+   * `reject`（默认 —— 拒绝每个提示）或 `allow`（通过第一个 `allow_once`
+   * 或 `allow_always` 选项批准）。不会把任何提示呈现给人类。
    */
   permission: PermissionPolicy
   /**
-   * Extra environment variables for the child process — e.g. the child
-   * harness's own `DEEPSEEK_API_KEY`. Forwarded on top of a credential-scrubbed
-   * copy of the parent env, so an explicit key here reaches the child while
-   * ambient secrets do not leak implicitly.
+   * 子进程的额外环境变量 —— 例如子 harness 自己的 `DEEPSEEK_API_KEY`。
+   * 它们被叠加在父 env 的凭据清洗副本之上，因此此处显式的 key 能到达
+   * 子代理，而环境里的秘密不会隐式泄漏。
    */
   env: Record<string, string>
   /**
-   * Grace period (ms) for the child's EOF-driven quiesce on dispose — its
-   * window to flush persistence and tear down its own nested subprocesses
-   * before the parent escalates to a signal. Must not exceed
-   * `MAX_TIMER_DELAY_MS`.
+   * 处置时子代理由 EOF 驱动的静默宽限期（ms）—— 在父方升级为信号之前，
+   * 它刷写持久化并拆解自身嵌套子进程的时间窗。不得超过
+   * `MAX_TIMER_DELAY_MS`。
    */
   disposeEofGraceMs?: number
-  /** Failure-observation and termination-escalation grace (ms); must not exceed `MAX_TIMER_DELAY_MS`. */
+  /** 失败观测与终止升级的宽限（ms）；不得超过 `MAX_TIMER_DELAY_MS`。 */
   disposeGraceMs?: number
 }
 
@@ -63,7 +60,7 @@ export const Config: z<Config> = z.object({
   disposeGraceMs: z.number().default(DEFAULT_DISPOSE_GRACE_MS),
 })
 
-/** A process grace must fit every Node timer that observes or terminates the child. */
+/** 一个进程宽限必须适配每一个观测或终止子代理的 Node 定时器。 */
 function assertPositiveFinite(name: string, value: number): void {
   if (!Number.isFinite(value) || value <= 0 || value > MAX_TIMER_DELAY_MS) {
     throw new Error(`subagent-acp: ${name} must be a positive finite number no greater than ${MAX_TIMER_DELAY_MS}`)
@@ -73,9 +70,9 @@ function assertPositiveFinite(name: string, value: number): void {
 type ResolvedConfig = Required<Config>
 
 /**
- * The ACP provider. Advertises NO start-time capabilities: an out-of-process
- * child cannot honor `agentOptions`/`agentPreset`/`outputSchema`/`maxDepth`.
- * The service rejects a request needing any before execution starts.
+ * ACP 提供方。不声明任何启动期能力：一个进程外的子代理无法兑现
+ * `agentOptions`/`agentPreset`/`outputSchema`/`maxDepth`。
+ * service 会在执行开始之前拒绝任何需要它们的请求。
  */
 class AcpProvider implements SubagentProvider {
   readonly capabilities: SubagentCapabilities = {
@@ -84,7 +81,7 @@ class AcpProvider implements SubagentProvider {
     outputSchema: false,
     depthLimit: false,
   }
-  // Context contract: an out-of-process ACP child starts fresh — no parent conversation crosses the process boundary.
+  // 上下文契约：进程外的 ACP 子代理全新启动 —— 没有父对话跨越进程边界。
   readonly inheritsParentContext = false
 
   constructor(readonly name: string, private readonly ctx: Context, private readonly config: ResolvedConfig) {}
@@ -111,8 +108,8 @@ class AcpProvider implements SubagentProvider {
       disposeGraceMs: this.config.disposeGraceMs,
       spawn: spec => this.ctx.subprocess.spawn(spec),
       onError: (error, stopReason) => {
-        // The seam forbids `result` rejecting, so a child-level failure is
-        // flattened to a stop reason — preserve it here rather than losing it.
+        // 接缝禁止 `result` 拒绝，因此子代理级别的失败被扁平化为一个
+        // 停止原因 —— 在此处保留它，而不是丢失它。
         this.ctx.logger.warn(`subagent-acp "${this.name}": child run failed (${stopReason}): ${error.message}`)
       },
     }
@@ -121,7 +118,7 @@ class AcpProvider implements SubagentProvider {
 }
 
 export function apply(ctx: Context, config: Config): void {
-  // schemastery (Config) has already filled every defaulted field.
+  // schemastery（Config）已经填好了每一个有默认值的字段。
   const resolved = config as ResolvedConfig
   assertPositiveFinite('disposeEofGraceMs', resolved.disposeEofGraceMs)
   assertPositiveFinite('disposeGraceMs', resolved.disposeGraceMs)

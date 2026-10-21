@@ -1,6 +1,6 @@
 /**
- * Request-projected surface pricing: replaces attachment-block heuristics with
- * the image and file representations sent to the routed model.
+ * 按请求投影的表面定价：把附件块的启发式替换为发送给被路由模型的
+ * 图像与文件表示。
  *
  * @module @deepseek-ai/dsh-token-meter/route-pricing
  */
@@ -12,22 +12,22 @@ import type { TokenSurfaceNode } from './types.ts'
 
 type FileAttachmentRef = Extract<ContentBlock, { type: 'file' }>['attachment']
 
-/** One surface priced for a request route: public nodes plus their total. */
+/** 为一个请求路由定价后的表面：公开节点及其总计。 */
 export interface PricedSurface {
-  /** Positional nodes carrying both the route price and the fixed-heuristic price. */
+  /** 同时携带路由定价与固定启发式定价的位置节点。 */
   readonly nodes: TokenSurfaceNode[]
-  /** Sum of the route prices across the surface. */
+  /** 整个表面上路由定价之和。 */
   readonly surfaceTokens: number
 }
 
 /**
- * Price one ordered surface under its model-request attachment projection.
- * @param nodes - the fold's current or snapshotted surface, in model-visible order.
- * @param pricing - the routed model's image pricing, or undefined to keep the fixed heuristic.
- * @param fileText - exact file handle projection used by the mounted LLM service.
- * @returns detached public nodes and their route-priced total.
- * @throws when the pricing answers a different occurrence count than it was
- *   asked — misalignment would silently misprice nodes, so it must fail loud.
+ * 在其模型请求附件投影之下，为一个有序表面定价。
+ * @param nodes - 折叠的当前或快照表面，按模型可见顺序排列。
+ * @param pricing - 被路由模型的图像定价；为 undefined 时保留固定启发式。
+ * @param fileText - 已挂载的 LLM 服务所使用的精确文件句柄投影。
+ * @returns 已分离的公开节点及其按路由定价的总计。
+ * @throws 当定价返回的出现次数与所询问的次数不同时——错位会静默地
+ *   错误定价各个节点，因此必须立即失败。
  */
 export function priceSurface(
   nodes: readonly MeterSurfaceNode[],
@@ -63,7 +63,7 @@ export function priceSurface(
     if (pricing !== undefined && node.images.length > 0) {
       tokens -= node.imageStructuralTokens
       for (let occurrence = 0; occurrence < node.images.length; occurrence += 1) {
-        // oxlint-disable-next-line typescript/no-non-null-assertion -- length equality is asserted above
+        // oxlint-disable-next-line typescript/no-non-null-assertion -- 长度相等性已在上面断言
         const price = prices[cursor]!
         cursor += 1
         tokens += price.visualTokens + estimateContent([{ type: 'text', text: price.text }])

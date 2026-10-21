@@ -1,65 +1,59 @@
 /**
- * The context-pressure projection's O(1) surface-token fold.
+ * 上下文压力投影的 O(1) 表面令牌折叠。
  *
- * Its checkpoint keeps scalar totals rather than the retained surface used
- * by measurement. Replacements ride the compact
- * seam's shadow-price protocol: the metering event immediately before a
- * surface `replace` (`compaction/summary` or `compaction/prune`) states the
- * heuristic price of the exact replaced range, so the fold keeps a running
- * total plus at most one pending claim and never retains per-node prices.
- * The counts are exact by construction: producers derive them from the same
- * fixed estimator this module prices appends with. A replacement without an
- * armed claim folds with zero delta because bounded state cannot reconstruct
- * the replaced range; this preserves replay at the cost of possible drift.
+ * 它的检查点保存标量总计，而不是度量所使用的保留表面。替换沿着
+ * 压缩接缝的影子价格协议进行：紧邻一次表面 `replace`
+ * （`compaction/summary` 或 `compaction/prune`）之前的计量事件会声明
+ * 被替换区间的精确启发式价格，因此该折叠只保留一个滚动总计，
+ * 外加至多一个待处理的声明，而从不保留逐节点价格。
+ * 这些计数在构造上就是精确的：生产者用与本模块给追加计价相同的
+ * 固定估计器导出它们。一次没有已装备声明的替换会以零增量折叠，
+ * 因为有界状态无法重建被替换的区间；这以可能的漂移为代价保留了可回放性。
  *
  * @module @deepseek-ai/dsh-token-meter/surface-projection
  */
 
 import { deriveEventMessage, isSurfaceEvent, SessionSeq } from '@deepseek-ai/dsh-session'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
-// Type-only: the `compaction/*` SessionEventMap merges (shadow-price events).
+// 仅类型：那些 `compaction/*` SessionEventMap 合并（影子价格事件）。
 import type {} from '@deepseek-ai/dsh-compaction'
 import { estimateMessage } from './estimate.ts'
 
 /**
- * One armed shadow price: the heuristic tokens of the surface range the
- * IMMEDIATELY following event replaces. Plain JSON — it is part of the
- * persisted unit state while armed.
+ * 一个已装备的影子价格：紧随其后的事件所替换的表面区间的启发式令牌数。
+ * 纯 JSON —— 在装备期间它是被持久化单元状态的一部分。
  */
 export interface ShadowPriceClaim {
-  /** Declared inclusive first surface-node seq of the priced range. */
+  /** 所声明的、被计价区间的首个表面节点 seq（闭区间）。 */
   start: SessionSeq
-  /** Declared inclusive last surface-node seq of the priced range. */
+  /** 所声明的、被计价区间的最后一个表面节点 seq（闭区间）。 */
   end: SessionSeq
-  /** Heuristic tokens of the priced range under the fixed estimator. */
+  /** 在固定估计器之下，被计价区间的启发式令牌数。 */
   tokens: number
 }
 
-/** One event's effect on a running surface-token total. */
+/** 一个事件对一个滚动表面令牌总计的影响。 */
 export interface SurfaceTokensFold {
-  /** Signed change in the surface total; 0 for events off the surface. */
+  /** 表面总计的带符号变化；对于不在表面上的事件为 0。 */
   readonly deltaTokens: number
-  /** Claim to carry into the next event; undefined when none survives. */
+  /** 要带入下一个事件的声明；没有存活的声明时为 undefined。 */
   readonly claim: ShadowPriceClaim | undefined
 }
 
 /**
- * Fold one committed event onto a running surface-token total.
+ * 把一个已提交的事件折叠到一个滚动的表面令牌总计上。
  *
- * A shadow-price event arms a claim; any other event expires it, and a
- * surface `replace` consumes the claim naming its exact range — the
- * producers append the metering event and the replacement synchronously
- * adjacent, so a surviving claim always prices the very next event.
- * A replace with no claim folds with zero delta because the bounded state
- * cannot reconstruct the replaced range. An armed claim for another range
- * still fails because the adjacent events contradict each other.
- * @param claim - the claim armed by the immediately preceding event, if any.
- * @param event - the next committed session event.
- * @returns the signed token delta and the claim state after this event.
- * @throws when a replacement arrives with an armed claim for a different
- *   range — the metering event was adjacent, so this is a live producer's
- *   shadow-price contract violation, not historical data, and must fail
- *   loud rather than let the total drift.
+ * 影子价格事件会装备一个声明；任何其他事件都会让它过期，而一次表面
+ * `replace` 会消费指名了其精确区间的声明——生产者同步且相邻地追加
+ * 该计量事件与替换，因此一个存活的声明总是给紧接着的下一个事件计价。
+ * 没有声明的替换以零增量折叠，因为有界状态无法重建被替换的区间。
+ * 为另一个区间装备的声明仍然会失败，因为相邻的两个事件彼此矛盾。
+ * @param claim - 由紧邻的上一个事件所装备的声明，若有。
+ * @param event - 下一个已提交的会话事件。
+ * @returns 带符号的令牌增量，以及该事件之后的声明状态。
+ * @throws 当一次替换到达时却为另一个区间装备了声明——计量事件是相邻的，
+ *   因此这是活跃生产者违反影子价格契约，而不是历史数据，必须立即失败，
+ *   而不是让总计发生漂移。
  */
 export function foldSurfaceProjection(
   claim: ShadowPriceClaim | undefined,
@@ -81,10 +75,9 @@ export function foldSurfaceProjection(
   const tokens = message === null ? 0 : estimateMessage(message)
   const op = event.surfaceOp
   if (op === 'append') return { deltaTokens: tokens, claim: undefined }
-  // Sessions recorded before the shadow-price protocol log replacements with
-  // no adjacent metering event; the bounded state cannot reconstruct the
-  // replaced range's price, so fold those neutrally — historical replay
-  // degrades to drift instead of failing.
+  // 在影子价格协议之前记录的会话，其替换没有相邻的计量事件；
+  // 有界状态无法重建被替换区间的价格，因此中立地折叠它们——
+  // 历史回放退化为漂移，而不是失败。
   if (claim === undefined) return { deltaTokens: 0, claim: undefined }
   if (claim.start !== op.startSeq || claim.end !== op.endSeq) {
     throw new Error(

@@ -38,11 +38,11 @@ interface NodeProjection {
   recursive: boolean
   /** 原生适配、键规范化或不透明代码可能影响周边校验。 */
   effectful: boolean
-  /** Native resolution may write adapted values or renamed keys into the input before a later union branch reads it. */
+  /** 原生解析可能在之后的 union 分支读取输入之前，将适配后的值或重命名的键写入输入。 */
   mutating: boolean
 }
 
-/** Copy JSON-compatible schema annotations without silently converting non-JSON defaults. */
+/** 复制 JSON 兼容的 schema 注解，而不悄悄转换非 JSON 的默认值。 */
 function jsonValue(value: unknown, nullifyUndefined = false): unknown {
   const visit = (item: unknown, active: Set<object>): void => {
     if (nullifyUndefined && item === undefined) return
@@ -63,7 +63,7 @@ function jsonValue(value: unknown, nullifyUndefined = false): unknown {
   return result
 }
 
-/** Native constant equality treats omitted and null-valued object members alike. */
+/** 原生的常量相等对待省略与值为 null 的对象成员一视同仁。 */
 function constant(value: unknown, objectComparison: () => void): InputSchema {
   if (Array.isArray(value)) {
     return {
@@ -86,7 +86,7 @@ function constant(value: unknown, objectComparison: () => void): InputSchema {
   return { const: value }
 }
 
-/** Add or remove null acceptance; a type list stays deduplicated because a wrapped projection may already accept null. */
+/** 添加或移除对 null 的接受；类型列表保持去重，因为一个被包装的投影可能已接受 null。 */
 function nullable(core: InputSchema | boolean, accepts: boolean): InputSchema | boolean {
   if (typeof core === 'boolean') return accepts ? core || { type: 'null' } : core && { not: { type: 'null' } }
   const types = typeof core.type === 'string' ? [core.type] : core.type
@@ -96,7 +96,7 @@ function nullable(core: InputSchema | boolean, accepts: boolean): InputSchema | 
   return { ...core, type: rest.length ? [single, ...rest] : single }
 }
 
-/** Add expression alternatives only at config VALUE positions, not property names or applicator branches. */
+/** 只在 config 的“值”位置（而非属性名或 applicator 分支）添加表达式候选项。 */
 function expressions(schema: InputSchema, valuePosition = true, enabled = true): InputSchema {
   const result: InputSchema = { ...schema }
   if (schema.properties) {
@@ -121,7 +121,7 @@ function expressions(schema: InputSchema, valuePosition = true, enabled = true):
   return { ...annotations, anyOf: [result, { $ref: '#/$defs/loaderExpression' }] }
 }
 
-/** Check native volatile containment without evaluating values or invoking unresolved lazy builders. */
+/** 在不求值数值或调用未解析的惰性构建器的前提下，检查原生 volatile 包含关系。 */
 function validateVolatilePlacement(
   node: NativeConfigSchema, path: string, blocked = false,
   seen = new Map<NativeConfigSchema, Set<boolean>>(),
@@ -141,16 +141,16 @@ function validateVolatilePlacement(
 }
 
 /**
- * Create an invocation-local projector. Ajv checks only literal defaults against generated schemas;
- * it does not fill defaults, coerce input, or call native plugin validators. Opaque input or metadata effects
- * widen validation with explicit limitations instead of simulating native mutation.
- * @returns a function projecting one trusted native Config graph into the enclosing document's definitions.
+ * 创建一个调用局部 projector。Ajv 只针对生成的 schema 校验字面默认值；
+ * 它不填充默认值、不强制转换输入，也不调用原生插件校验器。不透明的输入或元数据副作用
+ * 会以显式的限制来放宽校验，而非模拟原生变更。
+ * @returns 一个把受信任的原生 Config 图投影进外围文档定义的函数。
  */
 export async function createConfigProjector(): Promise<(root: NativeConfigSchema, prefix: string) => ConfigProjection> {
   const { Ajv2020 } = await import('ajv/dist/2020.js')
   const validator = new Ajv2020({ strict: false, logger: false, validateFormats: false, addUsedSchema: false })
   const portablePattern = await createPatternCheck()
-  // Native lazy resolution invokes each builder once; later visits through other chains reuse the first result.
+  // 原生惰性解析会每个构建器只调用一次；经由其它链路的后续访问会复用第一次的结果。
   const builderResults = new Map<NativeConfigSchema, unknown>()
   return (root, prefix) => {
     validateVolatilePlacement(root, 'config')
@@ -218,7 +218,7 @@ export async function createConfigProjector(): Promise<(root: NativeConfigSchema
           ))) {
             metadataEffects.push(limitation(path, 'lazy metadata propagation may affect shared schemas; validation requires native execution'))
           }
-          // Native lazy resolution merges outer metadata only when it first invokes the builder.
+          // 原生惰性解析只在首次调用构建器时才合并外层元数据。
           meta = cachedInner ? next.meta : { ...meta, ...next.meta }
           validateVolatilePlacement({ ...next, meta }, `${path}/lazy`, true)
           inner = next
@@ -253,7 +253,7 @@ export async function createConfigProjector(): Promise<(root: NativeConfigSchema
         const meta = { ...node.meta }
         for (const key of ['min', 'max', 'step'] as const) {
           if (meta[key] === undefined || Number.isFinite(meta[key])) continue
-          // Native range checks default to [-Infinity, Infinity]; a -Infinity origin still breaks step validation.
+          // 原生范围检查默认为 [-Infinity, Infinity]；以 -Infinity 为起点仍会破坏步长校验。
           const inert = key === 'max' ? meta.max === Infinity : key === 'min' && meta.min === -Infinity && !meta.step
           if (!inert) inputLimitation(`non-finite ${key} constraint is omitted; native validation is required`)
           Reflect.deleteProperty(meta, key)
@@ -378,7 +378,7 @@ export async function createConfigProjector(): Promise<(root: NativeConfigSchema
           inputLimitation('loose validation can replace invalid values with defaults')
         }
         const recursive = children.some(value => value.recursive)
-        // Only containers write adapted values or renamed keys back; a bare primitive branch cannot alter the input.
+        // 只有容器会把适配后的值或重命名的键写回；裸的原始分支无法更改输入。
         const container = ['object', 'array', 'dict', 'tuple'].includes(node.type)
         const mutating = unsupported || children.some(value => value.mutating || (container && value.effectful))
         const exact = inputLimitations.length === 0 && children.every(value => value.exact)

@@ -1,7 +1,6 @@
 /**
- * Generic-job adaptation for pwsh process handles — the shell-agnostic twin
- * of `dsh-tool-bash`'s background adaptation: the terminal
- * outcome the registry records and the pull sources it pumps.
+ * pwsh 进程句柄到通用作业的适配——`dsh-tool-bash` 后台适配的、与 shell
+ * 无关的孪生体：注册表记录的终止结局，以及它抽取的拉取源。
  *
  * @module @deepseek-ai/dsh-tool-pwsh/background
  */
@@ -11,14 +10,14 @@ import { escalationHintMarker, sandboxDenialMarker } from '@deepseek-ai/dsh-sand
 import type { ShellProcess, ShellSandboxInfo } from '@deepseek-ai/dsh-shell'
 import type { JobChunk, JobHooks, JobOutcome, JobOutputSource } from '@deepseek-ai/dsh-jobs'
 
-/* jscpd:ignore-start -- deliberate twin of dsh-tool-bash/background.ts (Agent Note). */
+/* jscpd:ignore-start -- dsh-tool-bash/background.ts 的刻意孪生体（Agent Note）。 */
 
 /**
- * Sandbox facts worth the terminal detail: a runner that never ran the
- * command, or a denial (with the escalation hint this composition offers).
- * @param sandbox - settled sandbox facts, when this was a confined process.
- * @param escalationModes - escalation targets advertised by this composition.
- * @returns the markers to append, oldest first.
+ * 值得进入终止详情的沙箱事实：从未真正运行过命令的运行器，或一次拒绝
+ * （并附上本装配所提供的升级提示）。
+ * @param sandbox - 已落定的沙箱事实，即这是一个受隔离的进程时。
+ * @param escalationModes - 本装配所声明的升级目标。
+ * @returns 要追加的标记，按由旧到新排列。
  */
 function sandboxNotes(sandbox: ShellSandboxInfo | undefined, escalationModes: readonly SandboxMode[]): string[] {
   if (sandbox?.runnerFailed) {
@@ -33,22 +32,20 @@ function sandboxNotes(sandbox: ShellSandboxInfo | undefined, escalationModes: re
 }
 
 /**
- * Map a settled background process onto the generic job-outcome vocabulary:
- * `killed` stays `killed` (detail: the signal when one is known), everything
- * else is `completed` with the exit code as detail. A nonzero command exit is
- * reported, not failed, exactly like the foreground rendering. Sandbox facts
- * join the detail, since a job's terminal reason is the one line every
- * reader — the model's status line, the roster row — shows.
- * @param proc - the settled process handle.
- * @param escalationModes - escalation targets advertised by this composition.
- * @returns the outcome for the `ctx.jobs` registration.
+ * 把一个已落定的后台进程映射到通用作业结局词汇上：`killed` 仍映射为
+ * `killed`（详情：已知信号时给出信号），其余一律是 `completed`，以退出码
+ * 作为详情。非零的命令退出被上报而非判为失败，与前台渲染完全一致。沙箱
+ * 事实也会并入详情，因为作业的终止原因是每一位读者——模型的状态行、
+ * 名单行——都会展示的那一行。
+ * @param proc - 已落定的进程句柄。
+ * @param escalationModes - 本装配所声明的升级目标。
+ * @returns 供 `ctx.jobs` 注册的结局。
  */
 export function processOutcome(proc: ShellProcess, escalationModes: readonly SandboxMode[] = []): JobOutcome {
-  // TODO(background-infrastructure-outcome): widen ShellProcess with an explicit
-  // infrastructure-failure outcome, then map spawn failures and
-  // sandbox.runnerFailed to job `failed`. The current contract aliases a spawn
-  // failure with a signal-less kill and a runner failure with an ordinary
-  // wrapper exit; real nonzero command exits must remain `completed`.
+  // TODO(background-infrastructure-outcome)：为 ShellProcess 增加显式的基础
+  // 设施故障结局，再把 spawn 失败与 sandbox.runnerFailed 映射到作业 `failed`。
+  // 当前契约把 spawn 失败混同于无信号的 kill、把运行器失败混同于普通的
+  // 包装器退出；真正的非零命令退出必须保持为 `completed`。
   const base: JobOutcome = proc.status === 'killed'
     ? { status: 'killed', detail: proc.signal !== null ? `signal: ${proc.signal}` : 'killed before exit' }
     : { status: 'completed', detail: `exit code: ${proc.exitCode ?? 0}` }
@@ -57,14 +54,13 @@ export function processOutcome(proc: ShellProcess, escalationModes: readonly San
 }
 
 /**
- * The process's non-consuming stream readers as registry pull sources. They
- * bind lazily because the process is spawned inside the starter, after the
- * registry admitted the job; a read before the spawn yields nothing, and the
- * pump keeps the model's consuming cursor untouched. A rejected spawn's
- * stderr reader carries the provider's `subprocess failed before reporting an
- * outcome: …` note.
- * @param proc - the started process's observed streams, once the starter has spawned it.
- * @returns one source per stream, stdout first.
+ * 把进程的非消费式流读取器作为注册表的拉取源。它们是惰性绑定的，因为进程
+ * 是在注册表准入该作业之后、于启动器内部 spawn 的；spawn 之前的读取得不到
+ * 任何内容，而抽取过程不会触碰模型的消费游标。被拒绝的 spawn，其 stderr
+ * 读取器会携带 provider 的 `subprocess failed before reporting an outcome: …`
+ * 提示。
+ * @param proc - 启动器 spawn 之后该进程的观察型流。
+ * @returns 每条流一个源，stdout 在前。
  */
 export function processSources(proc: () => Pick<ShellProcess, 'observed'> | undefined): JobOutputSource[] {
   const source = (channel: 'stdout' | 'stderr'): JobOutputSource => ({
@@ -78,12 +74,12 @@ export function processSources(proc: () => Pick<ShellProcess, 'observed'> | unde
 }
 
 /**
- * The ring chunks of one consuming registry read as the shell tools render a
- * process read: stdout chunks in order, then every stderr chunk in one
- * `[stderr]` section, so the output a foreground call hands over when it
- * stops waiting reads exactly like the `job_output` reads that follow it.
- * @param chunks - the chunks since the model cursor, in offset order.
- * @returns the delta text, possibly empty.
+ * 把一次消费式注册表读取的环形分块，按 shell 工具渲染进程读取的方式呈现：
+ * 先是顺序排列的 stdout 分块，然后把所有 stderr 分块放进同一个 `[stderr]`
+ * 区块，这样前台调用停止等待时交出的输出，读起来与随后而来的那些
+ * `job_output` 读取完全一致。
+ * @param chunks - 自模型游标以来的分块，按偏移顺序排列。
+ * @returns delta 文本，可能为空。
  */
 export function ringDelta(chunks: readonly JobChunk[]): string {
   const out = chunks.filter(chunk => chunk.channel !== 'stderr').map(chunk => chunk.text).join('')
@@ -93,10 +89,10 @@ export function ringDelta(chunks: readonly JobChunk[]): string {
 }
 
 /**
- * Adapt asynchronous shell preparation after job admission without exposing a partial process.
- * @param start - starts the process with job-owned cancellation.
- * @param outcome - projects the settled process into the job outcome.
- * @returns synchronous job hooks whose completion includes preparation and process settlement.
+ * 在作业准入之后适配异步的 shell 准备过程，而不暴露出半成品进程。
+ * @param start - 以作业持有的取消信号启动进程。
+ * @param outcome - 把已落定的进程投影为作业结局。
+ * @returns 同步的作业钩子，其完成过程涵盖准备阶段与进程落定。
  */
 export function processJob(
   start: (signal: AbortSignal) => Promise<ShellProcess>,

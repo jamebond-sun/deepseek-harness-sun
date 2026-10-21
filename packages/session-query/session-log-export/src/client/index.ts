@@ -1,4 +1,4 @@
-/** Browser plugin owning Session export download state and its shared modal. */
+/** 持有 Session 导出下载状态及其共享弹窗的浏览器插件。 */
 
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
@@ -30,8 +30,8 @@ export type { SessionLogDownloadEntry, SessionLogDownloadState } from './control
 export const inject = ['slots', 'locale']
 
 /**
- * Provide the download controller and mount its modal into the Session Header.
- * @param ctx - browser context carrying slots and locale services.
+ * 提供下载控制器，并把它的弹窗挂载到 Session Header。
+ * @param ctx - 承载 slots 与 locale 服务的浏览器上下文。
  */
 export function apply(ctx: ClientContext): void {
   const controller = new SessionLogDownloadController()
@@ -56,7 +56,7 @@ export function apply(ctx: ClientContext): void {
       hooks: { sessionLogDownload: controller.store, feedbackAvailable },
       request: (sessionId: SessionId) => controller.download(sessionId),
       dismiss: (sessionId: SessionId) => { controller.dismiss(sessionId) },
-      // The feedback plugin can unload between the menu render and this click.
+      // 反馈插件可能在菜单渲染与本次点击之间被卸载。
       openFeedback: (sessionId: SessionId) => { ctx.get('feedbackUi')?.openSession(sessionId) },
     }),
   }, SessionLogDownloadHeaderAction))

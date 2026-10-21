@@ -1,4 +1,4 @@
-/** In-memory Node REPL with per-evaluation bindings and output attribution. */
+/** 常驻内存的 Node REPL，具备逐次求值的绑定与输出归属。 */
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { start } from 'node:repl'
 import { PassThrough, Writable, type Duplex } from 'node:stream'
@@ -8,7 +8,7 @@ import type { BindingErrorConstructor, PendingCall, PatchableStream } from './bo
 import type { DoneMessage, ProgramBootData, ProgramToHost, ReplyMessage } from './protocol.ts'
 import { clearProgramEnvironment } from './environment.ts'
 
-/** Process state owned by the REPL child; tests supply instance-local streams and environment. */
+/** REPL 子进程持有的进程状态；测试会提供实例本地的流与环境。 */
 export interface PersistentProcess {
   env: NodeJS.ProcessEnv
   stdout: PatchableStream
@@ -25,11 +25,11 @@ interface Evaluation {
 }
 
 /**
- * Serve sequential evaluations until the owning host closes the control channel.
- * @param stream - Inherited private control endpoint.
- * @param maxMessageBytes - Maximum control frame and queued output bytes.
- * @param processState - Child environment, output and directory control, bound only in the REPL context.
- * @returns After the channel closes and the REPL releases its streams.
+ * 依次服务各次求值，直到持有它的宿主关闭控制通道。
+ * @param stream - 继承而来的私有控制端点。
+ * @param maxMessageBytes - 控制帧与排队输出的字节上限。
+ * @param processState - 子进程的环境、输出与目录控制，仅在 REPL 上下文中绑定。
+ * @returns 在通道关闭且 REPL 释放其流之后返回。
  */
 export async function runPersistentMain(stream: Duplex, maxMessageBytes: number, processState: PersistentProcess): Promise<void> {
   if (!Number.isSafeInteger(maxMessageBytes) || maxMessageBytes <= 0 || maxMessageBytes > 0xffff_ffff) throw new Error('invalid control message limit')
@@ -49,7 +49,7 @@ export async function runPersistentMain(stream: Duplex, maxMessageBytes: number,
     callback()
   } })
   const repl = start({ input, output, terminal: false, prompt: '', useGlobal: false, ignoreUndefined: true })
-  // Interactive result setters print notices; program assignments use ordinary retained globals.
+  // 交互式的结果 setter 会打印提示；程序赋值则使用普通的可保留全局量。
   for (const name of ['_', '_error']) {
     Object.defineProperty(repl.context, name, { configurable: true, enumerable: true, writable: true, value: undefined })
   }
@@ -72,7 +72,7 @@ export async function runPersistentMain(stream: Duplex, maxMessageBytes: number,
   captureStreamWrites(logSink, processState.stdout)
   captureStreamWrites(logSink, processState.stderr)
   const channel = new JsonChannel(stream, maxMessageBytes, (raw) => {
-    // The host owns these frames. Model-written traffic is validated on the host.
+    // 这些帧归宿主所有。模型写出的流量由宿主侧校验。
     const message = raw as { type: 'run'; id: number; cwd: string; data: ProgramBootData } | ReplyMessage
     if (message.type === 'reply') {
       for (const listener of replies) listener(message)
@@ -110,7 +110,7 @@ export async function runPersistentMain(stream: Duplex, maxMessageBytes: number,
             Object.defineProperty(repl.context, namespace.errorClass.name, { configurable: true, value: errorLookup.get(namespace.global) })
           }
         }
-        // Node's REPL treats a leading brace as an object expression before transforming await.
+        // Node 的 REPL 在转换 await 之前，会把行首的大括号当作对象表达式处理。
         const program = data.code.trimStart().startsWith('{') ? `;${data.code}` : data.code
         repl.eval(`${program}\n`, repl.context, 'ptc-repl', (error: Error | null, value: unknown) => {
           evaluation.finish(error ? prepareException(error, logs.remainingOutputBytes(), data.maxOutputBytes)

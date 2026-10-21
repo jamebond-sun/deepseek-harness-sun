@@ -1,5 +1,5 @@
 /**
- * Opt-in timed `ask_user_question` tool definition.
+ * 可选的定时 `ask_user_question` 工具定义。
  */
 
 import type { Context } from '@deepseek-ai/cordis'
@@ -30,11 +30,10 @@ const description = 'Ask brief, direct, self-contained questions about missing i
   + 'pending instead means no answer batch arrived before the timeout and the user can still answer.'
 
 /**
- * Instruction the pending result carries in its `message` field. It is a field
- * of the result value rather than prose beside it because the recorded result
- * text is read back as one JSON object: the `userQuestions` projection decides
- * from it that the call stays answerable, and the Client question row decides
- * from it that the recorded result is the timeout, not an answer batch.
+ * pending 结果在其 `message` 字段里携带的说明。它是结果值的一个字段，而不是写
+ * 在结果旁边的说明文字，因为被记录的结果文本是作为一个 JSON 对象被读回的：
+ * `userQuestions` 投影据此判定该调用仍可作答，Client 的提问行据此判定记录到的
+ * 结果是超时，而不是一批答案。
  */
 const pendingNotice = 'No answer batch arrived before the timeout. This is pending, not a skipped answer. '
   + 'Continue useful independent work. The user can still answer; their reply will be a user message '
@@ -58,10 +57,10 @@ interface ToolAnswerResult {
 }
 
 /**
- * Translate the model schema into the service request without changing ownership.
- * @param questions - Model-supplied questions in tool-schema form.
- * @param exec - Execution context that owns the agent and cancellation signal.
- * @returns The corresponding user-question service request.
+ * 把模型侧的 schema 翻译成服务请求，且不改变归属关系。
+ * @param questions - 以工具 schema 形态给出的、模型提供的问题。
+ * @param exec - 持有 agent 与取消信号的执行上下文。
+ * @returns 对应的 user-question 服务请求。
  */
 function questionRequest(
   questions: readonly ToolQuestion[],
@@ -81,9 +80,9 @@ function questionRequest(
 }
 
 /**
- * Copy service-owned answer arrays into the model-facing result.
- * @param result - Answer returned by the user-question service.
- * @returns A detached model-facing answer payload.
+ * 把服务持有的答案数组拷贝到面向模型的结果里。
+ * @param result - user-question 服务返回的答案。
+ * @returns 一份脱离服务掌控的、面向模型的答案载荷。
  */
 function answerResult(result: AskUserQuestionAnswer): ToolAnswerResult {
   return {
@@ -96,13 +95,13 @@ function answerResult(result: AskUserQuestionAnswer): ToolAnswerResult {
 }
 
 /**
- * Register the opt-in timed tool definition.
- * @param ctx - Agent-scoped context receiving the tool.
- * @param timeout - Default foreground wait in seconds.
+ * 注册可选的定时工具定义。
+ * @param ctx - 接收该工具的、agent 作用域的 context。
+ * @param timeout - 默认前台等待秒数。
  */
 export function registerTimedAskUser(ctx: Context, timeout = 120): void {
   const defaultTimeout = validateTimeout(timeout)
-  /* jscpd:ignore-start -- The timed schema intentionally shares question fields with the legacy tool. */
+  /* jscpd:ignore-start -- 定时 schema 有意与 legacy 工具共用问题字段。 */
   ctx.tools.register(defineTool({
     name: 'ask_user_question',
     description,
@@ -140,8 +139,8 @@ export function registerTimedAskUser(ctx: Context, timeout = 120): void {
           },
         },
       },
-      // The `userQuestions` projection reads this parameter's presence out of
-      // the logged request header to tell a timed call from a legacy one.
+      // `userQuestions` 投影从已记录的请求头里读取该参数是否存在，以此区分
+      // 定时调用与 legacy 调用。
       [TIMED_WAIT_PARAMETER]: {
         type: 'integer',
         description: `Wait seconds for the entire batch (default ${defaultTimeout}); omit unless the user specifies a duration. Use -1 only when an answer is required before proceeding.`,
@@ -197,9 +196,9 @@ export function registerTimedAskUser(ctx: Context, timeout = 120): void {
         const result = await ctx.userQuestions.askTimed({ ...request, agent: exec.agent }, exec.callId, timeout * 1000)
         return 'pending' in result ? { ...result, message: pendingNotice } : answerResult(result)
       }
-      // `wait` without `timed`: this tool's indefinite form still keys the
-      // Client card by call id, so the UI can reopen a closed panel from the
-      // tool call. The legacy tool keeps its unkeyed request.
+      // 不带 `timed` 的 `wait`：本工具的无限等待形态同样以 call id 作为 Client
+      // 卡片的键，因此 UI 可以从工具调用处重开一个已关闭的面板。legacy 工具
+      // 保持其不带键的请求形态。
       const result = await ctx.userQuestions.ask({ ...request, wait: { callId: exec.callId } })
       return answerResult(result)
     },

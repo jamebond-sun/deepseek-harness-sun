@@ -1,5 +1,5 @@
 /**
- * Load-time validation and routed-model policy resolution for compaction-basic.
+ * compaction-basic 的加载期校验与路由模型策略解析。
  *
  * @module @deepseek-ai/dsh-compaction-basic/config
  */
@@ -16,13 +16,13 @@ import type {
   ResolvedTargetPolicy,
 } from './types.ts'
 
-/** Default request-pressure fraction for every routed model. */
+/** 每个路由模型默认采用的请求压力比例。 */
 const DEFAULT_THRESHOLD_RATIO = 0.8
 
-/** Default verbatim-tail fraction for every routed model. */
+/** 每个路由模型默认采用的逐字保留尾部比例。 */
 const DEFAULT_RETAIN_RATIO = 0.16
 
-/** Fields shared by top-level defaults and exact-target overrides. */
+/** 顶层默认值与精确目标覆盖所共享的字段。 */
 const POLICY_CONFIG_KEYS = [
   'thresholdRatio',
   'headroomTokens',
@@ -35,25 +35,25 @@ const POLICY_CONFIG_KEYS = [
   'maxOverflowRetries',
 ] as const
 
-/** Complete public top-level configuration key set. */
+/** 完整的公开顶层配置键集合。 */
 const BASIC_COMPACT_CONFIG_KEYS: ReadonlySet<string> = new Set([
   ...POLICY_CONFIG_KEYS,
   'modelPolicies',
   'auto',
 ])
 
-/** Complete exact-target override key set. */
+/** 完整的精确目标覆盖键集合。 */
 const MODEL_POLICY_KEYS: ReadonlySet<string> = new Set([
   'provider',
   'model',
   ...POLICY_CONFIG_KEYS,
 ])
 
-/** Target-specific pressure configuration failure eligible for warning suppression. */
+/** 可被抑制告警的特定目标压力配置失败。 */
 export class TargetPressureConfigError extends Error {
   /**
-   * @param targetKey - exact provider/model route used as the warning key.
-   * @param message - actionable configuration failure detail.
+   * @param targetKey - 用作告警键的精确 provider/model 路由。
+   * @param message - 可执行的配置失败细节。
    */
   constructor(readonly targetKey: string, message: string) {
     super(message)
@@ -61,9 +61,9 @@ export class TargetPressureConfigError extends Error {
 }
 
 /**
- * Resolve and validate service defaults plus exact-target partial overrides.
- * @param config - untrusted plugin configuration after Loader normalization.
- * @returns detached immutable defaults and validated exact-target overrides.
+ * 解析并校验服务默认值以及精确目标的局部覆盖。
+ * @param config - Loader 归一化之后、未经信任的插件配置。
+ * @returns 解耦的不可变默认值与已校验的精确目标覆盖。
  */
 export function resolveConfig(config: BasicCompactionConfig = {}): ResolvedConfig {
   validateKeys(config, BASIC_COMPACT_CONFIG_KEYS, 'BasicCompactionConfig')
@@ -110,10 +110,10 @@ export function resolveConfig(config: BasicCompactionConfig = {}): ResolvedConfi
 }
 
 /**
- * Merge the exact provider/model override over the validated default policy.
- * @param config - validated service defaults and override table.
- * @param target - exact durable provider/model route to match.
- * @returns detached immutable policy before model-capacity scaling.
+ * 将精确的 provider/model 覆盖合并到已校验的默认策略之上。
+ * @param config - 已校验的服务默认值与覆盖表。
+ * @param target - 待匹配的精确持久化 provider/model 路由。
+ * @returns 模型容量缩放之前的、解耦的不可变策略。
  */
 export function resolveTargetPolicy(
   config: ResolvedConfig,
@@ -139,16 +139,15 @@ export function resolveTargetPolicy(
 }
 
 /**
- * Scale one routed policy into concrete token budgets for its model capacity.
+ * 将某一路由策略缩放为针对其模型容量的具体 token 预算。
  *
- * Pressure is capped by both the window fraction and the capacity remaining
- * after the routed output reservation plus compaction headroom. Retention scales
- * the message budget before headroom is deducted.
+ * 压力同时受窗口比例，以及路由输出预留加上压缩余量之后剩余容量的上限约束。
+ * 保留量在扣除余量之前对消息预算进行缩放。
  *
- * @param policy - merged policy for the exact routed target.
- * @param contextWindow - positive adapter-owned capacity for that target.
- * @param reservedCompletionTokens - output tokens one routed request reserves.
- * @returns detached immutable pressure and retention budgets.
+ * @param policy - 针对精确路由目标的合并策略。
+ * @param contextWindow - 该目标由适配器拥有的正向容量。
+ * @param reservedCompletionTokens - 一次路由请求所预留的输出 token 数。
+ * @returns 解耦的不可变压力与保留预算。
  */
 export function resolveCompactSpec(
   policy: ResolvedTargetPolicy,
@@ -216,7 +215,7 @@ export function resolveCompactSpec(
   })
 }
 
-/** Choose an explicit retention form or inherit the already-resolved fallback. */
+/** 选择显式的保留形式，或继承已解析的回退值。 */
 function resolveRetention(
   config: CompactionPolicyConfig,
   fallback: ResolvedRetention,
@@ -226,7 +225,7 @@ function resolveRetention(
   return fallback
 }
 
-/** Reject a capacity-independent retention conflict at plugin load. */
+/** 在插件加载时拒绝一个与容量无关的保留冲突。 */
 function validateRatioRetention(
   thresholdRatio: number,
   retention: ResolvedRetention,
@@ -240,7 +239,7 @@ function validateRatioRetention(
   }
 }
 
-/** Validate, detach, and reject duplicate exact-target policies. */
+/** 校验、解耦并拒绝重复的精确目标策略。 */
 function resolveModelPolicies(configured: unknown): ModelCompactPolicyConfig[] {
   if (configured === undefined) return []
   if (!Array.isArray(configured)) {
@@ -261,7 +260,7 @@ function resolveModelPolicies(configured: unknown): ModelCompactPolicyConfig[] {
   })
 }
 
-/** Validate one untrusted exact-target override and narrow its public type. */
+/** 校验一个未经信任的精确目标覆盖，并收窄其公开类型。 */
 function assertModelPolicy(
   source: unknown,
   name: string,
@@ -273,7 +272,7 @@ function assertModelPolicy(
   validatePolicy(source, name)
 }
 
-/** Validate the fields common to defaults and exact-target partial overrides. */
+/** 校验默认值与精确目标局部覆盖所共有的字段。 */
 function validatePolicy(
   config: CompactionPolicyConfig | Record<string, unknown>,
   name: string,
@@ -303,7 +302,7 @@ function validatePolicy(
   validateSummarizationPair(config, name)
 }
 
-/** Require one scope to omit, clear, or replace the summarization target as a pair. */
+/** 要求某个作用域以成对方式省略、清空或替换摘要目标。 */
 function validateSummarizationPair(
   config: CompactionPolicyConfig | Record<string, unknown>,
   name: string,
@@ -326,7 +325,7 @@ function validateSummarizationPair(
   }
 }
 
-/** Reject stale or misspelled keys before defaults can hide them. */
+/** 在默认值可能掩盖它们之前，拒绝过期或拼错的键。 */
 function validateKeys(config: object, keys: ReadonlySet<string>, name: string): void {
   for (const key of Object.keys(config)) {
     if (!keys.has(key)) throw new Error(`${name}: unknown key "${key}"`)

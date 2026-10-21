@@ -1,5 +1,5 @@
 /**
- * Process-local dynamic Plugin registry and its opaque identity mints.
+ * 进程本地的动态 Plugin 注册表及其不透明标识铸造器。
  * @module @deepseek-ai/dsh-cordis-host-runner/registry
  */
 
@@ -10,94 +10,94 @@ import type {
   CordisDynamicRunMode, DynamicCordisRenderFailure, DynamicCordisRunAttempt,
 } from './types.ts'
 
-/** One Host method exposed to this package's Client half. */
+/** 暴露给本包 Client 半区的一个 Host 方法。 */
 export type DynamicCordisHandler = (args: unknown) => Promise<unknown>
 
-/** One live activation and everything its teardown owns. */
+/** 一次活跃的激活，以及其拆除所拥有的一切。 */
 export interface DynamicCordisRun {
-  /** Exact activation identity. */
+  /** 确切的激活标识。 */
   pluginRunId: CordisDynamicPluginRunId
-  /** Immutable package version being run. */
+  /** 正被运行的不可变包版本。 */
   packageId: CordisDynamicPackageId
-  /** Host-half Fiber, absent for Client-only packages. */
+  /** 宿主半区 Fiber；纯 Client 包缺省。 */
   fiber?: Fiber
-  /** Active Host methods. */
+  /** 活跃的 Host 方法。 */
   handlers: Map<string, DynamicCordisHandler>
-  /** Method registration cleanup. */
+  /** 方法注册的清理。 */
   handlerDisposers: (() => void)[]
-  /** Runtime failures already sent to the owning Agent during this activation. */
+  /** 本次激活期间已发送给所属 Agent 的运行时失败。 */
   reportedRuntimeErrors: Set<string>
-  /** Last render failure observed for this version's current run. */
+  /** 本版本的当前运行所观察到的、最近一次渲染失败。 */
   renderFailure?: DynamicCordisRenderFailure
-  /** Approval whose transition started this run, when model-driven. */
+  /** 当由模型驱动时，启动了本运行的那次审批。 */
   startedForRequest?: ApprovalRequestId
 }
 
-/** One immutable package version. */
+/** 一个不可变的包版本。 */
 export interface DynamicCordisDefinition {
-  /** Package identity. */
+  /** 包标识。 */
   packageId: CordisDynamicPackageId
-  /** Package label. */
+  /** 包标签。 */
   name: string
-  /** User-facing purpose. */
+  /** 面向用户的用途。 */
   purpose: string
-  /** Host source. */
+  /** Host 源码。 */
   hostCode?: string
-  /** Client source. */
+  /** Client 源码。 */
   clientCode?: string
 }
 
-/** Stable plugin instance containing immutable package versions. */
+/** 容纳不可变包版本的、稳定的插件实例。 */
 export interface DynamicCordisPlugin {
-  /** Stable identity. */
+  /** 稳定的标识。 */
   pluginId: CordisDynamicPluginId
-  /** Owning session. */
+  /** 所属的会话。 */
   sessionId: SessionId
-  /** Versions in define order. */
+  /** 按 define 顺序的版本。 */
   packages: Map<CordisDynamicPackageId, DynamicCordisDefinition>
-  /** Client-bearing Packages individually authorized by the user. */
+  /** 由用户逐一授权的、带 Client 的包。 */
   approvedClientPackages: Set<CordisDynamicPackageId>
-  /** Whether one user decision authorized future Package versions of this Plugin. */
+  /** 一次用户决策是否授权了本 Plugin 未来的包版本。 */
   clientVersionUpdatesApproved: boolean
-  /** Last successfully activated version. */
+  /** 最近一次成功激活的版本。 */
   currentPackageId?: CordisDynamicPackageId
-  /** Failed or in-progress target version. */
+  /** 失败的或进行中的目标版本。 */
   nextPackageId?: CordisDynamicPackageId
-  /** Current activation. */
+  /** 当前激活。 */
   run?: DynamicCordisRun
-  /** Latest activation attempt, including approval and asynchronous failure state. */
+  /** 最近一次激活尝试，包含审批与异步失败状态。 */
   latestRun?: DynamicCordisRunAttempt
 }
 
-/** One suspended model-driven activation. */
+/** 一个被挂起的、由模型驱动的激活。 */
 export interface DynamicCordisPendingRequest {
-  /** Session whose model requested this activation. */
+  /** 其模型请求了本次激活的会话。 */
   agentId: SessionId
   pluginId: CordisDynamicPluginId
   packageId: CordisDynamicPackageId
   pluginRunId: CordisDynamicPluginRunId
   mode: CordisDynamicRunMode
-  /** Whether this request must wait for an explicit user decision. */
+  /** 本请求是否必须等待一次显式的用户决策。 */
   requiresApproval: boolean
 }
 
-/** Request accepted by `define`; it never crosses the Remote transport. */
+/** 由 `define` 接受的请求；它从不跨越 Remote 传输。 */
 export interface DynamicCordisDefineRequest {
-  /** Session that owns the plugin. */
+  /** 拥有该插件的会话。 */
   sessionId: SessionId
-  /** Create a plugin or append to an existing one. */
+  /** 创建一个插件，或附加到一个已有的插件。 */
   plugin:
     | { kind: 'new'; idPrefix: string }
     | { kind: 'existing'; pluginId: CordisDynamicPluginId }
-  /** Package label. */
+  /** 包标签。 */
   name: string
-  /** User-facing purpose. */
+  /** 面向用户的用途。 */
   purpose: string
-  /** At least one source half. */
+  /** 至少一个源半区。 */
   code: { host?: string; client?: string }
 }
 
-/** Successful `define` result. */
+/** 成功的 `define` 结果。 */
 export interface DynamicCordisDefineReceipt {
   pluginId: CordisDynamicPluginId
   packageId: CordisDynamicPackageId
@@ -107,7 +107,7 @@ export interface DynamicCordisDefineReceipt {
   hasClientHalf: boolean
 }
 
-/** Source-free modification context for an explicit `@pluginId` reference. */
+/** 用于显式 `@pluginId` 引用的、无源修改上下文。 */
 export interface DynamicCordisReference {
   pluginId: CordisDynamicPluginId
   packageId: CordisDynamicPackageId
@@ -119,9 +119,9 @@ export interface DynamicCordisReference {
   latestRun?: DynamicCordisRunAttempt
 }
 
-/** Source-free Plugin summary returned by layered self inspection. */
+/** 由分层自检返回的、无源的 Plugin 摘要。 */
 export interface DynamicCordisPluginInspection extends DynamicCordisReference {
-  /** Immutable Package summaries in define order. */
+  /** 按 define 顺序的不可变包摘要。 */
   packages: Array<{
     packageId: CordisDynamicPackageId
     name: string
@@ -131,13 +131,13 @@ export interface DynamicCordisPluginInspection extends DynamicCordisReference {
   }>
 }
 
-/** Exact immutable Package metadata and source returned by explicit inspection. */
+/** 由显式检视返回的、确切的不可变包元数据与源码。 */
 export interface DynamicCordisPackageInspection extends DynamicCordisReference {
-  /** Host and Client function bodies stored for this Package. */
+  /** 为本包存储的 Host 与 Client 函数体。 */
   code: { host?: string; client?: string }
 }
 
-/** Registry, identity mints, and pending approval index. */
+/** 注册表、标识铸造器，以及待定审批索引。 */
 export class DynamicCordisRegistry {
   private readonly plugins = new Map<CordisDynamicPluginId, DynamicCordisPlugin>()
   private readonly pendingRequests = new Map<ApprovalRequestId, DynamicCordisPendingRequest>()
@@ -147,9 +147,9 @@ export class DynamicCordisRegistry {
   private nextApproval = 1
 
   /**
-   * Mint a semantic plugin ID without reusing a prior suffix.
-   * @param prefix - validated lowercase semantic prefix proposed by the model.
-   * @returns a process-unique Plugin ID.
+   * 铸造一个语义化的插件 ID，而不复用先前的后缀。
+   * @param prefix - 模型提出的、已校验的小写语义前缀。
+   * @returns 进程唯一的 Plugin ID。
    */
   mintPluginId(prefix: string): string {
     let id: CordisDynamicPluginId
@@ -159,94 +159,93 @@ export class DynamicCordisRegistry {
   }
 
   /**
-   * Mint an immutable package ID.
-   * @returns a process-unique Package ID.
+   * 铸造一个不可变的包 ID。
+   * @returns 进程唯一的 Package ID。
    */
   mintPackageId(): string {
     return `pkg-${this.nextPackage++}`
   }
 
   /**
-   * Mint an activation ID.
-   * @returns a process-unique Plugin Run ID.
+   * 铸造一个激活 ID。
+   * @returns 进程唯一的 Plugin Run ID。
    */
   mintPluginRunId(): string {
     return `run-${this.nextRun++}`
   }
 
   /**
-   * Mint an approval ID.
-   * @returns a process-unique approval request ID.
-   */
+   * 铸造一个审批 ID。
+   * @returns 进程唯一的审批请求 ID。 */
   mintApprovalRequestId(): string {
     return `approval-${this.nextApproval++}`
   }
 
   /**
-   * Add one stable plugin.
-   * @param plugin - Plugin record to retain under its stable ID.
+   * 添加一个稳定的插件。
+   * @param plugin - 在其稳定 ID 之下保留的 Plugin 记录。
    */
   add(plugin: DynamicCordisPlugin): void {
     this.plugins.set(plugin.pluginId, plugin)
   }
 
   /**
-   * Read one plugin.
-   * @param id - stable Plugin ID.
-   * @returns the Plugin record, or `undefined` when absent.
+   * 读取一个插件。
+   * @param id - 稳定的 Plugin ID。
+   * @returns 该 Plugin 记录；缺省时为 `undefined`。
    */
   get(id: CordisDynamicPluginId): DynamicCordisPlugin | undefined {
     return this.plugins.get(id)
   }
 
   /**
-   * Delete one plugin and all package versions.
-   * @param id - stable Plugin ID to remove.
-   * @returns whether a Plugin record was removed.
+   * 删除一个插件及其全部包版本。
+   * @param id - 要移除的稳定 Plugin ID。
+   * @returns 是否移除了一个 Plugin 记录。
    */
   delete(id: CordisDynamicPluginId): boolean {
     return this.plugins.delete(id)
   }
 
   /**
-   * Read all plugins in creation order.
-   * @returns a snapshot of every Plugin record.
+   * 按创建顺序读取全部插件。
+   * @returns 每个 Plugin 记录的快照。
    */
   all(): DynamicCordisPlugin[] {
     return [...this.plugins.values()]
   }
 
   /**
-   * Read one session's plugins in creation order.
-   * @param sessionId - owning session to filter by.
-   * @returns a snapshot of matching Plugin records.
+   * 读取某个会话的插件，按创建顺序。
+   * @param sessionId - 据以过滤的所属会话。
+   * @returns 匹配的 Plugin 记录的快照。
    */
   ofSession(sessionId: SessionId): DynamicCordisPlugin[] {
     return this.all().filter(plugin => plugin.sessionId === sessionId)
   }
 
   /**
-   * Publish one pending approval.
-   * @param id - approval request ID.
-   * @param pending - resolver and Plugin metadata retained until settlement.
+   * 发布一个待定的审批。
+   * @param id - 审批请求 ID。
+   * @param pending - 解析器与 Plugin 元数据，保留至结算。
    */
   armRequest(id: ApprovalRequestId, pending: DynamicCordisPendingRequest): void {
     this.pendingRequests.set(id, pending)
   }
 
   /**
-   * Read one pending approval without claiming it.
-   * @param id - approval request ID.
-   * @returns the pending request, or `undefined` when absent.
+   * 读取一个待定审批而不认领它。
+   * @param id - 审批请求 ID。
+   * @returns 该待定请求；缺省时为 `undefined`。
    */
   peekRequest(id: ApprovalRequestId): DynamicCordisPendingRequest | undefined {
     return this.pendingRequests.get(id)
   }
 
   /**
-   * Claim one pending approval; first answer wins.
-   * @param id - approval request ID.
-   * @returns the claimed request, or `undefined` when already settled.
+   * 认领一个待定审批；先到先得。
+   * @param id - 审批请求 ID。
+   * @returns 被认领的请求；已在结算时为 `undefined`。
    */
   claimRequest(id: ApprovalRequestId): DynamicCordisPendingRequest | undefined {
     const pending = this.pendingRequests.get(id)
@@ -255,17 +254,17 @@ export class DynamicCordisRegistry {
   }
 
   /**
-   * Cancel one pending approval.
-   * @param id - approval request ID to remove.
+   * 取消一个待定审批。
+   * @param id - 要移除的审批请求 ID。
    */
   disarmRequest(id: ApprovalRequestId): void {
     this.pendingRequests.delete(id)
   }
 
   /**
-   * Find a pending approval for one Plugin.
-   * @param pluginId - stable Plugin ID.
-   * @returns its approval request ID, or `undefined` when none is pending.
+   * 查找某个 Plugin 的待定审批。
+   * @param pluginId - 稳定的 Plugin ID。
+   * @returns 其审批请求 ID；无待定时为 `undefined`。
    */
   pendingRequestFor(pluginId: CordisDynamicPluginId): ApprovalRequestId | undefined {
     for (const [requestId, request] of this.pendingRequests) {

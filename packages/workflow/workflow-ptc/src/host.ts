@@ -1,4 +1,4 @@
-/** Workflow child ownership and progress over the shared sandboxed PTC executor. */
+/** workflow 子项所有权与进度，建立在共享的沙箱化 PTC 执行器之上。 */
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-working-directory'
@@ -106,9 +106,8 @@ function workflowResult(value: unknown): WorkflowResult {
 }
 
 /**
- * Holder-owned workflow. Cancellation stops the program immediately; settlement waits for
- * its managed process and every admitted child startup/disposal. Engine unload does not
- * invalidate the captured runtime or subagent handles.
+ * 属主拥有的 workflow。取消会立即停止程序；结算会等待其托管进程以及每一个
+ * 已接纳的子项启动/释放。引擎卸载不会使所捕获的运行时或子代理句柄失效。
  */
 export class PtcWorkflowRun implements WorkflowRun {
   readonly result: Promise<WorkflowResult>
@@ -140,13 +139,13 @@ export class PtcWorkflowRun implements WorkflowRun {
     if (signal?.aborted) this.externalAbort()
     else signal?.addEventListener('abort', this.externalAbort, { once: true })
     this.cwd = ctx.workingDirectory.ensure(parent, this.controller.signal)
-    // Consumers attach durable run recording after start() returns.
+    // 消费者在 start() 返回后接入持久运行记录。
     this.result = Promise.resolve().then(() => this.drive())
   }
 
   /**
-   * Stop the script and abort pending and published children.
-   * @param reason - Human-readable cancellation cause; the first request wins.
+   * 停止脚本，并中止挂起与已发布的子项。
+   * @param reason - 人类可读的取消原因；首个请求胜出。
    */
   cancel(reason = 'workflow cancelled'): void {
     if (this.terminal || this.cancelReason !== undefined) return
@@ -156,8 +155,8 @@ export class PtcWorkflowRun implements WorkflowRun {
   }
 
   /**
-   * Cancel unfinished work and await the program and child cleanup.
-   * @returns One shared completion promise for repeated disposal calls.
+   * 取消未完成的工作，并等待程序与子项清理完成。
+   * @returns 供重复释放调用共享的一个完成 promise。
    */
   dispose(): Promise<void> {
     this.cancel('workflow disposed')
@@ -220,7 +219,7 @@ export class PtcWorkflowRun implements WorkflowRun {
     })
     const record: ChildRecord = { callId, run }
     this.children.set(callId, record)
-    // A provider can publish after the signal fired while startup was pending.
+    // provider 可能在信号已触发、而启动仍处于挂起状态时发布。
     if (this.controller.signal.aborted) {
       await this.disposeChild(record)
       throw new Error('workflow child started after cancellation')
@@ -265,7 +264,7 @@ export class PtcWorkflowRun implements WorkflowRun {
         this.observer.agentStart(event.info)
         break
       case 'agent-end': this.endAgent(event.info); break
-      /* v8 ignore next -- progress() validates the closed message union before dispatch. */
+      /* v8 ignore next -- progress() 在分发前校验了封闭的消息联合。 */
       default: assertNever(event, 'workflow progress')
     }
   }
@@ -308,7 +307,7 @@ export class PtcWorkflowRun implements WorkflowRun {
       this.terminal = true
       this.signal?.removeEventListener('abort', this.externalAbort)
       this.controller.abort('workflow settled')
-      // Disposing published children releases binding waits; pending starts may publish more.
+      // 释放已发布的子项会解除绑定等待；挂起的启动可能发布更多子项。
       for (const record of this.children.values()) void this.disposeChild(record)
       while (this.pending.size > 0) await Promise.allSettled([...this.pending])
       await Promise.all([...this.children.values()].map(record => this.disposeChild(record)))

@@ -1,31 +1,30 @@
 /**
- * Tool-pairing balance over a session surface. Compaction changes surface
- * positions, so safe cuts are derived from tool-call/result content in current
- * surface order rather than step markers.
+ * 针对会话表层的工具配对平衡。压缩会改变表层位置，因此安全的切割点
+ * 是基于当前表层顺序中的工具调用/结果内容派生的，而非基于步骤标记。
  * @module @deepseek-ai/dsh-compaction/tool-pairing
  */
 
 import type { Session, SessionEvent, SessionSeq } from '@deepseek-ai/dsh-session'
 
-/** Incremental balance state for one session surface generation. */
+/** 一次会话表层生成的增量平衡状态。 */
 interface BalanceCache {
-  /** Surface rewrite generation this state describes. */
+  /** 本状态所描述的表层重写代次。 */
   generation: number
   /**
-   * Balance of every surface cut in current order: a surface of N sequences has
-   * N + 1 cuts, entry `i` being the cut before sequence `i` and the final entry
-   * the cut after the surface tail.
+   * 当前顺序下每个表层切割点的平衡性：一个包含 N 个序列的表层有
+   * N + 1 个切割点，第 `i` 项为序列 `i` 之前的切割点，最后一项为
+   * 表层尾部之后的切割点。
    */
   cutBalanced: readonly boolean[]
-  /** Current surface position of each event seq, indexing {@link cutBalanced}. */
+  /** 每个事件 seq 的当前表层位置，用于索引 {@link cutBalanced}。 */
   indexBySeq: Map<SessionSeq, number>
-  /** In-progress tool-call count after the processed surface tail. */
+  /** 已处理的表层尾部之后的进行中工具调用计数。 */
   inProgressToolCalls: number
 }
 
 const balanceCacheBySession = new WeakMap<Session, BalanceCache>()
 
-/** Return how one surface event changes the in-progress tool-call count. */
+/** 返回单个表层事件如何改变进行中的工具调用计数。 */
 function eventDelta(event: SessionEvent): number {
   switch (event.type) {
     case 'assistant/message':
@@ -37,7 +36,7 @@ function eventDelta(event: SessionEvent): number {
   }
 }
 
-/** Fold surface sequences not yet in the cache into its balance state. */
+/** 将缓存中尚不存在的表层序列并入其平衡状态。 */
 function extendCache(
   session: Session,
   cache: BalanceCache,
@@ -45,8 +44,8 @@ function extendCache(
 ): BalanceCache {
   const processed = cache.cutBalanced.length - 1
   const tail = seqs.slice(processed)
-  // Validate the unseen tail before mutating the live cache, so a corrupt
-  // append cannot leave a partially advanced state behind.
+  // 在修改活动缓存之前先校验尚未可见的尾部，这样一段损坏的
+  // 追加就不会留下半完成的前进状态。
   const pendingCuts: boolean[] = []
   let inProgressToolCalls = cache.inProgressToolCalls
   for (const seq of tail) {
@@ -68,7 +67,7 @@ function extendCache(
   return cache
 }
 
-/** Return balance state synchronized with the current session surface. */
+/** 返回与当前会话表层保持同步的平衡状态。 */
 function balanceCache(session: Session): BalanceCache {
   const surface = session.surface
   const seqs = surface.nodes
@@ -76,8 +75,7 @@ function balanceCache(session: Session): BalanceCache {
   const cached = balanceCacheBySession.get(session)
 
   if (cached === undefined || cached.generation !== generation || cached.cutBalanced.length - 1 > seqs.length) {
-    // A rebuild is the same fold started from the empty-surface state, whose
-    // single leading cut is trivially balanced.
+    // 重建即是从空表层状态开始的同一次折叠，其唯一的起始切割点天然是平衡的。
     const rebuilt = extendCache(session, {
       generation,
       cutBalanced: [true],
@@ -91,7 +89,7 @@ function balanceCache(session: Session): BalanceCache {
   return cached
 }
 
-/** Balance of the cut at a sequence's position plus offset, rejecting seqs outside current membership. */
+/** 某序列位置加上偏移处的切割点平衡性，拒绝不在当前成员范围内的 seq。 */
 function cutBalance(cache: BalanceCache, seq: SessionSeq, offset: 0 | 1): boolean {
   const index = cache.indexBySeq.get(seq)
   const balanced = index === undefined ? undefined : cache.cutBalanced[index + offset]
@@ -102,24 +100,24 @@ function cutBalance(cache: BalanceCache, seq: SessionSeq, offset: 0 | 1): boolea
 }
 
 /**
- * Whether the cut immediately before a current surface sequence is tool-pairing balanced.
- * @param session - session whose surface is checked.
- * @param seq - event sequence whose leading cut is checked.
- * @returns true when no unanswered tool call crosses the cut.
- * @throws when the seq is absent from the current surface, a surface sequence has no
- * matching log event, or a tool result has no preceding open call.
+ * 当前表层序列紧邻的前置切割点是否保持了工具配对平衡。
+ * @param session - 被检查表层的会话。
+ * @param seq - 被检查其前置切割点的事件序列。
+ * @returns 当没有未应答的工具调用跨越该切割点时返回 true。
+ * @throws 当该 seq 不在当前表层中、某个表层序列没有匹配的日志事件，
+ * 或某个工具结果没有前置的开放调用时。
  */
 export function toolPairingBalancedBefore(session: Session, seq: SessionSeq): boolean {
   return cutBalance(balanceCache(session), seq, 0)
 }
 
 /**
- * Whether the cut immediately after a current surface sequence is tool-pairing balanced.
- * @param session - session whose surface is checked.
- * @param seq - event sequence whose trailing cut is checked.
- * @returns true when no unanswered tool call crosses the cut.
- * @throws when the seq is absent from the current surface, a surface sequence has no
- * matching log event, or a tool result has no preceding open call.
+ * 当前表层序列紧邻的后置切割点是否保持了工具配对平衡。
+ * @param session - 被检查表层的会话。
+ * @param seq - 被检查其后置切割点的事件序列。
+ * @returns 当没有未应答的工具调用跨越该切割点时返回 true。
+ * @throws 当该 seq 不在当前表层中、某个表层序列没有匹配的日志事件，
+ * 或某个工具结果没有前置的开放调用时。
  */
 export function toolPairingBalancedAfter(session: Session, seq: SessionSeq): boolean {
   return cutBalance(balanceCache(session), seq, 1)

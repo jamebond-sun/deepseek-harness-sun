@@ -1,13 +1,11 @@
 /**
- * The model-facing `read_image` tool commits a PNG/JPEG/WebP/GIF file. A path
- * without a file extension is identified from its file signature, while the
- * attachment service's full decode stays authoritative. The mounted `ctx.fs`
- * backend owns path resolution and read access; names only declare media type.
+ * 面向模型的 `read_image` 工具用于提交一个 PNG/JPEG/WebP/GIF 文件。没有扩展名的路径依据其
+ * 文件签名识别，而附件服务的完整解码始终才是权威依据。已挂载的 `ctx.fs` 后端负责路径解析
+ * 与读取访问；文件名只用来声明媒体类型。
  *
- * The route gate is deliberately stricter than the host upload preflight. An
- * image-reading tool is useful only when the exact calling route can inspect
- * its result, so unknown capability refuses instead of relying on an adapter
- * failure after filesystem and attachment work.
+ * 这条路由门禁刻意比宿主的上传预检更严格。只有当确切的调用路由能够查看一次图片读取的结果时，
+ * 该工具才有意义，因此能力未知时直接拒绝，而不是等到文件系统与附件的工作都做完之后再依赖
+ * 适配层的失败来兜底。
  * @module @deepseek-ai/dsh-tool-fs/src/read-image
  */
 
@@ -21,7 +19,7 @@ import type { GenericCallView, ToolExecution } from '@deepseek-ai/dsh-tools'
 import type {} from '@deepseek-ai/dsh-fs'
 import { resolveRegularReadTarget } from './read-target.ts'
 
-/** Extensions `read_image` accepts; magic-byte validation at the attachment service stays authoritative. */
+/** `read_image` 接受的扩展名；附件服务处的魔数校验始终是权威依据。 */
 const IMAGE_EXTENSIONS: Readonly<Record<string, ImageMediaType>> = {
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
@@ -47,9 +45,9 @@ function matchesAscii(data: Uint8Array, offset: number, value: string): boolean 
 }
 
 /**
- * Identify the media type declared by a supported image file signature.
- * @param data - file bytes read through the current filesystem backend.
- * @returns the detected supported media type, or undefined for other bytes.
+ * 识别受支持图片文件签名所声明的媒体类型。
+ * @param data - 通过当前文件系统后端读出的文件字节。
+ * @returns 检测到的受支持媒体类型；其他字节时为 undefined。
  */
 export function sniffImageMediaType(data: Uint8Array): ImageMediaType | undefined {
   if (matchesBytes(data, 0, PNG_SIGNATURE)) return 'image/png'
@@ -81,9 +79,9 @@ const IMAGE_VALUE_SCHEMA = {
   },
 } as const
 
-/** The structured outcome declared by the `read_image` output schema. */
+/** 由 `read_image` 输出模式声明的结构化结果。 */
 export interface ImageReadValue {
-  /** Canonical absolute path in the filesystem provider's execution world. */
+  /** 文件系统提供者执行世界中的规范绝对路径。 */
   path: string
   image: {
     attachmentId: string
@@ -92,7 +90,7 @@ export interface ImageReadValue {
     width: number
     height: number
     name?: string
-    /** Orientation-applied file dimensions before normalization; present only when storage reduced it. */
+    /** 规范化之前、已应用方向校正的文件尺寸；仅在存储层压缩过它时才存在。 */
     originalDimensions?: {
       width: number
       height: number
@@ -101,21 +99,20 @@ export interface ImageReadValue {
 }
 
 /**
- * Map a model-supplied path to its declared image media type by extension.
- * @param filePath - the raw `file_path` argument (not yet resolved).
- * @returns the declared media type, or undefined when the path does not claim an image.
+ * 按扩展名把一个模型提供的路径映射到它所声明的图片媒体类型。
+ * @param filePath - 原始的 `file_path` 参数（尚未解析）。
+ * @returns 声明的媒体类型；路径没有表明自己是图片时为 undefined。
  */
 export function imageMediaTypeForPath(filePath: string): ImageMediaType | undefined {
   return IMAGE_EXTENSIONS[extname(filePath).toLowerCase()]
 }
 
 /**
- * Enforce the strict image-capability gate for the calling route. Resolves the
- * session's latest routed provider/model (request header config, then agent
- * options) and requires the exact resolved route to declare `image` input explicitly.
- * @param ctx - the plugin context used to resolve the optional `llm` service.
- * @param exec - the tool-execution context supplying the calling agent.
- * @param requestedPath - the raw, not-yet-resolved path rendered in refusal messages.
+ * 为调用路由强制实施严格的图片能力门禁。解析会话最新的已路由 provider/model
+ * （先取请求头配置，再取 agent 选项），并要求确切解析出的路由显式声明支持 `image` 输入。
+ * @param ctx - 用于解析可选 `llm` 服务的插件上下文。
+ * @param exec - 提供调用方 agent 的工具执行上下文。
+ * @param requestedPath - 用于拒绝消息中的、尚未解析的原始路径。
  */
 export async function assertImageCapableRoute(ctx: Context, exec: ToolExecution, requestedPath: string): Promise<void> {
   const routed = exec.agent?.session.requestHeader()?.config
@@ -131,7 +128,7 @@ export async function assertImageCapableRoute(ctx: Context, exec: ToolExecution,
   }
 }
 
-/** Refuse a media type outside the deployment's accepted set, naming the offending path. */
+/** 拒绝该部署可接受集合之外的媒体类型，并在消息中指出出问题的路径。 */
 function assertDeploymentAccepts(attachments: AttachmentStore, mediaType: ImageMediaType, displayPath: string): void {
   if (!attachments.imageLimits.mediaTypes.includes(mediaType)) {
     throw new Error(`cannot read "${displayPath}": ${mediaType} images are not accepted by this deployment`)
@@ -139,10 +136,9 @@ function assertDeploymentAccepts(attachments: AttachmentStore, mediaType: ImageM
 }
 
 /**
- * Re-brand a structured image outcome into the durable attachment reference an
- * `ImageBlock` carries.
- * @param image - the image metadata from the output schema.
- * @returns the branded attachment reference.
+ * 把一个结构化的图片结果重新标记（品牌化）为 `ImageBlock` 所携带的持久化附件引用。
+ * @param image - 来自输出模式的图片元数据。
+ * @returns 带上标记的附件引用。
  */
 export function imageRefFromValue(image: ImageReadValue['image']): ImageAttachmentRef {
   return {
@@ -159,18 +155,17 @@ export function imageRefFromValue(image: ImageReadValue['image']): ImageAttachme
 }
 
 /**
- * Format an image read as the model-facing envelope beside its image block.
- * A downscaled read names the on-disk dimensions and the multiplier that maps
- * coordinates measured on the attached image back onto the original file.
- * @param displayPath - the backend-resolved path rendered in the envelope's `<path>` element.
- * @param image - the image metadata to summarize.
- * @returns the model-facing envelope; the image itself rides the adjacent image block.
+ * 把一次图片读取格式化为紧邻其图片块的、面向模型的信封。被缩小的读取会指明磁盘上的尺寸，
+ * 以及把在附件图片上量得的坐标映射回原始文件的那个倍数。
+ * @param displayPath - 由后端解析、渲染在信封 `<path>` 元素中的路径。
+ * @param image - 待摘要的图片元数据。
+ * @returns 面向模型的信封；图片本身由相邻的图片块承载。
  */
 export function formatImageReadOutput(displayPath: string, image: ImageReadValue['image']): string {
   let scaled = ''
   if (image.originalDimensions !== undefined) {
-    // Integer rounding can give the two axes slightly different ratios, so the
-    // advice names one multiplier only when both round to the same value.
+    // 整数取整会让两个轴的比例略有差异，因此只有当两者取整到同一个值时，
+    // 提示语才会给出单一倍数。
     const x = (image.originalDimensions.width / image.width).toFixed(2)
     const y = (image.originalDimensions.height / image.height).toFixed(2)
     const advice = x === y
@@ -186,9 +181,9 @@ ${image.mediaType} image, ${image.width}x${image.height} px, ${image.bytes} byte
 }
 
 /**
- * Project one structured image read into its model-facing envelope and image.
- * @param value - the image-read outcome.
- * @returns the two content blocks used by native and nested dispatches.
+ * 把一个结构化的图片读取投影为它的面向模型信封与图片本身。
+ * @param value - 图片读取的结果。
+ * @returns 原生派发与嵌套派发共用的两个内容块。
  */
 function imageReadContent(value: ImageReadValue): ContentBlock[] {
   return [
@@ -198,13 +193,12 @@ function imageReadContent(value: ImageReadValue): ContentBlock[] {
 }
 
 /**
- * Register the `read_image` tool into the given context. The composing plugin
- * owns the attachments gate: `src/index.ts` calls this inside
- * `ctx.inject(['attachments'], …)` so the tool exists only while a durable
- * store is mounted. Execution still re-checks `ctx.get('attachments')` for
- * direct callers and gates on the calling route's declared image input.
- * @param ctx - the registration scope; execution uses its `fs` service plus
- *   the optional `attachments`/`llm` services.
+ * 把 `read_image` 工具注册进给定的上下文。负责组合的插件持有附件这道闸：
+ * `src/index.ts` 在 `ctx.inject(['attachments'], …)` 内部调用它，因此该工具只在挂载了
+ * 持久化存储时才存在。执行时仍会为直接调用者复查 `ctx.get('attachments')`，
+ * 并依据调用路由声明的图片输入做门禁。
+ * @param ctx - 注册的作用域；执行时使用它的 `fs` 服务外加可选的
+ *   `attachments`/`llm` 服务。
  */
 export function applyReadImageTool(ctx: Context): void {
   ctx.tools.register(defineTool({
@@ -224,26 +218,21 @@ export function applyReadImageTool(ctx: Context): void {
         },
       },
       render: (_args, value) => imageReadContent(value),
-      // Persist the resolved path only. The attachment reference is NOT copied
-      // here: the settled `content` already carries the image block with the
-      // complete reference, so a second copy would keep two records of one fact —
-      // and a `tools/post-execute` hook that legitimately replaces the content
-      // would leave the stale copy behind, showing an image the result no longer
-      // returns. The path needs its own structured record because the content
-      // carries it only as model-facing envelope text, which the client does not
-      // parse.
+      // 只持久化已解析的路径。附件引用**不会**复制到这里：落定的 `content` 已经带着包含
+      // 完整引用的图片块，因此再复制一份就等于对同一个事实留下两份记录 ——
+      // 而且一个合法替换了内容的 `tools/post-execute` 钩子会把那份陈旧副本留在身后，
+      // 从而展示出一张结果里早已不再返回的图片。路径需要自己独立的结构化记录，
+      // 因为内容只把它作为面向模型的信封文本来承载，而客户端并不解析它。
       presentationMeta: (_args, value) => ({ path: value.path }),
     },
-    // Content-addressed attachment writes are idempotent, so concurrent reads
-    // of the same file cannot conflict.
+    // 内容寻址的附件写入是幂等的，因此对同一文件的并发读取不会冲突。
     isConcurrencySafe: () => true,
     async execute(args, exec) {
       if (args.file_path.trim().length === 0) throw new Error('file_path must be a non-empty string')
 
-      // Every pre-read gate runs before any filesystem I/O so a refusal never
-      // leaks partial reads or attachment writes. An extension-less path
-      // declares no format, so only its format and deployment media-type
-      // checks wait for the bytes.
+      // 所有读取前的门禁都跑在任何文件系统 IO 之前，因此一次拒绝永远不会泄漏局部读取或
+      // 附件写入。没有扩展名的路径不声明任何格式，所以只有它的格式检查与部署媒体类型
+      // 检查需要等到拿到字节之后。
       const extension = extname(args.file_path).toLowerCase()
       const declared = imageMediaTypeForPath(args.file_path)
       if (declared === undefined && extension !== '') {
@@ -258,8 +247,8 @@ export function applyReadImageTool(ctx: Context): void {
 
       const { target, info } = await resolveRegularReadTarget(ctx, exec, args.file_path)
 
-      // The tool result is one message carrying one image, so the per-message
-      // aggregate bound applies beside the per-image bound.
+      // 工具结果是一条消息携带一张图片，因此除单图上限之外，
+      // 每消息的聚合上限同样适用。
       const byteCap = Math.min(attachments.imageLimits.maxImageBytes, attachments.imageLimits.maxMessageImageBytes)
       const data = await ctx.fs.readBytes(target, exec.signal, byteCap)
       const mediaType = declared ?? sniffImageMediaType(data)
@@ -267,16 +256,15 @@ export function applyReadImageTool(ctx: Context): void {
         throw new Error(`cannot read "${target.displayPath}": the file content is not a supported image format; read_image accepts PNG/JPEG/WebP/GIF`)
       }
       if (declared === undefined) assertDeploymentAccepts(attachments, mediaType, target.displayPath)
-      // Persist before returning: the image block must reference a durably
-      // committed object by the time the tool/result event is appended.
+      // 返回之前先持久化：等到 tool/result 事件被追加时，
+      // 图片块必须已经引用一个持久提交的对象。
       let ref: ImageAttachmentRef
       try {
         ref = await attachments.saveImage({ data, mediaType, name: basename(target.displayPath) })
       } catch (error: unknown) {
         if (!(error instanceof AttachmentError)) throw error
-        // Dimension refusals stay recoverable tool errors: an oversized image
-        // must never enter durable history, where it would ride every later
-        // model request past provider-side dimension rejections.
+        // 尺寸类拒绝保持为可恢复的工具错误：一张尺寸过大的图片绝不能进入持久历史，
+        // 否则它会混入之后每一次模型请求，绕过提供者侧的尺寸拒绝。
         if (error.code === 'IMAGE_DIMENSION_TOO_LARGE') {
           throw new Error(
             `cannot read "${target.displayPath}": at least one image side exceeds the ${attachments.imageLimits.maxImageDimension}px limit; downscale the image and read the smaller copy`,
@@ -336,8 +324,7 @@ export function applyReadImageTool(ctx: Context): void {
       }
       return value
     },
-    // Pure display: a generic card in the read family with a follow-along
-    // location on the image file.
+    // 纯展示：read 家族的一张通用卡片，带一个指向该图片文件的跟随位置。
     presentCall(args): GenericCallView {
       return {
         card: 'generic',

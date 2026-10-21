@@ -1,4 +1,4 @@
-/** Isolated browser runtime configures native inference in Stagehand's extension. */
+/** 隔离的浏览器运行时在 Stagehand 的扩展中配置原生推理。 */
 
 import { parentPort, workerData } from 'node:worker_threads'
 import { z } from 'zod'
@@ -25,7 +25,7 @@ const opening = openNativeBrowser(
     ...executablePath === undefined ? {} : { executablePath },
   },
 )
-// Initialization failure stays observable through the host's ready request.
+// 初始化失败会通过宿主的 ready 请求保持可观察。
 void opening.catch((error: unknown) => { void error })
 port.on('message', (raw: unknown) => {
   void answer(raw, async (method, args) => {

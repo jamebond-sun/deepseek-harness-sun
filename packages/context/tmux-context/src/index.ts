@@ -1,19 +1,17 @@
 /**
- * Opt-in request-preparation tmux-location context. Eligible step attempts
- * append durable, source-attributed context naming the tmux session, window,
- * and pane this agent process runs in, plus the window's pane-tree layout.
+ * 可选择的、请求准备阶段的 tmux 位置上下文。符合条件的步骤尝试会追加
+ * 持久化的、标注来源的上下文，写明本代理进程所运行的 tmux 会话、窗口与窗格，
+ * 以及该窗口的窗格树布局。
  *
- * The plugin pulls state once per turn, for the first request (`step === 1`), by
- * running one `tmux display-message` through the `ctx.shell` executor service. It
- * confirms this process genuinely runs inside the pane `$TMUX_PANE` names by
- * matching the pane's `#{pane_tty}` against this process's controlling terminal,
- * so a terminal that merely inherited `$TMUX`/`$TMUX_PANE` from a tmux ancestor
- * (e.g. a VS Code integrated terminal) reads as "not in tmux". It re-injects
- * only when the rendered tmux state changes since the last injection (a moved,
- * renamed, or re-laid-out pane), with an optional `refreshIntervalMs` floor
- * between injections. Absent tmux environment, an inherited-only environment,
- * absent `ctx.shell`, or a failed query is a no-op, never an error: an executor
- * rejection is contained and logged as a warning so the turn continues.
+ * 该插件通过 `ctx.shell` 执行器服务运行一次 `tmux display-message`，
+ * 在每个轮次、针对第一条请求（`step === 1`）拉取一次状态。它会将窗格的
+ * `#{pane_tty}` 与本节点的控制终端进行比对，以确认本进程确实运行在
+ * `$TMUX_PANE` 所指的窗格内部，因此一个仅从 tmux 祖先（例如 VS Code 集成终端）
+ * 继承了 `$TMUX`/`$TMUX_PANE` 的终端会被读作“不在 tmux 中”。它仅在自上次注入以来
+ * 渲染出的 tmux 状态发生变化（窗格被移动、重命名或重新布局）时才重新注入，
+ * 注入之间还可选一个 `refreshIntervalMs` 下限。缺失 tmux 环境、仅有继承环境、
+ * 缺失 `ctx.shell`，或查询失败都是无操作，绝不是错误：执行器拒绝会被就地
+ * 容纳并作为警告记录，以便轮次继续。
  *
  * @module @deepseek-ai/dsh-tmux-context
  */
@@ -37,27 +35,26 @@ declare module '@deepseek-ai/dsh-llm' {
 }
 
 
-/** Cordis plugin name used by loader diagnostics. */
+/** 供加载器诊断使用的 Cordis 插件名称。 */
 export const name = 'tmux-context'
 
-/** The agent registry that owns pre-step processing. */
+/** 拥有预步骤处理的代理注册表。 */
 export const inject = ['agents', 'sessionProjections']
 
-/** Per-turn tmux-location scheduling. Invalid values fail plugin load. */
+/** 每个轮次的 tmux 位置调度。无效值会使插件加载失败。 */
 export interface Config {
-  /** Minimum milliseconds between durable injections in one session. Omit or set to 0 to inject on every eligible change. */
+  /** 同一会话内两次持久化注入之间的最小毫秒数。省略或设为 0 表示每次符合条件的变更都注入。 */
   refreshIntervalMs?: number
 }
 
-/** Schemastery validation for {@link Config}. */
+/** 针对 {@link Config} 的 Schemastery 校验。 */
 export const Config: z<Config> = z.object({
   refreshIntervalMs: z.number(),
 })
 
 /**
- * Tab-separated tmux format fields, in query order. Layout (`window_layout`)
- * is the pane-tree description; pane/window pixel sizes are intentionally
- * excluded (own location and layout only, per the package scope).
+ * 以制表符分隔的 tmux 格式字段，按查询顺序排列。布局（`window_layout`）
+ * 是窗格树描述；窗格/窗口的像素尺寸被有意排除（依包范围，仅含自身位置与布局）。
  */
 const TMUX_FIELDS = [
   '#{session_name}',
@@ -70,7 +67,7 @@ const TMUX_FIELDS = [
   '#{window_layout}',
 ] as const
 
-/** Structured tmux location parsed from one `display-message` reading. */
+/** 从一次 `display-message` 读数解析得到的结构化 tmux 位置。 */
 interface TmuxLocation {
   sessionName: string
   windowIndex: string
@@ -82,40 +79,37 @@ interface TmuxLocation {
   windowLayout: string
 }
 
-/** Prefix marking the volatile turn/step preamble line of a rendered reading. */
+/** 标记一次已渲染读数中、易变的轮次/步骤前导行的固定前缀。 */
 const READING_PREFIX = 'tmux location (turn '
 
 /**
- * Field separator between tmux format fields. tmux does not interpret C escapes
- * in a format, so the literal two-character sequence `\t` is emitted verbatim
- * and split back out here; this avoids embedding raw whitespace in the command.
+ * tmux 格式字段之间的字段分隔符。tmux 不会解释格式中的 C 转义，
+ * 因此字面的两个字符序列 `\t` 会被原样输出，并在此处分割回来；
+ * 这避免了在命令中嵌入原始空白。
  */
 const FIELD_SEP = '\\t'
 
 /**
- * Read this process's tmux location through the bash seam, or `undefined` when
- * this process is not genuinely running inside a tmux pane or the query fails.
+ * 通过 bash 接缝读取本进程的 tmux 位置，或当本进程并非真正运行在 tmux 窗格内
+ * 或查询失败时返回 `undefined`。
  *
- * `$TMUX_PANE` alone is insufficient: a terminal launched from a tmux shell
- * (e.g. VS Code's integrated terminal, a desktop launcher) inherits `$TMUX` and
- * `$TMUX_PANE` from that ancestor, so the variables are present even though this
- * process does not live in that pane. The command therefore also compares the
- * pane's `#{pane_tty}` against this process's own controlling terminal
- * (`ps -o tty=` for {@link processId}); a genuine pane owns this process's tty,
- * an inherited environment names some other pane's tty. Fields are emitted only
- * on a match, so an inherited environment reads as "not in tmux" and injects
- * nothing.
+ * 仅 `$TMUX_PANE` 是不够的：一个从 tmux shell 启动的终端
+ * （例如 VS Code 集成终端、桌面启动器）会从该祖先继承 `$TMUX` 和
+ * `$TMUX_PANE`，因此即便本进程并不在那个窗格中，这些变量依然存在。所以该命令
+ * 还会将窗格的 `#{pane_tty}` 与本节点的控制终端
+ * （针对 {@link processId} 的 `ps -o tty=`）进行比对；真正的窗格拥有本进程的 tty，
+ * 而继承来的环境命名的是其他某个窗格的 tty。字段仅在匹配成功时才输出，
+ * 因此继承来的环境会被读作“不在 tmux 中”且不注入任何内容。
  *
- * The location is optional context, so an executor rejection is a failed query,
- * not a turn failure: `resolve()` may reject the command on policy grounds and
- * `run()` only promises to resolve for nonzero exits, timeouts, and aborts, so
- * both are contained and reported as a warning.
+ * 该位置是可选的上下文，因此执行器拒绝是一次失败的查询，而非轮次失败：
+ * `resolve()` 可能因策略原因拒绝该命令，而 `run()` 只承诺对非零退出、
+ * 超时与中止给出结果，因此两者都被就地容纳并作为警告报告。
  *
- * @param bash - The executor service used to run the read-only tmux/ps commands.
- * @param logger - receives a warning when the executor rejects the query.
- * @param processId - this agent process's pid, whose controlling tty must match the pane.
- * @param signal - abort signal forwarded to the executor.
- * @returns the parsed location, or `undefined` when not in a real pane or on any failure.
+ * @param bash - 用于运行只读 tmux/ps 命令的执行器服务。
+ * @param logger - 当执行器拒绝查询时接收警告。
+ * @param processId - 本代理进程的 pid，其控制终端必须与窗格匹配。
+ * @param signal - 转发给执行器的中止信号。
+ * @returns 解析得到的位置，或当不在真实窗格中或发生任何失败时返回 `undefined`。
  */
 async function queryTmuxLocation(
   bash: ShellExecutor,
@@ -168,9 +162,8 @@ async function queryTmuxLocation(
 }
 
 /**
- * Render the stable tmux state block: the part of a reading compared for
- * change suppression. It excludes the turn preamble so re-injection is driven
- * only by tmux state, not by loop position.
+ * 渲染稳定的 tmux 状态块：一次读数中用于变更抑制比较的部分。
+ * 它排除了轮次前导行，因此重新注入只由 tmux 状态驱动，而非由循环位置驱动。
  */
 function renderState(location: TmuxLocation): string {
   return `session ${location.sessionName}, `
@@ -180,18 +173,17 @@ function renderState(location: TmuxLocation): string {
     + `layout ${location.windowLayout}`
 }
 
-/** Render the full durable reading, including the volatile turn preamble. */
+/** 渲染完整的持久化读数，包含易变的轮次前导行。 */
 function renderReading(location: TmuxLocation, turn: number): string {
   return `${READING_PREFIX}${turn}):\n${renderState(location)}`
 }
 
 /**
- * The stable state block of this plugin's latest durable injection, or
- * `undefined` when the session has none. Scans raw durable events so the
- * schedule survives compaction and resumed processes without process-local
- * cache state.
+ * 本插件最新一次持久化注入的稳定状态块，或当会话没有时返回 `undefined`。
+ * 它通过扫描原始持久化事件实现，因此该调度能在压实与进程恢复后存活，
+ * 无需进程局部缓存状态。
  */
-/** Reject refresh intervals that cannot represent an exact elapsed-millisecond threshold. */
+/** 拒绝无法表示精确已流逝毫秒阈值的刷新间隔。 */
 function validateRefreshInterval(refreshIntervalMs: number | undefined): void {
   if (refreshIntervalMs !== undefined && (
     !Number.isSafeInteger(refreshIntervalMs)
@@ -211,14 +203,14 @@ const tmuxContextStateSchema = zod.object({
 type TmuxContextState = zod.infer<typeof tmuxContextStateSchema>
 
 /**
- * Register a prepended pre-step listener for the lifetime of `ctx`.
- * @param ctx - plugin context; the listener is disposed with it.
- * @param config - durable refresh scheduling configuration.
- * @throws when the refresh interval is invalid.
+ * 为 `ctx` 的整个生命周期注册一个前置的预步骤监听器。
+ * @param ctx - 插件上下文；监听器随其一同释放。
+ * @param config - 持久化刷新调度配置。
+ * @throws 当刷新间隔无效时。
  */
 declare module '@deepseek-ai/dsh-session-projection/types' {
   interface SessionProjectionStateMap {
-    /** The stable state block of this plugin's latest durable injection, or null. */
+    /** 本插件最新一次持久化注入的稳定状态块，或 null。 */
     tmuxContext: TmuxContextState
   }
 }

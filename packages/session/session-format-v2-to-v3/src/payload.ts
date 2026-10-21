@@ -1,19 +1,19 @@
-/** Audited V2 migration admission and V3 payload validation, independent of installed core Session types. */
+/** 经审计的 V2 迁移接纳与 V3 载荷校验，不依赖已安装的核心 Session 类型。 */
 
 import { SessionFormatError, SessionFormatUnsupportedMigrationError, isSessionFormatJsonObject, sessionFormatCount, sessionFormatSafeInteger } from '@deepseek-ai/dsh-session-format'
 import type { SessionFormatEvent, SessionFormatJsonObject, SessionFormatJsonValue } from '@deepseek-ai/dsh-session-format'
 import { assertReleasedPayloadSemantics, assertReleasedSurfaceMetadata } from '@deepseek-ai/dsh-session-format-v0-to-v1'
 import { RELEASED_V2_EVENT_DISPOSITIONS } from '@deepseek-ai/dsh-session-format-v1-to-v2'
 
-/** Audited surface event names; all other admitted events are log-only. */
+/** 经审计的表层事件名；所有其它被接纳的事件都仅用于日志。 */
 export const SURFACE_TYPES: ReadonlySet<string> = new Set(['system/message', 'user/message', 'assistant/message', 'tool/result'])
 const SOURCE_KINDS = new Set(['user', 'plugin', 'model', 'tool', 'agent-instructions', 'session-reference', 'team-message', 'goal', 'skill-invocation', 'skill-catalog', 'coordinator', 'subagent-report', 'subagent-settled', 'webhook', 'agent-message'])
 
 /**
- * Require a JSON object at the durable input boundary.
- * @param value - decoded value.
- * @param label - diagnostic subject.
- * @returns the narrowed object.
+ * 在持久输入边界上要求一个 JSON 对象。
+ * @param value - 已解码的值。
+ * @param label - 诊断主体。
+ * @returns 收窄后的对象。
  */
 export function record(value: SessionFormatJsonValue | undefined, label: string): SessionFormatJsonObject {
   if (!isSessionFormatJsonObject(value)) throw new SessionFormatError(label + ' must be an object')
@@ -21,11 +21,11 @@ export function record(value: SessionFormatJsonValue | undefined, label: string)
 }
 
 /**
- * Reject missing and unaudited members rather than guessing whether they contain coordinates.
- * @param value - decoded record.
- * @param required - required member names.
- * @param optional - additional admitted names.
- * @param label - diagnostic subject.
+ * 拒绝缺失与未经审计的成员，而不是猜测它们是否包含坐标。
+ * @param value - 已解码的记录。
+ * @param required - 必需的成员名。
+ * @param optional - 额外被接纳的成员名。
+ * @param label - 诊断主体。
  */
 export function keys(value: SessionFormatJsonObject, required: readonly string[], optional: readonly string[], label: string): void {
   const missing = required.find(key => !Object.hasOwn(value, key))
@@ -35,9 +35,9 @@ export function keys(value: SessionFormatJsonObject, required: readonly string[]
 }
 
 /**
- * Validate classified payloads before migration, or native V3 system/header payloads.
- * @param event - decoded logical event.
- * @param version - source or target generation.
+ * 在迁移之前校验已分类的载荷，或校验原生 V3 的 system/header 载荷。
+ * @param event - 已解码的逻辑事件。
+ * @param version - 源侧或目标侧代际。
  */
 export function assertEvent(event: SessionFormatEvent, version: 2 | 3): void {
   if (version === 3) {
@@ -63,11 +63,11 @@ export function assertEvent(event: SessionFormatEvent, version: 2 | 3): void {
     assertFeedback(event.type, data)
     return
   }
-  // Non-inventory feedback events have returned above.
+  // 不在清单内的 feedback 事件已在上面返回。
   const admitted = disposition as NonNullable<typeof disposition>
   keys(data, admitted.required, admitted.optional, event.type + ' data')
   assertOwnedContent(event, data)
-  // Assistant attempts are introduced by V2; the V0 helper has no case for them.
+  // assistant attempt 由 V2 引入；V0 的帮助函数没有对应的分支。
   if (event.type !== 'assistant/attempt') assertReleasedPayloadSemantics(event, version)
   if (event.type === 'assistant/message' || event.type === 'assistant/attempt') {
     for (const coordinate of ['turn', 'step']) {
@@ -77,7 +77,7 @@ export function assertEvent(event: SessionFormatEvent, version: 2 | 3): void {
   if (event.type === 'session/end-seed' && data['inherited'] !== undefined && data['inherited'] !== true) {
     throw new SessionFormatError('session/end-seed inherited must be true')
   }
-  // Source classification applies only to Harness messages, not team delivery envelopes.
+  // 源分类只适用于 Harness 消息，不适用于团队投递信封。
   if (event.type === 'user/message') assertSource(data)
   if (event.type === 'assistant/message' || event.type === 'tool/result') assertSource(record(data['message'], 'message'))
   if (event.type === 'tool/result' && isSessionFormatJsonObject(data['error']) && data['error']['code'] === 'TOOL_NOT_STARTED') {
@@ -94,10 +94,10 @@ export function assertEvent(event: SessionFormatEvent, version: 2 | 3): void {
 }
 
 /**
- * Recognize stable generated repair IDs without interpreting their historical suffix as a current coordinate.
- * @param id - durable message identity.
- * @param callId - advertised tool identity.
- * @returns whether the identity has the canonical historical repair form.
+ * 识别稳定生成的修复 ID，而不把其历史后缀解释为当前坐标。
+ * @param id - 持久的消息身份。
+ * @param callId - 已宣告的工具身份。
+ * @returns 该身份是否具有规范的历史修复形式。
  */
 export function isRepairIdentity(id: SessionFormatJsonValue | undefined, callId: SessionFormatJsonValue | undefined): callId is string {
   if (typeof callId !== 'string') return false
@@ -157,7 +157,7 @@ function assertOwnedContent(event: SessionFormatEvent, data: SessionFormatJsonOb
     for (const [index, value] of contentArray(data['stream'], label + '.stream').entries()) {
       const path = label + '.stream[' + String(index) + ']'
       const entry = record(value, path)
-      // Only raw chunks carry blocks; packed deltas and other chunk payloads remain opaque.
+      // 只有原始分块携带内容块；打包的 delta 与其它分块载荷保持不透明。
       if (entry['type'] !== 'chunk') continue
       const chunk = record(entry['chunk'], path + '.chunk')
       if (chunk['type'] === 'block-end') assertContentBlock(chunk['block'], path + '.chunk.block')
@@ -192,7 +192,7 @@ function assertContentBlock(value: SessionFormatJsonValue | undefined, label: st
     sessionFormatCount(attachment['bytes'], label + ' kind "file" attachment bytes')
     return
   }
-  // Reuse frozen field rules without recursively revisiting tool-result children or interpreting opaque JSON.
+  // 复用冻结的字段规则，不递归重访 tool-result 的子节点，也不解释不透明 JSON。
   const leaf = block['type'] === 'tool-result' ? { ...block, content: [] } : block
   const probe: SessionFormatEvent = { type: 'user/message', seq: 0, time: 0, data: {
     id: 'content-admission', role: 'user', source: { kind: 'user' }, content: [leaf],
@@ -200,14 +200,14 @@ function assertContentBlock(value: SessionFormatJsonValue | undefined, label: st
   try {
     assertReleasedPayloadSemantics(probe, 2)
   } catch (error) {
-    // Frozen payload failures need the original event and content path, not the synthetic message.
+    // 冻结的载荷失败需要原始事件与内容路径，而非合成的消息。
     throw new SessionFormatError(label + ': invalid message content kind ' + JSON.stringify(block['type']) + ': ' + String(error))
   }
 }
 
 /**
- * Reject V3 structural payload violations even beyond a recoverable physical-row failure.
- * @param value - raw physical row; ordinary rows retain the frozen decoder's recovery policy.
+ * 即使在可恢复的物理行失败之外，也拒绝 V3 结构性载荷违规。
+ * @param value - 原始物理行；普通行保留冻结解码器的恢复策略。
  */
 export function assertV3StructuralRow(value: unknown): void {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return
@@ -257,10 +257,10 @@ function assertFeedback(type: string, data: SessionFormatJsonObject): void {
 }
 
 /**
- * Validate one canonical V3 event without interpreting plugin-owned payloads or log relationships.
- * Unclassified metadata is deferred to vocabulary-aware restoration; unknown required types must not become recoverable corruption.
- * @param event - decoded logical event.
- * @param knownEventTypes - additional installed event types whose envelopes are interpreted.
+ * 校验一个规范化的 V3 事件，不解释插件自有的载荷或日志关系。
+ * 未分类的元数据推迟到感知词表的恢复阶段处理；未知的必需类型绝不能变成可恢复的损坏。
+ * @param event - 已解码的逻辑事件。
+ * @param knownEventTypes - 额外安装的、其信封会被解释的事件类型。
  */
 export function assertV3Event(event: SessionFormatEvent, knownEventTypes?: ReadonlySet<string>): void {
   const value = record(event, 'format v3 event')
@@ -337,9 +337,9 @@ function assertCanonicalPayload(event: SessionFormatEvent): void {
 }
 
 /**
- * Canonicalize structurally transformed events without changing their target coordinates.
- * @param event - transformed event using released replacement names and target coordinates.
- * @returns a V3 event sharing all unchanged payloads and reference values.
+ * 在不改变目标坐标的前提下规范化已结构性转换的事件。
+ * @param event - 使用已发布替换名与目标坐标的已转换事件。
+ * @returns 共享所有未变更载荷与引用值的 V3 事件。
  */
 export function canonicalizeTransformedEvent(event: SessionFormatEvent): SessionFormatEvent {
   let target = event

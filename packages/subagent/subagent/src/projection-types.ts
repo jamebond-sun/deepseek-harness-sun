@@ -1,12 +1,12 @@
 /**
- * Pure client-safe subagent projection vocabulary.
+ * 纯客户端安全的子代理投影词汇。
  *
  * @module @deepseek-ai/dsh-subagent/projection-types
  */
 
 import type { SessionId, SessionSeq } from '@deepseek-ai/dsh-session/types'
 
-/** One current direct-child discovery row materialized from parent facts. */
+/** 从父事实具现出的一条当前直接子代理发现行。 */
 export type SubagentCatalogEntry =
   & {
     readonly id: SessionId
@@ -19,67 +19,62 @@ export type SubagentCatalogEntry =
     | { readonly mode: 'unknown'; readonly label?: string }
   )
 
-/** Durable active-turn timing for one descriptor-backed child session. */
+/** 一个由描述符支撑的子 session 的持久化活跃轮次计时。 */
 export interface SubagentTimingProjection {
-  /** Milliseconds accumulated across completed turns after the child's own descriptor. */
+  /** 在子代理自身描述符之后的已完成轮次所累计的毫秒数。 */
   settledMs: number
-  /** Same-cut bounds of the currently open turn, when one has not reached `turn/end`. */
+  /** 当前开启轮次的同一切分边界，当某个轮次尚未到达 `turn/end` 时存在。 */
   active?: {
-    /** Start of the open turn. */
+    /** 已开启轮次的开始时间。 */
     since: number
-    /** Latest event time folded into this projection cut. */
+    /** 折叠进本投影切分的最新事件时间。 */
     through: number
   }
   /**
-   * Whether the latest closed turn after the child's own descriptor completed
-   * normally; absent while a turn is open or before one closes.
+   * 子代理自身描述符之后最近一个已关闭轮次是否正常完成；
+   * 当有轮次开启时或在一个轮次关闭之前则不存在。
    */
   lastTurnCompleted?: boolean
 }
 
 /**
- * Durable identity of one descriptor-backed subagent session: lifecycle mode
- * plus creation label, folded last-wins from `subagent/descriptor` events.
- * Label strength follows the descriptor schema: a continuable child always
- * carries one, a one-shot child may omit it.
+ * 一个由描述符支撑的子代理 session 的持久化身份：生命周期模式加创建标签，
+ * 从 `subagent/descriptor` 事件按后到者胜出折叠。标签强度遵循描述符模式：
+ * 可续跑子代理总是带有一个，一次性子代理可以省略。
  */
 export type SubagentIdentityProjection =
   | {
-    /** A terminal one-shot child. */
+    /** 一个终止型一次性子代理。 */
     mode: 'one-shot'
-    /** Optional durable creation label from the child's descriptor. */
+    /** 来自子代理描述符的可选持久化创建标签。 */
     label?: string
     /**
-     * Seq of the `subagent/descriptor` event this identity was folded from.
-     * `session.isOwnSeq(seq)` proves the identity comes from the child's
-     * OWN log suffix — where a descriptor is immutable once appended — and
-     * not from a fork seed's replayed ancestor descriptor.
+     * 本身份所折叠自的 `subagent/descriptor` 事件的 seq。
+     * `session.isOwnSeq(seq)` 证明该身份来自子代理自有的日志后缀 ——
+     * 描述符一旦追加即不可变 —— 而非来自 fork seed 重放的祖先描述符。
      */
     seq: SessionSeq
   }
   | {
-    /** A resumable conversation. */
+    /** 一个可恢复的对话。 */
     mode: 'continuable'
-    /** Durable creation label from the child's descriptor. */
+    /** 来自子代理描述符的持久化创建标签。 */
     label: string
-    /** Seq of the folded descriptor event; see the one-shot arm for the own-suffix proof. */
+    /** 被折叠的描述符事件的 seq；关于自有后缀的证明见一次性分支。 */
     seq: SessionSeq
   }
 
 declare module '@deepseek-ai/dsh-session-projection/types' {
   interface SessionProjectionMap {
-    /** Direct children in parent catalog event order, excluding fork-inherited facts. */
+    /** 按父目录事件顺序排列的直接子代理，排除 fork 继承来的 fact。 */
     subagentCatalog: SubagentCatalogEntry[]
-    /** Active-turn duration and latest closed-turn completion for a descriptor-backed subagent session. */
+    /** 由描述符支撑的子代理 session 的活跃轮次时长与最近已关闭轮次的完成情况。 */
     subagentTiming: SubagentTimingProjection
     /**
-     * Identity of a descriptor-backed subagent session. `null` ⟺ no valid
-     * descriptor (missing, malformed, or unrecognized-version — deliberately
-     * undistinguished). The sentinel is deliberately serializable: a
-     * value pushed over JSON transports must survive `JSON.stringify`
-     * losslessly, where an `undefined` field would be dropped and a stale
-     * identity would survive on the receiving side. The entry itself stays
-     * non-optional.
+     * 由描述符支撑的子代理 session 的身份。`null` ⟺ 没有有效描述符
+     * （缺失、畸形或版本无法识别 —— 有意不作区分）。该哨兵值有意可序列化：
+     * 通过 JSON 传输推送的值必须无损地挺过 `JSON.stringify`，而 `undefined`
+     * 字段会被丢弃，接收端会保留一个陈旧身份。条目本身保持非可选。
      */
     subagent: SubagentIdentityProjection | null
   }

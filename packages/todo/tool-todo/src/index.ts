@@ -1,7 +1,7 @@
 /**
- * Model-facing whole-list replacement. Each call appends a `todo/write` snapshot to the calling
- * agent's session; replay is last-write-wins, and UIs render from session events. A non-agent
- * caller has no owning list and is rejected. Named exports preserve loader injection metadata.
+ * 面向模型的整列表替换。每次调用都会向调用 Agent 的会话追加一条 `todo/write`
+ * 快照；重放采用后写覆盖，UI 从会话事件渲染。非 Agent 调用者没有所属列表，会被拒绝。
+ * 具名导出保留了加载器注入元数据。
  * @module @deepseek-ai/dsh-tool-todo
  */
 
@@ -11,33 +11,32 @@ import { z as zod } from 'zod'
 import type { ZodType } from 'zod'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { TodoItem } from './types.ts'
-// Type-only: resolves the required ctx.sessionProjections service declaration.
+// 仅类型：解析所需的 ctx.sessionProjections 服务声明。
 import type {} from '@deepseek-ai/dsh-session-projection'
-// The `todos` projection-key declaration lives in src/types.ts (its one home);
-// this re-export projects the type face onto the package root AND keeps the
-// module edge in the emitted index.d.ts, so aggregate programs consuming the
-// declarations still receive the SessionProjectionMap merge.
+// `todos` 投影键声明位于 src/types.ts（其唯一归属）；
+// 此再导出将类型面向投影到包根，并保留
+// 发出到 index.d.ts 中的模块边界，因此消费这些
+// 声明的聚合程序仍能收到 SessionProjectionMap 的合并。
 export type * from './types.ts'
 
 export const name = 'tool-todo'
 export const inject = ['tools', 'sessionProjections']
 
-/** The valid {@link TodoItem} statuses, as a runtime set for input narrowing. */
+/** 合法的 {@link TodoItem} 状态集合，作为运行时集合用于输入收窄。 */
 const STATUSES = ['pending', 'in_progress', 'completed'] as const
 
-/** Model-facing todo tool configuration. */
+/** 面向模型的 todo 工具配置。 */
 export interface Config {
   /**
-   * Required deployment choice for whether several todos may be `in_progress` at once. True suits
-   * agents that run work concurrently — subagents, background commands, workflow fan-out — and the
-   * description then instructs the model to mark every actively worked task. False restores the
-   * single-active discipline: the description asks for exactly one, and a call marking more is
-   * rejected.
+   * 关于是否允许多个 todo 同时处于 `in_progress` 的必填部署选择。
+   * 为 true 适用于并发执行工作的 Agent —— 子 Agent、后台命令、工作流扇出 ——
+   * 此时描述会指示模型标记每一个正在积极处理的任务。为 false 则恢复单一
+   * 活动纪律：描述要求恰好一个，标记更多的调用会被拒绝。
    */
   allowParallelInProgress: boolean
 }
 
-/** Schemastery configuration for the todo tool consumer. */
+/** todo 工具消费者的 Schemastery 配置。 */
 export const Config: z<Config> = z.object({
   allowParallelInProgress: z.boolean().required(),
 })
@@ -55,10 +54,10 @@ const DESCRIPTION_SINGLE =
 const DESCRIPTION_TAIL = 'Mark each todo `completed` as soon as it is done.'
 
 /**
- * The model-facing description for one activation. The active-status clause is the only part that
- * varies, because it is the only instruction the parallel policy changes.
- * @param allowParallel - whether several todos may be `in_progress` at once.
- * @returns the composed tool description.
+ * 一次激活时面向模型的描述。唯一变化的部分是活动状态子句，
+ * 因为它是并行策略唯一会改变的指令。
+ * @param allowParallel - 是否允许多个 todo 同时处于 `in_progress`。
+ * @returns 组合出的工具描述。
  */
 function describe(allowParallel: boolean): string {
   return DESCRIPTION_HEAD
@@ -67,15 +66,16 @@ function describe(allowParallel: boolean): string {
 }
 
 /**
- * Validate the value constraints the ParameterSchemaSpec can't express and build the canonical {@link
- * TodoItem}[]: trimmed non-empty unique content, and at most one `in_progress` item unless the
- * deployment allows parallel work. The registry has already enforced the status enum and rejected
- * unknown item keys (`additionalProperties: false` — the logged snapshot must equal what the model
- * believes it wrote, so a nested/extended item shape fails loud at the schema boundary instead of
- * silently flattening); the cast below records that guarantee.
- * @param raw - the model-supplied list, already schema-checked.
- * @param allowParallel - whether several items may be `in_progress` at once.
- * @returns the canonical list.
+ * 校验 ParameterSchemaSpec 无法表达的值约束，并构建规范的 {@link
+ * TodoItem}[]：去除首尾空白的非空唯一 content，且除非部署允许
+ * 并行工作，否则至多一个 `in_progress` 项。注册表已经强制执行
+ * 了状态枚举并拒绝了未知条目键（`additionalProperties: false` ——
+ * 记录的快照必须等于模型认为自己写入的内容，因此嵌套/扩展的
+ * 条目形状会在 schema 边界处大声失败，而不是静默扁平化）；
+ * 下面的转换记录了这一保证。
+ * @param raw - 模型提供的列表，已通过 schema 校验。
+ * @param allowParallel - 是否允许多个条目同时处于 `in_progress`。
+ * @returns 规范列表。
  */
 function toTodoList(raw: { content: string; status: string }[], allowParallel: boolean): TodoItem[] {
   const todos: TodoItem[] = []
@@ -99,7 +99,7 @@ function toTodoList(raw: { content: string; status: string }[], allowParallel: b
   return todos
 }
 
-/** Wire payload schema of the `todos` projection (whole list or pre-first-write null). */
+/** `todos` 投影的有线负载 schema（整列表，或首次写入前的 null）。 */
 const todosProjectionSchema: ZodType<TodoItem[] | null> = zod.union([
   zod.array(zod.object({
     content: zod.string(),
@@ -109,17 +109,16 @@ const todosProjectionSchema: ZodType<TodoItem[] | null> = zod.union([
 ])
 
 /**
- * Register the `todo_write` tool on `ctx.tools` and the `todos` unit on
- * `ctx.sessionProjections`.
- * @param ctx - registrant context carrying the tool and session-projection registries.
- * @param config - deployment's explicit todo policy.
+ * 在 `ctx.tools` 上注册 `todo_write` 工具，并在
+ * `ctx.sessionProjections` 上注册 `todos` 单元。
+ * @param ctx - 携带工具和会话投影注册表的注册者上下文。
+ * @param config - 部署的显式 todo 策略。
  */
 export function apply(ctx: Context, config: Config): void {
   const allowParallel = config.allowParallelInProgress
-  // Standing-plan fold: latest whole todo/write list, cleared by the next
-  // turn/start (turn/end keeps the finished checklist visible); null before the
-  // first write or after a later turn begins; every other event returns the
-  // same state reference.
+  // 常驻计划折叠：最新的整 todo/write 列表，在下一回合/开始时
+  // 清空（turn/end 保留已完成清单可见）；首次写入前或后续
+  // 回合开始后为空；所有其他事件返回相同状态引用。
   ctx.sessionProjections.register<'todos', TodoItem[] | null>({
     key: 'todos',
     stateSchema: todosProjectionSchema,
@@ -192,8 +191,8 @@ export function apply(ctx: Context, config: Config): void {
     execute(args, exec) {
       const todos = toTodoList(args.todos, allowParallel)
       if (!exec.agent) {
-        // The list is per-agent-session state; a non-agent caller (no owning
-        // session) has nowhere to write it. Reject rather than silently no-op.
+        // 列表是按 Agent 会话的状态；非 Agent 调用者（无所属
+        // 会话）无处写入。拒绝而非静默空操作。
         throw new Error('todo_write requires an owning agent session')
       }
       exec.agent.session.append('todo/write', { todos })

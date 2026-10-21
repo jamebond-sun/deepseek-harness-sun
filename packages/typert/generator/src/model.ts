@@ -1,19 +1,19 @@
 /**
- * Compiler-independent Typert analysis model. TypeScript nodes and checker
- * objects are extraction inputs only; emitters consume this graph.
+ * 与编译器无关的 Typert 分析模型。TypeScript 节点与 checker 对象只是提取输入；
+ * 发射器消费此图。
  * @module @deepseek-ai/dsh-typert-generator/model
  */
 
-/** One independently compiled side of the workspace. */
+/** workspace 中彼此独立编译的一端。 */
 export type TypertFace = 'host' | 'client'
 
-/** Stable graph-local identifier of a type expression. */
+/** 类型表达式的、图内的稳定标识符。 */
 export type TypeNodeId = string
 
-/** Stable workspace identifier of a declared symbol. */
+/** 已声明符号的、workspace 的稳定标识符。 */
 export type SymbolId = string
 
-/** Keyword types accepted in ordinary TypeScript source declarations. */
+/** 普通 TypeScript 源声明中接受的关键字类型。 */
 export type KeywordTypeName =
   | 'any'
   | 'bigint'
@@ -27,17 +27,17 @@ export type KeywordTypeName =
   | 'unknown'
   | 'void'
 
-/** Prefix operators accepted on TypeScript type nodes. */
+/** TypeScript 类型节点上接受的前缀运算符。 */
 export type TypeOperatorName = 'keyof' | 'readonly' | 'unique'
 
-/** Source position retained for diagnostics and source-edit mode. */
+/** 为诊断与源码编辑模式保留的源位置。 */
 export interface SourceLocation {
   readonly file: string
   readonly line: number
   readonly column: number
 }
 
-/** One public package export and the declaration it resolves to. */
+/** 一个公共包导出及其解析到的声明。 */
 export interface ExportModel {
   readonly subpath: string
   readonly name: string
@@ -45,7 +45,7 @@ export interface ExportModel {
   readonly aliases: readonly string[]
 }
 
-/** One structured JSDoc tag, retaining its original text for unknown tags. */
+/** 一个结构化的 JSDoc 标签，为未知标签保留其原始文本。 */
 export interface JsDocTagModel {
   readonly name: string
   readonly argument?: string
@@ -53,7 +53,7 @@ export interface JsDocTagModel {
   readonly text: string
 }
 
-/** JSDoc retained as a standard part of every documented model element. */
+/** 作为每个带文档模型元素标准组成部分保留的 JSDoc。 */
 export interface DocumentationModel {
   readonly description?: string
   readonly summary?: string
@@ -61,7 +61,7 @@ export interface DocumentationModel {
   readonly jsDoc?: string
 }
 
-/** One Cordis Context contribution. */
+/** 一个 Cordis Context 贡献。 */
 export interface ServiceModel extends DocumentationModel {
   readonly key: string
   readonly symbol: SymbolId
@@ -70,62 +70,62 @@ export interface ServiceModel extends DocumentationModel {
   readonly location: SourceLocation
 }
 
-/** One Cordis Events contribution. */
+/** 一个 Cordis Events 贡献。 */
 export interface EventModel extends DocumentationModel {
   readonly name: string
   readonly signature: TypeNodeId
-  /** Body-free declaration text retained for byte-stable source projections. */
+  /** 为字节稳定的源码投影保留的无函数体声明文本。 */
   readonly text: string
   readonly mode?: string
   readonly location: SourceLocation
 }
 
-/** One explicitly exported reference-passed object. */
+/** 一个显式导出的、引用传递的对象。 */
 export interface ObjectModel extends DocumentationModel {
   readonly export: ExportModel
   readonly symbol: SymbolId
   readonly passing: 'reference'
 }
 
-/** One explicitly selected value type for schema generation. */
+/** 一个为 schema 生成而显式选中的值类型。 */
 export interface SchemaModel extends DocumentationModel {
   readonly export: ExportModel
   readonly symbol: SymbolId
   readonly type: TypeNodeId
 }
 
-/** One public business type import retained for a generated Remote declaration. */
+/** 为一个生成的 Remote 声明保留的一个公共业务类型导入。 */
 export interface RemoteTypeImportModel {
   readonly symbol: SymbolId
   readonly specifier: string
   readonly name: string
 }
 
-/** One strict wire boundary and the public symbols needed to name it. */
+/** 一个严格的传输线边界，以及命名它所需的公共符号。 */
 export interface RemoteBoundaryModel {
-  /** Authored public type retained for generated consumer declarations. */
+  /** 为生成的消费端声明保留的、手写的公共类型。 */
   readonly type: TypeNodeId
-  /** Checker-resolved projection used only to emit the runtime codec. */
+  /** 仅用于发射运行时编解码器的、checker 解析出的投影。 */
   readonly codecType: TypeNodeId
-  /** Whether the authored top-level boundary explicitly accepts `undefined`. */
+  /** 手写的顶层边界是否显式接受 `undefined`。 */
   readonly acceptsUndefined: boolean
   readonly typeSymbol: string
   readonly imports: readonly RemoteTypeImportModel[]
 }
 
-/** One ordered business argument projected onto a Remote wire field. */
+/** 一个被投影到 Remote 传输线字段上的、有序的业务参数。 */
 export interface InvocationParameterModel {
   readonly name: string
   readonly wire: string
   readonly source: 'json' | 'lookup'
   readonly lookup?: string
-  /** Authored as an optional parameter, so consumers may omit the wire field. */
+  /** 作为可选参数手写，因此消费者可省略该传输线字段。 */
   readonly optional?: true
   readonly boundary: RemoteBoundaryModel
   readonly description?: string
 }
 
-/** One strictly analyzed Host method exported through Typert Gateway. */
+/** 一个通过 Typert Gateway 导出的、严格分析的 Host 方法。 */
 export interface InvocationModel extends DocumentationModel {
   readonly id: string
   readonly service: string
@@ -146,7 +146,7 @@ export interface InvocationModel extends DocumentationModel {
     readonly wire: string
   }
   readonly parameters: readonly InvocationParameterModel[]
-  /** Per-item boundary of the Client uplink, from the `In` type argument of `RemoteStream<Out, In>`; absent when the method reads none. */
+  /** Client 上行按项的边界，来自 `RemoteStream<Out, In>` 的 `In` 类型实参；当方法不读取时为缺省。 */
   readonly uplink?: {
     readonly boundary: RemoteBoundaryModel
   }
@@ -157,7 +157,7 @@ export interface InvocationModel extends DocumentationModel {
   readonly location: SourceLocation
 }
 
-/** Business semantics discovered in one package on one face. */
+/** 在一个包的一个端上发现的业务语义。 */
 export interface PackageModel {
   readonly name: string
   readonly root: string
@@ -169,7 +169,7 @@ export interface PackageModel {
   readonly invocations: readonly InvocationModel[]
 }
 
-/** One explicit import/re-export edge between independently compiled faces. */
+/** 独立编译的端之间的一次显式导入/再导出边。 */
 export interface CrossFaceLink {
   readonly fromFace: TypertFace
   readonly fromPackage: string
@@ -179,20 +179,20 @@ export interface CrossFaceLink {
   readonly name: string
 }
 
-/** Complete analysis result for an independently compiled face. */
+/** 一个独立编译端的完整分析结果。 */
 export interface FaceModel {
   readonly face: TypertFace
   readonly packages: readonly PackageModel[]
   readonly graph: TypeGraph
 }
 
-/** Complete host/client analysis result. */
+/** 完整的 host/client 分析结果。 */
 export interface WorkspaceModel {
   readonly faces: readonly FaceModel[]
   readonly crossFaceLinks: readonly CrossFaceLink[]
 }
 
-/** One top-level authored type declaration indexed without making it a graph root. */
+/** 一个顶层手写的类型声明，被索引但不作为图根。 */
 export interface SourceDeclarationModel {
   readonly face: TypertFace
   readonly package: string
@@ -202,10 +202,10 @@ export interface SourceDeclarationModel {
   readonly text: string
 }
 
-/** Visibility recorded on class members. */
+/** 在类成员上记录的可见性。 */
 export type MemberVisibility = 'public' | 'protected' | 'private'
 
-/** One generic type parameter, preserving its pre-evaluation constraint/default. */
+/** 一个泛型类型参数，保留其求值前的约束/默认值。 */
 export interface TypeParameterModel {
   readonly id: string
   readonly name: string
@@ -215,7 +215,7 @@ export interface TypeParameterModel {
   readonly variance?: 'in' | 'out' | 'in-out'
 }
 
-/** One function-like parameter. */
+/** 一个函数式参数。 */
 export interface ParameterModel {
   readonly name: string
   readonly binding: 'identifier' | 'object' | 'array'
@@ -226,20 +226,20 @@ export interface ParameterModel {
   readonly initializer?: string
 }
 
-/** A function/call/construct signature. */
+/** 一个函数/调用/构造签名。 */
 export interface SignatureModel {
   readonly typeParameters: readonly TypeParameterModel[]
   readonly parameters: readonly ParameterModel[]
   readonly returns: TypeNodeId
 }
 
-/** Shared flags of a class/interface/type-literal member. */
+/** 类/接口/类型字面量成员的共享标志。 */
 export interface MemberBase extends DocumentationModel {
   readonly id: string
   readonly name: string
-  /** JSON property name when a literal computed key differs from source text. */
+  /** 当字面量计算键与源文本不同时的 JSON 属性名。 */
   readonly jsonName?: string
-  /** Non-literal computed keys; symbol keys are erased from JSON schemas. */
+  /** 非字面量的计算键；symbol 键从 JSON schema 中擦除。 */
   readonly computed?: 'symbol' | 'dynamic'
   readonly optional: boolean
   readonly readonly: boolean
@@ -248,49 +248,49 @@ export interface MemberBase extends DocumentationModel {
   readonly static: boolean
   readonly visibility: MemberVisibility
   readonly location: SourceLocation
-  /** Body-free declaration text retained for byte-stable source projections. */
+  /** 为字节稳定的源码投影保留的无函数体声明文本。 */
   readonly text: string
 }
 
-/** A property member. */
+/** 一个属性成员。 */
 export interface PropertyMemberModel extends MemberBase {
   readonly kind: 'property'
   readonly type: TypeNodeId
 }
 
-/** A method member. */
+/** 一个方法成员。 */
 export interface MethodMemberModel extends MemberBase {
   readonly kind: 'method'
   readonly signature: SignatureModel
 }
 
-/** A getter or setter member. */
+/** 一个 getter 或 setter 成员。 */
 export interface AccessorMemberModel extends MemberBase {
   readonly kind: 'getter' | 'setter'
   readonly signature: SignatureModel
 }
 
-/** A call/construct/index signature in an interface or type literal. */
+/** 接口或类型字面量中的一个调用/构造/索引签名。 */
 export interface SignatureMemberModel extends MemberBase {
   readonly kind: 'call' | 'construct' | 'index'
   readonly signature: SignatureModel
 }
 
-/** One declaration or object-literal member. */
+/** 一个声明或对象字面量成员。 */
 export type MemberModel =
   | PropertyMemberModel
   | MethodMemberModel
   | AccessorMemberModel
   | SignatureMemberModel
 
-/** One enum member, retaining its developer-authored initializer. */
+/** 一个枚举成员，保留其开发者手写的初始化器。 */
 export interface EnumMemberModel extends DocumentationModel {
   readonly name: string
   readonly initializer?: string
   readonly location: SourceLocation
 }
 
-/** One authored part of a merged interface declaration. */
+/** 一个合并接口声明的一处手写部分。 */
 export interface TypeDeclarationPartModel extends DocumentationModel {
   readonly package: string
   readonly location: SourceLocation
@@ -299,7 +299,7 @@ export interface TypeDeclarationPartModel extends DocumentationModel {
   readonly members: readonly string[]
 }
 
-/** A declared interface, class, or alias. */
+/** 一个已声明的接口、类或别名。 */
 export interface TypeDeclarationModel extends DocumentationModel {
   readonly id: SymbolId
   readonly package: string
@@ -308,7 +308,7 @@ export interface TypeDeclarationModel extends DocumentationModel {
   readonly abstract: boolean
   readonly exported: boolean
   readonly location: SourceLocation
-  /** Canonical body-free declaration text retained alongside the type tree. */
+  /** 与类型树一同保留的、规范的、无函数体声明文本。 */
   readonly text: string
   readonly typeParameters: readonly TypeParameterModel[]
   readonly extends: readonly TypeNodeId[]
@@ -319,7 +319,7 @@ export interface TypeDeclarationModel extends DocumentationModel {
   readonly enumMembers?: readonly EnumMemberModel[]
 }
 
-/** Target of a named type reference. */
+/** 一个具名类型引用的目标。 */
 export type TypeTargetModel =
   | { readonly kind: 'declaration'; readonly symbol: SymbolId }
   | { readonly kind: 'type-parameter'; readonly parameter: string }
@@ -338,7 +338,7 @@ export type TypeTargetModel =
   }
   | { readonly kind: 'standard'; readonly name: string }
 
-/** One tuple element, retaining labels and optional/rest modifiers. */
+/** 一个元组元素，保留其标签与可选/rest 修饰符。 */
 export interface TupleElementModel {
   readonly name?: string
   readonly type: TypeNodeId
@@ -346,13 +346,13 @@ export interface TupleElementModel {
   readonly rest: boolean
 }
 
-/** One template-literal interpolation. */
+/** 一个模板字面量插值。 */
 export interface TemplateSpanModel {
   readonly type: TypeNodeId
   readonly text: string
 }
 
-/** Compiler-independent TypeScript type expression. */
+/** 与编译器无关的 TypeScript 类型表达式。 */
 export type TypeNodeModel = (
   | { readonly id: TypeNodeId; readonly kind: 'keyword'; readonly name: KeywordTypeName }
   | { readonly id: TypeNodeId; readonly kind: 'literal'; readonly value: string | number | bigint | boolean | null; readonly text: string }
@@ -392,14 +392,14 @@ export type TypeNodeModel = (
   | { readonly id: TypeNodeId; readonly kind: 'predicate'; readonly asserts: boolean; readonly parameter: string; readonly type?: TypeNodeId }
   | { readonly id: TypeNodeId; readonly kind: 'this' }
 ) & {
-  /** Canonical lossless JsonValue, represented without recursive tool-schema references. */
+  /** 规范的无损 JsonValue，在不使用递归工具 schema 引用的前提下表示。 */
   readonly json?: true
 }
 
 /**
- * Return the direct type-expression edges owned by one node.
- * @param node - compiler-independent type node to inspect.
- * @returns graph-local ids of its direct child type nodes.
+ * 返回一个节点所拥有的、直接指向的类型表达式边。
+ * @param node - 待检查、与编译器无关的类型节点。
+ * @returns 其直接子类型节点的、图内的 id。
  */
 export function childTypeNodeIds(node: TypeNodeModel): TypeNodeId[] {
   switch (node.kind) {
@@ -436,7 +436,7 @@ export function childTypeNodeIds(node: TypeNodeModel): TypeNodeId[] {
   }
 }
 
-/** Type declarations and expressions owned by one face. */
+/** 一个端所拥有的类型声明与表达式。 */
 export interface TypeGraph {
   readonly declarations: readonly TypeDeclarationModel[]
   readonly nodes: readonly TypeNodeModel[]

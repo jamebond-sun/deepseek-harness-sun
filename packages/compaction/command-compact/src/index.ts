@@ -1,5 +1,5 @@
 /**
- * Human-facing `/compact` command over the backend-independent compaction seam.
+ * 基于与后端无关的压缩接缝、面向用户的 `/compact` 命令。
  * @module @deepseek-ai/dsh-command-compact
  */
 
@@ -13,14 +13,14 @@ export const inject = ['commands', 'compaction']
 
 const USAGE = 'Usage: /compact (no arguments)'
 
-/** Fail loudly if a locally closed union gains an unhandled member. */
+/** 若局部封闭联合类型新增了未处理的成员，则高声失败。 */
 /* v8 ignore start -- closed-union backstop is unreachable without violating the TypeScript contract */
 function assertNever(value: never): never {
   throw new TypeError(`unknown manual compaction error code: ${String(value)}`)
 }
 /* v8 ignore stop */
 
-/** Convert expected capability failures into concise human-only outcomes. */
+/** 将预期的能力失败转换为面向用户的简洁结果。 */
 function expectedFailure(error: ManualCompactionError): CommandResult {
   switch (error.code) {
     case 'busy':
@@ -55,7 +55,7 @@ function expectedFailure(error: ManualCompactionError): CommandResult {
   }
 }
 
-/** Execute one argument-free manual compaction request. */
+/** 执行一次无参数的手动压缩请求。 */
 async function executeCompact(
   ctx: Context,
   invocation: CommandInvocation,
@@ -79,8 +79,8 @@ async function executeCompact(
 }
 
 /**
- * Register `/compact` for every composed human-command adapter.
- * @param ctx - context carrying the command registry and the compaction seam.
+ * 为每个组合而成的人工命令适配器注册 `/compact`。
+ * @param ctx - 携带命令注册表与压缩接缝的上下文。
  */
 export function apply(ctx: Context): void {
   const active = new Set<Promise<CommandResult>>()
@@ -88,15 +88,15 @@ export function apply(ctx: Context): void {
     const operation = executeCompact(ctx, invocation)
     active.add(operation)
     const retire = (): void => { active.delete(operation) }
-    // Both branches retire without rethrowing, so the derived observer promise
-    // cannot become an unhandled mirror of an expected handler rejection.
+    // 两个分支都会回收而不重新抛出，因此派生的观察者 Promise
+    // 不会成为预期处理器拒绝的未处理镜像。
     void operation.then(retire, retire)
     return operation
   }
 
   ctx.effect(function* () {
-    // Yield drain before registration: composite teardown is LIFO, so no new
-    // invocation can enter while already-started handler promises quiesce.
+    // 在注册前先产出排空操作：组合式拆卸是 LIFO 的，因此在已启动的处理器
+    // Promise 静默之前不会有新的调用进入。
     yield async () => { await Promise.allSettled(active) }
     yield ctx.commands.register({
       definitionId: CommandDefinitionId('@deepseek-ai/dsh-command-compact'),

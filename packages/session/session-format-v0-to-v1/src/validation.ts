@@ -33,9 +33,9 @@ const LEGACY_SOURCE_TYPES = new Set([
 ])
 
 /**
- * Validate the logical header shared by released v0 and v1.
- * @param header - detached logical header.
- * @param version - exact expected generation.
+ * 校验已发布 v0 与 v1 共用的逻辑头部。
+ * @param header - 已分离的逻辑头部。
+ * @param version - 精确预期的代际。
  */
 export function assertReleasedSessionFormatHeader(header: SessionFormatHeader, version: 0 | 1): void {
   const record = releasedV0Record(header, `format v${version} header`)
@@ -61,18 +61,18 @@ export function assertReleasedSessionFormatHeader(header: SessionFormatHeader, v
 }
 
 /**
- * Validate one released-v1 logical header.
- * @param header - detached logical header.
+ * 校验一个已发布的 v1 逻辑头部。
+ * @param header - 已分离的逻辑头部。
  */
 export function assertReleasedV1Header(header: SessionFormatHeader): void {
   assertReleasedSessionFormatHeader(header, 1)
 }
 
 /**
- * Restore v1 against the installed build's ordinary event vocabulary without freezing payload additions.
- * @param artifact - vocabulary-neutral released-v1 physical decode.
- * @param knownEventTypes - event types understood by the installed current Session package.
- * @returns the same validated detached artifact.
+ * 对照已安装构建的普通事件词表恢复 v1，但不冻结载荷新增项。
+ * @param artifact - 与词表无关的已发布 v1 物理解码结果。
+ * @param knownEventTypes - 已安装的当前 Session 包可理解的事件类型。
+ * @returns 同一个已校验的、已分离的制品。
  */
 export function restoreReleasedV1Artifact(
   artifact: SessionFormatArtifact,
@@ -84,12 +84,12 @@ export function restoreReleasedV1Artifact(
 }
 
 /**
- * Validate released-v0/v1 artifact coordinates under an explicit vocabulary policy.
- * @param artifact - logical artifact to validate.
- * @param allowLegacySteering - whether to accept the retired steering event name.
- * @param knownEventTypes - installed event vocabulary, when vocabulary-aware.
- * @param vocabularyNeutral - whether unknown event types remain opaque.
- * @param frozenEnvelope - whether event envelopes must already be frozen.
+ * 在显式词表策略下校验已发布 v0/v1 的制品坐标。
+ * @param artifact - 待校验的逻辑制品。
+ * @param allowLegacySteering - 是否接受已退役的 steering 事件名。
+ * @param knownEventTypes - 已安装的事件词表（在感知词表时使用）。
+ * @param vocabularyNeutral - 未知事件类型是否保持不透明。
+ * @param frozenEnvelope - 事件信封是否必须已冻结。
  */
 export function assertReleasedArtifactCoordinates(
   artifact: SessionFormatArtifact,
@@ -141,11 +141,11 @@ export function assertReleasedArtifactCoordinates(
 }
 
 /**
- * Validate shared-layout surface references for one released generation.
- * @param record - exact event envelope.
- * @param seq - event position used for earlier-reference checks.
- * @param type - surface event type used in diagnostics.
- * @param assistantSources - whether this generation admits empty Assistant chunk references.
+ * 校验某个已发布代际的共享布局表层引用。
+ * @param record - 精确的事件信封。
+ * @param seq - 用于前向引用检查的事件位置。
+ * @param type - 用于诊断的表层事件类型。
+ * @param assistantSources - 该代际是否接纳空的 Assistant 分块引用。
  */
 export function assertReleasedSurfaceMetadata(
   record: Record<string, SessionFormatJsonValue>,
@@ -182,13 +182,13 @@ export function assertReleasedSurfaceMetadata(
 }
 
 /**
- * Validate one exact known payload after legacy normalization.
- * @param event - known event to validate.
- * @param version - payload generation controlling versioned members.
+ * 在遗留规范化之后校验一个精确的已知载荷。
+ * @param event - 待校验的已知事件。
+ * @param version - 控制版本化成员的载荷代际。
  */
 export function assertReleasedEventPayload(event: SessionFormatEvent, version: 0 | 1): void {
   const disposition = RELEASED_V0_EVENT_DISPOSITIONS[event.type]
-  /* v8 ignore next -- artifact coordinate validation admits only the frozen inventory before payload validation. */
+  /* v8 ignore next -- 制品坐标校验在载荷校验之前只接纳这份冻结清单。 */
   if (disposition === undefined) {
     throw new SessionFormatUnsupportedMigrationError(
       `format v0 contains unknown historical event type ${JSON.stringify(event.type)} at seq ${event.seq}; migration refuses unknown historical events even when ignorable`,

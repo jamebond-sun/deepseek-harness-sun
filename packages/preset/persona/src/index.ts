@@ -1,15 +1,13 @@
 /**
- * A per-agent persona as a composable row.
+ * 作为可组合行存在的、per-agent 的 persona。
  *
- * `dsh-system-prompt` owns the global persona as its own config, and registers
- * that section unconditionally — so this row is **scope-only**. Mounted inside
- * an agent preset it shadows the deployment persona for that one session,
- * exactly like the per-child persona `dsh-subagent` installs; mounted globally
- * it collides with the registry's own registration and fails loud.
+ * `dsh-system-prompt` 把全局 persona 作为自身配置持有，并无条件注册该段落——
+ * 因此本行**仅限作用域内使用**。挂载在 agent 预设内部时，它会为那一个会话
+ * 遮蔽部署级 persona，正像 `dsh-subagent` 安装的 per-child persona 那样；
+ * 全局挂载则会与注册表的自身注册冲突并显式报错。
  *
- * That constraint is the reason the row exists. An agent preset cannot mount
- * the prompt registry itself, so without a row of its own a preset could
- * change an agent's tools but never its identity.
+ * 正是这一约束造就了本行。agent 预设无法挂载提示词注册表本身，
+ * 因此若没有属于自己的行，预设只能改变 agent 的工具，却永远无法改变它的身份。
  * @module @deepseek-ai/dsh-persona
  */
 
@@ -20,32 +18,32 @@ import { PERSONA_PREFIX_SECTION, PERSONA_SUFFIX_SECTION } from '@deepseek-ai/dsh
 
 export { PERSONA_PREFIX_SECTION, PERSONA_SUFFIX_SECTION }
 
-/** Cordis plugin name. */
+/** Cordis 插件名。 */
 export const name = 'persona'
 
-/** The prompt registry this row contributes to. */
+/** 本行所贡献到的提示词注册表。 */
 export const inject = ['systemPrompt']
 
-/** Plugin config: the persona text this composition contributes. */
+/** 插件配置：本组合所贡献的 persona 文本。 */
 export interface Config {
   /**
-   * Persona prose rendered as the `deployment:persona-prefix` section. A template:
-   * complete `{{…}}` groups interpolate strictly against registered prompt
-   * variables. Empty text drops the section at render, matching the registry.
+   * 渲染为 `deployment:persona-prefix` 段落的 persona 文本。这是一个模板：
+   * 完整的 `{{…}}` 分组会严格按已注册的提示词变量插值。
+   * 文本为空时渲染阶段丢弃该段落，与注册表行为一致。
    */
   prefix: string
   /**
-   * Persona suffix template rendered after first-party guidance. Omitted or empty
-   * text shadows the deployment suffix away; interpolation is strict.
+   * 渲染在第一方指引之后的 persona 后缀模板。省略或为空的文本
+   * 会把部署级后缀遮蔽掉；插值同样严格。
    */
   suffix?: string
-  /** Make the prefix the complete system prompt, suppressing the suffix and every other section. */
+  /** 让 prefix 成为完整的系统提示词，抑制后缀及所有其他段落。 */
   complete?: boolean
-  /** Suppress dynamic runtime-context snapshots for this persona's agent scope. */
+  /** 抑制该 persona 所属 agent 作用域内的动态运行时上下文快照。 */
   includeRuntimeContext?: boolean
 }
 
-/** Runtime schema for the persona row. */
+/** persona 行的运行时 schema。 */
 export const Config: z<Config> = z.object({
   prefix: z.string().required(),
   suffix: z.string().default(''),
@@ -54,10 +52,10 @@ export const Config: z<Config> = z.object({
 })
 
 /**
- * Register the persona prefix and suffix sections for the mounting context's scope.
- * @param ctx - an agent scope context; an unscoped context collides with the
- * prompt registry's own persona registration and rejects.
- * @param config - the prefix, suffix, and complete-prompt policy.
+ * 为挂载上下文所在的作用域注册 persona 前缀与后缀段落。
+ * @param ctx - agent 作用域上下文；未限定作用域的上下文会与提示词注册表
+ * 自身的 persona 注册冲突并被拒绝。
+ * @param config - 前缀、后缀以及完整提示词策略。
  */
 export function apply(ctx: Context, config: Config): void {
   ctx.effect(() => ctx.systemPrompt.section({

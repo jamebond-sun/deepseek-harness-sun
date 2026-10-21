@@ -1,4 +1,4 @@
-/** Private shell lifecycle files; ordinary output never authorizes terminal reclamation. */
+/** 私有 shell 生命周期文件；普通输出绝不会授权回收终端。 */
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
@@ -6,7 +6,7 @@ import type { SubprocessTerminalActivity, SubprocessTerminalSpawnSpec } from '@d
 
 function quote(value: string): string { return `'${value.replaceAll("'", "'\\''")}'` }
 
-/** Opt-in startup integration and revision tracking for one ordinary interactive shell. */
+/** 为一个普通交互式 shell 提供的、可选加入的启动集成与修订跟踪。 */
 export class ShellActivity {
   private revision = 0
   private observed = ''
@@ -14,13 +14,13 @@ export class ShellActivity {
   private state: SubprocessTerminalActivity['state'] = 'unknown'
 
   /**
-   * @param directory - private startup and status file directory.
-   * @param argv - shell launch preserving supported user startup files.
-   * @param env - environment with any temporary startup redirect.
+   * @param directory - 私有启动与状态文件目录。
+   * @param argv - 保留受支持用户启动文件的 shell 启动参数。
+   * @param env - 携带任何临时启动重定向的环境。
    */
   constructor(private readonly directory: string, readonly argv: readonly string[], readonly env: Record<string, string>) {}
 
-  /** Invalidate prompt evidence before delivering input or a foreground signal. */
+  /** 在投递输入或前台信号之前，使提示符证据失效。 */
   invalidate(): void {
     this.invalidated = this.read()
     this.revision++
@@ -28,9 +28,9 @@ export class ShellActivity {
   }
 
   /**
-   * Read the latest top-level shell transition, fenced against input since that transition.
-   * @param pid - original shell process id.
-   * @returns lifecycle evidence; process ownership must be checked separately.
+   * 读取最新的顶层 shell 转换，并以自该转换以来的输入作为栅栏。
+   * @param pid - 原始 shell 进程 id。
+   * @returns 生命周期证据；进程所有权必须另行检查。
    */
   inspect(pid: number): SubprocessTerminalActivity {
     const record = this.read()
@@ -41,7 +41,7 @@ export class ShellActivity {
     return { state: this.state, revision: this.revision }
   }
 
-  /** Remove private startup and status files after process quiescence. */
+  /** 在进程静默之后，移除私有启动与状态文件。 */
   dispose(): void { rmSync(this.directory, { recursive: true, force: true }) }
 
   private read(): string {
@@ -51,11 +51,11 @@ export class ShellActivity {
 }
 
 /**
- * Prepare optional Bash or Zsh integration for a plain, non-login interactive launch.
- * @param spec - terminal request; custom arguments and wrapped executables remain unmodified.
- * @param env - scrubbed target environment.
- * @param platform - execution platform.
- * @returns private integration, or undefined for unsupported launches.
+ * 为一个普通的、非登录的交互式启动准备可选的 Bash 或 Zsh 集成。
+ * @param spec - 终端请求；自定义参数与被包装的可执行文件保持不变。
+ * @param env - 已清理的目标环境。
+ * @param platform - 执行平台。
+ * @returns 私有集成；对于不支持的启动则为 undefined。
  */
 export function prepareShellActivity(
   spec: SubprocessTerminalSpawnSpec, env: Record<string, string>, platform: NodeJS.Platform,

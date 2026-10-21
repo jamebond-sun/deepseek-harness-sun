@@ -1,4 +1,4 @@
-/** Conservative compatibility checks between native RegExp validation and Unicode JSON Schema patterns. */
+/** 原生 RegExp 校验与 Unicode JSON Schema 模式之间的保守兼容性检查。 */
 
 import type { AST } from '@eslint-community/regexpp'
 
@@ -20,13 +20,13 @@ function broadSet(node: AST.Node): boolean {
 }
 
 function portableAlternative(alternative: AST.Alternative): boolean {
-  // A lone, unanchored broad set asks only whether a matching character exists.
+  // 一个孤立、未锚定的宽泛集合只询问是否存在一个匹配的字符。
   if (alternative.elements.length === 1 && alternative.elements.some(broadSet)) return true
   let broadRepetitions = 0
   const wordAssertion = alternative.elements.some(element => element.type === 'Assertion' && element.kind === 'word')
   return alternative.elements.every((element) => {
     if (element.type === 'Quantifier' && element.max === Infinity && element.min <= 1 && broadSet(element.element)) {
-      // Word assertions and multiple broad groups can observe a surrogate pair's midpoint.
+      // 单词断言与多个宽泛组可能观察到代理对的中点。
       return !wordAssertion && ++broadRepetitions === 1
     }
     return bmpOnly(element)
@@ -39,9 +39,9 @@ function signature(pattern: AST.Pattern): string {
 }
 
 /**
- * Create a checker for patterns that can retain native acceptance under Unicode regex semantics.
- * Unrecognized flagless syntax stays explicitly partial rather than becoming a misleading constraint.
- * @returns the compatibility predicate; parsing never executes the regular expression against config values.
+ * 为那些在 Unicode 正则语义下能保留原生接受度的模式创建一个检查器。
+ * 未被识别的无标志语法保持明确的“部分”状态，而非变成误导性的约束。
+ * @returns 兼容性谓词；解析绝不会对配置值执行该正则表达式。
  */
 export async function createPatternCheck(): Promise<(source: string, flags?: string) => boolean> {
   const { RegExpParser } = await import('@eslint-community/regexpp')
@@ -54,7 +54,7 @@ export async function createPatternCheck(): Promise<(source: string, flags?: str
       const native = parser.parsePattern(source, 0, source.length, { unicode: false })
       return signature(native) === signature(unicode) && native.alternatives.every(portableAlternative)
     } catch (error) {
-      // Invalid Unicode syntax cannot be emitted as a standard pattern constraint.
+      // 无效的 Unicode 语法无法作为标准模式约束发出。
       if (error instanceof SyntaxError) return false
       throw error
     }

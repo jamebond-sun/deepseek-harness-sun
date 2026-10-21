@@ -1,11 +1,11 @@
 /**
- * Shared no-shell `execFile` runner for host-native OS integrations.
+ * 面向宿主原生 OS 集成的、共享的无 shell `execFile` 运行器。
  * @module @deepseek-ai/dsh-native-command/runner
  */
 
 import { execFile } from 'node:child_process'
 
-/** Testable command boundary; native implementations never invoke a shell. */
+/** 可测试的命令边界；原生实现绝不调用 shell。 */
 export type NativeCommandRunner = (
   command: string,
   args: readonly string[],
@@ -14,13 +14,12 @@ export type NativeCommandRunner = (
 ) => Promise<{ stdout: string; stderr: string }>
 
 /**
- * Run a host command with utf8 stdio, abort propagation, and explicit GUI visibility.
- * @param command - executable path or PATH name.
- * @param args - argv (never a shell string).
- * @param signal - caller/connection lifetime; abort terminates the child.
- * @param window - Windows startup visibility: `hidden` for background commands,
- * `visible` for GUI launchers. Ignored on other platforms.
- * @returns captured stdout/stderr on exit 0.
+ * 以 utf8 stdio、abort 传播，以及显式 GUI 可见性运行一个宿主命令。
+ * @param command - 可执行文件路径或 PATH 名称。
+ * @param args - argv（绝不为 shell 字符串）。
+ * @param signal - 调用方/连接生命周期；abort 会终止子进程。
+ * @param window - Windows 启动可见性：`hidden` 用于后台命令，`visible` 用于 GUI 启动器。其他平台忽略。
+ * @returns 退出码 0 时捕获的 stdout/stderr。
  */
 export const runNativeCommand: NativeCommandRunner = (command, args, signal, window) =>
   new Promise((resolve, reject) => {

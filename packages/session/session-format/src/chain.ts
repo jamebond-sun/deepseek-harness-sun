@@ -17,9 +17,9 @@ import type {
 } from './types.ts'
 
 /**
- * Validate and freeze one adjacent migration declaration.
- * @param migration - named exact adjacent conversion.
- * @returns immutable validated declaration.
+ * 校验并冻结一个相邻迁移声明。
+ * @param migration - 具名的精确相邻转换。
+ * @returns 不可变的、已校验的声明。
  */
 export function defineSessionFormatMigration(migration: SessionFormatMigration): SessionFormatMigration {
   if (typeof migration.name !== 'string' || migration.name.length === 0) {
@@ -34,9 +34,9 @@ export function defineSessionFormatMigration(migration: SessionFormatMigration):
 }
 
 /**
- * Compile a unique, complete adjacent migration chain.
- * @param options - current version, adjacent declarations, and current restorer.
- * @returns immutable planner and streaming migration compiler.
+ * 编译一条唯一且完整的相邻迁移链。
+ * @param options - 当前版本、相邻声明集合与当前恢复器。
+ * @returns 不可变的规划器与流式迁移编译器。
  */
 export function createSessionFormatChain(options: SessionFormatChainOptions): SessionFormatChain {
   return new CompiledSessionFormatChain(options)

@@ -1,4 +1,4 @@
-/** Account route configuration: Messages settings, the model-listing endpoint, and per-model overrides. */
+/** 账号路由配置：Messages 设置、模型清单端点，以及按模型的覆盖项。 */
 import type { Volatile } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { isVolatile } from '@deepseek-ai/cosmokit'
@@ -7,24 +7,24 @@ import type { LaunchEnvironmentSnapshot } from '@deepseek-ai/dsh-launch-environm
 import { catalogModelFields, deepSeekConfigFields, resolveAdapterOptions } from '@deepseek-ai/dsh-llm-deepseek'
 import type { Config as ProtocolConfig, DeepSeekCatalogModel, Options as ProtocolOptions, ResolvedDeepSeekOptions } from '@deepseek-ai/dsh-llm-deepseek'
 
-/** Default deadline of one model-listing request and of a first-use wait. */
+/** 一次模型清单请求、以及首次使用等待的默认截止时间。 */
 export const DEFAULT_MODELS_TIMEOUT_MS = 5_000
-/** Default listing age after which the next access refreshes it in the background. */
+/** 默认的清单时效；超过该时效后，下一次访问会在后台刷新它。 */
 export const DEFAULT_MODELS_MAX_AGE_MS = 600_000
 
-/** Field overrides for one model; unset fields and empty lists inherit the underlying entry. */
+/** 一个模型的字段覆盖项；未设置的字段与空列表都继承底层条目。 */
 export type ModelOverride = Omit<DeepSeekCatalogModel, 'id'>
 
-/** Account route configuration; authentication comes exclusively from the account service. */
+/** 账号路由配置；认证信息仅来自账号服务。 */
 export interface Config extends Omit<ProtocolConfig, 'models'> {
-  /** Deadline of one listing request, which also bounds a first-use wait (default five seconds). */
+  /** 一次清单请求的截止时间，它同时约束首次使用的等待（默认五秒）。 */
   modelsTimeoutMs: Volatile<number>
   /**
-   * Listing age after which the next access refreshes it in the background;
-   * a failed load retries after the same age (default ten minutes).
+   * 清单时效；超过该时效后，下一次访问会在后台刷新它；
+   * 加载失败后会在同样的时效之后重试（默认十分钟）。
    */
   modelsMaxAgeMs: Volatile<number>
-  /** Field overrides by model id, layered over the account listing and the built-in catalog. */
+  /** 按模型 id 组织的字段覆盖项，叠加在账号清单与内置目录之上。 */
   modelOverrides: Volatile<Record<string, ModelOverride>>
 }
 
@@ -32,7 +32,7 @@ const { models: _protocolCatalog, ...protocolFields } = deepSeekConfigFields
 
 const modelOverride: z<ModelOverride> = z.object({
   ...catalogModelFields,
-  // No default, unlike a models entry: an absent list materializes as [], which reads as inherited.
+  // 与 models 条目不同，这里没有默认值：缺失的列表会物化为 []，其语义为继承。
   inputModalities: z.array(z.union(['text', 'image'] as const)),
 })
 
@@ -43,48 +43,48 @@ export const Config = z.object({
   modelOverrides: z.dict(modelOverride).default({}).volatile(),
 })
 
-/** Plain account options accepted by {@link resolveAccountOptions}. */
+/** {@link resolveAccountOptions} 接受的纯账号选项。 */
 export type AccountOptions = Omit<ProtocolOptions, 'models'> & {
   modelsTimeoutMs?: number
   modelsMaxAgeMs?: number
   modelOverrides?: Record<string, ModelOverride>
 }
 
-/** Model-listing endpoint and cache timing of one configuration generation. */
+/** 一次配置快照的模型清单端点与缓存时序。 */
 export interface CatalogSettings {
-  /** Listing endpoint; it always shares the Messages origin. */
+  /** 清单端点；它始终与 Messages 同源。 */
   readonly url: string
-  /** Deadline of one listing request. */
+  /** 一次清单请求的截止时间。 */
   readonly timeoutMs: number
-  /** Listing age after which the next access refreshes it. */
+  /** 清单时效；超过该时效后会刷新它。 */
   readonly maxAgeMs: number
 }
 
-/** One validated configuration generation of the account route. */
+/** 账号路由的一次已校验配置快照。 */
 export interface ResolvedAccountOptions {
-  /** Messages settings; request resolution replaces `models` with the resolved account catalog. */
+  /** Messages 设置；请求解析会把 `models` 替换为已解析的账号目录。 */
   readonly protocol: ResolvedDeepSeekOptions
-  /** Listing endpoint and cache timing. */
+  /** 清单端点与缓存时序。 */
   readonly catalog: CatalogSettings
-  /** Overrides by model id, holding only the fields each one declares. */
+  /** 按模型 id 组织的覆盖项，只保存各自声明的字段。 */
   readonly modelOverrides: Readonly<Record<string, ModelOverride>>
 }
 
 /**
- * Read the current value behind every reference of a validated Config.
- * @param config - parsed plugin Config.
- * @returns plain options for {@link resolveAccountOptions}.
+ * 读取一份已校验 Config 中每个引用背后的当前值。
+ * @param config - 已解析的插件 Config。
+ * @returns 供 {@link resolveAccountOptions} 使用的纯选项。
  */
 export function plainAccountOptions(config: Config): AccountOptions {
   return Object.fromEntries(Object.entries(config).map(([key, value]) => [key, isVolatile(value) ? value.get() : value]))
 }
 
-/** The listing endpoint: `/models` at the Messages origin, the only origin that receives the account token. */
+/** 清单端点：Messages 源上的 `/models`，即唯一会收到账号令牌的源。 */
 function listingEndpoint(baseURL: string): string {
   return new URL('/models', new URL(baseURL).origin).href
 }
 
-/** Keep an override's declared fields: parsed configuration carries unset fields as `undefined` and unset arrays as `[]`. */
+/** 只保留覆盖项声明过的字段：解析后的配置把未设置的字段表示为 `undefined`，未设置的数组表示为 `[]`。 */
 function resolveOverride(id: string, override: Readonly<Record<string, unknown>>): ModelOverride {
   if (id.length === 0) throw new Error('llm-deepseek-account: modelOverrides keys must be non-empty model ids')
   if (Object.hasOwn(override, 'id')) throw new Error(`llm-deepseek-account: modelOverrides.${id} sets "id", which is its key`)
@@ -94,8 +94,8 @@ function resolveOverride(id: string, override: Readonly<Record<string, unknown>>
     Reflect.set(declared, key, value)
   }
   try {
-    // Cross-field rules also involve the entry an override meets once a listing loads,
-    // so an image-capable stand-in checks each declared field here.
+    // 跨字段规则还涉及覆盖项在清单加载之后所遇到的条目，
+    // 因此这里用一个支持图像的替身来校验每个已声明的字段。
     resolveAdapterOptions({ models: [{ inputModalities: ['text', 'image'], ...declared, id }] })
   } catch (error) {
     throw new Error(`llm-deepseek-account: modelOverrides.${id} is invalid: ${String(error)}`, { cause: error })
@@ -104,11 +104,11 @@ function resolveOverride(id: string, override: Readonly<Record<string, unknown>>
 }
 
 /**
- * The one explicit resolve step from raw account settings to validated facts.
- * Settings updates can reach it without schema validation, so every bound is judged here.
- * @param options - plain account options.
- * @param environment - this run's environment layers, or `undefined` outside the product CLI.
- * @returns Messages settings, listing settings, and validated overrides.
+ * 从原始账号设置到已校验事实的唯一显式解析步骤。
+ * 设置更新可以不经过 schema 校验就到达这里，因此每个边界都在此判定。
+ * @param options - 纯账号选项。
+ * @param environment - 本次运行的环境层；在产品 CLI 之外为 `undefined`。
+ * @returns Messages 设置、清单设置，以及已校验的覆盖项。
  */
 export function resolveAccountOptions(options: AccountOptions, environment?: LaunchEnvironmentSnapshot): ResolvedAccountOptions {
   if (Object.hasOwn(options, 'models')) {

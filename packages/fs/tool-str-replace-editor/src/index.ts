@@ -1,5 +1,5 @@
 /**
- * Model-facing `str_replace_editor` over the Harness filesystem seam.
+ * 建立在 Harness 文件系统接缝之上、面向模型的 `str_replace_editor`。
  * @module @deepseek-ai/dsh-tool-str-replace-editor
  */
 
@@ -423,7 +423,7 @@ function presentEditorCall(args: {
   }
 }
 
-/** Register the model-facing `str_replace_editor` tool. */
+/** 注册面向模型的 `str_replace_editor` 工具。 */
 function registerStrReplaceEditor(ctx: Context, config: ResolvedConfig): void {
   const policy = new MutationPolicy(ctx)
   ctx.tools.register(defineTool({
@@ -502,21 +502,21 @@ function registerStrReplaceEditor(ctx: Context, config: ResolvedConfig): void {
 export const name = 'tool-str-replace-editor'
 export const inject = ['tools', 'fs']
 
-/** Configuration for the string-replacement editor tool. */
+/** 字符串替换编辑工具的配置。 */
 export interface Config {
-  /** Maximum returned view characters before clipping (default 16000). */
+  /** 视图在被裁剪之前返回的最大字符数（默认 16000）。 */
   maxOutputChars?: number
-  /** Model-facing tool description. */
+  /** 面向模型的工具描述。 */
   description?: string
 }
 
-/** Runtime configuration schema for the string-replacement editor tool. */
+/** 字符串替换编辑工具的运行时配置模式。 */
 export const Config: z<Config> = z.object({
   maxOutputChars: z.number().default(16_000),
   description: z.string().default(DEFAULT_DESCRIPTION),
 })
 
-/** Register one `str_replace_editor` tool over `ctx.fs`. */
+/** 在 `ctx.fs` 之上注册一个 `str_replace_editor` 工具。 */
 export function apply(ctx: Context, config: Config): void {
   const resolved: ResolvedConfig = {
     maxOutputChars: config.maxOutputChars ?? 16_000,

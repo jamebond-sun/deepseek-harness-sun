@@ -1,5 +1,5 @@
 /**
- * Session-visible workspace instruction state and dynamic reconciliation.
+ * 会话可见的、工作区指令状态与动态对账。
  *
  * @module @deepseek-ai/dsh-agent-instructions/state
  */
@@ -36,7 +36,7 @@ import {
 
 export const name = 'agent-instructions'
 
-/** Durable producer, file, and reconciliation facts for one workspace context. */
+/** 一个工作区上下文的持久化生产者、文件与对账事实。 */
 export interface AgentInstructionSource {
   kind: 'agent-instructions'
   /** Every workspace context carries instructions read out of a file (the `instructions` context form). */
@@ -54,29 +54,29 @@ declare module '@deepseek-ai/dsh-llm' {
   }
 }
 
-/** Per-scope metadata cache; instruction prose is deliberately not retained. */
+/** 按作用域的元数据缓存；指令正文被有意地不保留。 */
 export interface InstructionVersionState {
   path: string
   version: FsVersion
   digest: string
   /**
-   * Trimmed-content identity ({@link trimmedInstructionDigest}) used to suppress
-   * candidate-group duplicates on the metadata fast path without re-reading a sibling.
+   * 裁剪内容的标识（{@link trimmedInstructionDigest}），用于在元数据快速路径上
+   * 抑制候选组的重复项，而无需重新读取兄弟文件。
    */
   trimmedDigest: string
 }
 
-/** Session-isolated fast-path state keyed by logical instruction scope. */
+/** 以逻辑指令作用域为键、会话隔离的快速路径状态。 */
 export type InstructionVersionCache = WeakMap<Session, Map<string, InstructionVersionState>>
 
-/** A metadata-cache transition associated with one rendered instruction change. */
+/** 与一次已渲染指令变更相关联的元数据缓存转场。 */
 export interface InstructionVersionUpdate {
   change: AgentInstructionChange
-  /** A duplicate-removal notice can retain metadata for its still-present file. */
+  /** 重复的移除提示可以为它仍在的文件保留元数据。 */
   state?: InstructionVersionState
 }
 
-/** Rendered reconciliation plus its metadata-cache transitions. */
+/** 已渲染的对账结果，及其元数据缓存转场。 */
 export interface ReconciledInstructionContext {
   context: UserMessage
   versionUpdates: InstructionVersionUpdate[]
@@ -90,9 +90,9 @@ function agentInstructionsHook(text: string, changes: AgentInstructionChange[]):
 }
 
 /**
- * Build the user-role message for a rendered baseline.
- * @param text - complete plugin-owned system-reminder text.
- * @returns a user-role prefix message.
+ * 为已渲染的基线构建 user 角色消息。
+ * @param text - 由插件拥有的、完整的 system-reminder 文本。
+ * @returns 一个 user 角色前缀消息。
  */
 export function agentInstructionsMessage(text: string): Message {
   return createUserMessage({
@@ -143,7 +143,7 @@ function visibleInstructionChanges(
 ): Map<string, AgentInstructionChange> {
   const visible = new Map<string, AgentInstructionChange>()
   for (const seq of agent.session.surface.nodes) {
-    // oxlint-disable-next-line typescript/no-deprecated -- Existing Session history read; migration deferred.
+    // oxlint-disable-next-line typescript/no-deprecated -- 既有 Session 历史读取；迁移暂缓。
     const event = agent.session.eventAt(seq)
     if (event?.type !== 'user/message' || !isAgentInstructionsSource(event.data.source)) continue
     const changes = workspaceInstructionChanges(event.data.source)
@@ -161,9 +161,9 @@ function visibleInstructionChanges(
 }
 
 /**
- * Convert retained baseline files into comparison and metadata-cache state.
- * @param files - baseline files that survived rendering.
- * @returns latest baseline changes and provider versions keyed by logical scope.
+ * 将保留的基线文件转换为比较与元数据缓存状态。
+ * @param files - 通过渲染、得以保留的基线文件。
+ * @returns 最新的基线变更，以及以逻辑作用域为键的提供方版本。
  */
 export function baselineInstructionState(files: LoadedInstructionFile[]): {
   changes: Map<string, AgentInstructionChange>
@@ -202,10 +202,10 @@ function versionStatesFor(session: Session, cache: InstructionVersionCache): Map
 }
 
 /**
- * Keep only cache updates represented by rendered changes.
- * @param updates - proposed updates from one or more reconciliations.
- * @param renderedChanges - transitions retained by the renderer.
- * @returns updates represented by an exact retained transition.
+ * 仅保留被渲染变更所代表的缓存更新。
+ * @param updates - 来自一次或多次对账的提议更新。
+ * @param renderedChanges - 渲染器所保留的转场。
+ * @returns 由某次确切保留转场所代表的更新。
  */
 export function retainedInstructionVersionUpdates(
   updates: readonly InstructionVersionUpdate[],
@@ -215,10 +215,10 @@ export function retainedInstructionVersionUpdates(
 }
 
 /**
- * Apply metadata-cache transitions without retaining instruction prose.
- * @param session - owning session.
- * @param updates - ordered set/delete transitions.
- * @param cache - session-isolated metadata cache.
+ * 在不保留指令正文的情况下应用元数据缓存转场。
+ * @param session - 拥有该缓存的会话。
+ * @param updates - 有序的 set/delete 转场。
+ * @param cache - 会话隔离的元数据缓存。
  */
 export function applyInstructionVersionUpdates(
   session: Session,
@@ -240,13 +240,13 @@ function relativeScope(projectRoot: string, dir: string): string {
 }
 
 /**
- * Compare visible state with provider-visible files and render transitions.
- * @param agent - session owner whose visible surface supplies durable state.
- * @param resolved - normalized plugin configuration.
- * @param versionCache - per-session scope metadata used to skip unchanged reads.
- * @param fileSystem - provider used for current file probes.
- * @param options - authoritative claimed context, pending scope hints, touched paths, and baseline participation.
- * @returns rendered context plus deferred cache updates, or undefined when unchanged/unavailable.
+ * 将可见状态与提供方可见的文件进行比较，并渲染转场。
+ * @param agent - 其可见表层提供持久化状态的会话拥有者。
+ * @param resolved - 归一化后的插件配置。
+ * @param versionCache - 按会话的作用域元数据，用于跳过未变更的读取。
+ * @param fileSystem - 用于当前文件探测的提供方。
+ * @param options - 权威的已认领上下文、待定作用域提示、被触及路径，以及基线参与情况。
+ * @returns 渲染后的上下文及被推迟的缓存更新；当未变更或不可用时为 undefined。
  */
 export async function reconcileInstructionContext(
   agent: Agent,
@@ -267,8 +267,8 @@ export async function reconcileInstructionContext(
   const session = agent.session
   const effective = visibleInstructionChanges(agent, options.authorityMessages)
   const cwd = options.cwd
-  // TODO(frozen-project-root): retain the baseline root for the loop instance;
-  // recomputing it after marker edits reinterprets the existing relative scope keys.
+  // TODO(frozen-project-root): 为循环实例保留基线根目录；
+  // 在标记编辑之后重新计算它会重新解释既有的相对作用域键。
   const projectRoot = options.projectRoot
     ?? await findProjectRoot(cwd, resolved.projectRootMarkers, fileSystem, options.signal)
   const scopes = new Set<string>()
@@ -305,10 +305,9 @@ export async function reconcileInstructionContext(
 
   const versions = versionStatesFor(session, versionCache)
   const seenAbsolutePaths = new Set<string>()
-  // Per-group trimmed-content identities kept so far this pass, iterated in
-  // candidate order (base before local, harness home before shared agents root);
-  // a later candidate matching an earlier one is a duplicate and is dropped or
-  // removed rather than rendered twice.
+  // 本次遍历到目前为止、按组保留的裁剪内容标识，按候选顺序迭代
+  // （基础先于本地，harness 主目录先于共享 agents 根目录）；
+  // 一个与更早候选匹配的后续候选属于重复项，会被丢弃或移除，而非渲染两次。
   const keptTrimmedByGroup = new Map<string, Set<string>>()
   const hasKeptTrimmed = (group: string, digest: string): boolean => keptTrimmedByGroup.get(group)?.has(digest) ?? false
   const registerKeptTrimmed = (group: string, digest: string): boolean => {
@@ -352,8 +351,8 @@ export async function reconcileInstructionContext(
     const itemStart = items.length
     const versionUpdateStart = versionUpdates.length
     const priorVersions = new Map(probedScopes.map(scope => [scope, versions.get(scope)]))
-    // Metadata and content availability apply to the whole deduplicated group,
-    // including hidden candidates that may become visible after a sibling edit.
+    // 元数据与内容可用性适用于整个去重组，
+    // 包括可能在兄弟文件编辑之后变为可见的隐藏候选。
     const rollbackGroup = (): void => {
       items.splice(itemStart)
       versionUpdates.splice(versionUpdateStart)
@@ -393,13 +392,13 @@ export async function reconcileInstructionContext(
           && previous.path === cached.path
           && previous.digest === cached.digest
         if (rendered) {
-          // Unchanged and previously rendered: keep it, but an earlier group member
-          // that now matches its trimmed content makes this the duplicate to remove.
+          // 未变更且此前已渲染：保留它，但一个现在与其裁剪内容匹配的、更早的
+          // 组成员，会使它成为需要被移除的重复项。
           if (registerKeptTrimmed(group, cached.trimmedDigest)) pushRemoval(scope, previous.path, cached)
           continue
         }
-        // Hidden duplicates include files removed from visible state after
-        // becoming duplicates. Only promotion requires another content read.
+        // 隐藏的重复项包括成为重复项之后、从可见状态中被移除的文件。
+        // 只有提升才需要另一次内容读取。
         if ((previous === undefined || previous.action === 'remove')
           && hasKeptTrimmed(group, cached.trimmedDigest)) continue
       }
@@ -418,9 +417,9 @@ export async function reconcileInstructionContext(
         trimmedDigest,
       }
       if (registerKeptTrimmed(group, trimmedDigest)) {
-        // A distinct file whose trimmed content already appeared earlier in this
-        // group: drop it, removing any copy that was previously rendered, and keep
-        // its metadata so the next pass decides without reading it again.
+        // 一个其裁剪内容已在本组更早起出现的、不同的文件：丢弃它，
+        // 移除任何此前已渲染的副本，并保留其元数据，
+        // 以便下一遍无需再次读取即可判定。
         if (previous !== undefined && previous.action !== 'remove') {
           pushRemoval(scope, previous.path, nextVersion)
         } else {
@@ -445,9 +444,9 @@ export async function reconcileInstructionContext(
   }
   if (items.length === 0) return undefined
   const rendered = renderInstructionChanges(items, resolved.maxBytes)
-  // When no transition survived rendering (tiny budgets render notice-only
-  // text), emit nothing and commit nothing — the uncommitted versions make the
-  // next pass retry instead of spamming notice-only contexts.
+  // 当没有任何转场在渲染中存活（极小预算只会渲染纯提示文本）时，
+  // 既不发出也不提交任何内容——未提交的版本会使下一遍重试，
+  // 而非反复刷出纯提示的上下文。
   if (rendered.text.length === 0 || rendered.changes.length === 0) return undefined
   return {
     context: agentInstructionsHook(rendered.text, rendered.changes),

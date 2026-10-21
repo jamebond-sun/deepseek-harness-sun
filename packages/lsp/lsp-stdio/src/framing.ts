@@ -1,20 +1,20 @@
 /**
- * LSP base-protocol framing: `Content-Length`-delimited JSON-RPC over a byte stream. The encoder
- * produces one framed buffer; the decoder buffers incoming bytes and yields complete message bodies,
- * bounding the header and total message size so a hostile or broken server cannot exhaust memory.
+ * LSP 基础协议分帧：基于 `Content-Length` 分隔、跑在字节流上的 JSON-RPC。编码器产出一个
+ * 分帧后的缓冲区；解码器缓冲收到的字节并产出完整的消息体，同时限制头部与整条消息的大小，
+ * 使恶意或损坏的服务端无法耗尽内存。
  * @module @deepseek-ai/dsh-lsp-stdio/framing
  */
 
-/** The header/body separator in the LSP base protocol. */
+/** LSP 基础协议中的头部/正文分隔符。 */
 const HEADER_SEPARATOR = '\r\n\r\n'
 
-/** Cap on the header section so a server that never sends the separator cannot grow the buffer forever. */
+/** 头部区块的上限，防止一个永不发送分隔符的服务端让缓冲区无限增长。 */
 const MAX_HEADER_BYTES = 1 << 16
 
 /**
- * Encode one JSON-RPC message as a framed LSP buffer (`Content-Length: N\r\n\r\n<utf-8 json>`).
- * @param message - the JSON-RPC message object to serialize.
- * @returns the framed bytes ready to write to the server's stdin.
+ * 把一条 JSON-RPC 消息编码为分帧后的 LSP 缓冲区（`Content-Length: N\r\n\r\n<utf-8 json>`）。
+ * @param message - 要序列化的 JSON-RPC 消息对象。
+ * @returns 可直接写入服务端 stdin 的分帧字节。
  */
 export function encodeMessage(message: unknown): Buffer {
   const body = Buffer.from(JSON.stringify(message), 'utf8')
@@ -23,26 +23,26 @@ export function encodeMessage(message: unknown): Buffer {
 }
 
 /**
- * A streaming decoder for `Content-Length`-framed JSON-RPC. Feed it stdout chunks; it returns any
- * whole message bodies that completed. It parses only the `Content-Length` header and ignores other
- * headers (e.g. `Content-Type`), matching the base protocol.
+ * `Content-Length` 分帧 JSON-RPC 的流式解码器。把 stdout 分片喂给它；它返回已完整的
+ * 整条消息体。它只解析 `Content-Length` 头部并忽略其他头部（如 `Content-Type`），
+ * 与基础协议一致。
  */
 export class MessageDecoder {
   private buffer: Buffer = Buffer.alloc(0)
   private readonly maxMessageBytes: number
 
   /**
-   * @param maxMessageBytes - reject any single framed body larger than this (guards memory).
+   * @param maxMessageBytes - 拒绝任何大于该值的单条分帧消息体（保护内存）。
    */
   constructor(maxMessageBytes: number) {
     this.maxMessageBytes = maxMessageBytes
   }
 
   /**
-   * Append a chunk and return every message body that is now complete.
-   * @param chunk - raw bytes from the server's stdout.
-   * @returns the parsed JSON bodies, in arrival order (possibly empty).
-   * @throws Error when a header is malformed or a body exceeds `maxMessageBytes`.
+   * 追加一个分片，返回此刻已完整的所有消息体。
+   * @param chunk - 来自服务端 stdout 的原始字节。
+   * @returns 解析出的 JSON 消息体，按到达顺序（可能为空）。
+   * @throws Error 当头部格式错误或消息体超过 `maxMessageBytes` 时。
    */
   push(chunk: Buffer): unknown[] {
     this.buffer = this.buffer.length === 0 ? chunk : Buffer.concat([this.buffer, chunk])
@@ -55,7 +55,7 @@ export class MessageDecoder {
     return messages
   }
 
-  /** Parse and consume the next complete message, or report that more bytes are needed. */
+  /** 解析并消费下一条完整消息，或报告还需要更多字节。 */
   private next(): { ready: false } | { ready: true; message: unknown } {
     const separator = this.buffer.indexOf(HEADER_SEPARATOR)
     if (separator < 0) {
@@ -80,13 +80,13 @@ export class MessageDecoder {
     try {
       return { ready: true, message: JSON.parse(body) }
     } catch (error) {
-      /* v8 ignore next -- JSON.parse throws a SyntaxError (an Error); the String() fallback is defensive. */
+      /* v8 ignore next -- JSON.parse 抛出的 SyntaxError 本身是 Error；String() 回退只是兜底。 */
       throw new Error(`LSP message body was not valid JSON: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
 }
 
-/** Read the `Content-Length` header value (case-insensitive), rejecting a missing or non-numeric one. */
+/** 读取 `Content-Length` 头部值（大小写不敏感），缺失或非数字时报错。 */
 function parseContentLength(headerText: string): number {
   for (const line of headerText.split('\r\n')) {
     const colon = line.indexOf(':')

@@ -1,4 +1,4 @@
-/** Streaming system-prompt promotion followed by canonical V3 envelope conversion. */
+/** 流式系统提示提升，随后进行规范化 V3 信封转换。 */
 
 import { createHash } from 'node:crypto'
 import { SessionFormatError, SessionFormatUnsupportedMigrationError, defineSessionFormatMigration, sessionFormatCount } from '@deepseek-ai/dsh-session-format'
@@ -8,7 +8,7 @@ import { assertEvent, canonicalizeTransformedEvent, record, SURFACE_TYPES } from
 import { remapEvent } from './references.ts'
 import { assertReleasedV3Header } from './validation.ts'
 
-/** Promote system prompts, remap audited references, and canonicalize envelopes and PTC vocabulary. */
+/** 提升系统提示、重映射经审计的引用，并规范化信封与 PTC 词表。 */
 export const sessionFormatV2ToV3 = defineSessionFormatMigration({
   name: '@deepseek-ai/dsh-session-format-v2-to-v3',
   fromVersion: 2,
@@ -98,7 +98,7 @@ class ReleasedV2ToV3Stage implements SessionFormatMigrationStage {
       : event.type === 'assistant/message' || event.type === 'tool/result' ? [record(data['message'], 'message')]
         : event.type === 'agent/inbox/spliced' ? data['inserted']
           : event.type === 'session/title-llm-request' ? data['messages'] : []
-    // assertEvent validates every owned message before identity observation.
+    // assertEvent 在身份观察之前校验每一个已拥有的消息。
     for (const message of messages as readonly SessionFormatJsonObject[]) {
       const id = message['id'] as string
       if (this.generatedIds.has(id)) throw new SessionFormatUnsupportedMigrationError('source message id collides with a generated system message id')
@@ -136,7 +136,7 @@ class ReleasedV2ToV3Stage implements SessionFormatMigrationStage {
   }
 }
 
-/** Source admission precedes renaming, so these payloads have exact audited fields. */
+/** 源接纳先于重命名，因此这些载荷具有经过审计的精确字段。 */
 function renamePtcEvent(event: SessionFormatEvent): SessionFormatEvent {
   switch (event.type) {
     case 'agent-preset/selected':
@@ -161,7 +161,7 @@ function renamePtcEvent(event: SessionFormatEvent): SessionFormatEvent {
         : { ...event, data: { ...data, [key]: renamed } }
     }
     default:
-      // Content, tool arguments, message IDs, and other payloads are not plugin attribution slots.
+      // content、工具参数、消息 ID 以及其他载荷都不是插件归属槽位。
       return event
   }
 }

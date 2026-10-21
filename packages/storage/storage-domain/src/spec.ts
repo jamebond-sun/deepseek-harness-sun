@@ -1,108 +1,91 @@
 /**
- * Domain declaration vocabulary. A spec object is the single source of a
- * domain's identity, layout, and record schemas: the owning package defines
- * it once with {@link defineDomain} and both the type surface and the runtime
- * (validation, descriptor projection) derive from it. Record schemas are zod
- * (`z.infer` keeps types un-duplicated and the same schemas later project to
- * RPC wire schemas); plugin `Config` stays schemastery.
+ * 领域声明概念词汇。一个 spec 对象是领域身份、布局与记录 schema 的唯一来源：所属包用 {@link defineDomain} 声明一次，
+ * 类型面与运行时（校验、descriptor 投影）都从中派生。记录 schema 使用 zod
+ * （`z.infer` 避免类型重复，且同样的 schema 后续会投影到 RPC 线上 schema）；插件 `Config` 仍使用 schemastery。
  * @module @deepseek-ai/dsh-storage-domain/src/spec
  */
 
 import type { ZodType } from 'zod'
 import { UNIT_NAME_RE, type KvUnitDescriptor } from '@deepseek-ai/dsh-storage'
 
-/** Global singleton declaration: schema plus the value used before the first write. */
+/** 全局单例声明：schema 外加首次写入前使用的值。 */
 export interface DomainGlobalSpec<G> {
-  /** Validates the stored global at the durable boundary. */
+  /** 在持久化边界校验已存储的全局值。 */
   readonly schema: ZodType<G>
-  /** Value served when the medium holds no global yet; not written until the first `set`. */
+  /** 介质尚未持有全局值时服务的值；在首个 `set` 之前不写入。 */
   readonly initial: G
 }
 
 /**
- * One table declaration. `K` is a phantom key type (typically a branded
- * string) carried for compile-time projection only; keys are plain strings on
- * the medium.
+ * 一个表声明。`K` 是为编译期投影而携带的幽灵键类型（通常为 branded string）；
+ * 在介质上键是普通字符串。
  */
 export interface DomainTableSpec<K extends string = string, V = unknown> {
-  /** Validates every stored record at the durable boundary. */
+  /** 在持久化边界校验每条已存储记录。 */
   readonly valueSchema: ZodType<V>
-  /** Phantom carrier for the key type; never present at runtime. */
+  /** 键类型的幽灵载体；运行时从不出现。 */
   readonly __key?: K
 }
 
-/** Static declaration of one domain: identity, version, and record layout. */
+/** 一个领域的静态声明：身份、版本与记录布局。 */
 export interface DomainSpec {
-  /** Domain name; must match `UNIT_NAME_RE` (doubles as the backend unit name). */
+  /** 领域名；必须与 `UNIT_NAME_RE` 匹配（同时作为后端单元名）。 */
   readonly name: string
-  /** Current domain format version; reads enforce it according to the selected layout. */
+  /** 当前领域格式版本；读取按所选布局强制其约束。 */
   readonly version: number
   /**
-   * Medium layout for the backend unit: `single` (the default) stores the
-   * whole unit as one document; `per-record` stores each record as its own
-   * document, for units whose records are large, sparse, or individually
-   * disposable — the projection cache — and scopes version checks per record
-   * (an unaccepted record document is discarded, never migrated).
+   * 后端单元的介质布局：`single`（默认）将整个单元作为一个文档存储；`per-record` 将每条记录作为各自的文档存储，
+   * 适用于记录体量大、稀疏或各自可丢弃的单元——投影缓存——并将版本检查限定在每条记录上
+   * （未被接受的记录文档被丢弃，而非迁移）。
    */
   readonly layout?: 'single' | 'per-record'
   /**
-   * Older domain versions whose stored records the current record schemas
-   * also accept (the declaring owner vouches for that, typically by
-   * declaring the fields older records lack as optional). `per-record` backends
-   * read documents stamped with a listed version instead of discarding them,
-   * and accept a legacy whole-unit file so stamped for the one-time
-   * bootstrap; writes always stamp {@link version}.
+   * 当前记录 schema 也能接受的较旧领域版本（声明属主对此担保，通常通过将旧记录缺失的字段声明为可选）。
+   * `per-record` 后端读取盖有枚举版本戳的文档而非丢弃它们，并接受一个如此盖戳的遗留整单元文件用于一次性引导；
+   * 写入始终使用 {@link version} 盖戳。
    */
   readonly compatibleVersions?: readonly number[]
   /**
-   * What `open` does with a stored table record that fails its zod schema.
-   * Absent (the default), the whole open rejects with `invalid-record` —
-   * right for authoritative data. `'backup-and-skip'` is for domains whose
-   * records are disposable derived data: the backend moves the record's
-   * document aside (`KvUnit.backupRecord`), the failure is logged with
-   * its cause, and the open continues with the record absent. A backend
-   * without `backupRecord` (no per-record document to move) falls back
-   * to the rejecting default. The global slot always rejects.
+   * `open` 对一条未通过其 zod schema 的已存储表记录应采取的行为。缺省（默认）时整个 open 以 `invalid-record` 拒绝——
+   * 适合权威数据。`'backup-and-skip'` 适用于记录为可丢弃派生数据的领域：后端将记录的文档移开
+   * （`KvUnit.backupRecord`），失败连同其 cause 被记录，open 在缺失该记录的情况下继续。
+   * 没有 `backupRecord` 的后端（无可移动的逐记录文档）回退到拒绝的默认行为。全局槽位始终拒绝。
    */
   readonly invalidRecords?: 'backup-and-skip'
-  /** Optional global singleton slot. */
+  /** 可选的全局单例槽位。 */
   readonly global?: DomainGlobalSpec<unknown>
-  /** Table declarations keyed by table name; each name must match `UNIT_NAME_RE`. */
+  /** 以表名为键的表声明；每个名称必须与 `UNIT_NAME_RE` 匹配。 */
   readonly tables: Record<string, DomainTableSpec>
 }
 
-/** Key type of one declared table, recovered from its phantom carrier. */
+/** 一个已声明表的键类型，从其幽灵载体恢复。 */
 export type TableKeyOf<S extends DomainSpec, N extends keyof S['tables']> =
   S['tables'][N] extends DomainTableSpec<infer K> ? K : never
 
-/** Value type of one declared table. */
+/** 一个已声明表的值类型。 */
 export type TableValueOf<S extends DomainSpec, N extends keyof S['tables']> =
   S['tables'][N] extends DomainTableSpec<string, infer V> ? V : never
 
-/** Global value type of a spec; `never` when the spec declares no global. */
+/** 一个 spec 的全局值类型；spec 未声明全局时为 `never`。 */
 export type GlobalValueOf<S extends DomainSpec> =
   S['global'] extends DomainGlobalSpec<infer G> ? G : never
 
 /**
- * Declare one table.
- * @param schema - zod schema validating every stored record of this table.
- * @returns the table declaration, key-typed by `K`.
+ * 声明一个表。
+ * @param schema - 校验该表每条已存储记录的 zod schema。
+ * @returns 由 `K` 定键类型的表声明。
  */
 export function domainTable<K extends string, V>(schema: ZodType<V>): DomainTableSpec<K, V> {
   return { valueSchema: schema }
 }
 
 /**
- * Identity helper that pins a spec's literal types and validates its fields.
- * Misconfiguration fails loud at the owning package's module load, before any
- * medium is touched: a domain or table name outside `UNIT_NAME_RE`, a version
- * that is not a non-negative integer, or a global schema that accepts `null`
- * all throw. The `null` rejection guards round-tripping: backends store the
- * global as opaque JSON with `null` as the "never written" sentinel, so a
- * nullable global would be indistinguishable from an absent one on reopen
- * (a stored `null` silently reverts to `initial`).
- * @param spec - The domain declaration.
- * @returns the same spec, narrowed to its literal type.
+ * 固定 spec 字面量类型并校验其字段的身份辅助函数。错误配置在所属包的模块加载时显式失败，早于任何介质被触及：
+ * 位于 `UNIT_NAME_RE` 之外的领域名或表名、非非负整数的版本，或接受 `null` 的全局 schema 都会抛出。
+ * `null` 拒绝守卫了往返：后端以不透明 JSON 存储全局，用 `null` 作为"从未写入"的哨兵，
+ * 因此可空的全局在重新打开时将与缺失的全局无法区分（已存储的 `null` 会静默回退为 `initial`）。
+ * @param spec - 领域声明。
+ * @returns 同一 spec，收窄为其字面量类型。
  */
 export function defineDomain<S extends DomainSpec>(spec: S): S {
   if (!UNIT_NAME_RE.test(spec.name)) {
@@ -119,8 +102,7 @@ export function defineDomain<S extends DomainSpec>(spec: S): S {
     }
   }
   if (spec.layout !== undefined) {
-    // Runtime boundary: the union type is compile-time only — a spec built
-    // from config could carry any value, and a bad one must fail loud here.
+    // 运行时边界：联合类型仅存在于编译期——由配置构建的 spec 可能携带任意值，坏的必须在此显式失败。
     const layout: string = spec.layout
     if (layout !== 'single' && layout !== 'per-record') {
       throw new Error(`domain '${spec.name}' layout must be 'single' or 'per-record', got ${layout}`)
@@ -147,9 +129,9 @@ export function defineDomain<S extends DomainSpec>(spec: S): S {
 }
 
 /**
- * Project a spec onto the backend-facing unit descriptor.
- * @param spec - The domain declaration.
- * @returns the descriptor handed to `KvFacet.open`.
+ * 将一个 spec 投影到面向后端的单元 descriptor。
+ * @param spec - 领域声明。
+ * @returns 交给 `KvFacet.open` 的 descriptor。
  */
 export function descriptorOf(spec: DomainSpec): KvUnitDescriptor {
   return {

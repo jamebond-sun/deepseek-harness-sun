@@ -1,7 +1,7 @@
-/** Locale namespace owned by Session export browser feedback. */
+/** Session 导出浏览器反馈所拥有的 locale 命名空间。 */
 export const NS = 'session-log-download'
 
-/** Simplified-Chinese Session export strings. */
+/** 简体中文的 Session 导出文案。 */
 export const zh = {
   'header.more': '更多操作',
   'menu.download': '下载 Session 日志',
@@ -15,7 +15,7 @@ export const zh = {
   'dialog.commandFailed': '无法启动 Session 导出。',
 } as const
 
-/** English Session export strings. */
+/** 英文的 Session 导出文案。 */
 export const en: Record<keyof typeof zh, string> = {
   'header.more': 'More actions',
   'menu.download': 'Download session log',
@@ -29,5 +29,5 @@ export const en: Record<keyof typeof zh, string> = {
   'dialog.commandFailed': 'Could not start the Session export.',
 }
 
-/** Stable locale keys consumed by the shared modal. */
+/** 由共享弹窗消费的稳定 locale 键。 */
 export type SessionLogDownloadKey = keyof typeof zh

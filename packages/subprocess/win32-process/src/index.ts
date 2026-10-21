@@ -1,4 +1,4 @@
-/** Shared low-level Win32 process, stdio, and Job Object primitives. */
+/** 共享的低层 Win32 进程、stdio 与 Job Object 原语。 */
 
 export { ERROR_INSUFFICIENT_BUFFER } from './abi.ts'
 export * from './errors.ts'

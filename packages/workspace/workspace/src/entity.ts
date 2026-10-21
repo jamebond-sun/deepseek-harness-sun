@@ -1,10 +1,9 @@
 /**
- * Package-private workspace entity: the single {@link Workspace}
- * implementation. Holds a record snapshot that is swapped in place after each
- * durable mutation; every write funnels through the private `mutate` so
- * `updatedAt` stamping and invalid-account pruning happen exactly once.
- * Not re-exported from the package entrypoint — consumers see only the
- * `Workspace` interface.
+ * 包私有的工作区实体：唯一的 {@link Workspace}
+ * 实现。持有一条记录快照，在每次持久化变更后被原地替换；所有写入都汇聚到私有的 `mutate`，
+ * 从而保证 `updatedAt` 盖章与无效账号剪枝恰好发生一次。
+ * 不会从包的入口点重新导出——消费者只能看到
+ * `Workspace` 接口。
  * @module @deepseek-ai/dsh-workspace/src/entity
  */
 
@@ -15,10 +14,10 @@ import type { WorkspaceRecord } from './spec.ts'
 import type { Workspace, WorkspaceId } from './types.ts'
 import { realpathNormalize } from './paths.ts'
 
-/** An insertSessionBefore request named a session or anchor not on the account (storage failures stay plain errors). */
+/** insertSessionBefore 请求指定了一个不在账号上的会话或锚点（存储失败仍为普通错误）。 */
 export class WorkspaceMoveInvalidError extends Error {
   /**
-   * @param message - Which id was unaccounted and where.
+   * @param message - 哪个 id 未被计入及其位置。
    */
   constructor(message: string) {
     super(message)
@@ -27,53 +26,51 @@ export class WorkspaceMoveInvalidError extends Error {
 }
 
 /**
- * The registry-owned machinery an entity mutates through. Entities never see
- * the registry itself — only the open table, the canonical session-path
- * index backing the `sessionIds` projection, and attach-time header reads.
+ * 实体进行变更时依赖的、由注册表拥有的机制。实体从不接触
+ * 注册表本身——只能看到已打开的表、支撑 `sessionIds`
+ * 投影的规范化会话路径索引，以及附加时的头部读取。
  */
 export interface WorkspaceEntityHost {
   /**
-   * Resolve the open `workspaces` table.
-   * @returns the table; throws while the registry has not started yet.
+   * 解析已打开的 `workspaces` 表。
+   * @returns 该表；注册表尚未启动时抛出错误。
    */
   table(): KvTable<WorkspaceId, WorkspaceRecord>
 
   /**
-   * Validate an already-accounted session, preserving ownership when its fully
-   * qualified cwd cannot resolve because a path component is missing.
-   * @param id - Session already present in this workspace's candidate account.
-   * @param path - Workspace's stored canonical directory.
-   * @returns whether the candidate remains a member.
+   * 校验一个已计入的会话，当其完全限定的 cwd 因路径组件缺失而无法解析时，保留其归属。
+   * @param id - 已存在于本工作区候选账号中的会话。
+   * @param path - 工作区存储的规范化目录。
+   * @returns 该候选是否仍属于成员。
    */
   candidateMatches(id: SessionId, path: string): boolean
 
   /**
-   * Read one stored session header for attach validation.
-   * @param id - The session whose header to read.
-   * @returns the header; rejects when session persistence is absent or holds
-   * no session with this id.
+   * 读取一条已存储的会话头部用于附加校验。
+   * @param id - 要读取头部的会话。
+   * @returns 该头部；当会话持久化缺失或没有该 id 的会话时拒绝。
    */
   readSessionHeader(id: SessionId): Promise<SessionHeader>
 
   /**
-   * Publish a successfully validated canonical cwd to the projection index.
-   * @param id - Validated session id.
-   * @param path - Canonical existing directory from the immutable header cwd.
+   * 将一个校验成功的规范化 cwd 发布到投影索引。
+   * @param id - 已校验的会话 id。
+   * @param path - 来自不可变头部 cwd 的规范化已存在目录。
    */
   rememberSessionPath(id: SessionId, path: string): void
 }
 
-/** Chain-slot abort sentinel thrown by the update fn when the record needs no change; only `mutate` observes it. */
+/** 当记录无需变更时，由 update 函数抛出的链式槽位中止哨兵；只有 `mutate` 会观察它。 */
 const unchangedSentinel = new Error('workspace record unchanged (internal sentinel)')
 
-/** The single {@link Workspace} implementation; constructed only by the registry. */
+/** 唯一的 {@link Workspace} 实现；仅由注册表构造。 */
 export class WorkspaceEntity implements Workspace {
   private record: WorkspaceRecord
 
   /**
-   * @param host - Registry-owned table, session-path index, and header reads.
-   * @param id - The record's stable id.
-   * @param record - The validated record snapshot loaded or just written.
+   * @param host - 注册表拥有的表、会话路径索引与头部读取。
+   * @param id - 记录的稳定 id。
+   * @param record - 已加载或刚写入的已校验记录快照。
    */
   constructor(
     private readonly host: WorkspaceEntityHost,
@@ -108,10 +105,9 @@ export class WorkspaceEntity implements Workspace {
   }
 
   async attachSession(sessionId: SessionId): Promise<void> {
-    // Validation is skipped when the settled snapshot already accounts the
-    // id: the cwd fact was checked when it first attached and both inputs
-    // (stored header cwd, workspace path) are immutable. Membership itself is
-    // decided on the write chain inside `mutate`, never on this snapshot.
+    // 当已定稿的快照已经计入该 id 时跳过校验：
+    // cwd 事实在首次附加时已检查，且两个输入（存储的头部 cwd、工作区路径）均不可变。
+    // 归属本身在 `mutate` 内部的写入链上决定，而非在此快照上。
     if (!this.record.sessionIds.includes(sessionId)) {
       const header = await this.host.readSessionHeader(sessionId)
       if (header.cwd === undefined) {
@@ -182,23 +178,20 @@ export class WorkspaceEntity implements Workspace {
     try {
       return (await stat(this.record.path)).isDirectory() ? 'ok' : 'missing-dir'
     } catch {
-      // Any stat failure (ENOENT, dangling parent, permission loss) means the
-      // directory is not usable right now; the record itself never mutates.
+      // 任何 stat 失败（ENOENT、悬空父目录、权限丢失）都意味着该
+      // 目录当前不可用；记录本身从不发生变更。
       return 'missing-dir'
     }
   }
 
   /**
-   * The single write path: run `fn` on the domain write chain via
-   * `table.update`, stamping `updatedAt` and pruning candidates that no
-   * longer pass the candidate membership check, then swap the
-   * snapshot.
+   * 唯一的写入路径：通过 `table.update` 在域写入链上运行 `fn`，
+   * 盖章 `updatedAt` 并剪枝不再通过候选成员资格检查的候选项，然后替换快照。
    *
-   * `fn` sees the value current at its chain slot, so membership decisions
-   * (attach/detach idempotence) are race-free against queued writes; a fn
-   * signalling no change by returning `current` verbatim aborts the slot
-   * through the sentinel when pruning also finds nothing, so a no-op neither
-   * rewrites the medium nor emits a change event.
+   * `fn` 看到其链槽位置上当前的值，因此成员资格决策
+   * （附加/分离的幂等性）相对于排队的写入是无竞争的；当 fn
+   * 通过原样返回 `current` 来表示无变更、且剪枝也未发现任何内容时，
+   * 会通过哨兵中止该槽位，从而使得一次空操作既不会重写介质，也不会发出变更事件。
    */
   private async mutate(fn: (record: WorkspaceRecord) => WorkspaceRecord): Promise<void> {
     let next: WorkspaceRecord

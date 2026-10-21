@@ -1,5 +1,5 @@
 /**
- * Harness request-history conversion into pi-ai's Context vocabulary.
+ * 把 Harness 的请求历史转换为 pi-ai 的 Context 词汇。
  *
  * @module dsh-llm-pi-ai/context
  */
@@ -19,7 +19,7 @@ import { toPiAssistant } from './replay.ts'
 import { requestImageDimensions } from '@deepseek-ai/dsh-attachment'
 import { DEFAULT_REQUEST_IMAGE_MAX_BYTES, DEFAULT_REQUEST_IMAGE_PIXEL_BUDGET } from './config.ts'
 
-/** Join the text blocks of a harness message. */
+/** 拼接一条 harness 消息的各个文本块。 */
 function flattenText(message: RequestMessage): string {
   return message.content
     .filter(block => block.type === 'text')
@@ -28,7 +28,7 @@ function flattenText(message: RequestMessage): string {
 }
 
 
-/** Recover the pi-ai toolResult message for one harness tool-role message. */
+/** 为一条 harness 的 tool 角色消息还原出那条 pi-ai 的 toolResult 消息。 */
 function toolResultOf(
   message: Extract<Message, { role: 'tool' }>,
   toolNames: Map<ToolCallId, string>,
@@ -46,7 +46,7 @@ function toolResultOf(
   }
 }
 
-/** Reject misplaced tool-change blocks and unsupported image roles before replay or image offloading. */
+/** 在回放或图像卸载之前，拒绝放错位置的工具变更块与不受支持的图像角色。 */
 function assertSupportedHistory(messages: readonly RequestMessage[]): void {
   for (const message of messages) {
     if (message.role !== 'developer' && message.content.some(block => block.type === 'tool-addition' || block.type === 'tool-removal')) {
@@ -89,7 +89,7 @@ function userContent(
         break
       }
       default:
-        // Other merge-extensible blocks are not user-input vocabulary for pi-ai.
+        // 其他可合并扩展的块不是 pi-ai 的用户输入词汇。
         break
     }
   }
@@ -127,7 +127,7 @@ async function prepareRequestImages(
   return versions
 }
 
-/** Convert a projected declaration without its harness-owned activation marker. */
+/** 转换一个已投影的声明，去掉由 harness 持有的那个激活标记。 */
 function piTool(tool: NonNullable<GenerateOptions['tools']>[number]): PiTool {
   return { name: tool.name, description: tool.description, parameters: tool.parameters }
 }
@@ -136,15 +136,15 @@ function toolsOf(options: GenerateOptions): PiTool[] | undefined {
   return options.tools?.filter(tool => !tool.deferLoading).map(piTool)
 }
 
-/** The request split into pi-ai's initial `systemPrompt` slot and the history that converts to `messages`. */
+/** 该请求被拆分成的、pi-ai 的初始 `systemPrompt` 槽位，以及会转换为 `messages` 的那段历史。 */
 interface SystemPromptSplit {
-  /** Text for pi-ai's `systemPrompt`; `undefined` sends no system prompt. */
+  /** 供 pi-ai 的 `systemPrompt` 使用的文本；`undefined` 表示不发送系统提示。 */
   systemPrompt: string | undefined
-  /** History messages that convert to pi-ai `messages`. */
+  /** 会转换为 pi-ai `messages` 的那些历史消息。 */
   messages: readonly RequestMessage[]
 }
 
-/** Combine request-level text and leading system history into the initial prompt. */
+/** 把请求级文本与开头的系统历史合并成初始提示。 */
 function splitSystemPrompt(options: GenerateOptions): SystemPromptSplit {
   const text = [options.system]
   let end = 0
@@ -157,7 +157,7 @@ function splitSystemPrompt(options: GenerateOptions): SystemPromptSplit {
   return { systemPrompt: systemPrompt || undefined, messages: options.messages.slice(end) }
 }
 
-/** Assemble the request-level pi-ai context envelope shared by both conversion paths. */
+/** 组装由两条转换路径共享的、请求级的 pi-ai context 信封。 */
 function piContext(systemPrompt: string | undefined, options: GenerateOptions, messages: PiMessage[]): PiContext {
   const tools = toolsOf(options)
   return {
@@ -167,7 +167,7 @@ function piContext(systemPrompt: string | undefined, options: GenerateOptions, m
   }
 }
 
-/** Keep one developer event in one system update, resolving its projected tool declarations. */
+/** 把一个 developer 事件保留在一次系统更新中，并解析它已投影的工具声明。 */
 function appendDeveloper(message: Extract<Message, { role: 'developer' }>, options: GenerateOptions, messages: PiMessage[]): void {
   const content: TextContent[] = []
   const toolsAdded: PiTool[] = []
@@ -213,7 +213,7 @@ function appendAssistant(
   messages.push(assistant)
 }
 
-/** Append shared system, developer, and assistant roles; true when consumed. */
+/** 追加共享的 system、developer 与 assistant 角色；当被消费时为 true。 */
 function appendSharedHistory(
   message: RequestMessage,
   options: GenerateOptions,
@@ -256,44 +256,45 @@ function textOnlyContext(options: GenerateOptions, onReplayDegrade?: (reason: st
   return piContext(split.systemPrompt, options, messages)
 }
 
-/** Inputs that bind deterministic request images to one current tool execution world. */
+/** 把确定性的请求图像绑定到一个当前工具执行世界的那些输入。 */
 export interface PiImageRequestContext {
-  /** Durable provider that resolves request-image bytes and provider-owned host objects. */
+  /** 解析请求图像字节与由提供方持有的宿主对象的持久化提供方。 */
   attachments: AttachmentStore
-  /** Resolve current tool access separately from deterministic request-image versions. */
+  /** 与确定性的请求图像版本分开解析当前的工具访问。 */
   resolveImageAccess: ImageAttachmentAccessResolver
-  /** Request-level bound on the base64-encoded payload of retained images; omission leaves the bound unchecked. */
+  /** 对被保留图像的 base64 编码载荷的请求级上限；省略使该上限不被检查。 */
   maxRequestImageBytes?: number
-  /** Route pixel and raw encoded-byte budgets. */
+  /** 路由的像素与原始编码字节预算。 */
   requestImagePolicy?: PiImageRequestBudget
 }
 
-/** Per-route budgets from which each request image's target is derived. */
+/** 每张请求图像的目标所依据的那些按路由预算。 */
 export interface PiImageRequestBudget {
-  /** Total-pixel budget; larger sources are downscaled proportionally. */
+  /** 总像素预算；更大的源会被按比例缩小。 */
   maxPixels: number
-  /** Encoded-byte target for one request image. */
+  /** 一张请求图像的编码字节目标。 */
   maxBytes: number
 }
 
 /**
- * Resolve the request target for one source under the route budgets.
- * @param ref - normalized source image.
- * @param budget - resolved route pixel and byte limits.
- * @returns dimensions and byte target shared by serialization and screenshot coordinate mapping.
+ * 在这些路由预算之下，为一个源解析它的请求目标。
+ * @param ref - 已规范化的源图像。
+ * @param budget - 已解析的路由像素与字节上限。
+ * @returns 由序列化与截图坐标映射共享的尺寸与字节目标。
  */
 export function requestImageTarget(ref: ImageAttachmentRef, budget: PiImageRequestBudget): ImageRequestTarget {
   return { ...requestImageDimensions(ref.width, ref.height, budget.maxPixels), maxBytes: budget.maxBytes }
 }
 
 /**
- * Convert text-only harness history to a synchronous pi-ai Context. Tool
- * result names are recovered from preceding assistant tool calls.
- * @param options - projected request; one-shot system text precedes the leading history prompt.
- * @param images - absent; selects the synchronous conversion.
- * @param onReplayDegrade - forwarded to {@link toPiAssistant} for each assistant message.
- * @returns the pi-ai context; `tools` is omitted when the request declares none.
- * @throws {LlmError} `UNSUPPORTED_CONTENT` for images in any history role, including a leading system message.
+ * 把纯文本的 harness 历史转换为一个同步的 pi-ai Context。
+ * 各个工具结果的名称从之前的助手工具调用中还原出来。
+ * @param options - 已投影的请求；单次调用的系统文本位于开头的历史提示之前。
+ * @param images - 缺失；选择同步转换。
+ * @param onReplayDegrade - 为每条助手消息转发给 {@link toPiAssistant}。
+ * @returns 那个 pi-ai context；当该请求没有声明任何工具时，`tools` 被省略。
+ * @throws {LlmError} 对于任何历史角色中的图像（包括开头的系统消息），
+ *   错误码为 `UNSUPPORTED_CONTENT`。
  */
 export function toPiContext(
   options: GenerateOptions,
@@ -301,16 +302,15 @@ export function toPiContext(
   onReplayDegrade?: (reason: string) => void,
 ): PiContext
 /**
- * Convert harness history to a pi-ai Context while resolving durable images.
- * Tool result names are recovered from preceding assistant tool calls. Image
- * occurrences the surface marks offloaded become text placeholders; when the
- * retained occurrences' exact base64 payload still exceeds
- * `maxRequestImageBytes`, the call fails with `IMAGE_OFFLOAD_REQUIRED` naming
- * how many more oldest occurrences must be offloaded.
- * @param options - projected request; one-shot system text precedes the leading history prompt.
- * @param images - attachment provider, current path resolver, and request limits.
- * @param onReplayDegrade - forwarded to {@link toPiAssistant} for each assistant message.
- * @returns the asynchronously resolved pi-ai context.
+ * 在解析持久化图像的同时把 harness 历史转换为一个 pi-ai Context。
+ * 各个工具结果的名称从之前的助手工具调用中还原出来。那些被表面标记为
+ * 已卸载的图像出现会变成文本占位符；当被保留出现的精确 base64 载荷
+ * 仍然超出 `maxRequestImageBytes` 时，该调用会以 `IMAGE_OFFLOAD_REQUIRED`
+ * 失败，并指名还有多少个最早的出现必须被卸载。
+ * @param options - 已投影的请求；单次调用的系统文本位于开头的历史提示之前。
+ * @param images - 附件提供方、当前的路径解析器，以及请求上限。
+ * @param onReplayDegrade - 为每条助手消息转发给 {@link toPiAssistant}。
+ * @returns 被异步解析出来的那个 pi-ai context。
  */
 export function toPiContext(
   options: GenerateOptions,

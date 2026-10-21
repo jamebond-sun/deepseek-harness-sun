@@ -1,10 +1,9 @@
 /**
- * Local filesystem skill provider.
+ * 本地文件系统技能提供方。
  *
- * This package is one implementation of the `ctx.skills` provider registry. It
- * discovers directory-bundle and flat Markdown skills from project, custom, and
- * user roots, parses YAML frontmatter, and loads bodies through `ctx.fs` when a
- * filesystem service is present.
+ * 本包是 `ctx.skills` 提供方注册表的一种实现。它从项目根、自定义根与用户根中发现目录束式
+ * 技能与扁平 Markdown 技能，解析 YAML frontmatter，并在存在文件系统服务时经由 `ctx.fs`
+ * 加载正文。
  *
  * @module @deepseek-ai/dsh-skill-filesystem
  */
@@ -44,31 +43,31 @@ const DEFAULT_WATCH_MAX_PROJECTS = 128
 export const name = 'skill-filesystem'
 export const inject = ['skills']
 
-/** Local filesystem skill provider configuration. */
+/** 本地文件系统技能提供方的配置。 */
 export interface Config {
-  /** Unique provider name. Defaults to `filesystem`. */
+  /** 唯一的提供方名称；默认为 `filesystem`。 */
   providerName?: string
-  /** Whether project and user roots are included around custom roots. */
+  /** 是否在自定义根之外一并纳入项目根与用户根。 */
   includeDefaultRoots?: boolean
-  /** DeepSeek Harness config root. Defaults to `$DSH_HOME` or `~/.dsh`. */
+  /** DeepSeek Harness 的配置根；默认为 `$DSH_HOME` 或 `~/.dsh`。 */
   dshHome?: string
-  /** Shared agent config root. Defaults to `$DSH_AGENTS_HOME` or `~/.agents`. */
+  /** 共享的智能体配置根；默认为 `$DSH_AGENTS_HOME` 或 `~/.agents`。 */
   agentsHome?: string
-  /** Additional skill roots scanned after project roots and before user roots. */
+  /** 在项目根之后、用户根之前扫描的额外技能根。 */
   customSkillDirs?: string[]
-  /** Whether host-local skill roots are watched for catalog changes. */
+  /** 是否监视宿主机本地的技能根以感知目录变化。 */
   watch?: boolean
-  /** Whether Chokidar uses polling instead of native filesystem events. */
+  /** Chokidar 是否改用轮询，而非原生文件系统事件。 */
   watchUsePolling?: boolean
-  /** Milliseconds a changed skill entry must remain stable before it is observed. */
+  /** 一个发生变更的技能条目须稳定存在多少毫秒后才被观测。 */
   watchStabilityThresholdMs?: number
-  /** Milliseconds between Chokidar stability or polling probes. */
+  /** Chokidar 稳定性探测或轮询探测之间的毫秒间隔。 */
   watchPollIntervalMs?: number
-  /** Maximum distinct project roots whose skill directories remain watched. */
+  /** 保持监视状态的不同项目根的最大数量。 */
   watchMaxProjects?: number
-  /** Whether watched symbolic links follow their target files. */
+  /** 被监视的符号链接是否跟随其目标文件。 */
   watchFollowSymlinks?: boolean
-  /** Bundled skill root; defaults to `$DSH_BUNDLED_SKILL_DIR` when default roots are included, otherwise mounts none. */
+  /** 随包的技能根；纳入默认根时默认为 `$DSH_BUNDLED_SKILL_DIR`，否则不挂载任何根。 */
   bundledSkillDir?: string
 }
 
@@ -129,7 +128,7 @@ interface ResolvedWatchConfig {
   followSymlinks: boolean
 }
 
-/** Register the local filesystem skill provider on `ctx.skills`. */
+/** 在 `ctx.skills` 上注册本地文件系统技能提供方。 */
 export function apply(ctx: Context, config: Config = {}): void {
   let provider!: FileSystemSkillProvider
   ctx.skills.registerProvider((control) => {
@@ -145,7 +144,7 @@ export function apply(ctx: Context, config: Config = {}): void {
   })
 }
 
-/** Provider that maps local project/user skill roots into `ctx.skills`. */
+/** 把本地项目/用户技能根映射进 `ctx.skills` 的提供方。 */
 export class FileSystemSkillProvider implements SkillProvider {
   readonly name: string
   private readonly includeDefaultRoots: boolean
@@ -168,19 +167,18 @@ export class FileSystemSkillProvider implements SkillProvider {
     this.customSkillDirs = (config.customSkillDirs ?? []).map(root => resolve(root))
     this.watchManager = new SkillWatchManager(ctx, control.invalidate, resolveWatchConfig(config))
     control.signal.addEventListener('abort', () => { void this.dispose() }, { once: true })
-    // The environment bundled root is a default root: an isolated provider
-    // must see only its explicit roots, or every such provider would
-    // re-discover the app's bundled skills under its own provider name.
+    // 环境变量指定的随包根属于默认根：一个被隔离出来的提供方必须只看得到自己显式声明的那些根，
+    // 否则每个这样的提供方都会以自己的提供方名再重新发现一遍应用随包的技能。
     const bundledSkillDir = config.bundledSkillDir
       ?? (this.includeDefaultRoots ? process.env.DSH_BUNDLED_SKILL_DIR : undefined)
     this.bundledSkillDir = bundledSkillDir === undefined ? undefined : resolve(bundledSkillDir)
   }
 
   /**
-   * Discover local skill summaries for a cwd-sensitive workspace.
-   * @param options - lookup options; `cwd` selects the project roots to scan.
-   * @returns local provider candidates with stable root ranks; watcher startup
-   *   failure returns readable candidates as an incomplete observation.
+   * 发现某个依赖 cwd 的工作区中的本地技能摘要。
+   * @param options - 查找选项；`cwd` 选择要扫描的项目根。
+   * @returns 带有稳定根目录序号的本地提供方候选；当监视器启动失败时，
+   *   会把可读的候选作为一次未完成的观测返回。
    */
   async list(options: SkillLookupOptions): Promise<SkillCandidate[] | SkillProviderObservation> {
     const roots = await this.roots(options.cwd)
@@ -201,10 +199,10 @@ export class FileSystemSkillProvider implements SkillProvider {
   }
 
   /**
-   * Load a complete local skill body from the candidate's file locator.
-   * @param candidate - the winning candidate returned by this provider.
-   * @param options - lookup options whose signal cancels filesystem reads.
-   * @returns the full local skill, or `undefined` if the file disappeared.
+   * 依据候选的文件定位信息加载完整的本地技能正文。
+   * @param candidate - 由本提供方返回的那个胜出候选。
+   * @param options - 查找选项，其 signal 可取消文件系统读取。
+   * @returns 完整的本地技能；若该文件已消失则为 `undefined`。
    */
   async get(candidate: SkillCandidate, options: SkillLookupOptions): Promise<SkillDefinition | undefined> {
     const locator = candidate.locator as LocalLocator
@@ -225,16 +223,16 @@ export class FileSystemSkillProvider implements SkillProvider {
   }
 
   /**
-   * Invalidate this provider synchronously after a first-party filesystem mutation.
-   * @param path - host display path observed after a model-facing write or edit.
+   * 在第一方发生文件系统变更后，同步令本提供方失效。
+   * @param path - 在面向模型的写入或编辑之后被观测到的宿主机展示路径。
    */
   observeHostMutation(path: string): void {
     this.watchManager.observeHostMutation(path)
   }
 
   /**
-   * Close every host watcher and contain late filesystem callbacks.
-   * @returns a shared promise that settles when every watcher reaches quiescence.
+   * 关闭每一个宿主机监视器，并收敛迟到的文件系统回调。
+   * @returns 一个共享的 promise，在所有监视器达到静默状态时落定。
    */
   dispose(): Promise<void> {
     this.disposal ??= this.watchManager.dispose()
@@ -283,7 +281,7 @@ interface WatchHandle {
   close(): Promise<void> | void
 }
 
-/** Owns bounded host watchers while discovery and reads remain on the filesystem service. */
+/** 负责持有数量有界的宿主机监视器；发现与读取仍留在文件系统服务上。 */
 class SkillWatchManager {
   private readonly roots = new Map<string, RootWatchState>()
   private readonly projects = new Map<string, Set<string>>()
@@ -320,7 +318,7 @@ class SkillWatchManager {
     let evictedProject = false
     while (this.projects.size > this.config.maxProjects) {
       const oldest = this.projects.entries().next()
-      /* v8 ignore next -- the loop condition proves one project exists. */
+      /* v8 ignore next -- 循环条件已经证明至少存在一个项目。 */
       if (oldest.done) break
       const [projectRoot, paths] = oldest.value
       this.projects.delete(projectRoot)
@@ -365,7 +363,7 @@ class SkillWatchManager {
 
   private async releaseRoot(path: string, owner: string): Promise<void> {
     const state = this.roots.get(path)
-    /* v8 ignore next -- Concurrent cwd observations can evict the same shared root before this release settles. */
+    /* v8 ignore next -- 并发的 cwd 观测可能在这次释放落定之前就驱逐掉同一个共享根。 */
     if (state === undefined) return
     state.owners.delete(owner)
     if (state.owners.size > 0) return
@@ -377,7 +375,7 @@ class SkillWatchManager {
   }
 
   private ensureWatcher(state: RootWatchState): Promise<void> {
-    /* v8 ignore next -- A scheduled rewatch can reach this guard only when teardown wins its await. */
+    /* v8 ignore next -- 一次已排定的重监视只有在拆卸抢赢了它的 await 时才会走到这道保护。 */
     if (this.closing || !this.config.enabled) return Promise.resolve()
     if (state.opening !== undefined) return state.opening
     const opening = this.ensureCurrentWatcher(state)
@@ -397,9 +395,9 @@ class SkillWatchManager {
     const watcher = state.watcher
     if (watcher !== undefined && !state.unhealthy) {
       const current = await resolveRootWatchMode(state.root.path, this.config.followSymlinks)
-      // A child unlink can publish an empty catalog before root unlinkDir arrives.
-      // Discovery therefore revalidates the retained handle independently.
-      // oxlint-disable-next-line typescript/no-unnecessary-condition -- watcher callbacks can mark unhealthy while the probe awaits
+      // 子项的 unlink 可能在根 unlinkDir 到达之前就发布出一次空目录，
+      // 因此发现流程会对保留下来的句柄独立地重新校验一次。
+      // oxlint-disable-next-line typescript/no-unnecessary-condition -- 监视器回调可能在探测 await 期间把状态标记为不健康
       if (!state.unhealthy && sameWatchMode(watcher.mode, current)) return
     }
     await this.replaceWatcher(state)
@@ -409,14 +407,14 @@ class SkillWatchManager {
     const previous = state.watcher
     state.watcher = undefined
     if (previous !== undefined) await this.closeWatcher(previous)
-    /* v8 ignore next -- Teardown can win while an unhealthy watcher is still closing. */
+    /* v8 ignore next -- 当某个不健康的监视器仍在关闭时，拆卸可能抢先。 */
     if (this.closing || state.owners.size === 0) return
     try {
       const watcher = await this.openStableWatcher(state)
-      /* v8 ignore next -- The loop returns no handle only when teardown wins between awaited probes. */
+      /* v8 ignore next -- 该循环只有在拆卸抢赢了两次探测之间的 await 时才返回空句柄。 */
       if (watcher === undefined) return
-      /* v8 ignore start -- Post-open teardown is timing-dependent; the disposal race has an explicit integration test. */
-      // oxlint-disable-next-line typescript/no-unnecessary-condition -- teardown can race awaited watcher startup
+      /* v8 ignore start -- 打开之后的拆卸取决于时序；这场释放竞争有专门的集成测试覆盖。 */
+      // oxlint-disable-next-line typescript/no-unnecessary-condition -- 拆卸可能与被 await 的监视器启动发生竞争
       if (this.closing || state.owners.size === 0) {
         await this.closeWatcher(watcher)
         return
@@ -425,7 +423,7 @@ class SkillWatchManager {
       state.watcher = watcher
       state.unhealthy = false
     } catch (error) {
-      // oxlint-disable-next-line typescript/no-unnecessary-condition -- teardown can race awaited watcher startup
+      // oxlint-disable-next-line typescript/no-unnecessary-condition -- 拆卸可能与被 await 的监视器启动发生竞争
       if (!this.closing) {
         state.unhealthy = true
         this.ctx.logger.warn(`skill-filesystem: failed to watch ${state.root.path}: ${errorMessage(error)}`)
@@ -434,8 +432,8 @@ class SkillWatchManager {
     }
   }
 
-  // TODO(file-watch-service): Extract Chokidar and missing-root observation below into a Cordis
-  // service; keep skill filtering and invalidation here.
+  // TODO(file-watch-service): 把下面这段用到 Chokidar 与缺失根观测的逻辑抽取成一个 Cordis 服务；
+  // 技能过滤与失效仍保留在此处。
   private async openStableWatcher(state: RootWatchState): Promise<WatchHandle | undefined> {
     while (!this.closing && state.owners.size > 0) {
       const mode = await resolveRootWatchMode(state.root.path, this.config.followSymlinks)
@@ -443,12 +441,12 @@ class SkillWatchManager {
         ? this.openAncestorWatcher(state, mode)
         : await this.openRootWatcher(state, mode)
       const current = await resolveRootWatchMode(state.root.path, this.config.followSymlinks)
-      /* v8 ignore else -- A host path transition between the two probes is timing-dependent. */
+      /* v8 ignore else -- 两次探测之间发生宿主机路径变迁属于时序相关。 */
       if (sameWatchMode(mode, current)) return watcher
-      /* v8 ignore next -- Covered by the same host path transition guard. */
+      /* v8 ignore next -- 由同一处宿主机路径变迁的保护所覆盖。 */
       await this.closeWatcher(watcher)
     }
-    /* v8 ignore next -- The loop exits only when teardown wins between awaited probes. */
+    /* v8 ignore next -- 该循环只有在拆卸抢赢了两次探测之间的 await 时才会退出。 */
     return undefined
   }
 
@@ -476,7 +474,7 @@ class SkillWatchManager {
     try {
       current = await resolveRootWatchMode(state.root.path, this.config.followSymlinks)
     } catch (error) {
-      /* v8 ignore start -- Non-absence stat failures need a platform permission or I/O fault. */
+      /* v8 ignore start -- 非“缺失”类的 stat 失败需要平台权限或 I/O 故障才会出现。 */
       if (!this.closing && state.owners.size > 0) this.handleWatcherError(state, error)
       return
       /* v8 ignore stop */
@@ -489,8 +487,8 @@ class SkillWatchManager {
 
   private async openRootWatcher(state: RootWatchState, mode: Extract<RootWatchMode, { kind: 'root' }>): Promise<WatchHandle> {
     const watcher = chokidar.watch(mode.anchor, {
-      // Chokidar owns late native fs.watch errors only for persistent watchers;
-      // this provider's effect explicitly closes every handle at teardown.
+      // 迟到的原生 fs.watch 错误只对持久型监视器才归 Chokidar 自己处理；
+      // 而本提供方的 effect 会在拆卸时显式关闭每一个句柄。
       persistent: true,
       ignoreInitial: true,
       depth: 1,
@@ -516,10 +514,9 @@ class SkillWatchManager {
     const handle: WatchHandle = {
       mode,
       close: () => {
-        // `close()` drops every listener but leaves a scheduled write-settle
-        // poll; its straggler stats a file this teardown is deleting, which
-        // Windows reports as EPERM, and an 'error' emission with no listener
-        // is rethrown as an uncaught exception. Re-attach across the close.
+        // `close()` 会摘掉全部监听器，却留下一个已排定的“写入沉降”轮询；这个迟到的轮询会去
+        // stat 本拆卸流程正在删除的那个文件，Windows 会报 EPERM，而没有监听器的 'error'
+        // 事件会被当作未捕获异常重新抛出。跨越这次 close 重新挂上监听器。
         const closing = watcher.close()
         watcher.on('error', onError)
         return closing
@@ -580,7 +577,7 @@ class SkillWatchManager {
       try {
         await this.ensureWatcher(state)
       } catch {
-        // Watch startup logged the retry failure; the next incomplete discovery retries it again.
+        // 监视器启动已经记录过这次重试的失败；下一次未完成的发现会再重试一遍。
         return
       }
       this.queueInvalidation()
@@ -592,7 +589,7 @@ class SkillWatchManager {
     this.invalidationQueued = true
     queueMicrotask(() => {
       this.invalidationQueued = false
-      /* v8 ignore next -- Effect teardown can win this queued microtask before provider disposal emits. */
+      /* v8 ignore next -- effect 的拆卸可能在这个已排队的微任务之前抢先，而此时提供方的释放尚未发出。 */
       if (this.closing) return
       this.invalidate()
     })
@@ -612,7 +609,7 @@ async function settleWatcherOpening(opening: Promise<void> | undefined): Promise
   try {
     await opening
   } catch {
-    // Watch startup already logged the underlying failure; teardown only contains it.
+    // 监视器启动阶段已经记录过底层失败；拆卸只需把它收敛住。
   }
 }
 
@@ -645,16 +642,16 @@ async function resolveRootWatchMode(root: string, followSymlinks: boolean): Prom
         const anchor = preserveRootLink ? resolve(candidate) : await canonicalizeWatchPath(candidate)
         if (candidate === root) return { kind: 'root', anchor }
         const firstSegment = relative(candidate, root).split(sep)[0]
-        /* v8 ignore next -- candidate is a strict ancestor of root. */
+        /* v8 ignore next -- candidate 是 root 的严格祖先。 */
         if (firstSegment === undefined || firstSegment.length === 0) return { kind: 'root', anchor }
         return { kind: 'ancestor', anchor, nextPath: join(anchor, firstSegment) }
       }
     } catch (error) {
-      /* v8 ignore next -- Non-absence stat failures are platform/permission-specific and propagate as incomplete discovery. */
+      /* v8 ignore next -- 非“缺失”类的 stat 失败取决于平台与权限，并作为一次未完成的发现向上传播。 */
       if (!isAbsentPathError(error)) throw error
     }
     const parent = dirname(candidate)
-    /* v8 ignore next -- Traversal reaches the existing filesystem root before this fallback. */
+    /* v8 ignore next -- 遍历会在走到这个兜底分支之前就抵达已存在的文件系统根。 */
     if (parent === candidate) return { kind: 'ancestor', anchor: candidate, nextPath: root }
     candidate = parent
   }
@@ -786,9 +783,9 @@ async function listSkillRootEntriesFromNode(root: SkillRoot, ctx: Context): Prom
   try {
     entries = await readdir(root.path, { withFileTypes: true, encoding: 'utf8' })
   } catch (error) {
-    /* v8 ignore else -- Native non-absence directory failures are provider-dependent; the ctx.fs path pins incomplete discovery. */
+    /* v8 ignore else -- 原生的非“缺失”类目录失败取决于具体实现；ctx.fs 那条路径已经固定了未完成的发现行为。 */
     if (isAbsentSkillPathError(error)) return []
-    /* v8 ignore next -- Same native error branch as above. */
+    /* v8 ignore next -- 与上面同一个原生错误分支。 */
     throw error
   }
 
@@ -869,7 +866,7 @@ async function readSkillText(ctx: Context, path: string, signal?: AbortSignal, t
 async function readSkillTextFromFileSystem(
   ctx: Context, fs: FileSystem, path: string, signal?: AbortSignal,
 ): Promise<SkillText | undefined> {
-  // A missing or temporarily inaccessible skill file is not fatal to discovery.
+  // 一个缺失或暂时不可访问的技能文件不至于让发现流程失败。
   signal?.throwIfAborted()
   let target
   try {
@@ -906,14 +903,14 @@ function fsReadErrorMessage(target: FsTarget, error: unknown): string {
 async function nodeEntryKind(fullPath: string, entry: { isDirectory(): boolean; isFile(): boolean; isSymbolicLink(): boolean }, ctx: Context): Promise<'directory' | 'file' | undefined> {
   if (entry.isDirectory()) return 'directory'
   if (entry.isFile()) return 'file'
-  /* v8 ignore next -- Non-file directory entries such as FIFOs are platform-specific and intentionally skipped. */
+  /* v8 ignore next -- FIFO 之类的非文件目录项是平台特有的，并被有意跳过。 */
   if (!entry.isSymbolicLink()) return undefined
   try {
     const info = await stat(fullPath)
     if (info.isDirectory()) return 'directory'
-    /* v8 ignore else -- the special-file symlink branch relies on POSIX /dev/null. */
+    /* v8 ignore else -- 特殊文件符号链接这一分支依赖 POSIX 的 /dev/null。 */
     if (info.isFile()) return 'file'
-    /* v8 ignore next -- The special-file symlink fixture relies on POSIX /dev/null. */
+    /* v8 ignore next -- 特殊文件符号链接的测试夹具依赖 POSIX 的 /dev/null。 */
     return undefined
   } catch (error) {
     ctx.logger.warn(`skill entry ${fullPath} ignored: failed to follow symbolic link: ${errorMessage(error)}`)
@@ -973,13 +970,13 @@ async function pathExistsInFileSystem(path: string, fs: FileSystem): Promise<boo
   try {
     target = await fs.resolve(path)
   } catch {
-    // A backend may reject or hide this candidate; continue walking upward.
+    // 某个后端可能拒绝或隐藏这个候选路径；继续向上遍历即可。
     return false
   }
   try {
     return await fs.stat(target) !== undefined
   } catch {
-    // Transient stat failures make only this git-root candidate unusable.
+    // 瞬时性的 stat 失败只会让这一个 git 根候选变得不可用。
     return false
   }
 }
@@ -989,7 +986,7 @@ async function pathExistsInNode(path: string): Promise<boolean> {
     await access(path)
     return true
   } catch {
-    // Missing host paths are expected while walking toward the filesystem root.
+    // 向文件系统根遍历的过程中，宿主机路径缺失是预料之中的。
     return false
   }
 }

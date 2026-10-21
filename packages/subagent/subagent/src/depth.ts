@@ -1,7 +1,6 @@
 /**
- * Delegation-depth accounting: the recursion budget a parent passes to its
- * children. Kept apart from the service so composition helpers can read it
- * without importing the registry.
+ * 委托深度记账：父代理传给其子代理的递归预算。与 service 分开保存，
+ * 以便组合辅助函数无需导入注册表即可读取它。
  *
  * @module @deepseek-ai/dsh-subagent/depth
  */
@@ -10,34 +9,32 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 
 declare module '@deepseek-ai/dsh-agent' {
   interface AgentOptions {
-    /** Delegation depth: zero for a top-level agent and parent depth + 1 for a child. */
+    /** 委托深度：顶层 agent 为零，子代理为父深度 + 1。 */
     subagentDepth?: number
   }
 }
 
 /**
- * Read an agent's delegation depth, treating absence as top-level depth zero.
- * The persisted session header is authoritative and monotone: runtime
- * `AgentOptions.subagentDepth` may DEEPEN the count but can never lower it —
- * a resumed child arrives with fresh options, and counting it from zero would
- * let it delegate as if it were top-level.
- * @param agent - the agent whose header and options carry the depth.
- * @returns its non-negative safe-integer depth.
- * @throws if the runtime `AgentOptions.subagentDepth` is not a non-negative safe integer.
+ * 读取一个 agent 的委托深度，缺失时按顶层深度零处理。持久化的 session
+ * header 是权威且单调的：运行时 `AgentOptions.subagentDepth` 可以加深计数
+ * 但永远不能降低它 —— 恢复后的子代理带着全新选项到达，若从零计数就会
+ * 让它像顶层一样委托。
+ * @param agent - 其 header 与选项承载该深度的 agent。
+ * @returns 其非负安全整数深度。
+ * @throws 若运行时 `AgentOptions.subagentDepth` 不是非负安全整数。
  */
 export function delegationDepthOf(agent: Agent): number {
   const runtime = agent.options.subagentDepth
   if (runtime !== undefined && (!Number.isSafeInteger(runtime) || runtime < 0 || Object.is(runtime, -0))) {
     throw new TypeError('agent subagentDepth must be a non-negative safe integer')
   }
-  // The header value was validated at the session boundary (creation and
-  // persistence load both construct through the store).
+  // header 值在 session 边界处已被校验（创建与持久化加载都经 store 构造）。
   return Math.max(agent.session.header.delegationDepth ?? 0, runtime ?? 0)
 }
 
 /**
- * Reject a recursion cap that cannot represent an exact delegation depth.
- * @param maxDepth - the optional runtime value to validate.
+ * 拒收无法表示精确委托深度的递归上限。
+ * @param maxDepth - 待校验的可选运行时值。
  */
 export function assertSubagentMaxDepth(maxDepth: unknown): void {
   if (maxDepth !== undefined && (

@@ -5,7 +5,7 @@ import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-cli
 import type { SessionLogDownloadState } from './controller.ts'
 import { NS } from './locales.ts'
 
-/** Browser operations and state injected into the Session Header contribution. */
+/** 注入到 Session Header 贡献中的浏览器操作与状态。 */
 export interface SessionLogDownloadDialogInjected {
   hooks: { sessionLogDownload: ObservableSnapshot<SessionLogDownloadState> }
   request: (sessionId: SessionId) => Promise<void>
@@ -18,9 +18,9 @@ export type SessionLogDownloadDialogProps =
   & InjectFace<SessionLogDownloadDialogInjected>
 
 /**
- * Modal shared by the Session Header download menu item and this browser's `/export` command.
- * @param props - Session runtime, bound controller state, actions, and localized copy.
- * @returns the modal portal contribution.
+ * 由 Session Header 下载菜单项与本浏览器的 `/export` 命令共享的弹窗。
+ * @param props - Session 运行时、已绑定的控制器状态、动作与本地化文案。
+ * @returns 弹窗 portal 贡献。
  */
 export function SessionLogDownloadDialog({
   sessionId, useSessionLogDownload, dismiss, t,

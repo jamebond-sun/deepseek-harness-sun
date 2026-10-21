@@ -1,23 +1,19 @@
 /**
- * Local sandbox backend. It selects the platform runner chain (Linux bwrap then
- * Landlock; macOS Seatbelt; Windows the ACL restricted-token runner), functionally probes
- * competing candidates once, and reports each wrap's enforcement and stderr
- * classification facts. Missing or unusable confinement fails closed rather
- * than returning the original argv.
+ * 本地沙箱后端。它选择平台对应的运行器链（Linux 上是 bwrap 再到 Landlock；
+ * macOS 上是 Seatbelt；Windows 上是 ACL 受限令牌运行器），对相互竞争的候选
+ * 者做一次功能性探测，并上报每次包装的强制完整度与 stderr 分类事实。缺失
+ * 或不可用的限制一律失败即关闭，而不是原样返回调用方的 argv。
  *
- * The windows-acl rung additionally owns the write grants: the write SID is
- * the per-WORKSPACE identity derived from the canonical workspace path
- * (`workspaceWriteSid`), while every live session receives a RANDOM private
- * temp directory and its own derived capability (`tempWriteSid`). The
- * workspace-root ACE materializes once per workspace per server lifetime
- * and STANDS (the cross-session reuse cache — the exact-ACE skip makes
- * every later provision O(1) instead of re-propagating the tree per
- * session); the private-temp ACEs are revoked on dispose. The runner
- * receives both SIDs (their presence marks the seam-managed contract) and
- * stops managing DACLs itself. The rung reports partial enforcement because
- * NTFS hard links alias one file object across paths, reads stay unconfined,
- * and a tree another AppContainer tool has ACL'd with a package SID is not
- * readable by the Low-integrity child.
+ * windows-acl 这一环节还额外持有写入授予：写入 SID 是由规范化工作区路径
+ * 派生出的按工作区划分的身份（`workspaceWriteSid`），而每个活跃会话都会获得
+ * 一个随机的私有临时目录及其派生能力（`tempWriteSid`）。工作区根目录的 ACE
+ * 在服务器生命周期内按工作区只物化一次并保持常驻（跨会话复用缓存——精确
+ * ACE 跳过使得此后每次供应都是 O(1)，而不必按会话重新向整棵树传播）；私有
+ * 临时目录的 ACE 则在 dispose 时撤销。运行器接收这两个 SID（它们的出现即
+ * 标记了由本接缝托管的契约），并不再自行管理 DACL。该环节上报部分强制，
+ * 因为 NTFS 硬链接会把同一个文件对象别名到多个路径上、读取始终不受限，
+ * 且另一 AppContainer 工具以包 SID 施加过 ACL 的目录树对 Low 完整性子进程
+ * 不可读。
  * @module @deepseek-ai/dsh-sandbox-local
  */
 
@@ -41,31 +37,30 @@ import { AclWriteGrant, assertTempRootOutsideWorkspace, registerAclDiagnosisSkil
 import { assertNever } from '@deepseek-ai/dsh-util-values'
 import { bwrapProfileArgs, landlockProfileArgs, seatbeltProfileArgs } from './profiles.ts'
 
-/** Plugin config. All optional — `static Config` supplies the defaults. */
+/** 插件配置。全部可选——`static Config` 提供默认值。 */
 export interface Config {
   /**
-   * Override the runner argv; bwrap-compatible profile arguments are appended. A
-   * non-empty override asserts full enforcement and skips built-in selection and
-   * probing. A runner that starts but refuses its profile must be identifiable by
-   * {@link runnerFailureSignatures}. Consumers classify a spawn rejection only after
-   * confirming the workdir is usable. `ENOENT` or `EACCES` identifies the runner when
-   * `error.path` equals argv[0] and `error.syscall` is `spawn` or `spawn <runner>`, or
-   * when `error.path` is absent and `error.syscall` is exactly `spawn <runner>`.
+   * 覆盖运行器 argv；bwrap 兼容的配置参数会被追加在其后。非空覆盖即断言
+   * 完整强制，并跳过内建的选型与探测。一个能够启动但拒绝其配置的运行器，
+   * 必须能被 {@link runnerFailureSignatures} 识别。消费者只有在确认工作目录
+   * 可用之后，才对一次 spawn 拒绝做分类。当 `error.path` 等于 argv[0] 且
+   * `error.syscall` 为 `spawn` 或 `spawn <runner>` 时，或当 `error.path`
+   * 缺失且 `error.syscall` 恰为 `spawn <runner>` 时，`ENOENT` 或 `EACCES`
+   * 即标识出该运行器。
    */
   runnerCommand?: string[]
   /**
-   * Case-insensitive stderr substrings emitted when a configured
-   * {@link runnerCommand} refuses its profile before executing the wrapped
-   * command. Required and non-empty with `runnerCommand`; rejected without
-   * it. Each entry is a non-empty, single-line, case-insensitive substring
-   * covering the executable runner's own failure dialect.
+   * 已配置的 {@link runnerCommand} 在执行被包装命令之前拒绝其配置时，所输出
+   * 的大小写不敏感 stderr 子串。与 `runnerCommand` 同时出现时必填且非空；
+   * 缺少它则被拒绝。每一条目都是一个非空、单行、大小写不敏感的子串，覆盖
+   * 该可执行运行器自身的失败方言。
    */
   runnerFailureSignatures?: string[]
-  /** Positive timeout for each functional probe; zero would mean unbounded to Node. */
+  /** 每次功能性探测的正超时；对 Node 而言 0 意味着无限制。 */
   probeTimeoutMs?: number
 }
 
-/** Probe whether `bwrap` can create the profile; the provider caches the bounded result. */
+/** 探测 `bwrap` 能否创建该配置；提供者会缓存这一有界结果。 */
 function defaultProbeBwrap(timeoutMs: number): boolean {
   const probe = spawnSync('bwrap', [...bwrapProfileArgs({ mode: 'read-only', workspaceRoot: '/' }), '--', 'true'], {
     timeout: timeoutMs,
@@ -75,13 +70,12 @@ function defaultProbeBwrap(timeoutMs: number): boolean {
 }
 
 /**
- * Functional Seatbelt probe: apply the real `read-only` profile through
- * `sandbox-exec -p` and run `true` under it — exit 0 means the kernel
- * accepted and enforced the profile (`sandbox-exec` exits non-zero when
- * `sandbox_init` refuses it). A missing `sandbox-exec` (every non-macOS
- * host) fails the spawn and probes `unusable`, exactly like the other
- * rungs' absent binaries. Apple marks the CLI deprecated but ships it on
- * every macOS; if it ever disappears, this probe is what fails closed.
+ * Seatbelt 功能性探测：通过 `sandbox-exec -p` 应用真实的 `read-only` 配置，
+ * 并在其下运行 `true`——退出码 0 表示内核接受并强制了该配置（当
+ * `sandbox_init` 拒绝配置时，`sandbox-exec` 会以非零码退出）。缺少
+ * `sandbox-exec`（所有非 macOS 宿主机）会让 spawn 失败并探测为 `unusable`，
+ * 与其他环节上二进制缺失的情形完全一致。Apple 将该 CLI 标记为已弃用，但在
+ * 每个 macOS 上仍然随系统分发；若它有朝一日消失，正是这个探测会失败即关闭。
  */
 function defaultProbeSeatbelt(seatbeltExec: string, timeoutMs: number): boolean {
   const probe = spawnSync(seatbeltExec, [...seatbeltProfileArgs({ mode: 'read-only', workspaceRoot: '/' }), '--', 'true'], {
@@ -92,11 +86,10 @@ function defaultProbeSeatbelt(seatbeltExec: string, timeoutMs: number): boolean 
 }
 
 /**
- * Functional windows-acl probe: run the runner in read-only mode (zero grants,
- * no ACL mutation) around `cmd /c exit 0` — exit 0 means the runner created
- * the restricted token and spawned the child under it. The win32 chain is a
- * sole candidate, so the product never probes; the probe exists for override
- * chains and mirrors the other rungs' shape.
+ * windows-acl 功能性探测：以只读模式（零授予、不改 ACL）把运行器套在
+ * `cmd /c exit 0` 之外运行——退出码 0 表示运行器创建了受限令牌并在其下
+ * 派生了子进程。win32 链是单一候选者，因此产品从不探测；该探测是为覆盖
+ * 链而存在，并与其他环节保持同样的形状。
  */
 function defaultProbeWindowsAcl(runnerInvocation: string[], timeoutMs: number): boolean {
   const program = runnerInvocation[0]
@@ -112,36 +105,36 @@ function defaultProbeWindowsAcl(runnerInvocation: string[], timeoutMs: number): 
   return probe.status === 0
 }
 
-/** Test hook: inject probe verdicts / a fake launcher / a platform without real runners. */
+/** 测试钩子：注入探测结论 / 伪启动器 / 一个没有真实运行器的平台。 */
 export interface SandboxInternals {
-  /** Replaces `process.platform` for chain selection (exercise any platform's chain from any host). */
+  /** 替换用于选链的 `process.platform`（可从任意宿主机演练任意平台的链）。 */
   platform?: string
-  /** Replaces the platform's chain wholesale (walk mechanics — e.g. probing a rung the product chains only reach unprobed). */
+  /** 整体替换该平台的链（行走机制——例如探测产品链上只有未探测才会到达的某个环节）。 */
   chain?: readonly SelectedRunner['runner'][]
-  /** Replaces the functional `bwrap` probe (the Linux chain's first rung). */
+  /** 替换 `bwrap` 功能性探测（Linux 链的第一环节）。 */
   probeBwrap?: () => boolean
-  /** Replaces the functional Landlock launcher probe (the Linux chain's second rung). */
+  /** 替换 Landlock 启动器功能性探测（Linux 链的第二环节）。 */
   probeLandlock?: (launcher: string) => SandboxEnforcement | 'unusable'
-  /** Replaces the functional Seatbelt probe (the darwin chain's sole rung — only consulted if that chain ever grows). */
+  /** 替换 Seatbelt 功能性探测（darwin 链的唯一环节——仅在该链日后变长时才会被用到）。 */
   probeSeatbelt?: (seatbeltExec: string) => boolean
-  /** Replaces the resolved `landlock-run` launcher path (a fake launcher script). */
+  /** 替换解析出的 `landlock-run` 启动器路径（一个伪启动器脚本）。 */
   landlockLauncher?: string
-  /** Replaces the `sandbox-exec` executable the probe and wraps invoke (a fake script). */
+  /** 替换探测与包装所调用的 `sandbox-exec` 可执行文件（一个伪脚本）。 */
   seatbeltExec?: string
-  /** Replaces the resolved windows-acl runner argv prefix (a fake runner). */
+  /** 替换解析出的 windows-acl 运行器 argv 前缀（一个伪运行器）。 */
   windowsAclRunnerArgs?: string[]
-  /** Replaces the resolved windows-acl runner built entry path (a fake lib/runner.js location). */
+  /** 替换解析出的 windows-acl 运行器构建产物入口路径（一个伪 lib/runner.js 位置）。 */
   windowsAclRunnerEntry?: string
-  /** Replaces the functional windows-acl probe (the win32 chain's sole rung — only consulted if that chain ever grows). */
+  /** 替换 windows-acl 功能性探测（win32 链的唯一环节——仅在该链日后变长时才会被用到）。 */
   probeWindowsAcl?: () => boolean
-  /** Replaces the private-temp-directory removal at provider dispose (a throwing fake exercises the cleanup-failure path). */
+  /** 替换提供者 dispose 时的私有临时目录删除（一个会抛错的替身用以演练清理失败路径）。 */
   rmTempDir?: (path: string) => void
 }
 
-/** The chain's verdict: which runner confines, and how completely it enforces. */
+/** 链的结论：由哪个运行器施加限制，以及它强制得有多完整。 */
 type SelectedRunner = { runner: 'bwrap' | 'landlock' | 'seatbelt' | 'windows-acl'; enforcement: SandboxEnforcement }
 
-/** One live session/workspace pair's private temp directory and capability. */
+/** 一个活跃会话/工作区对的私有临时目录及其能力。 */
 interface AclTempCapability {
   dir: string
   writeSid: string
@@ -149,49 +142,45 @@ interface AclTempCapability {
 }
 
 /**
- * The runner chain per platform — selection is BY PLATFORM first, probes
- * second: a platform's chain is probed in preference order only when it has
- * MORE than one candidate (probing arbitrates; it does not re-validate a
- * choice that has no alternative). A platform with no chain fails closed at
- * `confine()`. Linux prefers `bwrap` (its mount profile is closest to the
- * mode vocabulary) over the Landlock launcher; darwin has exactly one
- * candidate, selected without any probe.
+ * 各平台的运行器链——选型首先是按平台，其次才是探测：只有当某平台的链
+ * 有超过一个候选者时，才按优先顺序探测（探测用于裁决，而不是去复核一个
+ * 别无选择的结论）。没有任何链的平台在 `confine()` 处失败即关闭。Linux
+ * 优先选择 `bwrap`（其挂载配置最贴近模式词汇）而非 Landlock 启动器；
+ * darwin 恰好只有一个候选者，不经任何探测即被选中。
  */
 const PLATFORM_CHAINS: Record<string, readonly SelectedRunner['runner'][]> = {
   linux: ['bwrap', 'landlock'],
   darwin: ['seatbelt'],
-  // The Windows restricted-token runner (@deepseek-ai/dsh-sandbox-windows-acl):
-  // a sole candidate, selected without a probe — its execution-time refusal
-  // fails closed through its stderr signature (windows-acl-run:) and exit 127.
+  // Windows 受限令牌运行器（@deepseek-ai/dsh-sandbox-windows-acl）：
+  // 单一候选者，不经探测即被选中——它在执行期的拒绝会通过其 stderr
+  // 特征串（windows-acl-run:）与退出码 127 失败即关闭。
   win32: ['windows-acl'],
 }
 
 /**
- * Enforcement completeness a rung claims when selected WITHOUT a probe (a
- * chain of one). `bwrap` and Seatbelt govern every promised file effect by
- * construction, so the claim is a profile fact; `landlock` is listed for the
- * table's totality but is unreachable without a probe (the Linux chain has
- * two rungs, so it is only ever selected through its probe, whose report is
- * what distinguishes full from per-ABI-partial — and the launcher additionally
- * self-reports partial enforcement on stderr at every confined run).
+ * 某一环节在未经探测而被选中时（链长为 1）所声称的强制完整度。`bwrap`
+ * 与 Seatbelt 在构造上就管辖了所有已承诺的文件效应，因此这一声称是一个
+ * 配置事实；列出 `landlock` 只是为了表的完整性，它在没有探测时不可达
+ * （Linux 链有两个环节，因此它只会经由探测被选中，而正是探测的报告区分
+ * 了完整与按 ABI 而言的部分——并且该启动器还会在每次受限运行时的 stderr
+ * 上自行上报部分强制）。
  */
 const STATIC_ENFORCEMENT: Record<SelectedRunner['runner'], SandboxEnforcement> = {
   bwrap: 'full',
   landlock: 'full',
   seatbelt: 'full',
-  // Everyone stays in both restricting lists for process initialization, but
-  // the Low label denies the write authority it used to confer. NTFS hard
-  // links still alias a granted workspace file to a path outside it, reads
-  // stay unconfined, and an AppContainer-ACL'd tree is unreadable to the
-  // child: the backend enforces the remaining ACL-addressable surface but
-  // must not advertise the absolute promise.
+  // 进程初始化期间 Everyone 仍留在两个限制列表中，但 Low 标签剥夺了它
+  // 曾经赋予的写权限。NTFS 硬链接依旧能把一个已授予的工作区文件别名到
+  // 工作区之外的路径上，读取仍然不受限，而施加过 AppContainer ACL 的目录
+  // 树对子进程不可读：该后端强制的是剩余可由 ACL 触达的那部分表面，
+  // 因此不得宣称绝对的承诺。
   'windows-acl': 'partial',
 }
 
 /**
- * A probe bound must be a positive finite number: Node treats
- * `spawnSync({ timeout: 0 })` as NO timeout, so an unvalidated 0 would
- * silently mean "unbounded" — the opposite of what the field promises.
+ * 探测的时限必须是一个正的有限数：Node 把 `spawnSync({ timeout: 0 })`
+ * 当作没有超时，因此一个未经校验的 0 会静默地意味着"无限制"——
+ * 与该字段所承诺的正好相反。
  */
 function assertPositiveFinite(name: string, value: number): void {
   if (!Number.isFinite(value) || value <= 0) {
@@ -200,35 +189,33 @@ function assertPositiveFinite(name: string, value: number): void {
 }
 
 /**
- * The denial dialect each runner's kernel speaks — the case-insensitive stderr substrings a
- * denied file effect produces under it, carried on every wrap (the seam's
- * `ConfinedArgv.denialSignatures`).
+ * 每个运行器所用内核所说的拒绝"方言"——在其之下被拒绝的文件效应会产生哪些
+ * 大小写不敏感的 stderr 子串，每次包装都会携带（即本接缝的
+ * `ConfinedArgv.denialSignatures`）。
  */
 const DENIAL_SIGNATURES = {
   bwrap: ['read-only file system'],
   landlock: ['permission denied'],
   seatbelt: ['operation not permitted'],
-  // pwsh/.NET: "Access to the path '...' is denied."; cmd: "Access is denied.";
-  // Node EACCES: "permission denied"; EPERM: "operation not permitted".
+  // pwsh/.NET："Access to the path '...' is denied."；cmd："Access is denied."；
+  // Node EACCES："permission denied"；EPERM："operation not permitted"。
   'windows-acl': ['access is denied', 'access to the path', 'permission denied', 'operation not permitted'],
   runnerCommand: ['read-only file system', 'permission denied'],
 } as const satisfies Record<SelectedRunner['runner'] | 'runnerCommand', readonly string[]>
 
-/** The windows-acl runner's documented failure exit (its own RUNNER_FAILURE_EXIT contract, distinct from Landlock's 125). */
+/** windows-acl 运行器文档化的失败退出码（它自己的 RUNNER_FAILURE_EXIT 契约，区别于 Landlock 的 125）。 */
 const WINDOWS_ACL_RUNNER_FAILURE_EXIT = 127
 
 /**
- * Runner-owned fatal diagnostics. Landlock has a versioned exit-125 plus
- * fatal-line launcher-failure contract. Bubblewrap's current fatal paths exit
- * 1 but its public contract does not reserve that status, while sandbox-exec
- * publishes no launcher-failure status; those backends remain signature-only.
- * The windows-acl runner prints `windows-acl-run: <detail>` on every
- * runner-side failure and exits 127 — the rule is exit-gated on that status
- * so a confined command that merely PRINTS the signature (or a runner
- * cleanup failure reported on a non-zero child exit) is never misclassified
- * as "the command did not run". Keep the Landlock tuple aligned with the
- * assembled snapshot fixture at
- * `packages/test-support/session-snapshot/tests/fixtures/partial-landlock-sandbox.ts`.
+ * 由运行器持有的致命诊断。Landlock 有一份带版本号的 exit-125 加致命行
+ * 的启动器失败契约。Bubblewrap 当前的致命路径以 1 退出，但其公开契约并
+ * 未保留该状态，而 sandbox-exec 根本没有发布启动器失败状态；这些后端因此
+ * 仅按特征串识别。windows-acl 运行器在每次运行器侧失败时打印
+ * `windows-acl-run: <detail>` 并以 127 退出——该规则以这一退出状态为门槛，
+ * 因此一个仅仅打印出该特征串的受限命令（或是在子进程非零退出时上报的运行器
+ * 清理失败）永远不会被误判为"命令没有运行"。请让 Landlock 的元组与
+ * `packages/test-support/session-snapshot/tests/fixtures/partial-landlock-sandbox.ts`
+ * 中已装配的快照夹具保持一致。
  */
 const RUNNER_FAILURE_RULES = {
   bwrap: [{ fatalSignatures: ['bwrap: '] }],
@@ -242,44 +229,40 @@ const RUNNER_FAILURE_RULES = {
 } as const satisfies Record<SelectedRunner['runner'], readonly RunnerFailureRule[]>
 
 /**
- * Local process-sandbox provider. Registers as `ctx.sandbox`. Caches the
- * chain verdict and, on the windows-acl rung, the write grants
- * ({@link AclWriteGrant}: the standing workspace-root grant per workspace
- * and the revocable private-temp grant per live session/workspace pair, the
- * latter revoked on provider dispose); the one-time probes spawn nothing
- * else.
+ * 本地进程沙箱提供者。注册为 `ctx.sandbox`。缓存链的结论，并在 windows-acl
+ * 环节上缓存写入授予（{@link AclWriteGrant}：按工作区划分的常驻工作区根
+ * 授予，以及按活跃会话/工作区对划分、可撤销的私有临时目录授予，后者在
+ * 提供者 dispose 时撤销）；一次性的探测之外不再派生任何进程。
  */
 export class LocalSandboxProvider extends SandboxProvider {
-  // Inline schema call: the config catalog walks `static Config` statically.
+  // 内联 schema 调用：配置目录会静态地遍历 `static Config`。
   static Config: z<Config> = z.object({
     runnerCommand: z.array(z.string()).default([]),
     runnerFailureSignatures: z.array(z.string()).default([]),
     probeTimeoutMs: z.natural().default(5_000),
   })
 
-  /** Test hook (mirrors the bash executors' `internals`). */
+  /** 测试钩子（对应 bash 执行器的 `internals`）。 */
   internals: SandboxInternals = {}
 
   private readonly runnerCommand: string[] | undefined
   private readonly configuredRunnerFailureSignatures: string[]
   private readonly probeTimeoutMs: number
-  /** Cached chain verdict; undefined until the first confined wrap needs it. */
+  /** 缓存的链结论；在首次受限包装需要它之前保持 undefined。 */
   private selectedRunner: SelectedRunner | 'unavailable' | undefined
   /**
-   * Server-lifetime write grants (windows-acl rung): the STANDING
-   * workspace-root grant per workspace (its ACE is the cross-session reuse
-   * cache and outlives the provider — never revoked) and the REVOCABLE
-   * private-temp grant per live session/workspace pair (revoked on provider
-   * dispose).
+   * 服务器生命周期内的写入授予（windows-acl 环节）：按工作区划分的常驻
+   * 工作区根授予（其 ACE 就是跨会话复用缓存，比提供者活得更久——从不撤销），
+   * 以及按活跃会话/工作区对划分、可撤销的私有临时目录授予（在提供者
+   * dispose 时撤销）。
    */
   private readonly workspaceGrants = new Map<string, AclWriteGrant>()
   private readonly tempCapabilities = new Map<string, AclTempCapability>()
 
   constructor(ctx: Context, config: Config) {
     super(ctx)
-    // The schema (static Config) defaults every field — the casts record
-    // those runtime facts. An empty runnerCommand means "not configured":
-    // use the platform chain.
+    // schema（static Config）为每个字段都提供了默认值——这些断言记录的
+    // 正是那些运行期事实。runnerCommand 为空表示"未配置"：改用平台链。
     const runner = config.runnerCommand as string[]
     const runnerFailureSignatures = config.runnerFailureSignatures as string[]
     if (runner.length === 0 && runnerFailureSignatures.length > 0) {
@@ -295,32 +278,31 @@ export class LocalSandboxProvider extends SandboxProvider {
     this.configuredRunnerFailureSignatures = runnerFailureSignatures
     this.probeTimeoutMs = config.probeTimeoutMs as number
     assertPositiveFinite('probeTimeoutMs', this.probeTimeoutMs)
-    // An operator-supplied runner does not use the ACL backend. The registry
-    // remains optional and may be mounted after this provider.
-    /* v8 ignore next 3 -- Windows-only registration; the Linux coverage lane cannot take this branch */
+    // 运维人员提供的运行器不使用 ACL 后端。注册表仍是可选的，可以在本
+    // 提供者之后挂载。
+    /* v8 ignore next 3 -- 仅 Windows 的注册；Linux 覆盖通道无法走到这一分支 */
     if (process.platform === 'win32' && this.runnerCommand === undefined) {
       ctx.inject(['skills'], (skillsCtx) => { registerAclDiagnosisSkill(skillsCtx) })
     }
-    // The temp grants are revoked with the provider: a clean server
-    // shutdown leaves no temp ACEs behind (workspace ACEs stand by design —
-    // the reuse cache; an unclean shutdown leaves them for the next
-    // provision's exact-ACE skip).
+    // 临时授予随提供者一并撤销：一次干净的服务器关闭不会留下任何临时
+    // ACE（工作区 ACE 按设计保持常驻——即复用缓存；非正常关闭则把它们
+    // 留给下一次供应去做精确 ACE 跳过）。
     ctx.effect(() => () => {
       this.revokeAclGrants()
     })
   }
 
   /**
-   * Wrap `argv` in the selected runner's invocation for `policy` — the configured
-   * `runnerCommand` when present (the operator's assertion, no probe), else the platform
-   * chain's runner speaking its own profile dialect.
+   * 按 `policy` 把 `argv` 包装进所选运行器的调用中——若已配置
+   * `runnerCommand` 则用它（运维人员的断言，不做探测），否则使用平台链上
+   * 那个以自身配置方言表达的运行器。
    *
-   * @param argv - the exact argv the caller is about to spawn.
-   * @param policy - the file-effect policy this execution runs under.
-   * @param signal - cancellation before policy resolution or grant creation.
-   * @returns the wrapped argv plus the selected backend's enforcement completeness, denial
-   *   signatures, and structured runner-failure rules; throws the fail-closed
-   *   `SANDBOX_UNAVAILABLE` error when the platform has no usable runner.
+   * @param argv - 调用方即将 spawn 的精确 argv。
+   * @param policy - 本次执行所运行的文件效应策略。
+   * @param signal - 在策略解析或授予创建之前的取消信号。
+   * @returns 包装后的 argv，以及所选后端的强制完整度、拒绝特征串与运行器
+   *   失败结构化规则；当平台上没有可用运行器时，抛出失败即关闭的
+   *   `SANDBOX_UNAVAILABLE` 错误。
    */
   async confine(argv: readonly string[], policy: SandboxPolicy, signal?: AbortSignal): Promise<ConfinedArgv> {
     signal?.throwIfAborted()
@@ -343,7 +325,7 @@ export class LocalSandboxProvider extends SandboxProvider {
     })
   }
 
-  /** The selected rung's runner invocation (program + profile arguments) for one policy. */
+  /** 所选环节针对一份策略的运行器调用（程序 + 配置参数）。 */
   private runnerArgv(runner: SelectedRunner['runner'], policy: SandboxPolicy): string[] {
     switch (runner) {
       case 'bwrap': return ['bwrap', ...bwrapProfileArgs(policy)]
@@ -355,16 +337,14 @@ export class LocalSandboxProvider extends SandboxProvider {
   }
 
   /**
-   * The windows-acl runner argv for one policy. With a calling session (the
-   * policy's `sessionId`) under workspace-write, the grants are materialized
-   * once per provider lifetime — the standing workspace-root grant per
-   * workspace and a revocable, RANDOM private-temp capability per live
-   * session/workspace pair. The runner receives `--write-sid` plus
-   * `--temp-write-sid` and grants nothing itself. Agentless workspace-write
-   * calls pass the ambient temp ROOT and no SID flags: the runner creates and
-   * removes a random private child directory for that one invocation.
-   * @param policy - the resolved per-call policy.
-   * @returns the runner invocation.
+   * 一份策略对应的 windows-acl 运行器 argv。在 workspace-write 下，若存在
+   * 调用会话（即策略的 `sessionId`），授予在提供者生命周期内只物化一次——
+   * 按工作区划分的常驻工作区根授予，以及按活跃会话/工作区对划分、可撤销且
+   * 随机的私有临时目录能力。运行器接收 `--write-sid` 与 `--temp-write-sid`，
+   * 自身不做任何授予。无 agent 的 workspace-write 调用传入环境临时根且不带
+   * 任何 SID 标志：运行器会为这一次调用创建并删除一个随机的私有子目录。
+   * @param policy - 已解析的按调用策略。
+   * @returns 运行器调用。
    */
   private windowsAclRunnerArgv(policy: SandboxPolicy): string[] {
     const sessionId = policy.sessionId
@@ -388,17 +368,15 @@ export class LocalSandboxProvider extends SandboxProvider {
   }
 
   /**
-   * Materialize one workspace-write policy's ACEs once per provider
-   * lifetime. The workspace SID and standing root grant are shared by the
-   * workspace. The temp directory is random and carries a distinct SID, so
-   * another session on the same workspace cannot use the shared workspace
-   * SID to enter it. A fresh provider always chooses a new path; crash
-   * residue therefore cannot collide with or authorize a resumed session.
-   * Fail-closed: a half-materialized temp grant is revoked and its directory
-   * removed before the error propagates.
-   * @param sessionId - the policy's calling-session identity.
-   * @param workspaceRoot - the resolved policy root.
-   * @returns the pair's private temp directory and write capability.
+   * 在提供者生命周期内，为一份 workspace-write 策略只物化一次其 ACE。工作区
+   * SID 与常驻根授予由该工作区共享。临时目录是随机的，并带有一个不同的
+   * SID，因此同一工作区上的另一个会话无法借助共享的工作区 SID 进入它。
+   * 一个全新的提供者总会选择新的路径，因此崩溃残留既不会与之碰撞，也不会
+   * 为一个恢复的会话提供授权。失败即关闭：只物化一半的临时授予会被撤销，
+   * 其目录也会在错误向外传播之前被删除。
+   * @param sessionId - 策略中的调用会话身份。
+   * @param workspaceRoot - 已解析的策略根。
+   * @returns 该会话/工作区对的私有临时目录与写入能力。
    */
   private materializeAclGrant(sessionId: SessionId, workspaceRoot: string): AclTempCapability {
     assertTempRootOutsideWorkspace(workspaceRoot, tmpdir())
@@ -408,9 +386,8 @@ export class LocalSandboxProvider extends SandboxProvider {
       try {
         grant.add(workspaceRoot, true)
       } catch (error) {
-        // Free the SID; a standing ACE (if the apply succeeded before a
-        // post-apply throw) is the intended end state, not an error
-        // artifact — nothing to revoke.
+        // 释放该 SID；一个常驻 ACE（若应用成功后才在后续步骤抛错）正是
+        // 预期的终态，而非错误残留——没有东西需要撤销。
         try {
           grant.dispose()
         } catch (cleanupError) {
@@ -454,13 +431,11 @@ export class LocalSandboxProvider extends SandboxProvider {
   }
 
   /**
-   * Dispose every write grant (provider dispose): the revocable temp ACEs
-   * are revoked, the private temp directories this provider created are
-   * removed, and every SID allocation is freed; the standing workspace ACEs
-   * stay (the reuse cache). Cleanup failures are reported, not thrown:
-   * cordis teardown must not be aborted by grant cleanup. A crash skips all
-   * of it, but a new provider never reuses the residue's random path or SID;
-   * OS temp hygiene (or manual removal) eventually reclaims it.
+   * 释放每一个写入授予（提供者 dispose）：可撤销的临时 ACE 被撤销，本提供者
+   * 创建的私有临时目录被删除，每一次 SID 分配都被释放；常驻的工作区 ACE 保留
+   * （复用缓存）。清理失败只上报、不抛出：cordis 的拆卸不应被授予清理中断。
+   * 崩溃会跳过这一切，但新的提供者绝不会复用残留的那个随机路径或 SID；
+   * 操作系统的临时区清理机制（或人工删除）最终会回收它。
    */
   private revokeAclGrants(): void {
     if (this.workspaceGrants.size === 0 && this.tempCapabilities.size === 0) return
@@ -487,18 +462,17 @@ export class LocalSandboxProvider extends SandboxProvider {
     }
   }
 
-  /** Remove one provider-owned private temp directory (injectable for cleanup tests). */
+  /** 删除一个由提供者拥有的私有临时目录（可注入，供清理测试使用）。 */
   private removeTempDir(dir: string): void {
     const remove = this.internals.rmTempDir ?? ((path: string) => { rmSync(path, { recursive: true, force: true }) })
     remove(dir)
   }
 
   /**
-   * Resolve which runner confines commands, once, for the provider's
-   * lifetime: this platform's chain ({@link PLATFORM_CHAINS}), its sole
-   * candidate selected directly, multiple candidates arbitrated by
-   * functional probes in chain order. Fail closed when the platform has no
-   * chain or no candidate passes — the command never runs.
+   * 在提供者的生命周期内只解析一次"由哪个运行器施加限制"：取本平台的链
+   * （{@link PLATFORM_CHAINS}），若只有一个候选者则直接选中，若有多个候选者
+   * 则按链顺序由功能性探测裁决。当平台没有链、或没有候选者通过时失败即
+   * 关闭——命令根本不会运行。
    */
   private selectRunner(mode: ConfinedSandboxMode): SelectedRunner {
     this.selectedRunner ??= this.chainVerdict()
@@ -506,12 +480,12 @@ export class LocalSandboxProvider extends SandboxProvider {
     return this.selectedRunner
   }
 
-  /** Walk this platform's chain: sole candidate unprobed, several probed in order, none usable → unavailable. */
+  /** 走一遍本平台的链：唯一候选者不探测，多个按顺序探测，无一可用 → unavailable。 */
   private chainVerdict(): SelectedRunner | 'unavailable' {
     const chain = this.internals.chain ?? PLATFORM_CHAINS[this.internals.platform ?? process.platform] ?? []
     const [first, ...rest] = chain
     if (first === undefined) return 'unavailable'
-    // A sole candidate needs no arbitration; its execution-time refusal still fails closed.
+    // 唯一候选者无需裁决；它在执行期的拒绝仍然失败即关闭。
     if (rest.length === 0) return { runner: first, enforcement: STATIC_ENFORCEMENT[first] }
     for (const runner of chain) {
       const enforcement = this.probeRunner(runner)
@@ -520,14 +494,12 @@ export class LocalSandboxProvider extends SandboxProvider {
     return 'unavailable'
   }
 
-  /** One rung's functional probe (each at most once, via the chain walk). */
+  /** 某一环节的功能性探测（经由走链，每个最多执行一次）。 */
   private probeRunner(runner: SelectedRunner['runner']): SandboxEnforcement | 'unusable' {
-    // bwrap's mount profile and Seatbelt's deny-file-write* profile govern
-    // every promised file effect by construction, so their passing probes
-    // are always full enforcement; the Landlock launcher's probe report
-    // distinguishes full from per-ABI-partial, while windows-acl is always
-    // partial for its documented hard-link, unconfined-read, and
-    // AppContainer-ACL boundaries.
+    // bwrap 的挂载配置与 Seatbelt 的 deny-file-write* 配置在构造上就管辖
+    // 了所有已承诺的文件效应，因此它们探测通过时一律是完整强制；Landlock
+    // 启动器的探测报告区分完整与按 ABI 而言的部分，而 windows-acl 因其
+    // 已记录的硬链接、读取不受限与 AppContainer ACL 边界始终为部分强制。
     switch (runner) {
       case 'bwrap': {
         const probe = this.internals.probeBwrap ?? (() => defaultProbeBwrap(this.probeTimeoutMs))
@@ -550,23 +522,22 @@ export class LocalSandboxProvider extends SandboxProvider {
     }
   }
 
-  /** The Landlock launcher to probe and exec (test hook over the resolved one). */
+  /** 用于探测与执行的 Landlock 启动器（在已解析结果之上的测试钩子）。 */
   private landlockLauncher(): string {
     return this.internals.landlockLauncher ?? landlockLauncherPath()
   }
 
-  /** The `sandbox-exec` executable to probe and exec (test hook over the system one). */
+  /** 用于探测与执行的 `sandbox-exec` 可执行文件（在系统版本之上的测试钩子）。 */
   private seatbeltExec(): string {
     return this.internals.seatbeltExec ?? 'sandbox-exec'
   }
 
   /**
-   * The windows-acl runner argv prefix: the built lib/runner.js entry when
-   * present (production), else the package source through tsx (development).
-   * Pin the source loader and TypeScript paths to this installation, independently
-   * of target cwd or environment overrides.
-   * The prefix stays `[node, runner, ...]` — a future native-exe runner keeps
-   * the same argv contract and only swaps these entries.
+   * windows-acl 运行器的 argv 前缀：存在构建产物时使用 lib/runner.js 入口
+   * （生产），否则通过 tsx 使用包内源码（开发）。把源码加载器与 TypeScript
+   * 路径固定到本安装上，不受目标 cwd 或环境变量覆盖的影响。
+   * 该前缀保持为 `[node, runner, ...]`——未来的原生 exe 运行器沿用同一
+   * argv 契约，只替换这些条目。
    */
   private windowsAclRunnerInvocation(): string[] {
     const override = this.internals.windowsAclRunnerArgs

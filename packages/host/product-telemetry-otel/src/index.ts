@@ -1,4 +1,4 @@
-/** Product analytics policy adapter for the shared Cordis OTel service. */
+/** 面向共享 Cordis OTel 服务的产品分析策略适配器。 */
 import { Context, Service } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { validateHeaderValue } from 'node:http'
@@ -9,40 +9,40 @@ declare module '@deepseek-ai/cordis' {
   interface Context { productTelemetry: ProductTelemetry }
 }
 
-/** Caller-selected ordinary analytics record. */
+/** 调用方选择的普通分析记录。 */
 export type ProductTelemetryRecord = OTelEventRecord
-/** Scalar values accepted in product attributes. */
+/** 产品属性中接受的标量值。 */
 export type ProductTelemetryScalar = OTelEventScalar
 
-/** Collector routing, application identity, and bounded in-memory batch settings. */
+/** 采集端路由、应用身份与有界内存批设置。 */
 export interface Config {
-  /** Full HTTP(S) logs URL. */
+  /** 完整的 HTTP(S) logs URL。 */
   endpoint: string
-  /** Collector routing header. */
+  /** 采集端路由头。 */
   channel: string
-  /** Resource service.name supplied by the application composition. */
+  /** 由应用组合提供的 resource service.name。 */
   serviceName: string
-  /** Resource service.version supplied by the application composition. */
+  /** 由应用组合提供的 resource service.version。 */
   serviceVersion: string
-  /** Omit to honor OTEL_EXPORTER_OTLP_LOGS_COMPRESSION / OTEL_EXPORTER_OTLP_COMPRESSION. */
+  /** 省略时遵循 OTEL_EXPORTER_OTLP_LOGS_COMPRESSION / OTEL_EXPORTER_OTLP_COMPRESSION。 */
   compression?: 'none' | 'gzip'
-  /** Maximum records per export; must not exceed maxQueueSize. */
+  /** 每次导出最多记录数；不得超过 maxQueueSize。 */
   maxExportBatchSize: number
-  /** Maximum queued records; the SDK drops new records when full. */
+  /** 最多排队记录数；队列满时 SDK 丢弃新记录。 */
   maxQueueSize: number
-  /** Delay before exporting a partial batch. */
+  /** 导出部分批次前的延迟。 */
   scheduledDelayMillis: number
-  /** Exporter HTTP deadline, including SDK transient-error retries. */
+  /** 导出器的 HTTP 时限，含 SDK 的瞬时错误重试。 */
   timeoutMillis: number
-  /** Processor deadline for one batch export. */
+  /** 单次批导出的 processor 时限。 */
   exportTimeoutMillis: number
-  /** Drain deadline; expiry cancels pending exports before disposal completes. */
+  /** 排空时限；超时会在卸载完成前取消挂起的导出。 */
   shutdownTimeoutMillis: number
 }
 
 const positiveInteger = () => z.number().step(1).min(1).max(2_147_483_647)
 
-/** Loader validation and defaults for application compositions. */
+/** 供应用组合使用的 Loader 校验与默认值。 */
 export const Config: z<Partial<Config>, Config> = z.object({
   endpoint: z.string().default('https://dsh-otel-collector.deepseeksvc.com/v1/logs'),
   channel: z.string().min(1).default('dsh_otel_report'),
@@ -57,7 +57,7 @@ export const Config: z<Partial<Config>, Config> = z.object({
   shutdownTimeoutMillis: positiveInteger().default(21000),
 })
 
-/** Host analytics sender. Mounting alone sends nothing; the owning fiber drains it on unload. */
+/** 宿主侧分析发送器。仅挂载不会发送任何东西；所属 fiber 在卸载时将其排空。 */
 export default class ProductTelemetry extends Service {
   static inject = ['otel']
   static Config = Config
@@ -111,9 +111,9 @@ export default class ProductTelemetry extends Service {
   }
 
   /**
-   * Enqueue one selected product event without waiting for network delivery.
-   * Queue admission and shutdown completion are not collector or warehouse acknowledgements.
-   * @param record - caller-owned event containing only approved analytics fields.
+   * 入队一条被选中的产品事件，不等待网络投递。入队成功与关闭完成都不是采集端或数仓的
+   * 确认。
+   * @param record - 调用方自有的事件，仅包含已批准的分析字段。
    */
   emit(record: ProductTelemetryRecord): void {
     this.reporter.emit(record)

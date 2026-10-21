@@ -1,5 +1,5 @@
-/** Private SEA dispatcher for the SSH helper and its managed process workers. */
-/* v8 ignore file -- the executable artifact suite runs this entry through pkg's SEA loader. */
+/** 面向 SSH helper 及其托管进程 worker 的私有 SEA 分发器。 */
+/* v8 ignore file -- 可执行产物测试通过 pkg 的 SEA 加载器运行该入口。 */
 import { registerHooks } from 'node:module'
 import { statSync } from 'node:fs'
 import { dirname, join } from 'node:path'
@@ -7,14 +7,14 @@ import { isSea } from 'node:sea'
 import { pathToFileURL } from 'node:url'
 
 /**
- * Dispatch the co-shipped helper or worker once from the private SEA bootstrap.
- * @returns after the selected process entry has completed its cleanup.
- * @throws when invoked outside SEA or when native resources cannot be loaded.
+ * 从私有 SEA 引导程序中一次分发出随包发布的 helper 或 worker。
+ * @returns 被选中的进程入口完成清理之后返回。
+ * @throws 在 SEA 之外调用时，或无法加载原生资源时抛出。
  */
 export async function runSshHelperRuntime(): Promise<void> {
   if (!isSea()) throw new Error('SSH helper runtime must run from its packaged executable')
 
-  // The operating system executes Landlock outside the SEA virtual filesystem.
+  // 操作系统在 SEA 虚拟文件系统之外执行 Landlock。
   const nativeManifest = join(dirname(process.execPath), 'native', 'system', 'package.json')
   statSync(nativeManifest)
   const platformPackage = `@deepseek-ai/node-addon-system-${process.platform}-${process.arch}/package.json`

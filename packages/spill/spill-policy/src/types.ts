@@ -1,24 +1,24 @@
 /**
- * Vocabulary for the spill-policy plugin: the minimal structural view of a tool
- * execution the policy needs to derive the owning session for a spill artifact.
+ * 溢出策略插件的词汇：策略为推导一个溢出产物的归属会话所需要的、
+ * 对工具执行的最小结构化视图。
  *
- * `@deepseek-ai/dsh-tools`' `ToolExecution` satisfies this shape, so the policy
- * reads `exec` straight through without importing `dsh-tools` or `dsh-agent`.
- * Only the session HEADER id is read — the same identity every other subsystem
- * keys off (see `dsh-tool-bash`'s owner derivation).
+ * `@deepseek-ai/dsh-tools` 的 `ToolExecution` 满足该形状，因此策略可以
+ * 直接读取 `exec`，无需导入 `dsh-tools` 或 `dsh-agent`。
+ * 只读取会话 HEADER 的 id —— 与所有其他子系统所依据的同一个身份
+ * （参见 `dsh-tool-bash` 的归属推导）。
  *
  * @module @deepseek-ai/dsh-spill-policy/types
  */
 
 import type { SessionId } from '@deepseek-ai/dsh-session'
 
-/** Minimal structural view of a tool execution: the owning session's header id, when present. */
+/** 工具执行的最小结构化视图：存在时其归属会话的 header id。 */
 export interface SpillPolicyExec {
-  /** The agent on whose behalf the call runs, when there is one. */
+  /** 代表其发起该调用的 agent，当存在时。 */
   agent?: {
     session: {
       header: {
-        /** The canonical session identity — the spill owner. */
+        /** 规范的会话身份 —— 溢出归属者。 */
         id: SessionId
       }
     }

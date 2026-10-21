@@ -1,11 +1,11 @@
-/** Durable Session-message acceptance checks for teammate provisioning. */
+/** 针对队友置备的、持久的 Session 消息接受检查。 */
 
 import type { UserMessage } from '@deepseek-ai/dsh-llm'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
 
 type InboxProjection = Record<'next-turn' | 'next-step', UserMessage[]>
 
-/** Fold the durable inbox suffix into the messages still awaiting a claim. */
+/** 将持久的收件箱后缀折叠进仍在等待认领的消息中。 */
 function pendingInboxMessages(events: readonly SessionEvent[]): UserMessage[] {
   const inbox: InboxProjection = { 'next-turn': [], 'next-step': [] }
   for (const event of events) {
@@ -17,10 +17,10 @@ function pendingInboxMessages(events: readonly SessionEvent[]): UserMessage[] {
 }
 
 /**
- * Test whether one message is model-visible or still durably pending.
- * @param events - one Session's non-inherited event suffix.
- * @param predicate - identity check for the accepted message.
- * @returns whether history or the current inbox contains a match.
+ * 测试某条消息是否已对模型可见，还是仍在持久地等待中。
+ * @param events - 某个 Session 的非继承事件后缀。
+ * @param predicate - 对已接受消息的身份检查。
+ * @returns 历史记录或当前收件箱是否包含匹配项。
  */
 export function messageAccepted(
   events: readonly SessionEvent[],

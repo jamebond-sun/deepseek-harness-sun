@@ -1,4 +1,4 @@
-/** Host-owned opt-in setting for model-selectable subagent delegation. */
+/** 宿主机拥有的、用于可选模型选择子代理委托的选择加入设置。 */
 import type { Volatile } from '@deepseek-ai/cordis'
 
 import { Context, Service } from '@deepseek-ai/cordis'
@@ -11,28 +11,28 @@ import {
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
-    /** User preference sampled when a new Session receives delegation tools. */
+    /** 当一个新的 Session 收到委托工具时所采样的用户偏好。 */
     subagentModelSelection: SubagentModelSelectionConfig
   }
 }
 
-/** Stored user preference; the shipped composition defaults it off. */
+/** 已存储的用户偏好；已发布的组合默认关闭它。 */
 export interface SubagentModelSelectionSettings {
-  /** Whether newly composed top-level Sessions receive model selection. */
+  /** 新组合的顶层 Session 是否获得模型选择能力。 */
   enabled: boolean
-  /** Exact child LLM routes offered to newly composed top-level Sessions. */
+  /** 提供给新组合的顶层 Session 的精确子 LLM 路由。 */
   allowedModels: AllowedModelRoute[]
 }
 
-/** Optional deployment base for the preference. */
+/** 该偏好的可选部署基线。 */
 export interface Config {
-  /** Initial enabled state inherited when the user document does not override it. */
+  /** 当用户文档未覆盖时继承的初始启用状态。 */
   enabled: Volatile<boolean>
-  /** Initial route list inherited when the user document does not override it. */
+  /** 当用户文档未覆盖时继承的初始路由列表。 */
   allowedModels: Volatile<AllowedModelRoute[]>
 }
 
-/** Singleton settings owner read when delegation tools are composed for a Session. */
+/** 在为一次 Session 组合委托工具时被读取的单例设置属主。 */
 export class SubagentModelSelectionConfig extends Service {
   static Config = z.object({
     enabled: z.boolean().default(false).volatile(),
@@ -44,8 +44,8 @@ export class SubagentModelSelectionConfig extends Service {
   }
 
   /**
-   * Read a detached selection preference for the next eligible Session composition.
-   * @returns the enabled state and exact allowed routes.
+   * 为下一次符合条件的 Session 组合读取一份已分离的选择偏好。
+   * @returns 启用状态与精确的允许路由。
    */
   current(): SubagentModelSelectionSettings {
     const enabled = this.config.enabled.get()

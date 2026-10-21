@@ -1,5 +1,5 @@
 /**
- * Human-facing `/goal` command over the persisted same-session goal domain.
+ * 面向人的 `/goal` 命令，构建在已持久化的同会话 goal 领域之上。
  * @module @deepseek-ai/dsh-command-goal
  */
 
@@ -24,14 +24,14 @@ type GoalCommand =
   | { readonly kind: 'resume' }
   | { readonly kind: 'clear' }
 
-/** Fail loudly if a locally closed union gains an unhandled member. */
-/* v8 ignore start -- closed-union backstop is unreachable without violating the TypeScript contract */
+/** 局部封闭联合出现未处理成员时大声失败。 */
+/* v8 ignore start -- 若不违反 TypeScript 约定，封闭联合的兜底分支不可达 */
 function assertNever(value: never, label: string): never {
   throw new TypeError(`unknown ${label}: ${String(value)}`)
 }
 /* v8 ignore stop */
 
-/** Parse only the grammar owned by `/goal`; arbitrary other input is an objective. */
+/** 只解析 `/goal` 自身拥有的语法；其它任意输入都视为目标描述。 */
 function parseGoalCommand(rawInput: string): GoalCommand {
   const input = rawInput.trim()
   if (input.length === 0) return { kind: 'show' }
@@ -44,19 +44,19 @@ function parseGoalCommand(rawInput: string): GoalCommand {
   return { kind: 'create', objective: input }
 }
 
-/** Human label for one durable goal phase. */
+/** 一个持久化目标阶段的人类可读标签。 */
 function phaseLabel(phase: GoalPhase): string {
   switch (phase) {
     case 'active': return 'active'
     case 'paused': return 'paused'
     case 'blocked': return 'blocked'
     case 'complete': return 'complete'
-    /* v8 ignore next 2 -- GoalPhase is closed and every member is handled above */
+    /* v8 ignore next 2 -- GoalPhase 是封闭联合，且上面已处理每个成员 */
     default: return assertNever(phase, 'goal phase')
   }
 }
 
-/** Commands that are meaningful from one exact live state. */
+/** 在某个精确的实时状态下有意义的命令。 */
 function commandHint(goal: GoalView): string {
   if (goal.phase === 'active') {
     return goal.activation === 'armed'
@@ -69,15 +69,15 @@ function commandHint(goal: GoalView): string {
       return '/goal edit <objective>, /goal resume, /goal clear'
     case 'complete':
       return '/goal <objective>, /goal clear'
-    /* v8 ignore next 2 -- the active branch and every non-active phase are handled above */
+    /* v8 ignore next 2 -- active 分支与每个非 active 阶段都已在上面处理 */
     default: return assertNever(goal.phase, 'goal phase')
   }
 }
 
-/** Render direct UI output without exposing compare-and-set internals. */
+/** 渲染直接的 UI 输出，不暴露比较并设置（CAS）的内部细节。 */
 function renderGoal(title: string, goal: GoalView): CommandResult {
   const reason = goal.phase === 'blocked' ? goal.blockedReason : undefined
-  /* v8 ignore next -- durable replay guarantees every blocked goal carries its validated reason */
+  /* v8 ignore next -- 持久化重放保证每个被阻塞的目标都带有已校验的原因 */
   if (goal.phase === 'blocked' && reason === undefined) throw new TypeError('blocked goal is missing its reason')
   const blocker = reason === undefined ? [] : [`Blocker: ${reason.code}: ${reason.message}`]
   return {
@@ -95,12 +95,12 @@ function renderGoal(title: string, goal: GoalView): CommandResult {
   }
 }
 
-/** Exact current compare-and-set ref. */
+/** 精确的当前比较并设置（CAS）ref。 */
 function goalRef(goal: GoalView): GoalRef {
   return { id: goal.id, revision: goal.revision }
 }
 
-/** Direct error for an operation that requires a current goal. */
+/** 需要当前目标的操作所对应的直接错误。 */
 function missingGoal(action: string): CommandResult {
   return {
     kind: 'error',
@@ -109,10 +109,9 @@ function missingGoal(action: string): CommandResult {
 }
 
 /**
- * Submit the invocation's admitted composer attachments as one model-visible user
- * message ahead of the goal's next round. The attachments precede a fixed text
- * block naming their role, so a later goal round reads them from ordinary
- * session history without the goal domain storing attachment state.
+ * 在该目标的下一轮次之前，把调用中已准入的 composer 附件作为一条模型可见的
+ * 用户消息提交。附件位于一个说明其作用的固定文本块之前，这样后续 goal 轮次
+ * 能从普通的会话历史中读取它们，而 goal 领域无需存储附件状态。
  */
 function submitObjectiveAttachments(invocation: CommandInvocation): void {
   if (invocation.attachments.length === 0) return
@@ -122,7 +121,7 @@ function submitObjectiveAttachments(invocation: CommandInvocation): void {
   }))
 }
 
-/** Execute one parsed human command through the domain that owns persistence. */
+/** 通过拥有持久化能力的领域执行一条已解析的人类命令。 */
 function executeGoalCommand(ctx: Context, invocation: CommandInvocation): CommandResult {
   const command = parseGoalCommand(invocation.rawInput)
   if (invocation.attachments.length > 0 && command.kind !== 'create' && command.kind !== 'edit') {
@@ -172,7 +171,7 @@ function executeGoalCommand(ctx: Context, invocation: CommandInvocation): Comman
         if (current === undefined) return { kind: 'success', text: 'No goal to clear.' }
         ctx.goals.clear(invocation.agent, goalRef(current))
         return { kind: 'success', text: 'Goal cleared.' }
-      /* v8 ignore next 2 -- GoalCommand is closed and every member is handled above */
+      /* v8 ignore next 2 -- GoalCommand 是封闭联合，且上面已处理每个成员 */
       default: return assertNever(command, 'goal command')
     }
   } catch (error: unknown) {
@@ -186,7 +185,7 @@ function executeGoalCommand(ctx: Context, invocation: CommandInvocation): Comman
   }
 }
 
-/** Register the Codex-shaped `/goal` command for every composed command adapter. */
+/** 为每个组合进来的命令适配器注册 Codex 风格的 `/goal` 命令。 */
 export function apply(ctx: Context): void {
   ctx.commands.register({
     definitionId: CommandDefinitionId('@deepseek-ai/dsh-command-goal'),

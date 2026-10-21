@@ -1,4 +1,4 @@
-/** Isolated verification for a staged or competing current JSONL generation. */
+/** 对一个已暂存或与之竞争的当前 JSONL 代际做隔离式校验。 */
 
 import { Worker } from 'node:worker_threads'
 import type { WorkerOptions } from 'node:worker_threads'
@@ -17,7 +17,7 @@ type VerificationResponse =
   | { readonly ok: true; readonly result: JsonlVerifiedGeneration }
   | { readonly ok: false; readonly message: string; readonly stack?: string }
 
-/** Process-wide memory bound for full-generation verification isolates. */
+/** 面向全代际校验隔离环境的进程级内存上限。 */
 const MAX_CONCURRENT_VERIFIERS = 2
 
 class VerificationScheduler {
@@ -71,7 +71,7 @@ class VerificationScheduler {
 const verificationScheduler = new VerificationScheduler()
 
 function workerSpawn(request: VerificationRequest): { readonly entry: string | URL; readonly options: WorkerOptions } {
-  /* v8 ignore next 3 -- built-worker coverage owns the bundled path. */
+  /* v8 ignore next 3 -- 已构建 worker 的覆盖负责打包后的路径。 */
   if (!import.meta.url.endsWith('.ts')) {
     return {
       entry: new URL('./worker.cjs', import.meta.url),
@@ -96,14 +96,14 @@ function workerSpawn(request: VerificationRequest): { readonly entry: string | U
 }
 
 /**
- * Verify one current generation in a fresh Worker Thread.
- * @param path - staged or competing current-generation path.
- * @param compression - configured physical encoding.
- * @param expectedId - Session id expected in the decoded header.
- * @param expectedEventCount - exact logical event count expected after decoding.
- * @param expectedPrefix - verified physical prefix; an append tail may be present and is not validated.
- * @param signal - optional cancellation for scheduler wait and Worker execution.
- * @returns the worker's physical identity and digest after its natural zero exit.
+ * 在一个全新的 Worker 线程中校验一个当前代际。
+ * @param path - 已暂存或与之竞争的当前代际路径。
+ * @param compression - 已配置的物理编码方式。
+ * @param expectedId - 已解码头部中预期的 Session id。
+ * @param expectedEventCount - 解码之后预期的精确逻辑事件数。
+ * @param expectedPrefix - 已校验的物理前缀；可能存在追加尾部，且不会被校验。
+ * @param signal - 可选取消信号，用于调度器等待与 Worker 执行。
+ * @returns 在 worker 自然以 0 退出之后的物理身份与摘要。
  */
 export function verifyCurrentGenerationInWorker(
   path: string,
@@ -145,7 +145,7 @@ function runVerificationWorker(
       signal?.removeEventListener('abort', abort)
     }
     const fail = (error: Error): void => {
-      /* v8 ignore next -- a late error/exit races only after another terminal callback settled. */
+      /* v8 ignore next -- 迟到的错误/退出只在另一个终结回调已结算之后才可能竞态。 */
       if (settled) return
       settled = true
       cleanup()
@@ -157,7 +157,7 @@ function runVerificationWorker(
       )
     }
     worker.once('message', (value: unknown) => {
-      /* v8 ignore next -- a duplicate message races only after another terminal callback settled. */
+      /* v8 ignore next -- 重复的消息只在另一个终结回调已结算之后才可能竞态。 */
       if (settled) return
       if (typeof value !== 'object' || value === null || typeof (value as { ok?: unknown }).ok !== 'boolean') {
         fail(new Error('migration verifier returned an invalid response'))

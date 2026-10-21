@@ -1,13 +1,11 @@
 /**
- * User-facing permission presets over the independent sandbox-mode and
- * approval-policy knobs. A switch records the selected preset, then writes
- * changed knobs through their canonical setters. Execution, prompt narration,
- * and replay keep reading their knob folds. The preset event preserves user
- * intent when two presets share a bundle. The Auto review integration may
- * publish one fixed, current-session-only preset with a synchronous admission
- * check; settings defaults remain limited to the configured table. The read
- * side exposes a process catalog plus the current-value-only `permissions`
- * Session projection; the write side ships as the `/permission` command.
+ * 建立在相互独立的 sandbox-mode 与 approval-policy 两个开关之上、面向用户的权限
+ * 预设。一次切换会记录被选中的预设，然后通过各自的权威 setter 写入发生变化的开关。
+ * 执行、prompt 叙述与重放继续读取各自的开关折叠结果。当两个预设共用同一组取值时，
+ * 预设事件得以保留用户的意图。Auto 评审集成可以发布一个固定的、仅限当前 Session
+ * 的预设，并附带一个同步的准入检查；设置项的默认值仍限定在已配置的表内。读侧暴露
+ * 进程级目录与只包含当前值的 `permissions` Session 投影；写侧以 `/permission`
+ * 命令提供。
  *
  * @module dsh-permission-presets
  */
@@ -23,12 +21,12 @@ import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
 import type { SandboxMode } from '@deepseek-ai/dsh-sandbox'
 import { SANDBOX_MODES, setSandboxMode } from '@deepseek-ai/dsh-sandbox-policy'
-// Side-effect type import: declaration-merges `ctx.shell` (the capability fact
-// `sandboxMode` this service reads), without a value dependency on the seam.
+// 副作用式类型导入：通过声明合并提供 `ctx.shell`（本服务读取的能力事实
+// `sandboxMode`），同时不对接缝产生值依赖。
 import type {} from '@deepseek-ai/dsh-shell'
 import type { ApprovalPolicy } from '@deepseek-ai/dsh-user-approval'
 import { APPROVAL_POLICIES, setApprovalPolicy } from '@deepseek-ai/dsh-user-approval'
-// Type-only: resolves the required projection service and optional settings/command children.
+// 仅类型：解析必需的投影服务，以及可选的 settings/command 子项。
 import type {} from '@deepseek-ai/dsh-session-projection'
 import type {} from '@deepseek-ai/dsh-commands'
 import type { PermissionCatalog, PermissionSelection, PresetOption } from './types.ts'
@@ -43,7 +41,7 @@ declare module '@deepseek-ai/cordis' {
 
 declare module '@deepseek-ai/dsh-session-projection/types' {
   interface SessionProjectionStateMap {
-    /** Latest logged permission overrides and constructor-seed status. */
+    /** 最近记录到的权限覆盖情况与构造函数播种状态。 */
     permissions: PermissionProjectionState
   }
 }
@@ -51,40 +49,39 @@ declare module '@deepseek-ai/dsh-session-projection/types' {
 declare module '@deepseek-ai/dsh-session/types' {
   interface SessionEventMap {
     /**
-     * Records the selected preset as durable, log-only user intent. The knob
-     * events follow in the same turn and control execution; this event stays
-     * out of the model transcript and lets the permission projection unit
-     * preserve a selection when bundles match.
+     * 把被选中的预设记录为已持久的用户意图。开关事件紧随其后写入同一个 turn
+     * 并控制执行；本事件不进入模型 transcript，并让权限投影单元在多个预设共用
+     * 同一组取值时保留用户的选择。
      */
     'permission/preset': { preset: string }
   }
 }
 
-/** One preset's sandbox/approval bundle and optional client presentation. */
+/** 一个预设的 sandbox/approval 取值组合，以及可选的 Client 呈现信息。 */
 export interface PresetSpec {
-  /** The `sandbox/mode` value the preset writes through. */
+  /** 该预设经 `sandbox/mode` 写入的值。 */
   sandbox: SandboxMode
-  /** The `approval/policy` value the preset writes through. */
+  /** 该预设经 `approval/policy` 写入的值。 */
   approval: ApprovalPolicy
-  /** The display label a client shows for this preset; the raw table key when omitted. */
+  /** Client 为该预设展示的名称；缺省时为原始的表键。 */
   name?: string
-  /** One user-facing sentence on what the preset means; omitted when not configured. */
+  /** 一句面向用户的话，说明该预设的含义；未配置时缺省。 */
   description?: string
 }
 
 /**
- * Returned when effective knob values match no available preset. Clients may
- * show it as the current value, but it is never a switch target or event payload.
+ * 当生效的开关取值与任何可用预设都不匹配时返回。客户端可以把它当作当前值展示，
+ * 但它永远不是切换目标，也不会成为事件载荷。
  */
 export const CUSTOM_PRESET = 'custom'
 
-/** Canonical identity of the experimental per-call review preset. */
+/** 实验性的逐次评审预设的权威身份。 */
 export const AUTO_PRESET = 'auto'
 
 /**
- * Fixed execution bundle for the live Auto integration. `ask` routes reviewer
- * denials to the user; a stored Auto identity also matches `never`, which a
- * delegated child pins so its reviewer denials stay final.
+ * 生效中的 Auto 集成的固定执行组合。`ask` 把评审方的拒绝路由给用户；一个被保存
+ * 下来的 Auto 身份同样匹配 `never`，被委派的子 agent 用它固定取值，从而让评审方的
+ * 拒绝保持终局性。
  */
 const AUTO_PRESET_SPEC: PresetSpec = {
   sandbox: 'danger-full-access',
@@ -92,21 +89,21 @@ const AUTO_PRESET_SPEC: PresetSpec = {
 }
 
 /**
- * The projection unit's knob state: the last seen value of each knob event,
- * null before an override (composition defaults apply at view time).
+ * 投影单元的开关状态：每个开关事件最后一次出现的值；在出现覆盖之前为 null
+ * （组合默认值在生成视图时才生效）。
  */
 export interface KnobState {
-  /** Last `permission/preset` payload, or null. */
+  /** 最后一次 `permission/preset` 的载荷，或 null。 */
   preset: string | null
-  /** Last `sandbox/mode` payload, or null. */
+  /** 最后一次 `sandbox/mode` 的载荷，或 null。 */
   sandbox: SandboxMode | null
-  /** Last `approval/policy` payload, or null. */
+  /** 最后一次 `approval/policy` 的载荷，或 null。 */
   approval: ApprovalPolicy | null
 }
 
-/** Projection state for permission overrides and constructor-seed status. */
+/** 权限覆盖与构造函数播种状态的投影内部 state。 */
 interface PermissionProjectionState extends KnobState {
-  /** Whether the log contains a constructor-seed boundary. */
+  /** 日志中是否存在构造函数播种边界。 */
   seeded: boolean
 }
 
@@ -121,15 +118,15 @@ const permissionStateSchema: zod.ZodType<PermissionProjectionState> = zod.object
   seeded: zod.boolean(),
 }).strict()
 
-/** State for the empty log: every knob at its composition default. */
+/** 空日志的 state：每个开关都处在组合默认值上。 */
 const EMPTY_KNOBS: KnobState = { preset: null, sandbox: null, approval: null }
 
 /**
- * One-event permission-state transition (the projection unit's `apply`). Unrelated
- * events return the same reference — the registry's change gate.
- * @param state - the folded knob state before `event`.
- * @param event - one committed session event.
- * @returns the next state; the same reference when the event is unrelated.
+ * 单事件的权限状态转移（投影单元的 `apply`）。无关事件返回同一个引用 ——
+ * 这是注册表的变更闸门。
+ * @param state - `event` 之前已折叠的开关状态。
+ * @param event - 一条已提交的 Session 事件。
+ * @returns 下一个状态；事件无关时返回同一个引用。
  */
 function applyPermissionEvent(
   state: PermissionProjectionState,
@@ -149,36 +146,35 @@ function applyPermissionEvent(
   }
 }
 
-/** User setting resolved when a new session receives its initial permission. */
+/** 新 Session 接收初始权限时读取的用户设置。 */
 export interface PermissionSettings {
-  /** Preset pinned into a newly created session. */
+  /** 钉入新建 Session 的预设。 */
   defaultPreset: string
 }
 
-/** The {@link PermissionPresetService} config: preset table and composition default. */
+/** {@link PermissionPresetService} 的配置：预设表与组合默认值。 */
 export interface Config {
   /**
-   * The preset table: name → knob bundle. Defaults to `workspace-write`
-   * (workspace-write + ask) and `danger-full-access` (danger-full-access +
-   * never). The names `custom` and `auto` are reserved for derived state and
-   * the Auto review integration respectively.
+   * 预设表：名称 → 开关组合。默认为 `workspace-write`
+   * （workspace-write + ask）与 `danger-full-access`
+   * （danger-full-access + never）。其中 `custom` 与 `auto` 两个名称被保留，
+   * 分别用于推导状态与 Auto 评审集成。
    */
   presets: Record<string, PresetSpec>
   /**
-   * Default for new sessions. When omitted, the preset matching the composed
-   * sandbox and approval defaults is used.
+   * 新 Session 的默认值。缺省时使用与组合后的 sandbox 和 approval 默认值相匹配的
+   * 那个预设。
    */
   defaultPreset: Volatile<string | undefined>
 }
 
 /**
- * Owns the deployment's configured permission presets, the fixed Auto
- * integration hook, and their write path. Requires a confining `ctx.shell` executor and
- * `ctx.approval`; unmatched knob values are reported as
- * {@link CUSTOM_PRESET}, not an error.
+ * 持有部署所配置的权限预设、固定的 Auto 集成钩子，以及它们的写入路径。要求一个能够
+ * 实施约束的 `ctx.shell` 执行器与 `ctx.approval`；无法匹配任何取值的开关会被报告为
+ * {@link CUSTOM_PRESET}，而不是一个错误。
  */
 export class PermissionPresetService extends TypertRemoteService {
-  // Inline schema call: the config catalog walks `static Config` statically.
+  // 内联 schema 调用：配置目录静态地遍历 `static Config`。
   static Config = z.object({
     presets: z.dict(z.object({
       sandbox: z.union(SANDBOX_MODES as SandboxMode[]).required(),
@@ -208,7 +204,7 @@ export class PermissionPresetService extends TypertRemoteService {
     super(ctx, 'permissionPresets')
 
     ctx.inject(['settings'], (child) => { child.effect(() => child.settings.configure({ auto: false }, ctx.fiber)) })
-    // The schema defaulted the table — the cast records that runtime fact.
+    // schema 已为这张表填好默认值 —— 该断言只是把这个运行期事实记录下来。
     this.presets = config.presets
     if (CUSTOM_PRESET in this.presets) {
       throw new Error(`permission: "${CUSTOM_PRESET}" is reserved for the derived not-a-preset state and cannot name a table entry`)
@@ -249,18 +245,17 @@ export class PermissionPresetService extends TypertRemoteService {
       this.pinInitialPermission(session)
     }
 
-    // The /permission command: the one write path a web client uses (the
-    // popup contribution submits the picked preset as this line). The child
-    // activates only when a command registry is composed.
+    // /permission 命令：web 客户端使用的唯一写入路径（弹窗贡献把选中的预设作为
+    // 这一行提交）。该子 context 只在组合了命令注册表时才激活。
     ctx.inject(['commands'], (commandCtx) => {
       commandCtx.commands.register({
         definitionId: CommandDefinitionId('@deepseek-ai/dsh-permission-presets'),
         name: 'permission',
         description: 'Switch the permission preset (sandbox mode + approval policy)',
         input: { hint: '<preset>' },
-        // No settlement text labels its value with this command's own name: a
-        // surface that renders `name · text` (the web command row) would
-        // otherwise read `permission · Permission preset: workspace-write.`
+        // 结果文案不会再用本命令自身的名字标注取值：任何把 `名称 · 文本` 渲染出来的
+        // 界面（例如 web 的命令行）否则会显示成
+        // `permission · Permission preset: workspace-write.`
         handler: ({ agent, rawInput }) => {
           const name = rawInput.trim()
           if (name === '') {
@@ -277,17 +272,16 @@ export class PermissionPresetService extends TypertRemoteService {
   }
 
   /**
-   * The advertised preset names: configured entries in declaration order,
-   * followed by Auto while its integration is live.
-   * @returns every switchable preset name.
+   * 对外公布的预设名称：按声明顺序排列的已配置项，其后是生效期间的 Auto。
+   * @returns 全部可切换的预设名称。
    */
   get names(): readonly string[] {
     return [...Object.keys(this.presets), ...(this.autoAdmit === undefined ? [] : [AUTO_PRESET])]
   }
 
   /**
-   * Read the complete process-level catalog exposed to current-session UI.
-   * @returns every currently selectable preset in contribution order.
+   * 读取暴露给当前 Session UI 的完整进程级目录。
+   * @returns 当前全部可选预设，按贡献顺序排列。
    */
   @Remote('catalog')
   catalog(): PermissionCatalog {
@@ -299,10 +293,9 @@ export class PermissionPresetService extends TypertRemoteService {
   }
 
   /**
-   * Publish the fixed current-session Auto preset for the calling
-   * integration's effect lifetime.
-   * @param admit - synchronous gate run before live Auto selection or restore.
-   * @returns the async effect disposer that removes Auto.
+   * 在调用方集成的 effect 生命周期内发布固定的、当前 Session 级的 Auto 预设。
+   * @param admit - 在选择或恢复生效中的 Auto 之前运行的同步闸门。
+   * @returns 移除 Auto 的异步 effect 回收函数。
    */
   registerAuto(admit: () => void): () => Promise<void> {
     return this.ctx.effect(() => {
@@ -317,9 +310,8 @@ export class PermissionPresetService extends TypertRemoteService {
   }
 
   /**
-   * The preset currently selected as the default for future sessions.
-   * @returns the resolved settings value, or the composition default without
-   * a mounted settings provider.
+   * 当前被选为未来 Session 默认值的预设。
+   * @returns 解析出的设置值；没有挂载设置提供者时为组合默认值。
    */
   get defaultPreset(): string {
     return this.defaultSettings().defaultPreset
@@ -332,19 +324,18 @@ export class PermissionPresetService extends TypertRemoteService {
   }
 
   /**
-   * Resolve the preset matching the effective knob values. A still-matching
-   * last selection wins shared-bundle ties, and a still-selected Auto also
-   * matches the `never` approval policy; otherwise the first configured
-   * match wins. Returns
-   * {@link CUSTOM_PRESET} when no available preset matches.
-   * @param session - the session whose knob state is read.
-   * @returns the effective preset name, or `custom` when nothing matches.
+   * 解析出与生效开关取值相匹配的预设。当仍然匹配的上一次选择与他人共用同一组取值时，
+   * 由它胜出；仍处于选中状态的 Auto 还能匹配 `never` 审批策略；否则由第一个配置
+   * 匹配项胜出。没有任何可用预设匹配时返回
+   * {@link CUSTOM_PRESET}。
+   * @param session - 读取其开关状态的 Session。
+   * @returns 生效的预设名称；都不匹配时为 `custom`。
    */
   current(session: Session): string {
     return this.derive(this.permissionState(session))
   }
 
-  /** Resolve the preset for one folded knob state (the shared mathematics of `current` and the projection unit). */
+  /** 为一份已折叠的开关状态解析预设（`current` 与投影单元共用的同一套算法）。 */
   private derive(state: KnobState): string {
     const sandbox = state.sandbox ?? this.ctx.shell.sandboxMode
     const approval = state.approval ?? this.ctx.approval.config.policy ?? 'ask'
@@ -361,10 +352,10 @@ export class PermissionPresetService extends TypertRemoteService {
   }
 
   /**
-   * Resolve an available preset's knob bundle.
-   * @param name - the preset name to resolve.
-   * @returns the configured bundle.
-   * @throws when `name` is neither configured nor the currently live Auto preset.
+   * 解析某个可用预设的开关组合。
+   * @param name - 要解析的预设名称。
+   * @returns 对应的已配置组合。
+   * @throws 当 `name` 既不是已配置预设，也不是当前生效中的 Auto 预设时抛出。
    */
   resolve(name: string): PresetSpec {
     const spec = this.specOf(name)
@@ -375,11 +366,11 @@ export class PermissionPresetService extends TypertRemoteService {
   }
 
   /**
-   * Build the client option for an available preset or {@link CUSTOM_PRESET}.
-   * A missing label falls back to the preset key.
-   * @param name - a configured preset key, live `auto`, or `custom`.
-   * @returns the option a client renders.
-   * @throws when `name` is neither a configured preset, live `auto`, nor `custom`.
+   * 为一个可用预设或 {@link CUSTOM_PRESET} 构造 Client 选项。
+   * 缺失的展示名称回退到预设键本身。
+   * @param name - 某个已配置的预设键、生效中的 `auto`，或 `custom`。
+   * @returns 供 Client 渲染的选项。
+   * @throws 当 `name` 既不是已配置预设、生效中的 `auto`，也不是 `custom` 时抛出。
    */
   optionOf(name: string): PresetOption {
     if (name === CUSTOM_PRESET) {
@@ -390,16 +381,16 @@ export class PermissionPresetService extends TypertRemoteService {
   }
 
   /**
-   * Record a changed preset, then update each changed knob through its own
-   * setter. Selecting the effective preset again appends nothing.
-   * @param session - the session the switch belongs to.
-   * @param name - the preset to switch to; unknown names throw.
+   * 记录一次预设变更，然后通过各自的 setter 更新每一个发生变化的开关。再次选择当前
+   * 已经生效的预设不会追加任何事件。
+   * @param session - 本次切换所属的 Session。
+   * @param name - 要切换到的预设；名称未知时抛出。
    */
   set(session: Session, name: string): void {
     this.apply(session, name, (policy) => { setApprovalPolicy(session, policy) })
   }
 
-  /** Apply one preset through its durable identity and canonical knob setters. */
+  /** 通过已持久的身份与权威 setter 应用一个预设。 */
   private apply(session: Session, name: string, setApproval: (policy: ApprovalPolicy) => void): void {
     const spec = this.resolve(name)
     if (name === AUTO_PRESET) this.autoAdmit?.()
@@ -418,12 +409,10 @@ export class PermissionPresetService extends TypertRemoteService {
   }
 
   /**
-   * Fill every missing permission fact before a session is published. A
-   * genuinely fresh session uses the current user default; seeded or partially
-   * initialized sessions preserve their effective knob values and only gain
-   * the missing durable facts. A stored Auto identity requires its live
-   * integration and passes its admission check before
-   * publication.
+   * 在 Session 发布之前补齐每一个缺失的权限事实。真正全新的 Session 使用当前的用户
+   * 默认值；已播种或部分初始化的 Session 保留其生效的开关取值，只补齐缺失的已持久
+   * 事实。一个被保存下来的 Auto 身份要求集成处于生效状态，并通过其准入检查之后
+   * 才会被发布。
    */
   private pinInitialPermission(session: Session): void {
     const state = this.permissionState(session)
@@ -455,7 +444,7 @@ export class PermissionPresetService extends TypertRemoteService {
     }
   }
 
-  /** Publish a non-vetoing payload-free catalog invalidation. */
+  /** 发布一条不具否决权的、无载荷的目录失效通知。 */
   private emitCatalogChanged(): void {
     for (const listener of this.ctx.events.dispatch('emit', ['permission-presets/catalog-changed']) as Array<() => unknown>) {
       try {
@@ -471,7 +460,7 @@ export class PermissionPresetService extends TypertRemoteService {
     }
   }
 
-  /** Resolve one configured or currently live fixed preset without throwing. */
+  /** 解析某个已配置的、或当前生效中的固定预设，且不抛出。 */
   private specOf(name: string): PresetSpec | undefined {
     return this.presets[name]
       ?? (name === AUTO_PRESET && this.autoAdmit !== undefined ? AUTO_PRESET_SPEC : undefined)

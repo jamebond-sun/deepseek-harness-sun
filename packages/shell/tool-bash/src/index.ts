@@ -1,13 +1,11 @@
 /**
- * Model-facing Consumer of the `ctx.shell` capability seam. While a job
- * registry is composed, every call registers its process with `ctx.jobs` as
- * it starts: `run_in_background` returns the id at once, and a foreground call
- * waits on its job until the command finishes or the wait times out, at which
- * point it returns the same id. Without a registry the tool is foreground-only
- * and the executor's deadline kills the command.
+ * `ctx.shell` 能力缝面向模型的消费方。在作业注册表被装配时，每次调用都会在
+ * 启动时把其进程注册到 `ctx.jobs`：`run_in_background` 立即返回 id，而前台
+ * 调用会等待其作业，直到命令结束或等待超时，并在那时返回同一个 id。没有
+ * 注册表时，本工具只能前台运行，并由执行器的期限终止命令。
  *
- * TODO(permissions): deployment policy belongs in `tools/pre-execute` and
- * sandboxing executors; see docs/architecture.md § Where new behavior goes.
+ * TODO(permissions)：部署策略属于 `tools/pre-execute` 与带沙箱能力的执行器；
+ * 参见 docs/architecture.md 的“新行为应放在哪里”一节。
  * @module @deepseek-ai/dsh-tool-bash
  */
 
@@ -33,32 +31,29 @@ import { parseExitStatus, renderJobRead, renderPromoted, renderResult } from './
 export const name = 'tool-bash'
 export const inject = ['tools', 'shell', 'systemPrompt', 'shellEnv', 'workingDirectory']
 
-/** Configuration for the bash tool. */
+/** bash 工具的配置。 */
 export interface Config {
   /**
-   * Expose `run_in_background` while a job registry is composed (default
-   * true); disabled calls are also rejected. Without a registry the tool is
-   * foreground-only regardless.
+   * 在作业注册表被装配时暴露 `run_in_background`（默认 true）；被禁用时，
+   * 相关调用也会被拒绝。没有注册表时，本工具无论如何都只能前台运行。
    */
   enableRunInBackground?: boolean
   /**
-   * Keep a foreground command that reaches its timeout running as a
-   * background job instead of killing it (default true). Applies only while
-   * background execution is available: with `enableRunInBackground` false or
-   * no job registry, the executor's deadline kills the command. A foreground
-   * command the registry refuses at its start (admission or a missing
-   * controller) also runs under the deadline kill.
+   * 让达到超时的前台命令继续作为后台作业运行，而不是被终止（默认 true）。
+   * 仅在后台执行可用时生效：`enableRunInBackground` 为 false 或没有作业
+   * 注册表时，执行器的期限会终止命令。注册表在其启动处拒绝的前台命令
+   * （准入被拒或缺少控制器）同样在期限终止下运行。
    */
   promoteOnTimeout?: boolean
 }
 
-/** Runtime configuration schema for the bash tool plugin. */
+/** bash 工具插件的运行时配置 schema。 */
 export const Config: z<Config> = z.object({
   enableRunInBackground: z.boolean().default(true),
   promoteOnTimeout: z.boolean().default(true),
 })
 
-/** Parsed tool args; execute validates value constraints absent from ParameterSchemaSpec. */
+/** 已解析的工具参数；execute 会校验 ParameterSchemaSpec 未涵盖的取值约束。 */
 interface BashToolArgs {
   command: string
   description: string
@@ -66,7 +61,7 @@ interface BashToolArgs {
   workdir?: string
   run_in_background?: boolean
   sandbox_permissions?: string
-  /** Optional for an omitted or repeated effective mode; widening requires a non-empty reason. */
+  /** 在生效模式被省略或重复时为可选；放宽权限需要给出非空的理由。 */
   justification?: string
 }
 
@@ -99,9 +94,9 @@ function bashDescription(): string {
 }
 
 /**
- * Present foreground calls as terminals and background starts as generic cards.
- * The command remains the title on both paths; foreground cwd is passed through
- * for the bridge to resolve, while background descriptions remain card content.
+ * 把前台调用呈现为终端卡片，把后台启动呈现为通用卡片。两条路径上都以命令
+ * 作为标题；前台的 cwd 会透传给桥接去解析，而后台的 description 则仍是
+ * 卡片内容。
  */
 type BashCallArgs = { command: string; description: string; workdir?: string; run_in_background?: boolean }
 
@@ -124,8 +119,8 @@ function presentBashCall(args: BashCallArgs): GenericCallView | TerminalCallView
 }
 
 /**
- * Present completed foreground output as a terminal; background acknowledgements
- * and execution errors use generic fenced output without an exit-status pill.
+ * 把已完成的前台输出呈现为终端卡片；后台的启动确认与执行错误则使用不带
+ * 退出状态徽标的通用围栏输出。
  */
 function presentBashResult(args: unknown, result: ToolResult): ToolResultView | undefined {
   const block = result.content.length === 1 ? result.content[0] : undefined
@@ -133,16 +128,16 @@ function presentBashResult(args: unknown, result: ToolResult): ToolResultView | 
   const raw = block.text
   const isBackground = typeof args === 'object' && args !== null && (args as { run_in_background?: unknown }).run_in_background === true
   const isPromoted = (result as { value?: { kind?: unknown } }).value?.kind === 'promoted'
-  // Background acknowledgements, promotions, and errors have no terminal exit status.
+  // 后台确认、晋升与错误都没有终端退出状态。
   if (isBackground || isPromoted || result.isError) {
     return { card: 'generic', content: [{ type: 'text', text: `\`\`\`console\n${raw.replace(/\n+$/, '')}\n\`\`\`` }] }
   }
-  // The exit marker becomes the card's exit pill, so it leaves the output body.
+  // 退出标记会成为卡片上的退出徽标，因此它要从输出主体中移出。
   const { body, ...exit } = parseExitStatus(raw)
   return { card: 'terminal', output: body, ...exit }
 }
 
-/** Resolve a relative per-call override against the Session's current directory. */
+/** 针对会话当前目录解析单次调用的相对路径覆盖值。 */
 function resolveWorkdir(modelWorkdir: string | undefined, sessionCwd: string | undefined): string | undefined {
   if (modelWorkdir === undefined) return sessionCwd
   if (sessionCwd !== undefined && !isAbsolute(modelWorkdir)) {
@@ -151,7 +146,7 @@ function resolveWorkdir(modelWorkdir: string | undefined, sessionCwd: string | u
   return modelWorkdir
 }
 
-/** Detach the executor DTO from readonly Service Definition types into plain JSON data. */
+/** 把执行器的 DTO 从只读的服务定义类型中剥离出来，转为纯 JSON 数据。 */
 function canonicalBashResult(result: ShellRunResult, cwd: string) {
   const output = (stream: ShellRunResult['stdout']) => ({
     text: stream.text,
@@ -178,21 +173,21 @@ function canonicalBashResult(result: ShellRunResult, cwd: string) {
   }
 }
 
-/** The structured abort the foreground paths throw when the caller cancels the call. */
+/** 调用方取消本次调用时，前台路径抛出的结构化中止错误。 */
 function toolAborted(): HarnessError {
   const error = new HarnessError('tool call aborted', TOOL_ABORTED)
   error.name = 'AbortError'
   return error
 }
 
-/** A registered command: its id, the process once the starter spawned it, and the reason an outside kill gave. */
+/** 一个已注册的命令：其 id、启动器 spawn 出来的进程，以及外部终止给出的原因。 */
 interface StartedJob {
   readonly id: JobId
   readonly process: () => ShellExecution | undefined
   readonly stopped: () => string | undefined
 }
 
-/** Canonical background-handle properties shared by the bash output union. */
+/** bash 输出联合类型共用的后台句柄规范属性。 */
 const BACKGROUND_OUTPUT_PROPERTIES = {
   kind: { type: 'string', required: true, const: 'background' },
   jobId: { type: 'string', required: true },
@@ -201,8 +196,8 @@ const BACKGROUND_OUTPUT_PROPERTIES = {
 
 export function apply(ctx: Context, config: Config = {}): void {
   const backgroundEnabled = config.enableRunInBackground ?? true
-  // Keeping a timed-out command needs the whole background surface: the job
-  // tools to collect and stop it, and the registry itself at execution time.
+  // 保留一条已超时的命令需要整套后台能力：用于收集与停止它的作业工具，
+  // 以及执行时可用的注册表本身。
   const promoteOnTimeout = (config.promoteOnTimeout ?? true) && backgroundEnabled
   const defaultMode = ctx.shell.sandboxMode
   const escalationModes: readonly SandboxMode[] = defaultMode === undefined ? [] : ESCALATION_TARGETS
@@ -210,20 +205,18 @@ export function apply(ctx: Context, config: Config = {}): void {
   if (defaultMode !== undefined && sandboxPolicy === undefined) {
     throw new Error('tool-bash: the mounted bash executor confines but ctx.sandboxPolicy is missing')
   }
-  /** Resolve the complete standing policy for this call when a confining executor is mounted. */
+  /** 在装配了隔离型执行器时，为本次调用解析完整的常设策略。 */
   const resolveSandboxPolicy = (exec: ToolExecution): SandboxExecutionPolicy | undefined =>
     sandboxPolicy?.resolve(exec.agent === undefined ? {} : { session: exec.agent.session })
 
   /**
-   * Resolve a sandbox-escalation request through `ctx.approval` BEFORE
-   * anything executes, delegating the shared fail-closed sequence (strict
-   * widening, channel resolution, outcome mapping) to
-   * {@link approveEscalation}. This tool contributes only the composition
-   * guard (the fields are unadvertised without a sandboxing executor, yet
-   * schema validation checks advertised keys only, so an unadvertised
-   * `sandbox_permissions` still reaches execute) and the approval
-   * ingredients. The shared policy resolver is required whenever the executor
-   * advertises confinement, so a split composition fails at tool-plugin load.
+   * 在任何东西执行之前，通过 `ctx.approval` 处理一次沙箱升级请求，把共享的
+   * 失败即关闭序列（严格放宽、通道解析、结果映射）委托给
+   * {@link approveEscalation}。本工具只贡献装配守卫（没有带沙箱能力的
+   * 执行器时这些字段不会被声明，而 schema 校验只检查已声明的键，因此未
+   * 被声明的 `sandbox_permissions` 仍会抵达 execute）以及审批所需的材料。
+   * 只要执行器声明了隔离能力，共享策略解析器就是必需的，因此被割裂的
+   * 装配会在工具插件加载时就失败。
    */
   const approveBashEscalation = (
     mode: string,
@@ -247,7 +240,7 @@ export function apply(ctx: Context, config: Config = {}): void {
     )
   }
 
-  // Cross-call guidance belongs in the prompt rather than one-call schema prose.
+  // 跨调用的指引属于提示词，而不是单次调用 schema 的说明文字。
   ctx.systemPrompt.section({
     name: 'tool:bash',
     order: ctx.systemPrompt.getSectionOrder('TOOL_BASH'),
@@ -255,14 +248,13 @@ export function apply(ctx: Context, config: Config = {}): void {
   })
 
   /**
-   * One registration of the `bash` tool. With a registry, every call
-   * registers its process as a job at its start; without one the tool is
-   * foreground-only and the executor's deadline kills the command.
+   * `bash` 工具的一次注册。有注册表时，每次调用都会在启动时把其进程注册为
+   * 一个作业；没有注册表时，本工具只能前台运行，并由执行器的期限终止命令。
    */
   const bashTool = (jobs: JobRegistry | undefined): ToolDefinition => {
     const background = jobs !== undefined
     const promote = background && promoteOnTimeout
-    /** Register the command as a job; the process spawns inside the starter, after admission. */
+    /** 把命令注册为作业；进程在准入通过之后于启动器内部 spawn。 */
     const startJob = (registry: JobRegistry, args: BashToolArgs, exec: ToolExecution, spec: ShellExecSpec): StartedJob => {
       let proc: ShellExecution | undefined
       let stopped: string | undefined
@@ -282,8 +274,8 @@ export function apply(ctx: Context, config: Config = {}): void {
           )
           return {
             done: hooks.done,
-            // A kill from outside this call (the human's, a parallel job_kill)
-            // reaches the process here; its reason is what the model reads.
+            // 来自本次调用之外的终止（人类的操作、并行的 job_kill）
+            // 会在这里作用到进程上；其给出的原因就是模型读到的内容。
             cancel: (reason) => {
               stopped = reason
               hooks.cancel(reason)
@@ -293,15 +285,14 @@ export function apply(ctx: Context, config: Config = {}): void {
       })
       return { id, process: () => proc, stopped: () => stopped }
     }
-    /** Wait on a registered foreground command until it settles or the timeout passes. */
+    /** 等待一个已注册的前台命令，直到它落定或超时过去。 */
     const waitOnJob = async (registry: JobRegistry, attached: StartedJob, exec: ToolExecution, spec: ShellExecSpec) => {
       const owner = exec.agent?.id
       const timeoutMs = spec.timeoutMs
       /**
-       * Stop the job on this call's own account and stay on it until it
-       * settles, so the settlement is `awaited` and no completion notice
-       * follows a result this call already carries; the record then leaves
-       * with the call, as the model never saw the id.
+       * 以本次调用自身的名义停止该作业，并持续跟进直到它落定，这样落定
+       * 就被 `await` 了，也不会有完成通知跟在一个本次调用已经携带的结果
+       * 之后；随后记录随本次调用一起离开，因为模型从未见过这个 id。
        */
       const stop = async (reason: string): Promise<JobView> => {
         registry.kill(attached.id, owner, reason)
@@ -313,16 +304,15 @@ export function apply(ctx: Context, config: Config = {}): void {
       try {
         view = await registry.wait(attached.id, timeoutMs, owner, exec.signal)
       } catch {
-        // A wait on the caller's own live job rejects only for the caller's
-        // abort: the model's call is over, so the command goes with it, as
-        // under the deadline kill.
+        // 对调用方自己那个活动作业的等待，只会因为调用方中止而拒绝：
+        // 模型的这次调用已经结束，命令随之而去，正如期限终止下的情形。
         await stop('tool call aborted')
         throw toolAborted()
       }
       if ((view.status === 'running' || view.status === 'stopping') && attached.process() === undefined) {
-        // The wait expired while preparation still ran: nothing is running
-        // to keep, so this is the deadline's preparation timeout, with the
-        // settled empty result the executor's own deadline would have given.
+        // 等待在准备阶段仍在运行时到期：没有任何东西在跑可供保留，
+        // 因此这就是期限的准备阶段超时，并带有执行器自身期限本会给出的
+        // 那个已落定的空结果。
         await stop('timed out during preparation')
         return {
           kind: 'foreground' as const,
@@ -338,9 +328,8 @@ export function apply(ctx: Context, config: Config = {}): void {
         }
       }
       if (view.status === 'running' || view.status === 'stopping') {
-        // The wait timed out: the job keeps running. One consuming read seeds
-        // the result with the output so far, so `job_output` continues exactly
-        // where this result stops.
+        // 等待超时：作业继续运行。一次消费式读取用目前为止的输出作为结果的
+        // 起点，因此 `job_output` 会恰好从本结果停下的地方继续。
         const read = registry.read(attached.id, owner)
         return {
           kind: 'promoted' as const,
@@ -352,14 +341,12 @@ export function apply(ctx: Context, config: Config = {}): void {
           ),
         }
       }
-      // Settled while the call waited: the model never saw the id, so the
-      // record leaves the registry with this result. The process handle keeps
-      // the split streams and classification the foreground result needs.
+      // 在本次调用等待期间落定：模型从未见过这个 id，因此记录随本结果一起
+      // 离开注册表。进程句柄保留着前台结果所需的分流输出与分类。
       registry.remove(attached.id, owner)
       const process = attached.process()
-      // No process was published: the starter failed before the spawn, and the
-      // job's terminal detail is the failure the foreground projection would
-      // have rejected with.
+      // 没有发布任何进程：启动器在 spawn 之前就失败了，而作业的终止详情
+      // 正是前台投影本会用以拒绝的那个失败。
       if (process === undefined) throw new Error(view.detail)
       const result = await process.result()
       const stopped = attached.stopped()
@@ -476,7 +463,7 @@ export function apply(ctx: Context, config: Config = {}): void {
         presentationMeta: (_args, value) => ({ cwd: value.cwd }),
       },
       async execute(args: BashToolArgs, exec) {
-        // Description is display metadata; workdir defaults to the caller's session.
+        // description 只是展示用的元数据；workdir 默认为调用方会话的目录。
         const standingPolicy = resolveSandboxPolicy(exec)
         validateBashArgs(args, standingPolicy?.mode)
         const approvedMode = args.sandbox_permissions !== undefined && args.justification !== undefined
@@ -496,23 +483,22 @@ export function apply(ctx: Context, config: Config = {}): void {
           ...policy !== undefined ? { sandboxPolicy: policy } : {},
         }
         if (args.run_in_background === true) {
-          // Undeclared keys are allowed, so schema omission also needs enforcement.
+          // 未声明的键是允许出现的，因此 schema 的省略也需要被强制执行。
           if (!backgroundEnabled) {
             throw new Error('run_in_background is disabled for this deployment (enableRunInBackground: false)')
           }
           if (jobs === undefined) {
             throw new Error('background jobs unavailable: load @deepseek-ai/dsh-jobs and @deepseek-ai/dsh-tool-jobs')
           }
-          // The caller owns cancellation until ctx.jobs commits detached ownership.
+          // 在 ctx.jobs 落实脱离本次调用的归属之前，取消权归调用方所有。
           if (exec.signal.aborted) throw toolAborted()
           const spec = ctx.shell.resolve({ ...request, onExpiry: 'none' })
           return { kind: 'background' as const, jobId: startJob(jobs, args, exec, spec).id, cwd: spec.workdir }
         }
-        // A foreground call is a job the tool waits on, so the command is
-        // visible and killable from the moment it starts and outlives the wait
-        // when the timeout passes. Admission refused at the start (the owner's
-        // job limit, no controller) runs the command under the deadline kill
-        // instead, exactly as a composition without a registry does.
+        // 前台调用是一个工具会等待的作业，因此命令自启动那一刻起就可见
+        // 且可被终止，并在超时过去后存活于这次等待之外。在启动处被拒绝
+        // 准入的命令（归属者的作业上限、没有控制器）改为在期限终止下
+        // 运行，正如没有注册表的装配所做的那样。
         if (jobs !== undefined && promote) {
           const spec = ctx.shell.resolve({ ...request, onExpiry: 'none' })
           let attached: StartedJob | undefined
@@ -534,11 +520,9 @@ export function apply(ctx: Context, config: Config = {}): void {
     })
   }
 
-  // The background surface follows the registry. The foreground-only variant
-  // registers now unless a registry is already composed, the job-backed
-  // variant replaces it for as long as `ctx.jobs` is present, and the
-  // foreground-only one returns when the registry unloads while this plugin
-  // stays. Both registrations belong to this plugin's own fiber.
+  // 后台能力随注册表而定。除非注册表已被装配，否则先注册仅前台的变体；
+  // 只要 `ctx.jobs` 在场，作业驱动的变体就会取代它；而在本插件留存、注册
+  // 表卸载时，仅前台的变体又会回来。两次注册都属于本插件自身的 fiber。
   if (!backgroundEnabled) {
     ctx.tools.register(bashTool(undefined))
     return

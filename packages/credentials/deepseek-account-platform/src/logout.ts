@@ -1,8 +1,8 @@
-/** Bounded, memory-only revocation of a token already removed from local credentials. */
+/** 对有界、仅内存的撤销：针对一个已从本地凭证中移除的令牌。 */
 import { setTimeout } from 'node:timers/promises'
 import { logoutAccount } from './protocol.ts'
 
-/** Resolved logout retry settings owned by the account provider. */
+/** 由账户提供方所拥有的、已解析的登出重试设置。 */
 export interface LogoutRetryPolicy {
   readonly maxRetries: number
   readonly delayMs: number
@@ -10,13 +10,13 @@ export interface LogoutRetryPolicy {
 }
 
 /**
- * Revoke one captured grant without changing local account state.
- * @param origin - Issuer verified before local grant removal.
- * @param token - Removed grant, never replaced with a later login's token.
- * @param policy - Request deadline and exponential retry limits.
- * @param signal - Provider lifetime; shutdown aborts requests and delays.
- * @param headers - Validated issuer-only deployment headers.
- * @returns After success, exhaustion, or cancellation; remote failures stay in the background.
+ * 撤销一份已捕获的授权，而不改变本地账户状态。
+ * @param origin - 本地授权移除之前所验证的签发者。
+ * @param token - 已移除的授权，绝不会被一次后续登录的令牌所替换。
+ * @param policy - 请求截止时间与指数退避重试上限。
+ * @param signal - 提供方生命周期；关闭会中止请求与延迟。
+ * @param headers - 已验证的、仅签发者的部署请求头。
+ * @returns 在成功、耗尽或取消之后；远端失败留在后台。
  */
 export async function revokeAccount(origin: string, token: string, policy: LogoutRetryPolicy,
   signal: AbortSignal, headers: Record<string, string>): Promise<void> {
@@ -24,7 +24,7 @@ export async function revokeAccount(origin: string, token: string, policy: Logou
     if (signal.aborted) return
     if (attempt > 0) {
       try { await setTimeout(policy.delayMs * 2 ** (attempt - 1), undefined, { signal, ref: false }) }
-      catch { return } // The validated delay rejects only when the provider lifetime ends.
+      catch { return } // 已验证的延迟只在提供方生命周期结束时才会被拒绝。
     }
     try {
       await logoutAccount(origin, token,

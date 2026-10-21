@@ -1,25 +1,24 @@
-/** Streaming terminal-control sanitizer for the line-oriented first release. */
+/** 面向按行首发的流式终端控制清理器。 */
 
 import { Buffer } from 'node:buffer'
 
-/** OSC marker emitted by the controlled bash before each prompt. */
+/** 受控 bash 在每个提示符前发出的 OSC 标记。 */
 export const PROMPT_MARKER_PREFIX = '133;D;'
 
-/** Exact printable prompt emitted after the private marker. */
+/** 在私有标记之后发出的精确可打印提示符。 */
 export const CONTROLLED_PROMPT = 'dsh> '
 
 /** One sanitized chunk plus whether it contained the owned prompt marker. */
 export interface SanitizedChunk {
   text: string
   prompt: boolean
-  /** Printable text after the latest owned marker in this chunk. */
+  /** 本分块中最新自有标记之后的可打印文本。 */
   promptTail?: string
 }
 
 /**
- * Remove CSI/OSC/short escape sequences while preserving split-sequence carry.
- * Full terminal emulation is deliberately deferred; ordinary line output and
- * the private prompt marker are the supported contract.
+ * 移除 CSI/OSC/短转义序列，同时保留被拆分序列的延续部分。
+ * 完整的终端仿真被刻意推迟；普通行输出与私有提示符标记才是受支持的契约。
  */
 export class TerminalSanitizer {
   private pending = ''
@@ -31,9 +30,9 @@ export class TerminalSanitizer {
   constructor(private readonly maxPendingBytes: number) {}
 
   /**
-   * Consume one decoded `node-pty` data chunk.
-   * @param chunk - decoded terminal data.
-   * @returns Printable text and whether the private prompt marker completed.
+   * 消费一个已解码的 `node-pty` 数据分块。
+   * @param chunk - 已解码的终端数据。
+   * @returns 可打印文本，以及私有提示符标记是否已完成。
    */
   push(chunk: string): SanitizedChunk {
     this.pending += this.discardPrefix(chunk)
@@ -95,7 +94,7 @@ export class TerminalSanitizer {
         index = end + 1
         continue
       }
-      // Two-byte escape family (save/restore cursor and similar).
+      // 双字节转义族（保存/恢复光标等）。
       index = escape + 2
     }
     this.pending = this.pending.slice(index)
@@ -108,8 +107,8 @@ export class TerminalSanitizer {
   }
 
   /**
-   * Flush a trailing printable fragment when the PTY exits.
-   * @returns Remaining printable text; incomplete escapes are discarded.
+   * 当 PTY 退出时，冲刷末尾的可打印片段。
+   * @returns 剩余的可打印文本；不完整的转义序列会被丢弃。
    */
   flush(): string {
     const text = this.pending.startsWith('\x1b') ? '' : this.pending
@@ -179,9 +178,9 @@ export class TerminalSanitizer {
 }
 
 /**
- * Normalize CRLF and standalone carriage returns for line-oriented rendering.
- * @param text - sanitized terminal text.
- * @returns Line-normalized text with BEL removed.
+ * 为按行渲染归一化 CRLF 与独立的回车符。
+ * @param text - 已清理的终端文本。
+ * @returns 已按行归一化、并移除 BEL 的文本。
  */
 export function normalizeTerminalText(text: string): string {
   return text.replaceAll('\r\n', '\n').replaceAll('\r', '\n').replaceAll('\x07', '')

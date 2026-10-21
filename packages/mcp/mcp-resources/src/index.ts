@@ -1,5 +1,5 @@
 /**
- * Scoped MCP resource providers and the shared model-facing resource tools.
+ * 作用域化的 MCP 资源提供方，以及共享的、模型可见的资源工具。
  *
  * @module @deepseek-ai/dsh-mcp-resources
  */
@@ -17,18 +17,18 @@ declare module '@deepseek-ai/cordis' {
   }
 }
 
-/** One supported resource operation, with server-owned cursors and URIs. */
+/** 一个受支持的资源操作，游标与 URI 由服务端持有。 */
 export type McpResourceRequest =
   | { method: 'resources/list' | 'resources/templates/list'; cursor?: string }
   | { method: 'resources/read'; uri: string }
 
-/** One configured server's resource access, owned by its MCP connection plugin. */
+/** 一个已配置服务端的资源访问，由其 MCP 连接插件持有。 */
 export interface McpResourceProvider {
   /**
-   * Run an operation against one live connection generation.
-   * @param request - MCP resource method and parameters.
-   * @param exec - caller identity and cancellation for this invocation.
-   * @returns the protocol result as lossless JSON.
+   * 针对一个在线连接世代执行操作。
+   * @param request - MCP 资源方法与参数。
+   * @param exec - 本次调用的调用方身份与取消信号。
+   * @returns 无损 JSON 形式的协议结果。
    */
   request(request: McpResourceRequest, exec: ToolExecution): Promise<JsonValue>
 }
@@ -43,13 +43,13 @@ class ResourceLayer implements ScopeLayer {
   }
 }
 
-/** Scoped resource access plus three tools shared by configured MCP servers. */
+/** 作用域化的资源访问，加上由已配置的 MCP 服务端共享的三个工具。 */
 export class McpResourceRuntime extends Service {
-  /** Tool registry required by the resource consumer. */
+  /** 资源消费者所需的工具注册表。 */
   static inject = ['tools']
 
   private readonly layers = new ScopedLayers(() => new ResourceLayer(), () => undefined)
-  /** Shared tool registrations outlive any one server's registering context. */
+  /** 共享的工具注册比任何一个服务端的注册上下文活得更久。 */
   private readonly selfCtx: Context
 
   constructor(ctx: Context) {
@@ -72,17 +72,17 @@ export class McpResourceRuntime extends Service {
   }
 
   /**
-   * Register one server and expose resource tools while that scope has providers.
-   * @param server - configured server name, unique in this scope.
-   * @param provider - connection-owned resource operations.
-   * @returns the effect disposer for this exact registration.
+   * 注册一个服务端，并在该作用域存在提供方期间暴露资源工具。
+   * @param server - 已配置的服务端名，在本作用域内唯一。
+   * @param provider - 由连接持有的资源操作。
+   * @returns 本次注册对应的 effect disposer。
    */
   register(server: string, provider: McpResourceProvider): () => void {
     const ctx = this.ctx
     const scope = scopeOf(ctx)
     const dispose = ctx.effect(function* (this: McpResourceRuntime) {
       let disposal: void | Promise<void>
-      // Tools disappear synchronously; Cordis owns any pending scoped-fiber teardown.
+      // 工具同步消失；Cordis 负责任何待处理的作用域 fiber 拆除。
       yield () => disposal
       yield this.layers.effect(ctx, (layer) => {
         const first = layer.servers.isEmpty()
@@ -95,16 +95,16 @@ export class McpResourceRuntime extends Service {
         }
         return () => {
           remove()
-          // oxlint-disable-next-line typescript/no-non-null-assertion -- successful provider registration owns the shared tools
+          // oxlint-disable-next-line typescript/no-non-null-assertion -- 成功的提供方注册持有共享工具
           if (layer.servers.isEmpty()) disposal = layer.disposeTools!()
         }
       }, { label: `mcpResources.provider(${server})` })
     }.bind(this), `mcpResources.register(${server})`)
-    // oxlint-disable-next-line typescript/no-misused-promises -- visibility cleanup is synchronous; Cordis retains pending fiber disposal
+    // oxlint-disable-next-line typescript/no-misused-promises -- 可见性清理是同步的；Cordis 保留待处理的 fiber 销毁
     return dispose
   }
 
-  /** Own one scope's tools independently of its configured server plugins. */
+  /** 独立于该作用域已配置的服务端插件，持有该作用域自己的工具。 */
   private registerTools(scope: ScopeKey | undefined): () => void | Promise<void> {
     const ctx = this.selfCtx
     return ctx.effect(function* (this: McpResourceRuntime) {
@@ -118,7 +118,7 @@ export class McpResourceRuntime extends Service {
     }.bind(this), 'mcpResources.tools')
   }
 
-  /** Resolve the caller-visible server before starting any network operation. */
+  /** 在开始任何网络操作之前，先解析调用方可见的服务端。 */
   private request(server: string, request: McpResourceRequest, exec: ToolExecution): Promise<JsonValue> {
     const provider = this.layers.merge(exec.agent, layer => layer.servers).get(server)
     if (!provider) throw new Error(`MCP resource server "${server}" is unavailable in this agent's scope`)

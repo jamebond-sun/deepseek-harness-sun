@@ -1,34 +1,34 @@
-/** Shared admission cutoff and bounded settlement for the Team runtime. */
+/** Team 运行时共享的准入截止与有界结算。 */
 
 import { TeamError } from './error.ts'
 
-/** Owns the single Team runtime cancellation fact and disposal timeout. */
+/** 持有 Team 运行时唯一的取消事实，以及处置超时。 */
 export class TeamRuntimeLifecycle {
   private readonly operations = new Set<Promise<unknown>>()
   private readonly controller = new AbortController()
 
   /**
-   * @param disposalTimeoutMs - maximum wait for one disposal settlement operation.
+   * @param disposalTimeoutMs - 单次处置结算操作的最大等待时长。
    */
   constructor(private readonly disposalTimeoutMs: number) {}
 
-  /** Signal aborted exactly when Team runtime admission closes. */
+  /** 恰在 Team 运行时准入关闭时被中止的信号。 */
   get signal(): AbortSignal {
     return this.controller.signal
   }
 
-  /** Whether Team runtime admission is closed. */
+  /** Team 运行时准入是否已关闭。 */
   get disposed(): boolean {
     return this.signal.aborted
   }
 
-  /** The exact cancellation reason used to distinguish expected disposal rejection. */
+  /** 用于区分预期内处置拒绝的、精确的取消原因。 */
   get reason(): unknown {
     const reason: unknown = this.signal.reason
     return reason
   }
 
-  /** Whether a rejection is the runtime cancellation, directly or through an Error cause chain. */
+  /** 某次拒绝是否为运行时取消——无论是直接，还是经由 Error 的 cause 链。 */
   private isCancellation(reason: unknown): boolean {
     const seen = new Set<unknown>()
     let current = reason
@@ -42,15 +42,15 @@ export class TeamRuntimeLifecycle {
     return false
   }
 
-  /** Close Team runtime admission and cancel admitted interruptible work. */
+  /** 关闭 Team 运行时准入，并取消已准入的可中断工作。 */
   close(): void {
     this.controller.abort(new TeamError('Agent Teams service disposed', 'TEAM_DISPOSED'))
   }
 
   /**
-   * Track an admitted send or complete creation transaction until it settles.
-   * @param operation - asynchronous work owned by this runtime.
-   * @returns the same operation.
+   * 跟踪一次已准入的发送或完整的创建事务，直到其结算。
+   * @param operation - 由该运行时拥有的异步工作。
+   * @returns 同一个操作。
    */
   track<T>(operation: Promise<T>): Promise<T> {
     this.operations.add(operation)
@@ -59,17 +59,17 @@ export class TeamRuntimeLifecycle {
   }
 
   /**
-   * Capture outstanding operations after closing admission.
-   * @returns admitted work still awaiting settlement.
+   * 在关闭准入之后，捕获尚未完成的操作。
+   * @returns 仍在等待结算的、已准入的工作。
    */
   pending(): readonly Promise<unknown>[] {
     return [...this.operations]
   }
 
   /**
-   * Await admitted operations and retain failures other than runtime cancellation.
-   * @param operations - admitted operations captured after the admission cutoff.
-   * @param failures - aggregate destination for unexpected rejection or timeout.
+   * 等待已准入的操作，并保留除运行时取消以外的失败。
+   * @param operations - 在准入截止之后捕获的已准入操作。
+   * @param failures - 用于收集意外拒绝或超时的聚合目标。
    */
   async settle(operations: readonly Promise<unknown>[], failures: unknown[]): Promise<void> {
     if (operations.length === 0) return
@@ -84,9 +84,9 @@ export class TeamRuntimeLifecycle {
   }
 
   /**
-   * Bound one runtime settlement operation.
-   * @param operation - settlement that may otherwise block HMR or process shutdown.
-   * @returns the operation result.
+   * 为一次运行时结算操作设界。
+   * @param operation - 否则可能阻塞 HMR 或进程关闭的结算。
+   * @returns 该操作的结果。
    */
   async withTimeout<T>(operation: Promise<T>): Promise<T> {
     let timer!: ReturnType<typeof setTimeout>

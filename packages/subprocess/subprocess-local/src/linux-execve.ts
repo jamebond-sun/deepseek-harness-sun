@@ -1,4 +1,4 @@
-/** Lazy libc execve and descriptor bindings used by the one-shot Linux bootstrap. */
+/** 由一次性 Linux 引导程序使用的惰性 libc execve 与描述符绑定。 */
 
 import { getSystemErrorMessage, getSystemErrorName } from 'node:util'
 import { SUBPROCESS_CONTROL_FD } from '@deepseek-ai/dsh-subprocess/control'
@@ -6,7 +6,7 @@ import { createLazyRequire } from '@deepseek-ai/dsh-lazy-require'
 
 const requireKoffi = createLazyRequire<typeof import('koffi')['default']>('koffi', import.meta.url)
 
-/** Replace the current process image while preserving the supplied argv and environment. */
+/** 在保留所提供的 argv 与环境的前提下，替换当前进程映像。 */
 export type LinuxExecve = (
   file: string,
   argv: string[],

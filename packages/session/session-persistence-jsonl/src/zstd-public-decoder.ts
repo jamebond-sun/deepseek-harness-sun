@@ -1,12 +1,12 @@
 /**
- * Public-API synchronous Zstandard frame decoder fallback.
+ * 基于公开 API 的同步 Zstandard 帧解码器回退实现。
  * @module dsh-session-persistence-jsonl/zstd-public-decoder
  */
 
 import { zstdDecompressSync } from 'node:zlib'
 import type { ZstdFrameDecoder, ZstdFrameRange } from './zstd.ts'
 
-/** Multi-frame adapter built exclusively from Node's supported one-shot API. */
+/** 完全基于 Node 受支持的一次性 API 构建的多帧适配器。 */
 export class PublicZstdFrameDecoder implements ZstdFrameDecoder {
   private started = false
   private closed = false

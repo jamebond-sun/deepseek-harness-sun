@@ -1,8 +1,8 @@
 /**
- * Provider-owned request-retry policy configuration and resolution.
+ * 由提供方持有的请求重试策略配置与解析。
  *
- * Adapters expose one resolved policy per registered provider route; the
- * optional dsh-llm-retry plugin executes it on the agent's failed-step extension point.
+ * 适配器为每个已注册的提供方路由暴露一个已解析的策略；
+ * 可选的 dsh-llm-retry 插件在 agent 的失败步骤扩展点上执行它。
  *
  * @module @deepseek-ai/dsh-llm/retry-policy
  */
@@ -23,59 +23,59 @@ const DEFAULT_RETRYABLE_CODES = Object.freeze([
   'TRANSPORT',
 ])
 
-/** Bounded exponential backoff with symmetric jitter around each local delay. */
+/** 围绕每次本地延迟做对称抖动的有界指数退避。 */
 export interface BackoffConfig {
-  /** Initial local exponential-backoff delay in milliseconds (default 500). */
+  /** 指数退避的初始本地延迟，以毫秒计（默认 500）。 */
   initialDelayMs?: number
-  /** Maximum locally scheduled or accepted provider delay in milliseconds (default 10000). */
+  /** 本地排定或接受的提供方延迟上限，以毫秒计（默认 10000）。 */
   maxDelayMs?: number
-  /** Symmetric random multiplier range around one (default 0.1). */
+  /** 围绕 1 的对称随机乘数区间（默认 0.1）。 */
   jitterRatio?: number
 }
 
-/** Current bounded transient retry behavior for one provider route. */
+/** 一条提供方路由当前的、有界的瞬时重试行为。 */
 export interface NormalRetryPolicyConfig {
-  /** Retry only configured transient failure codes. */
+  /** 只对已配置的瞬时失败码重试。 */
   mode: 'normal'
-  /** Maximum eligible retries after the first request (default 5). */
+  /** 首次请求之后允许的最大重试次数（默认 5）。 */
   maxRetries?: number
-  /** Stable failure codes eligible for this policy. */
+  /** 本策略适用的稳定失败码。 */
   retryableCodes?: string[]
-  /** Local exponential-backoff and jitter configuration. */
+  /** 本地指数退避与抖动配置。 */
   backoff?: BackoffConfig
 }
 
-/** Unbounded retry behavior for every model-request failure on one provider route. */
+/** 一条提供方路由上对所有模型请求失败的无界重试行为。 */
 export interface AlwaysRetryPolicyConfig {
-  /** Retry every model-request failure until success, cancellation, or disposal. */
+  /** 对每个模型请求失败都重试，直到成功、被取消或被释放。 */
   mode: 'always'
-  /** Local exponential-backoff and jitter configuration. */
+  /** 本地指数退避与抖动配置。 */
   backoff?: BackoffConfig
 }
 
-/** Provider-owned model-request retry policy configuration. */
+/** 由提供方持有的模型请求重试策略配置。 */
 export type RetryPolicyConfig = NormalRetryPolicyConfig | AlwaysRetryPolicyConfig
 
-/** Fully resolved backoff shared by both retry modes. */
+/** 两种重试模式共享的、已完全解析的退避配置。 */
 export interface ResolvedRetryBackoff {
   readonly initialDelayMs: number
   readonly maxDelayMs: number
   readonly jitterRatio: number
 }
 
-/** Fully resolved bounded transient retry policy. */
+/** 已完全解析的有界瞬时重试策略。 */
 export interface ResolvedNormalRetryPolicy extends ResolvedRetryBackoff {
   readonly mode: 'normal'
   readonly maxRetries: number
   readonly retryableCodes: readonly string[]
 }
 
-/** Fully resolved unbounded retry policy. */
+/** 已完全解析的无界重试策略。 */
 export interface ResolvedAlwaysRetryPolicy extends ResolvedRetryBackoff {
   readonly mode: 'always'
 }
 
-/** Immutable provider policy captured when its adapter route is registered. */
+/** 当其适配器路由被注册时捕获的、不可变的提供方策略。 */
 export type ResolvedRetryPolicy = ResolvedNormalRetryPolicy | ResolvedAlwaysRetryPolicy
 
 const backoffSchema: z<BackoffConfig> = z.object({
@@ -96,7 +96,7 @@ const alwaysPolicySchema: z<AlwaysRetryPolicyConfig> = z.object({
   backoff: backoffSchema,
 })
 
-/** Cordis schema embedded by each concrete provider configuration. */
+/** 由每个具体提供方配置内嵌的 Cordis schema。 */
 export const RetryPolicySchema: z<RetryPolicyConfig> = z.union([
   normalPolicySchema,
   alwaysPolicySchema,
@@ -105,8 +105,8 @@ export const RetryPolicySchema: z<RetryPolicyConfig> = z.union([
 const NORMAL_POLICY_KEYS: ReadonlySet<string> = new Set([
   'mode', 'maxRetries', 'retryableCodes', 'backoff',
 ])
-// Layered configuration can retain normal-only fields after switching modes;
-// always mode ignores those inactive values while still rejecting unknown keys.
+// 分层配置在切换模式之后可能仍保留 normal 独有的字段；
+// always 模式忽略那些未生效的值，同时仍然拒绝未知的键。
 const ALWAYS_POLICY_KEYS: ReadonlySet<string> = new Set([
   'mode', 'maxRetries', 'retryableCodes', 'backoff',
 ])
@@ -141,10 +141,10 @@ function resolveBackoff(config: BackoffConfig | undefined, path: string): Resolv
 }
 
 /**
- * Validate, default, and detach one provider-owned retry policy.
- * @param config - optional provider configuration; omission selects normal defaults.
- * @param path - diagnostic path naming the provider config that owns the value.
- * @returns an immutable policy safe to capture in provider registration state.
+ * 校验、补全默认值并分离一个由提供方持有的重试策略。
+ * @param config - 可选的提供方配置；省略时选择 normal 默认值。
+ * @param path - 指名持有该值的提供方配置的诊断路径。
+ * @returns 一个可以安全捕获进提供方注册状态的不可变策略。
  */
 export function resolveRetryPolicy(
   config: RetryPolicyConfig | undefined,

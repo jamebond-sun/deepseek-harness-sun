@@ -1,21 +1,20 @@
 /**
- * Time vocabulary shared by the wire boundaries that accept a caller's zone.
- * Validation and canonicalization only: this library formats nothing and owns
- * no failure vocabulary — each boundary declares and throws its own refusal.
+ * 接受调用方时区的线边界所共享的时间词汇。
+ * 仅做校验与规范化：本库不格式化任何内容，也不拥有任何失败词汇——
+ * 每个边界各自声明并抛出自己的拒绝理由。
  * @module @deepseek-ai/dsh-util-time
  */
 
-/** Strict browser-zone profile: UTC or an IANA Area/Location-style identifier. */
+/** 严格的浏览器时区档案：UTC 或 IANA 的 Area/Location 风格标识符。 */
 const IANA_TIME_ZONE = /^[A-Za-z][A-Za-z0-9_+.-]*(?:\/[A-Za-z0-9_+.-]+)+$/
 
 /**
- * Validate and canonicalize one caller-supplied IANA zone at a wire boundary.
+ * 在线边界校验并规范化一个调用方提供的 IANA 时区。
  *
- * The canonical name is what a later reader needs: a zone identity is stored on
- * durable records and resolved again by another process, so an alias accepted
- * here would not compare equal to the zone a reader derives.
- * @param value - the caller's reported zone name.
- * @returns the canonical zone, or `undefined` when the name is unusable.
+ * 规范名称是后续读取方所需之物：时区标识会存储在持久记录上，并由另一个
+ * 进程再次解析，因此此处接受的别名不会与读取方推导出的时区比较相等。
+ * @param value - 调用方报告的时区名称。
+ * @returns 规范化的时区；名称不可用时为 `undefined`。
  */
 export function canonicalClientTimeZone(value: string): string | undefined {
   if (value.length === 0 || value.trim() !== value
@@ -23,11 +22,11 @@ export function canonicalClientTimeZone(value: string): string | undefined {
   try {
     const canonical = new Intl.DateTimeFormat('en-US', { timeZone: value })
       .resolvedOptions().timeZone
-    /* v8 ignore next -- Intl returns UTC or a canonical IANA Area/Location for accepted input. */
+    /* v8 ignore next -- Intl 对接受的输入返回 UTC 或规范的 IANA Area/Location。 */
     if (canonical !== 'UTC' && !IANA_TIME_ZONE.test(canonical)) return undefined
     return canonical
   } catch {
-    // Intl rejects unsupported zone names; the caller maps that parser rejection.
+    // Intl 拒绝不受支持的时区名称；调用方负责映射该解析拒绝。
     return undefined
   }
 }

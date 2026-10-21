@@ -1,4 +1,4 @@
-/** Model-facing query for a bundled Python, Node.js, and pnpm payload, in place or installed under the Harness home. */
+/** 面向模型的查询：取得随包附带的 Python、Node.js 与 pnpm 载荷，可就地使用，也可安装到 Harness 主目录下。 */
 
 import { cp, lstat, mkdir, mkdtemp, readFile, readlink, rename, rm, stat, symlink } from 'node:fs/promises'
 import { dirname, isAbsolute, join } from 'node:path'
@@ -6,54 +6,53 @@ import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 
-/** Cordis plugin identity. */
+/** Cordis 插件身份。 */
 export const name = 'tool-workspace-dependencies'
-/** Registry the tool registers into. */
+/** 该工具注册进入的注册表。 */
 export const inject = ['tools']
 
-/** Payload location and optional installation directory. */
+/** 载荷位置与可选的安装目录。 */
 export interface Config {
-  /** Payload directory carrying `runtime.json` and `dependencies/`. */
+  /** 承载 `runtime.json` 与 `dependencies/` 的载荷目录。 */
   readonly source: string
   /**
-   * Installation directory under the Harness home. When set, the payload is copied there on the
-   * first call (the Desktop behavior); when omitted, the payload is used in place without copying,
-   * which suits read-only carriers such as container image layers.
+   * Harness 主目录下的安装目录。设置时，载荷会在首次调用时被复制过去（桌面端行为）；
+   * 省略时则就地使用载荷、不做复制，这适合容器镜像层之类的只读载体。
    */
   readonly root?: string
 }
 
-/** Require a named payload source before the Loader activates the tool. */
+/** 在 Loader 启用该工具之前，要求先给出一个具名的载荷来源。 */
 export const Config: z<Config> = z.object({
   source: z.string().min(1).required(),
   root: z.string().min(1),
 })
 
-/** Canonical build metadata, independent of user-installed packages; legacy files are normalized on read. */
+/** 规范的构建元数据，与用户自行安装的包无关；旧格式文件在读取时被规范化。 */
 export interface PrimaryRuntimeManifest {
   readonly desktopVersion: string
   readonly platform: string
   readonly arch: string
-  /** Locked payload identity; absent only in installations made before payload hashing. */
+  /** 锁定的载荷身份；只有在引入载荷哈希之前的那些安装中才会缺失。 */
   readonly payloadDigest?: string
-  /** Bundled Python interpreter version. */
+  /** 随包的 Python 解释器版本。 */
   readonly python: string
-  /** Absent when the payload ships no Node.js. */
+  /** 当载荷未附带 Node.js 时该字段不存在。 */
   readonly node?: string
-  /** Bundled pnpm version; requires a bundled Node.js executable. */
+  /** 随包的 pnpm 版本；要求存在随包的 Node.js 可执行文件。 */
   readonly pnpm?: string
-  /** All recorded Python distribution versions; empty for legacy files without a distribution map. */
+  /** 全部已记录的 Python 发行版版本；对于没有发行版映射的旧格式文件为空。 */
   readonly pythonPackages: Readonly<Record<string, string>>
 }
 
-/** Absolute entry points and bundled versions; pnpm runs through the returned Node executable. */
+/** 绝对入口点与随包版本；pnpm 通过返回的那个 Node 可执行文件运行。 */
 export interface WorkspaceDependencies {
   readonly python: string
   readonly node?: string
   readonly pnpm?: string
   readonly pythonPackages: string
   readonly nodePackages?: string
-  /** Locked distribution versions; excludes packages users add to the installed environment. */
+  /** 锁定的发行版版本；不含用户向已安装环境中自行添加的包。 */
   readonly pythonDistributions: Readonly<Record<string, string>>
 }
 
@@ -74,10 +73,10 @@ function isDistributionMap(value: unknown): value is Readonly<Record<string, str
 }
 
 /**
- * Validate payload JSON and normalize legacy component fields to top-level versions.
- * @param value - Untrusted decoded runtime.json contents.
- * @returns Canonical metadata with one Python distribution map and no components field.
- * @throws For malformed or mixed formats, duplicate distribution names, or inconsistent legacy metadata.
+ * 校验载荷 JSON，并把旧格式的 components 字段规范化为顶层的版本字段。
+ * @param value - 未经验证的、已解码的 runtime.json 内容。
+ * @returns 规范的元数据，只带一份 Python 发行版映射，且不再有 components 字段。
+ * @throws 当格式错误或混用多种格式、发行版名称重复，或旧格式元数据自相矛盾时抛出。
  */
 export function parsePrimaryRuntime(value: unknown): PrimaryRuntimeManifest {
   if (!isRecord(value)) throw new Error('primary runtime: invalid metadata')
@@ -102,7 +101,7 @@ export function parsePrimaryRuntime(value: unknown): PrimaryRuntimeManifest {
   const entries = Object.entries(pythonPackages)
   const distributions = new Map(entries.map(([name, version]) => [name.toLowerCase().replace(/[-_.]+/gu, '-'), version]))
   if (distributions.size !== entries.length) throw new Error('primary runtime: invalid metadata')
-  // Only the old on-disk format duplicates these versions. New manifests use the distribution map alone.
+  // 只有旧的磁盘格式会重复保存这些版本。新的清单只依赖发行版映射本身。
   if (legacy) {
     for (const name of ['numpy', 'pandas'] as const) {
       if (!isVersion(versions[name])) throw new Error('primary runtime: invalid metadata')
@@ -123,9 +122,9 @@ export function parsePrimaryRuntime(value: unknown): PrimaryRuntimeManifest {
 }
 
 /**
- * Read and normalize build metadata without rewriting the source file.
- * @param root - Installed or bundled primary runtime directory.
- * @returns Validated top-level versions and target identifiers, including for legacy components manifests.
+ * 读取并规范化构建元数据，但不重写源文件。
+ * @param root - 已安装或随包附带的 primary runtime 目录。
+ * @returns 已校验的顶层版本与目标标识，对旧格式的 components 清单同样适用。
  */
 export async function readPrimaryRuntime(root: string): Promise<PrimaryRuntimeManifest> {
   const value: unknown = JSON.parse(await readFile(join(root, 'runtime.json'), 'utf8'))
@@ -133,11 +132,11 @@ export async function readPrimaryRuntime(root: string): Promise<PrimaryRuntimeMa
 }
 
 /**
- * Identify POSIX interpreter aliases that can survive payload relocation.
- * @param root - Payload directory.
- * @param manifest - Validated payload metadata.
- * @returns Relative alias paths mapped to their sibling interpreter filename; regular command files are omitted.
- * @throws When an interpreter alias does not point directly to the versioned regular file.
+ * 识别那些在载荷迁移之后仍然成立的 POSIX 解释器别名。
+ * @param root - 载荷目录。
+ * @param manifest - 已校验的载荷元数据。
+ * @returns 相对别名路径到其同级解释器文件名的映射；普通命令文件被略去。
+ * @throws 当某个解释器别名没有直接指向带版本号的那个普通文件时抛出。
  */
 export async function primaryRuntimePythonAliases(root: string, manifest: PrimaryRuntimeManifest): Promise<ReadonlyMap<string, string>> {
   const aliases = new Map<string, string>()
@@ -161,11 +160,11 @@ export async function primaryRuntimePythonAliases(root: string, manifest: Primar
 }
 
 /**
- * Copy a payload, retaining only validated Python interpreter aliases as relative links.
- * @param source - Payload directory; all other links are materialized.
- * @param destination - Empty destination owned by the caller.
- * @param manifest - Validated source metadata.
- * @returns Resolves after every copied file and interpreter alias is available independently of the source.
+ * 复制一份载荷，只把经过校验的 Python 解释器别名保留为相对链接。
+ * @param source - 载荷目录；其余所有链接都会被实体化。
+ * @param destination - 由调用方持有的空目标目录。
+ * @param manifest - 已校验的源元数据。
+ * @returns 当每个被复制的文件与解释器别名都能独立于源目录使用时才 resolve。
  */
 export async function copyPrimaryRuntime(source: string, destination: string, manifest: PrimaryRuntimeManifest): Promise<void> {
   const aliases = await primaryRuntimePythonAliases(source, manifest)
@@ -175,10 +174,10 @@ export async function copyPrimaryRuntime(source: string, destination: string, ma
 }
 
 /**
- * Resolve platform-specific interpreter and library locations without changing the environment.
- * @param root - Absolute payload or installation directory.
- * @param manifest - Validated runtime metadata.
- * @returns Absolute paths for explicit script execution and recorded bundled Python versions.
+ * 解析各平台特有的解释器与库位置，且不改动环境。
+ * @param root - 绝对的载荷或安装目录。
+ * @param manifest - 已校验的运行时元数据。
+ * @returns 用于显式执行脚本的绝对路径，以及已记录的随包 Python 版本。
  */
 export function workspaceDependencyPaths(root: string, manifest: PrimaryRuntimeManifest): WorkspaceDependencies {
   const dependencies = join(root, 'dependencies')
@@ -227,9 +226,9 @@ async function compatibleManifest(source: string): Promise<PrimaryRuntimeManifes
 }
 
 /**
- * Use a payload where it lies: validate its metadata and entries, copying nothing.
- * @param source - Payload directory, typically a read-only carrier.
- * @returns Paths into the payload itself.
+ * 就地使用载荷：校验其元数据与各条目，不复制任何内容。
+ * @param source - 载荷目录，通常是只读的载体。
+ * @returns 指向载荷内部的各路径。
  */
 export async function resolvePrimaryRuntime(source: string): Promise<WorkspaceDependencies> {
   const manifest = await compatibleManifest(source)
@@ -240,10 +239,10 @@ export async function resolvePrimaryRuntime(source: string): Promise<WorkspaceDe
 }
 
 /**
- * Install the application-owned payload locally, retaining a complete previous tree on copy failure.
- * @param source - Payload carried by the current installation.
- * @param root - Fixed primary runtime directory under the Harness home.
- * @returns Paths into the installed payload; no PATH or package-manager configuration is changed.
+ * 在本地安装隶属于本应用的载荷，并在复制失败时保留一棵完整的旧目录树。
+ * @param source - 由当前安装所携带的载荷。
+ * @param root - Harness 主目录下固定的 primary runtime 目录。
+ * @returns 指向已安装载荷内部的各路径；不修改 PATH 或任何包管理器配置。
  */
 export async function installPrimaryRuntime(source: string, root: string): Promise<WorkspaceDependencies> {
   const manifest = await compatibleManifest(source)
@@ -278,9 +277,9 @@ export async function installPrimaryRuntime(source: string, root: string): Promi
 }
 
 /**
- * Register the read-only path query; the first invocation prepares (or merely validates) the payload.
- * @param ctx - Tool registry owner.
- * @param config - Payload location and optional installation directory.
+ * 注册这个只读的路径查询；首次调用会准备（或仅仅校验）该载荷。
+ * @param ctx - 工具注册表的宿主。
+ * @param config - 载荷位置与可选的安装目录。
  */
 export function apply(ctx: Context, config: Config): void {
   if (!isAbsolute(config.source) || (config.root !== undefined && !isAbsolute(config.root))) {
@@ -288,7 +287,7 @@ export function apply(ctx: Context, config: Config): void {
   }
   let preparation: Promise<WorkspaceDependencies> | undefined
   ctx.effect(() => async () => {
-    // Tool execution reports preparation failures; disposal only waits for filesystem work to settle.
+    // 工具执行会报告准备阶段的失败；释放时只等待文件系统工作落定。
     await preparation?.catch(() => undefined)
   })
   ctx.tools.register(defineTool({

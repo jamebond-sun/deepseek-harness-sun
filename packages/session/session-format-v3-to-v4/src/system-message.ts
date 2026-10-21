@@ -1,4 +1,4 @@
-/** Native system-message fields checked before physical recovery can discard a row. */
+/** 在物理恢复可能丢弃某行之前被检查的原生 system 消息字段。 */
 
 import { SessionFormatError, isSessionFormatJsonObject, sessionFormatCount } from '@deepseek-ai/dsh-session-format'
 
@@ -31,8 +31,8 @@ function image(value: unknown): void {
 }
 
 /**
- * Validate system fields independently of historical message representations; preserve additional JSON fields.
- * @param row - complete logical event or parsed physical row before corruption recovery.
+ * 独立于历史消息表示校验 system 字段；保留额外的 JSON 字段。
+ * @param row - 损坏恢复之前的完整逻辑事件或已解析的物理行。
  */
 export function assertV4SystemMessageFields(row: unknown): void {
   if (!isSessionFormatJsonObject(row) || row['type'] !== 'system/message') return
@@ -57,7 +57,7 @@ export function assertV4SystemMessageFields(row: unknown): void {
       case 'image': image(block['attachment']); break
       case 'tool-result': throw new SessionFormatError('format v4 system content rejects retired tool-result wrappers')
       default:
-        // ContentBlockMap is merge-extensible; only known block fields are interpreted here.
+        // ContentBlockMap 是可合并扩展的；此处只解释已知的块字段。
         break
     }
   }

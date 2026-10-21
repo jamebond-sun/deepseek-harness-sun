@@ -1,13 +1,11 @@
 /**
- * Service Definition for the LSP capability seam (`ctx.lsp`): a language-server provider registry and per-query,
- * order-independent selection over normalized goToDefinition/findReferences/goToImplementation/
- * hover queries.
+ * LSP 能力接缝（`ctx.lsp`）的服务定义：一个语言服务 provider 注册表，以及对规范化的
+ * goToDefinition/findReferences/goToImplementation/hover 查询的逐次、与顺序无关的选择。
  *
- * A provider reserves a branded id and an exclusive set of file extensions atomically:
- * {@link Lsp.registerProvider} validates and conflict-checks everything before mutating, so an
- * invalid or conflicting registration publishes nothing, and its disposer releases every
- * reservation together. Selection routes a query by the file's final extension; it never depends on
- * registration order. The seam exposes exactly the four operations and no JSON-RPC escape hatch.
+ * provider 原子地预留一个品牌化 id 和一组独占的文件扩展名：{@link Lsp.registerProvider}
+ * 在改动任何状态之前完成全部校验与冲突检查，因此非法或冲突的注册不会发布任何内容，
+ * 其 disposer 也会一并释放全部预留。选择按文件的最后一个扩展名路由查询，
+ * 绝不依赖注册顺序。该接缝恰好暴露这四个操作，没有 JSON-RPC 逃逸口。
  * @module @deepseek-ai/dsh-lsp
  */
 
@@ -42,42 +40,41 @@ declare module '@deepseek-ai/cordis' {
 }
 
 /**
- * Structured LSP failure. Extends {@link HarnessError} with a stable `code`
- * (`LSP_INVALID_PROVIDER`, `LSP_CONFLICT`, `LSP_UNAVAILABLE`, `LSP_DISPOSED`,
- * `LSP_UNSUPPORTED_OPERATION`, `LSP_MALFORMED_RESPONSE`, …) that callers route on instead of
- * parsing `message`.
+ * 结构化的 LSP 失败。在 {@link HarnessError} 之上带一个稳定的 `code`
+ * （`LSP_INVALID_PROVIDER`、`LSP_CONFLICT`、`LSP_UNAVAILABLE`、`LSP_DISPOSED`、
+ * `LSP_UNSUPPORTED_OPERATION`、`LSP_MALFORMED_RESPONSE` 等），调用方据此路由，
+ * 而不是去解析 `message`。
  */
 export class LspError extends HarnessError {}
 
 /**
- * Extract a file's final extension as a normalized, lowercase, leading-dot key (e.g. `Foo.TS` →
- * `.ts`, `foo.d.ts` → `.ts`). Returns `''` for a name with no extension or a leading-dot dotfile
- * (`.bashrc`), which no route ever matches. Splits on both `/` and `\` so a caller's path separator
- * does not change the result.
- * @param filePath - the source path to inspect.
- * @returns the normalized extension, or `''` when there is none.
+ * 提取文件的最后一个扩展名，作为规范化的、小写的、带前导点的键（例如 `Foo.TS` → `.ts`、
+ * `foo.d.ts` → `.ts`）。对没有扩展名的文件名或以点开头的 dotfile（`.bashrc`）返回 `''`，
+ * 任何路由都不会匹配它。同时按 `/` 与 `\` 切分，使调用方的路径分隔符不影响结果。
+ * @param filePath - 要检查的源码路径。
+ * @returns 规范化的扩展名，没有时返回 `''`。
  */
 export function finalExtension(filePath: string): string {
   const lastSlash = Math.max(filePath.lastIndexOf('/'), filePath.lastIndexOf('\\'))
   const base = lastSlash >= 0 ? filePath.slice(lastSlash + 1) : filePath
   const dot = base.lastIndexOf('.')
-  // dot <= 0 covers both "no dot" (-1) and a leading-dot dotfile (0): neither has an extension.
+  // dot <= 0 同时覆盖“没有点”（-1）与以点开头的 dotfile（0）：两者都没有扩展名。
   if (dot <= 0) return ''
   return base.slice(dot).toLowerCase()
 }
 
-/** A well-formed normalized extension: a dot followed by one or more non-dot, non-separator chars. */
+/** 一个格式良好的规范化扩展名：一个点后跟一个或多个非点、非分隔符的字符。 */
 const EXTENSION_PATTERN = /^\.[^./\\]+$/
 
-/** One selection route: the provider to run plus the language id to synchronize the document with. */
+/** 一条选择路由：要运行的 provider，以及与之同步文档所用的语言 id。 */
 interface Route {
   readonly provider: LspProvider
   readonly languageId: string
 }
 
 /**
- * `ctx.lsp`. Holds the id reservations and the extension→route table; both are populated and cleared
- * together per provider so a route always has a live provider.
+ * `ctx.lsp`。持有 id 预留与“扩展名→路由”表；二者按 provider 一起填充、一起清理，
+ * 因此一条路由总是对应一个存活的 provider。
  */
 export class Lsp extends Service implements LspService {
   private readonly providerIds = new Set<LspProviderId>()
@@ -88,8 +85,8 @@ export class Lsp extends Service implements LspService {
   }
 
   registerProvider(provider: LspProvider): () => void {
-    // Validate and conflict-check everything BEFORE any mutation: an invalid or conflicting
-    // registration must publish nothing (fail-loud, all-or-nothing).
+    // 在任何状态改动之前完成全部校验与冲突检查：非法或冲突的注册不得发布任何内容
+    // （失败即报，全有或全无）。
     const id = provider.id
     if (id.trim() === '') {
       throw new LspError('an LSP provider id must be a non-empty string', 'LSP_INVALID_PROVIDER')
@@ -103,8 +100,8 @@ export class Lsp extends Service implements LspService {
       throw new LspError(`LSP provider "${id}" registers no file extensions`, 'LSP_INVALID_PROVIDER')
     }
 
-    // Normalize into this provider's route set, catching intra-provider duplicates (e.g. `.TS` and
-    // `.ts`) before checking cross-provider conflicts.
+    // 归一化进本 provider 的路由集合，先捕捉 provider 内部的重复项（例如 `.TS` 与 `.ts`），
+    // 再检查跨 provider 的冲突。
     const pending = new Map<string, Route>()
     for (const [rawExt, languageId] of entries) {
       const ext = normalizeExtension(rawExt)
@@ -125,8 +122,8 @@ export class Lsp extends Service implements LspService {
       }
     }
 
-    // All checks passed: reserve id and every extension in one lifecycle controller so disposal
-    // releases them together.
+    // 全部检查通过：在一个生命周期控制器中同时预留 id 与每一个扩展名，
+    // 以便销毁时一并释放。
     const dispose = this.ctx.effect(function* (this: Lsp) {
       this.providerIds.add(id)
       for (const [ext, route] of pending) this.routes.set(ext, route)
@@ -135,8 +132,8 @@ export class Lsp extends Service implements LspService {
         for (const ext of pending.keys()) this.routes.delete(ext)
       }
     }.bind(this), 'lsp.registerProvider()')
-    // ctx.effect's disposer returns Promise<void>; our disposer API is synchronous
-    // fire-and-forget — discard the (always-resolved) promise.
+    // ctx.effect 的 disposer 返回 Promise<void>；我们的 disposer API 是同步的
+    // 即发即忘——丢弃这个（总是已 resolve 的）promise。
     return () => void dispose()
   }
 
@@ -149,7 +146,7 @@ export class Lsp extends Service implements LspService {
   }
 }
 
-/** Lowercase an extension and ensure it carries a leading dot; `EXTENSION_PATTERN` rejects the rest. */
+/** 小写化扩展名并确保其带前导点；其余格式问题由 `EXTENSION_PATTERN` 拒绝。 */
 function normalizeExtension(ext: string): string {
   const lower = ext.toLowerCase()
   return lower.startsWith('.') ? lower : `.${lower}`

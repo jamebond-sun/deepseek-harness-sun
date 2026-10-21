@@ -1,4 +1,4 @@
-/** JSON string-prefix accounting for the outer-output ledger. @module @deepseek-ai/dsh-ptc-runtime-node/output-json */
+/** 为外层输出账本服务的 JSON 字符串前缀计量。 @module @deepseek-ai/dsh-ptc-runtime-node/output-json */
 
 import type { PtcJsonValue } from '@deepseek-ai/dsh-ptc-runtime'
 
@@ -20,14 +20,14 @@ const intrinsicStringCharCodeAt = Reflect.get(String.prototype, 'charCodeAt') as
 const intrinsicStringCodePointAt = Reflect.get(String.prototype, 'codePointAt') as IntrinsicCallable
 const intrinsicStringSlice = Reflect.get(String.prototype, 'slice') as IntrinsicCallable
 
-/** Build a data descriptor that cannot inherit model-defined accessor fields. */
+/** 构造一个不会继承到模型自定义访问器字段的数据描述符。 */
 function dataDescriptor(value: unknown): PropertyDescriptor {
   const descriptor = intrinsicObjectCreate(null) as PropertyDescriptor
   descriptor.value = value
   return descriptor
 }
 
-/** Define an ordinary enumerable data slot without a prototype-bearing descriptor. */
+/** 定义一个普通的可枚举数据槽位，不使用带原型的描述符。 */
 function defineEnumerableDataProperty(target: object, key: PropertyKey, value: unknown): void {
   const descriptor = dataDescriptor(value)
   descriptor.enumerable = true
@@ -36,17 +36,17 @@ function defineEnumerableDataProperty(target: object, key: PropertyKey, value: u
   intrinsicObjectDefineProperty(target, key, descriptor)
 }
 
-/** UTF-8 byte length through the module-captured Node intrinsic. */
+/** 经模块捕获的 Node 内部函数计算 UTF-8 字节长度。 */
 function byteLength(text: string): number {
   return intrinsicReflectApply(intrinsicBufferByteLength, IntrinsicBuffer, [text, 'utf8']) as number
 }
 
-/** Append without consulting a model-mutated `Array.prototype`. */
+/** 追加元素，不查阅可能被模型改过的 `Array.prototype`。 */
 function append<T>(target: T[], value: T): void {
   defineEnumerableDataProperty(target, target.length, value)
 }
 
-/** Pop without consulting a model-mutated `Array.prototype`. */
+/** 弹出末尾元素，不查阅可能被模型改过的 `Array.prototype`。 */
 function takeLast<T>(target: T[]): T | undefined {
   if (target.length === 0) return undefined
   const index = target.length - 1
@@ -55,14 +55,14 @@ function takeLast<T>(target: T[]): T | undefined {
   return value
 }
 
-/** One code-point-aligned character from a string. */
+/** 从字符串中取出一个按码点对齐的字符。 */
 function characterAt(text: string, index: number): string {
   const codePoint = intrinsicReflectApply(intrinsicStringCodePointAt, text, [index]) as number
   const width = codePoint > 0xffff ? 2 : 1
   return intrinsicReflectApply(intrinsicStringSlice, text, [index, index + width]) as string
 }
 
-/** Serialized bytes contributed by one complete Unicode code point inside JSON quotes. */
+/** 一个完整 Unicode 码点在 JSON 引号内所贡献的序列化字节数。 */
 function serializedCharacterBytes(character: string): number {
   if (character.length === 2) return 4
   if (character === '"' || character === '\\') return 2
@@ -73,10 +73,10 @@ function serializedCharacterBytes(character: string): number {
 }
 
 /**
- * Measure one JSON string without materializing its complete escaped form.
- * @param text - the candidate string.
- * @param maxBytes - largest serialized size the caller can admit.
- * @returns Exact serialized bytes, or `undefined` as soon as the cap is crossed.
+ * 度量一个 JSON 字符串，而不把它的完整转义形式具现出来。
+ * @param text - 候选字符串。
+ * @param maxBytes - 调用方可接纳的最大序列化尺寸。
+ * @returns 精确的序列化字节数；一旦越过上限立即返回 `undefined`。
  */
 export function jsonStringBytesUpTo(text: string, maxBytes: number): number | undefined {
   if (maxBytes < 2) return undefined
@@ -91,10 +91,10 @@ export function jsonStringBytesUpTo(text: string, maxBytes: number): number | un
 }
 
 /**
- * Measure one lossless JSON value without allocating its serialized form.
- * @param value - already validated lossless JSON.
- * @param maxBytes - largest serialized size the caller can admit.
- * @returns Exact serialized bytes, or `undefined` as soon as the cap is crossed.
+ * 度量一个无损 JSON 值，而不为它的序列化形式分配内存。
+ * @param value - 已校验过的无损 JSON。
+ * @param maxBytes - 调用方可接纳的最大序列化尺寸。
+ * @returns 精确的序列化字节数；一旦越过上限立即返回 `undefined`。
  */
 export function jsonValueBytesUpTo(value: PtcJsonValue, maxBytes: number): number | undefined {
   type Task =
@@ -142,7 +142,7 @@ export function jsonValueBytesUpTo(value: PtcJsonValue, maxBytes: number): numbe
     }
 
     const key = task.keys[task.index]
-    /* v8 ignore next -- an object frame is created and advanced only for an existing Object.keys entry. */
+    /* v8 ignore next -- 对象帧只在存在对应 Object.keys 条目时才被创建并推进。 */
     if (key === undefined) return undefined
     const keyBytes = jsonStringBytesUpTo(key, maxBytes - bytes)
     if (keyBytes === undefined) return undefined
@@ -156,12 +156,12 @@ export function jsonValueBytesUpTo(value: PtcJsonValue, maxBytes: number): numbe
 }
 
 /**
- * Return the longest code-point-aligned prefix whose JSON string encoding,
- * including its surrounding quotes, fits `maxBytes`.
+ * 返回最长的、按码点对齐的前缀，使其 JSON 字符串编码（含两侧引号）
+ * 能放进 `maxBytes`。
  *
- * @param text - the candidate string.
- * @param maxBytes - serialized JSON-string bytes available.
- * @returns the fitting prefix, or an empty string when even useful content cannot fit.
+ * @param text - 候选字符串。
+ * @param maxBytes - 可用的 JSON 字符串序列化字节数。
+ * @returns 恰好能放下的前缀；当连有用的内容都放不下时返回空字符串。
  */
 export function truncateJsonStringBytes(text: string, maxBytes: number): string {
   if (maxBytes < 2) return ''

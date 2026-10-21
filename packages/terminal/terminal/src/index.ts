@@ -1,6 +1,6 @@
 /**
- * Owner-scoped persistent PTY registry. Backends own terminal mechanics while
- * this service owns ids, publication, authorization, and awaited cleanup.
+ * 按所有者划分作用域的持久化 PTY 注册表。后端负责终端机制，而本服务负责
+ * id、发布、授权以及被 await 的清理工作。
  * @module @deepseek-ai/dsh-terminal
  */
 
@@ -42,7 +42,7 @@ export type {
 } from './types.ts'
 export { TerminalBackendCleanupError } from './types.ts'
 
-/** Opaque identity minted by {@link TerminalSessionService} for one live PTY session. */
+/** 由 {@link TerminalSessionService} 为一个活动 PTY 会话铸造的不透明身份。 */
 export type TerminalSessionId = TerminalSessionIdValue
 
 declare module '@deepseek-ai/cordis' {
@@ -51,7 +51,7 @@ declare module '@deepseek-ai/cordis' {
   }
 }
 
-/** Machine-routable PTY service failures. */
+/** 可由机器路由的 PTY 服务失败类型。 */
 export type TerminalErrorCode =
   | 'DUPLICATE_BACKEND'
   | 'DUPLICATE_NAME'
@@ -62,7 +62,7 @@ export type TerminalErrorCode =
   | 'SEND_ACTIVE'
   | 'SERVICE_DISPOSING'
 
-/** Error carrying a stable {@link TerminalErrorCode}. */
+/** 携带稳定 {@link TerminalErrorCode} 的错误。 */
 export class TerminalError extends Error {
   constructor(message: string, readonly code: TerminalErrorCode) {
     super(message)
@@ -71,9 +71,9 @@ export class TerminalError extends Error {
 }
 
 /**
- * Brand one registry-minted string as a {@link TerminalSessionId}.
- * @param value - raw registry-issued id.
- * @returns Same string with the PTY session brand.
+ * 将一个由注册表铸造的字符串铸为 {@link TerminalSessionId}。
+ * @param value - 注册表发布的原始 id。
+ * @returns 带有 PTY 会话品牌的同一字符串。
  */
 export function TerminalSessionId(value: string): TerminalSessionId {
   return value as TerminalSessionId
@@ -118,9 +118,9 @@ export class TerminalSessionService extends Service {
   }
 
   /**
-   * Register one backend type for this effect scope.
-   * @param backend - provider with a non-empty unique type.
-   * @returns disposer that removes exactly this contribution.
+   * 为当前 effect 作用域注册一个后端类型。
+   * @param backend - 携带非空唯一类型的提供者。
+   * @returns 仅移除这一项贡献的处置器。
    */
   registerBackend(backend: TerminalBackend): () => void {
     if (backend.type.length === 0) throw new Error('pty backend type must be non-empty')
@@ -137,19 +137,19 @@ export class TerminalSessionService extends Service {
   }
 
   /**
-   * List registered backend types in registration order.
-   * @returns fresh backend type names.
+   * 按注册顺序列出已注册的后端类型。
+   * @returns 全新的后端类型名称。
    */
   listBackends(): string[] {
     return [...this.backends.keys()]
   }
 
   /**
-   * Create and publish one owner-scoped session after backend setup succeeds.
-   * @param owner - exact registered Agent that owns access and cleanup.
-   * @param request - backend type plus optional owner-local name and cwd.
-   * @param signal - cancellation of unpublished setup.
-   * @returns published identity, metadata, status, and MOTD.
+   * 在后端设置成功后，创建并发布一个按所有者划分作用域的会话。
+   * @param owner - 拥有访问与清理权限、已精确注册的 Agent。
+   * @param request - 后端类型，加上可选的属主本地名称与 cwd。
+   * @param signal - 对未发布设置的取消信号。
+   * @returns 已发布的身份、元数据、状态与 MOTD。
    */
   async spawn(owner: Agent, request: TerminalSpawnRequest, signal?: AbortSignal): Promise<TerminalSpawnResult> {
     this.assertActive()
@@ -224,9 +224,9 @@ export class TerminalSessionService extends Service {
   }
 
   /**
-   * Test whether an exact owner has a published session or unpublished spawn.
-   * @param owner - exact live owner to inspect.
-   * @returns true across the entire spawn-to-close interval, with no publication gap.
+   * 检测某个精确所有者是否拥有已发布会话或未发布的生成过程。
+   * @param owner - 待检查的精确活动所有者。
+   * @returns 在整个“生成到关闭”区间内均为 true，不存在发布间隙。
    */
   hasOwnerActivity(owner: Agent): boolean {
     return (this.pendingSpawns.get(owner)?.size ?? 0) > 0
@@ -234,11 +234,11 @@ export class TerminalSessionService extends Service {
   }
 
   /**
-   * Start one exclusive interactive send.
-   * @param owner - exact session owner.
-   * @param id - target PTY identity.
-   * @param request - explicit text, submit behavior, and cancellation.
-   * @returns live operation handle for foreground await or task registration.
+   * 启动一次独占的交互式发送。
+   * @param owner - 精确的会话所有者。
+   * @param id - 目标 PTY 身份。
+   * @param request - 显式文本、提交行为与取消信号。
+   * @returns 用于前台 await 或任务注册的实时操作句柄。
    */
   startSend(owner: Agent, id: TerminalSessionId, request: TerminalSendRequest): TerminalSendOperation {
     const record = this.expectOwned(owner, id)
@@ -254,33 +254,33 @@ export class TerminalSessionService extends Service {
   }
 
   /**
-   * Read one bounded scrollback page from an owned session.
-   * @param owner - exact session owner.
-   * @param id - target PTY identity.
-   * @param request - optional newest-relative offset and line count.
-   * @returns bounded retained text and pagination metadata.
+   * 从所属会话读取一页有界的回滚缓冲。
+   * @param owner - 精确的会话所有者。
+   * @param id - 目标 PTY 身份。
+   * @param request - 可选的相对最新行的偏移与行数。
+   * @returns 有界的保留文本与分页元数据。
    */
   read(owner: Agent, id: TerminalSessionId, request: TerminalReadRequest = {}): TerminalReadResult {
     return this.expectOwned(owner, id).session.read(request)
   }
 
   /**
-   * Deliver an allowed signal through an owned backend session.
-   * @param owner - exact session owner.
-   * @param id - target PTY identity.
-   * @param signal - allowed POSIX signal name.
-   * @returns delivered foreground process-group identity.
+   * 通过所属后端会话递送一个被允许的信号。
+   * @param owner - 精确的会话所有者。
+   * @param id - 目标 PTY 身份。
+   * @param signal - 被允许的 POSIX 信号名称。
+   * @returns 已递送的前台进程组身份。
    */
   signal(owner: Agent, id: TerminalSessionId, signal: TerminalSignal): Promise<TerminalSignalResult> {
     return this.expectOwned(owner, id).session.signal(signal)
   }
 
   /**
-   * Close one owned session and remove it only after quiescent backend cleanup.
-   * @param owner - exact session owner.
-   * @param id - target PTY identity.
-   * @param reason - diagnostic cleanup reason.
-   * @returns true for a newly closed session, false when the same close is already in flight.
+   * 关闭一个所属会话，并仅在后端清理达到静止后才将其移除。
+   * @param owner - 精确的会话所有者。
+   * @param id - 目标 PTY 身份。
+   * @param reason - 诊断性清理原因。
+   * @returns 对于新关闭的会话返回 true；当同一关闭已在进行中时返回 false。
    */
   async kill(owner: Agent, id: TerminalSessionId, reason: string = 'model request'): Promise<boolean> {
     const record = this.expectOwned(owner, id)
@@ -301,9 +301,9 @@ export class TerminalSessionService extends Service {
   }
 
   /**
-   * List fresh snapshots for exactly one owner.
-   * @param owner - exact owner whose sessions are visible.
-   * @returns owner-visible snapshots in publication order.
+   * 为恰好一个所有者列出全新的快照。
+   * @param owner - 会话可见的精确所有者。
+   * @returns 按发布顺序排列、对所有者可见的快照。
    */
   list(owner: Agent): TerminalSessionSnapshot[] {
     return [...this.sessions.values()]
@@ -434,9 +434,8 @@ export class TerminalSessionService extends Service {
 
   private async disposeAll(): Promise<void> {
     this.disposing = true
-    // Teardown is best-effort: a close failure still clears registries and runs
-    // owner cleanups before the aggregated error propagates, so one stuck
-    // session cannot orphan backends, reservations, or owner detachers.
+    // 拆除是尽力而为的：即便关闭失败，也会在聚合错误传播之前清空注册表并运行
+    // 所有者清理，因此一个卡住的会话无法让后端、预留项或所有者脱离器变成孤儿。
     try {
       await this.abortAndClose(
         undefined,
@@ -461,7 +460,7 @@ export class TerminalSessionService extends Service {
         await closing
         this.sessions.delete(record.id)
       } catch (error: unknown) {
-        // A concurrent retry may already own a newer fence; never clear it.
+        // 一个并发的重试可能已经持有一个更新的栅栏；绝不能清除它。
         if (record.closing === closing) record.closing = undefined
         throw error
       }

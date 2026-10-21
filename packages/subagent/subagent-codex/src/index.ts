@@ -1,7 +1,7 @@
 /**
- * Profile-named Codex one-shot subagent provider. Every accepted run starts a
- * fresh official package-local Codex wrapper with `app-server --stdio` in the
- * delegating Session's workspace and publishes only after an ephemeral thread exists.
+ * 以 profile 命名的 Codex 一次性子代理提供方。每次被接受的运行都在委托方
+ * Session 的工作区中以 `app-server --stdio` 启动一个全新的、由包局部的官方
+ * Codex 包装器，并且只在一个临时线程存在之后才发布。
  *
  * @module @deepseek-ai/dsh-subagent-codex
  */
@@ -32,20 +32,19 @@ export const inject = ['subagents', 'subprocess']
 
 const DEFAULT_PROVIDER_NAME = 'codex'
 
-/** Deployment-owned model, permission, environment, and process-release settings. */
+/** 由部署拥有的模型、权限、环境与进程释放设置。 */
 export interface Config {
-  /** Provider name on `ctx.subagents` (default `codex`). */
+  /** `ctx.subagents` 上的提供方名称（默认 `codex`）。 */
   providerName?: string
-  /** Native Codex model fixed for this instance; omitted to inherit Codex settings. */
+  /** 为本实例固定的原生 Codex 模型；省略则继承 Codex 设置。 */
   model?: string
   /**
-   * Explicit environment entries layered over the subprocess seam's
-   * credential-scrubbed parent environment.
+   * 叠加在 subprocess 接缝已做凭据清洗的父环境之上的显式环境条目。
    */
   env?: Record<string, string>
-  /** Native non-interactive permission mode fixed for this Provider instance. */
+  /** 为本 Provider 实例固定的原生非交互权限模式。 */
   permissionMode?: CodexPermissionMode
-  /** Grace in milliseconds between app-server managed-range termination tiers. */
+  /** app-server 受管范围终止各层之间的宽限（毫秒）。 */
   disposeGraceMs?: number
 }
 
@@ -100,9 +99,9 @@ class CodexProvider implements SubagentProvider {
 }
 
 /**
- * Register one Profile-named Codex provider.
- * @param ctx - context carrying shared subagent and subprocess services.
- * @param config - registry name, optional model, permission mode, child environment, and disposal grace.
+ * 注册一个以 profile 命名的 Codex 提供方。
+ * @param ctx - 承载共享子代理与 subprocess 服务的上下文。
+ * @param config - 注册表名称、可选模型、权限模式、子环境与处置宽限。
  */
 export function apply(ctx: Context, config: Config): void {
   const resolved: ResolvedConfig = {

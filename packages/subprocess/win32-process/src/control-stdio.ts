@@ -1,8 +1,8 @@
-/** Windows CRT startup descriptors for a Node payload with one inherited control pipe. */
+/** 针对带一个被继承控制管道的 Node 载荷的 Windows CRT 启动描述符。 */
 
 import type { NativePtr, Win32ProcessBindings } from './ffi.ts'
 
-/** Native stdio handles plus the single additional descriptor selected by the launcher. */
+/** 原生 stdio 句柄，外加由启动器选定的单个额外描述符。 */
 export interface InheritedControlStdio {
   stdin: NativePtr
   stdout: NativePtr
@@ -19,12 +19,11 @@ const FILE_TYPE_CHAR = 2
 const FILE_TYPE_PIPE = 3
 
 /**
- * Encode the CRT's descriptor table before the child runtime allocates descriptors.
- * Supported Windows targets use 64-bit handles. Empty slots remain closed, and the
- * backing Buffer must remain alive until CreateProcess returns.
- * @param api - native file-type inspection for inherited handles.
- * @param stdio - standard handles and the provider-owned fd-7 control pipe.
- * @returns descriptor count, flag bytes, and handle values for STARTUPINFO's reserved CRT fields.
+ * 在子运行时分配描述符之前，编码 CRT 的描述符表。受支持的 Windows 目标使用
+ * 64 位句柄。空槽位保持关闭，且底层 Buffer 必须保持存活，直到 CreateProcess 返回。
+ * @param api - 用于被继承句柄的原生文件类型检查。
+ * @param stdio - 标准句柄，以及由提供方拥有的 fd-7 控制管道。
+ * @returns 描述符数量、标志字节，以及供 STARTUPINFO 保留 CRT 字段使用的句柄值。
  */
 export function inheritedControlStdio(api: Pick<Win32ProcessBindings, 'getFileType'>, stdio: InheritedControlStdio): Buffer {
   const count = stdio.control.fileDescriptor + 1

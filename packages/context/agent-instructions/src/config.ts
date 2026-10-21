@@ -1,5 +1,5 @@
 /**
- * Configuration normalization for workspace instruction discovery and rendering.
+ * 工作区指令发现与渲染的配置归一化。
  *
  * @module @deepseek-ai/dsh-agent-instructions/config
  */
@@ -14,22 +14,22 @@ const DEFAULT_LOCAL_INSTRUCTION_FILE_CANDIDATES = ['AGENTS.local.md', 'CLAUDE.lo
 const DEFAULT_MAX_SOURCE_BYTES = 1_048_576
 const RESERVED_PATH_SEGMENTS = new Set(['', '.', '..'])
 
-/** User-facing workspace instruction loader configuration. */
+/** 面向用户的、工作区指令加载器配置。 */
 export interface Config {
-  /** Directory entries that identify the project root while walking upward from the current working directory. */
+  /** 从当前工作目录向上遍历时，用于标识项目根目录的目录项。 */
   projectRootMarkers?: string[]
-  /** UTF-8 byte cap for one rendered baseline or dynamic batch; non-positive or non-finite disables loading. */
+  /** 单次渲染基线或动态批次的 UTF-8 字节上限；非正数或非有限值会禁用加载。 */
   maxBytes: number
-  /** Maximum UTF-8 bytes read from one instruction file; larger files are ignored. */
+  /** 从单个指令文件读取的最大 UTF-8 字节数；超出则忽略该文件。 */
   maxSourceBytes?: number
   /**
-   * Ordered same-directory project candidates; every existing file loads, with
-   * per-directory trimmed-content duplicates collapsed to the earliest candidate.
+   * 有序的同目录项目候选；每个存在的文件都会被加载，
+   * 同目录内裁剪内容的重复项会折叠到最早的候选上。
    */
   instructionFileCandidates?: string[]
   /**
-   * Ordered same-directory local-overlay candidates loaded after the base files
-   * under the same per-directory trimmed-content dedup; empty disables the overlay.
+   * 有序的同目录本地叠加候选，在基础文件之后加载，
+   * 沿用相同的按目录裁剪内容去重；为空则禁用叠加层。
    */
   localInstructionFileCandidates?: string[]
 }
@@ -42,7 +42,7 @@ export const Config: z<Config> = z.object({
   localInstructionFileCandidates: z.array(z.string()).default([...DEFAULT_LOCAL_INSTRUCTION_FILE_CANDIDATES]),
 })
 
-/** Normalized instruction discovery configuration. */
+/** 归一化后的指令发现配置。 */
 export interface ResolvedDiscoveryConfig {
   dshHome: string
   agentsHome: string
@@ -51,18 +51,18 @@ export interface ResolvedDiscoveryConfig {
   localInstructionFileCandidates: string[]
 }
 
-/** Normalized configuration used by discovery and reconciliation. */
+/** 供发现与对账使用的归一化配置。 */
 export interface ResolvedConfig extends ResolvedDiscoveryConfig {
   maxBytes: number
   maxSourceBytes: number
 }
 
 /**
- * Identify the discovery, precedence, and budget semantics of one baseline.
- * @param config - normalized plugin configuration.
- * @param cwd - absolute session working directory.
- * @param projectRoot - project root selected for the current baseline.
- * @returns stable serialized identity for compatibility checks on resume.
+ * 标识一次基线的发现、优先级与预算语义。
+ * @param config - 归一化后的插件配置。
+ * @param cwd - 绝对会话工作目录。
+ * @param projectRoot - 为当前基线所选的项目根目录。
+ * @returns 供恢复时兼容性检查使用的稳定序列化标识。
  */
 export function workspaceBaselineIdentity(
   config: ResolvedConfig,
@@ -80,10 +80,10 @@ export function workspaceBaselineIdentity(
 }
 
 /**
- * Resolve row defaults, the process harness home, and valid same-directory candidates.
- * Undeclared row fields cannot override the process home.
- * @param config - user-facing plugin configuration.
- * @returns normalized runtime configuration.
+ * 解析行默认值、进程 harness 主目录，以及有效的同目录候选。
+ * 未声明的行字段无法覆盖进程主目录。
+ * @param config - 面向用户的插件配置。
+ * @returns 归一化后的运行时配置。
  */
 export function resolveConfig(config: Config): ResolvedConfig {
   return {
@@ -100,15 +100,14 @@ export function resolveConfig(config: Config): ResolvedConfig {
 }
 
 /**
- * Resolve the subset of configuration used before instruction content is rendered.
+ * 解析在指令内容被渲染之前所使用的那部分配置。
  *
- * The harness home comes from the process environment through
- * {@link resolveDshHome}; the row cannot point instruction loading at a second
- * root that other harness consumers would not share. An owner that already
- * resolved the homes passes them as `dshHome` and `agentsHome`, which are
- * normalized here so discovery and reconciliation use the same values.
- * @param config - optional discovery controls plus the already-resolved homes.
- * @returns normalized home, root markers, and instruction candidates.
+ * harness 主目录经由进程环境通过 {@link resolveDshHome} 获得；
+ * 该行无法将指令加载指向其他 harness 消费者不会共享的第二个根目录。
+ * 已解析主目录的拥有者会将它们作为 `dshHome` 与 `agentsHome` 传入，
+ * 在此处被归一化，以便发现与对账使用相同的值。
+ * @param config - 可选的发现控制项，以及已解析的主目录。
+ * @returns 归一化后的主目录、根标记与指令候选。
  */
 export function resolveDiscoveryConfig(
   config: Pick<Config, 'projectRootMarkers' | 'instructionFileCandidates' | 'localInstructionFileCandidates'>
@@ -129,6 +128,7 @@ export function resolveDiscoveryConfig(
   }
 }
 
+/** 解析并过滤指令文件候选，剔除保留路径段与含分隔符的项。 */
 function resolveInstructionFileCandidates(candidates: string[] | undefined, fallback: readonly string[]): string[] {
   return (candidates ?? [...fallback]).filter(candidate => (
     !RESERVED_PATH_SEGMENTS.has(candidate) && !/[\\/]/.test(candidate)

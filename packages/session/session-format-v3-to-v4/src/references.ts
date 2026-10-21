@@ -1,4 +1,4 @@
-/** Remap released V3 local event references after interrupted-turn insertion. */
+/** 在中断轮次插入之后重映射已发布的 V3 局部事件引用。 */
 
 import { SessionFormatError, isSessionFormatJsonObject, sessionFormatCount } from '@deepseek-ai/dsh-session-format'
 import type { SessionFormatEvent, SessionFormatJsonObject, SessionFormatJsonValue } from '@deepseek-ai/dsh-session-format'
@@ -9,11 +9,11 @@ function object(value: SessionFormatJsonValue | undefined): SessionFormatJsonObj
 }
 
 /**
- * Remap first-party local references, retaining generation-qualified captures and numeric payloads.
- * @param event - first-party source event before envelope renumbering.
- * @param seq - target event position.
- * @param mapping - target positions of all earlier source events.
- * @returns the event with target coordinates; unchanged events retain their identity.
+ * 重映射一方局部引用，保留带代际限定的捕获与数值型载荷。
+ * @param event - 信封重编号之前的一方源事件。
+ * @param seq - 目标事件位置。
+ * @param mapping - 所有更早源事件的目标位置。
+ * @returns 处于目标坐标下的事件；未变更的事件保留其身份。
  */
 export function remapV3References(event: SessionFormatEvent, seq: number, mapping: readonly number[]): SessionFormatEvent {
   if (seq === event.seq) return event

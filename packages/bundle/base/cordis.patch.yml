@@ -1,16 +1,13 @@
-# The dsh-base bundle patch: the shared core of each base-backed profile, applied as
-# ONE insert over the empty profile root. Later bundle patches and the user's
-# profile cordis.patch.yml address these rows by id, with the last write
-# winning per row.
+# dsh-base bundle 补丁：每个基于 base 的 profile 所共享的核心，作为一次 insert 应用在
+# 空的 profile 根之上。后续 bundle 补丁与用户的 profile cordis.patch.yml 按 id 定位这些
+# 行，每行以最后一次写入为准。
 #
-# A patch replaces the targeted row's whole `config` rather than merging into
-# it, so a row whose value differs by mode does NOT live here: it belongs to
-# each mode bundle, keeping any single row down to one bundle layer plus the
-# user's. Mode-specific rows appear below only with shared plugin identity and
-# neutral defaults; each mode bundle restates its complete configuration.
+# 补丁是替换目标行的整个 `config`，而不是合并进去，因此取值随模式不同的行不会放在
+# 这里：它属于各自的模式 bundle，从而让任何单行都只存在于一层 bundle 加上用户层。
+# 下面出现的模式相关行采用共享的插件身份与中立默认值；每个模式 bundle 会重申其完整
+# 配置。
 #
-# Row order carries no load semantics (activation is service-availability
-# driven); the grouping is for readers.
+# 行的顺序不承载加载语义（激活由服务可用性驱动）；这里的分组只是为了便于阅读。
 
 - insert:
     - id: tool-plugin-manager
@@ -24,7 +21,7 @@
     - id: timer
       name: '@deepseek-ai/cordis-plugin-timer'
 
-    # Profile configuration reloads by default; module roots are opt-in.
+    # profile 配置默认重载；模块根目录需要显式启用。
     - id: hmr
       name: '@deepseek-ai/dsh-hmr'
       disabled: !!js "!ctx.get('profileContext')"
@@ -52,8 +49,8 @@
     - id: typert-gateway
       name: '@deepseek-ai/dsh-api-gateway'
 
-    # Method-level access control for non-owner Peers; the Gateway requires it,
-    # and its Client half publishes the standard access Hooks.
+    # 面向非所有者 Peer 的方法级访问控制；Gateway 依赖它，其 Client 半部分发布标准
+    # 的访问 Hook。
     - id: remote-access
       name: '@deepseek-ai/dsh-api-remote-access'
 
@@ -70,9 +67,8 @@
         targetWords: 5
         targetCjkCharacters: 10
         maxInputBytes: 4096
-        # A ceiling against runaway output, not a length target: the prompt
-        # keeps titles short, while reasoning a model cannot switch off also
-        # counts as output. Stays within common model output limits.
+        # 这是防止输出失控的上限，而非长度目标：提示词本身已经让标题保持简短，而
+        # 模型无法关闭的思考过程同样计入输出。该值处于常见模型输出限制之内。
         maxOutputTokens: 4096
         timeoutMs: 60000
 
@@ -85,8 +81,8 @@
     - id: plugin-package-inventory-deepseek
       name: '@deepseek-ai/dsh-plugin-package-inventory-deepseek'
 
-    # The transport-independent default for Agents created by entry points.
-    # Settings may supply a saved selection; consumers read it at creation time.
+    # 由入口点创建的 Agent 所采用的、与传输方式无关的默认值。Settings 可以提供已保存
+    # 的选择；消费者在创建时读取它。
     - id: agent-default-model
       name: '@deepseek-ai/dsh-agent-default-model'
       config:
@@ -99,9 +95,9 @@
     - id: llm-retry
       name: '@deepseek-ai/dsh-llm-retry'
 
-    # Live Config forms persist through the active profile patch.
+    # 实时的 Config 表单通过生效中的 profile 补丁持久化。
 
-    # Live configuration forms persist through the launcher's profile.
+    # 实时配置表单通过启动器的 profile 持久化。
     - id: config-editor
       name: '@deepseek-ai/dsh-config-editor'
       disabled: !!js "!ctx.get('profileContext')"
@@ -110,10 +106,9 @@
       name: '@deepseek-ai/dsh-settings'
       disabled: !!js "!ctx.get('profileContext')"
 
-    # Credential sources: managed `$DSH_HOME/.credentials.yaml`, then inherited
-    # environment, project `.env`, and user `.env` fallbacks.
-    # Adapters resolve references per request; the Models page writes only the
-    # managed document, which is never materialized into the process environment.
+    # 凭据来源：受管的 `$DSH_HOME/.credentials.yaml`，然后依次回退到继承的环境变量、
+    # 项目 `.env` 与用户 `.env`。适配器按请求解析引用；Models 页面只写入那份受管文档，
+    # 它从不被展开写入进程环境。
     - id: authorization
       name: '@deepseek-ai/dsh-authorization'
 
@@ -125,13 +120,11 @@
     - id: credentials
       name: '@deepseek-ai/dsh-credentials-local'
 
-    # The pi-ai multi-provider twin, mounted dormant: zero routes (and no extra
-    # models in the picker) until a `llm-pi-ai:` settings section supplies provider
-    # profiles — then those routes register live, keys resolving per request
-    # through their apiKeyEnv references, and drop again when the section empties.
-    # Supplying those profiles is exactly what the web Models page does. Which
-    # adapters exist is composition; which providers run is the user's settings
-    # document.
+    # pi-ai 多 provider 孪生行，以休眠状态挂载：在 `llm-pi-ai:` 设置段落提供 provider
+    # 配置之前，它注册零个路由（选择器里也不会多出模型）——一旦提供，这些路由即时注册，
+    # 密钥按请求通过其 apiKeyEnv 引用解析，并在该段落被清空时再次注销。提供这些配置
+    # 正是 Web 端 Models 页面所做的事。存在哪些适配器属于组成问题；运行哪些 provider
+    # 则由用户的设置文档决定。
     - id: llm-pi-ai
       name: '@deepseek-ai/dsh-llm-pi-ai'
 
@@ -140,29 +133,25 @@
       config:
         root: !!js dshHomePath('sessions')
 
-    # Durable image bytes live outside the append-only session log. Messages
-    # keep content-addressed references that this shared backend resolves for
-    # provider requests and authorized history reads.
+    # 持久化的图片字节存放在只追加的 session 日志之外。消息保留内容寻址的引用，由这个
+    # 共享后端为 provider 请求与已授权的历史读取解析它们。
     - id: attachment-local
       name: '@deepseek-ai/dsh-attachment-local'
 
-    # Full-text session search is opt-in. `openAt: never` keeps
-    # ctx.sessionQuery mounted — exact reads, titles, and lineage traces
-    # (session export, subagent-fork Workspace inheritance) stay available —
-    # while search calls fail with SESSION_QUERY_SEARCH_DISABLED and SQLite is
-    # never opened; the Web sidebar search matches titles and workspace names
-    # only. Deployments enabling content search override `openAt` to
-    # `first-search` or `startup` in a later patch layer (profile
-    # cordis.patch.yml or a --patch overlay), typically with a durable `path`.
+    # 全文 session 搜索需要显式启用。`openAt: never` 让 ctx.sessionQuery 保持挂载——
+    # 精确读取、标题与血缘追溯（session 导出、subagent-fork 的 Workspace 继承）仍然
+    # 可用——而搜索调用会以 SESSION_QUERY_SEARCH_DISABLED 失败，SQLite 也不会被打开；
+    # Web 侧边栏搜索只匹配标题与 workspace 名称。启用内容搜索的部署在更后面的补丁层
+    # （profile cordis.patch.yml 或 --patch 覆盖）把 `openAt` 改写为 `first-search`
+    # 或 `startup`，通常还会配一个持久化的 `path`。
     - id: session-query-sqlite
       name: '@deepseek-ai/dsh-session-query-sqlite'
       config:
         path: ':memory:'
         openAt: never
 
-    # Shared projection registry: subagent catalog identity (mode/label) folds
-    # through its registered units, so the `list_agents` surface below fails
-    # loud without it; web layers reuse this same mount for list rows.
+    # 共享的投影注册表：subagent 目录身份（模式/标签）经由它注册的单位折叠而来，
+    # 因此下面的 `list_agents` 界面缺少它时会显式失败；web 层复用同一挂载来获取列表行。
     - id: working-directory
       name: '@deepseek-ai/dsh-working-directory'
 
@@ -172,10 +161,9 @@
     - id: session-projection
       name: '@deepseek-ai/dsh-session-projection'
 
-    # Durable KV storage: the storage hub, the json backend, and the
-    # schema-validated domain form over them. Session-layer persistence (the
-    # projection cache below; workspace in web layers)
-    # routes through this stack, so it belongs to the shared base.
+    # 持久化 KV 存储：存储中枢、json 后端，以及构建在它们之上的、经过 schema 校验的
+    # 领域形态。会话层的持久化（下面的投影缓存；web 层的 workspace）都经由这套栈，
+    # 因此它属于共享的 base。
     - id: storage
       name: '@deepseek-ai/dsh-storage'
 
@@ -189,10 +177,8 @@
       config:
         backend: json
 
-    # Persisted projection cache: throttled write-behind over the
-    # session_projcache domain (per-record layout — one version-stamped
-    # checkpoint document per session), serving the session listing's
-    # projection column.
+    # 持久化的投影缓存：在 session_projcache 领域之上做节流后写（按记录布局——每个
+    # session 一份带版本戳的检查点文档），服务于 session 列表的投影列。
     - id: session-projection-cache
       name: '@deepseek-ai/dsh-session-projection-cache'
       config:
@@ -202,19 +188,16 @@
     - id: otel
       name: '@deepseek-ai/dsh-otel'
 
-    # OTel releases a Session-log prefix only after explicit user feedback,
-    # regardless of model provider. Ordinary activity never triggers capture.
-    # DSH_TELEMETRY_OTLP_URL overrides the production endpoint. A non-empty
-    # DSH_TELEMETRY_DISABLED — any value, including '0'/'false' — opts the
-    # process out (the launchers patch the row disabled; config cannot disable
-    # a row). Exports carry the harness home's anonymous user id ($DSH_HOME/.anonymous-user-id,
-    # random UUID; delete the file to reset the identity) as the Resource's
-    # user.id. Byte-bounded batching may turn an authorized prefix into
-    # several HTTP requests. Requests run serially; each has its own 1s
-    # transport timeout and 1.5s watchdog. A watchdog does not release the
-    # active request slot. The outer 3s shutdown deadline stops queued sends;
-    # large prefixes or an unsettled transport may leave records unsent.
-    # Every CLI exit path drains by disposing the root on SIGINT/SIGTERM.
+    # OTel 只在收到明确的用户反馈之后才释放一段 Session 日志前缀，与模型 provider 无关。
+    # 日常活动从不触发采集。DSH_TELEMETRY_OTLP_URL 可覆盖生产端点。非空的
+    # DSH_TELEMETRY_DISABLED——任何取值，包括 '0'/'false'——都让本进程退出遥测
+    # （启动器是把该行改写为 disabled；配置本身无法停用一行）。导出数据携带 harness
+    # 主目录的匿名用户 id（$DSH_HOME/.anonymous-user-id，随机 UUID；删除该文件即可重置
+    # 身份）作为 Resource 的 user.id。按字节计量的批处理可能把一段已授权前缀拆成多次
+    # HTTP 请求。请求串行执行；每个请求各有 1s 的传输超时与 1.5s 的看门狗。看门狗不会
+    # 释放当前占用的请求槽位。外层 3s 的关闭截止时间会停止排队中的发送；较大的前缀或
+    # 未完成的传输可能留下未发送的记录。每条 CLI 退出路径都会在 SIGINT/SIGTERM 时通过
+    # dispose 根节点来排空。
     - id: session-telemetry-otel
       name: '@deepseek-ai/dsh-session-telemetry-otel'
       config:
@@ -234,9 +217,8 @@
     - id: subprocess
       name: '@deepseek-ai/dsh-subprocess-local'
 
-    # Every shipped CLI mode starts with the same file-effect boundary.
-    # The environment remains an explicit deployment override; otherwise fresh
-    # sessions pin workspace-write + ask through the permission service below.
+    # 每种已发布的 CLI 模式都从同一条文件副作用边界开始。环境变量仍然是显式的部署
+    # 覆盖手段；除此之外，新建会话通过下面的权限服务固定为 workspace-write + ask。
     - id: sandbox
       name: '@deepseek-ai/dsh-sandbox-local'
 
@@ -351,8 +333,8 @@
     - id: compaction-basic
       name: '@deepseek-ai/dsh-compaction-basic'
 
-    # Human `/compact`: one useful reduction below the automatic threshold. Backend
-    # independent, so it follows whichever compaction service this leaf mounts.
+    # 人工的 `/compact`：在自动阈值之下再做一次有效精简。它与后端无关，因此跟随本
+    # 叶子挂载的那个压缩服务。
     - id: command-compact
       name: '@deepseek-ai/dsh-command-compact'
 
@@ -369,8 +351,8 @@
       config:
         providerName: fork
 
-    # Continuable background children are selected per delegation tool. The
-    # separately loaded follow-up tool registers the one global `send_message`.
+    # 可续跑的后台子代理按各自的委派工具选择。单独加载的 follow-up 工具注册唯一的
+    # 全局 `send_message`。
     - id: tool-subagent-control
       name: '@deepseek-ai/dsh-tool-subagent-control'
 
@@ -383,11 +365,10 @@
         provider: spawn
         toolName: subagent
 
-    # Fork omits model selection so provider/model stay equal to the parent and
-    # the inherited history remains eligible for KV Cache reuse. Parent and child
-    # share the messaging tools; return guidance follows the inherited history.
-    # See .agents/notes/implemented/feature/2026-08-18-model-selected-subagent-routes.md
-    # and .agents/notes/implemented/architecture/2026-08-10-fork-children-stay-one-shot.md.
+    # fork 省略模型选择，这样 provider/model 与父级保持一致，继承来的历史也仍然具备
+    # KV Cache 复用的资格。父级与子级共享消息类工具；返回指引跟随所继承的历史。
+    # 参见 .agents/notes/implemented/feature/2026-08-18-model-selected-subagent-routes.md
+    # 与 .agents/notes/implemented/architecture/2026-08-10-fork-children-stay-one-shot.md。
     - id: tool-subagent-fork
       name: '@deepseek-ai/dsh-tool-subagent'
       config:
@@ -416,12 +397,12 @@
       config:
         maxInlineTokens: 12500
 
-    # Durability checkpoints before each model request and top-level dispatch.
+    # 在每次模型请求与顶层派发之前做持久化检查点。
     - id: session-checkpoint-policy
       name: '@deepseek-ai/dsh-session-checkpoint-policy'
 
-    # Compacts oversized tool results before the broader conversation compactor
-    # runs, preserving the model-visible result within the configured budget.
+    # 在更宏观的会话压缩器运行之前先压缩过大的工具结果，把模型可见的结果保持在
+    # 配置预算之内。
     - id: tool-result-pruner
       name: '@deepseek-ai/dsh-compaction-tool-result-pruner'
       config:
@@ -429,8 +410,8 @@
         headChars: 4096
         tailChars: 1024
 
-    # When an image-capable route rejects a request as over its image budget,
-    # replace the oldest images with placeholders on the surface and retry.
+    # 当支持图片的路由以超出图片预算为由拒绝请求时，把界面上最旧的图片替换为占位符
+    # 并重试。
     - id: image-offload
       name: '@deepseek-ai/dsh-compaction-image-offload'
 
@@ -439,31 +420,27 @@
       config:
         allowParallelInProgress: true
 
-    # Persisted same-session goals reach the model and the slash menu here; the
-    # domain, driver, and `/goal` command are above.
+    # 持久化的同会话目标在这里抵达模型与斜杠菜单；其领域、驱动器与 `/goal` 命令在
+    # 上方。
     - id: tool-goal
       name: '@deepseek-ai/dsh-tool-goal'
 
-    # Consecutive-repeat reminders on the tool chain.
+    # 工具链上的连续重复提醒。
     - id: repeat-tool-reminder
       name: '@deepseek-ai/dsh-repeat-tool-reminder'
       config:
         thresholds: [3, 5, 8]
         argumentsPreviewChars: 500
 
-    # The shared base enables the stable model-facing web_search and web_fetch
-    # tools. The Web app disables this host row and composes both tools per agent
-    # preset; products with a stricter network policy override tool-web. DeepSeek
-    # search resolves the same DEEPSEEK_API_KEY
-    # credential the Models page manages for chat, at each search; its Messages
-    # endpoint is configured independently from the model route, so it takes its own
-    # base-URL override. Anonymous fetch accepts only public HTTP(S) destinations,
-    # resolves and validates every destination, and pins every actual connection.
-    # Search is a full auxiliary model request with server-side retrieval, so this
-    # shipped DeepSeek route gets 60s while the provider-neutral tool default
-    # remains 30s. The DeepSeek Search and Fetch APIs register as
-    # deepseek-search-api and deepseek-fetch-api with the same credential; the Web
-    # search settings switch selects both in place of these defaults.
+    # 共享的 base 启用稳定的、面向模型的 web_search 与 web_fetch 工具。Web 应用会停用
+    # 这个宿主行，并按每个 agent preset 组装这两个工具；网络策略更严格的产品可以覆盖
+    # tool-web。DeepSeek 搜索在每次搜索时解析 Models 页面为聊天所管理的同一个
+    # DEEPSEEK_API_KEY 凭据；它的 Messages 端点独立于模型路由配置，因此有自己的
+    # base-URL 覆盖。匿名抓取只接受公开的 HTTP(S) 目标，会解析并校验每个目标，并固定
+    # 每次真实连接。搜索是一次带服务端检索的完整辅助模型请求，因此这条已发布的
+    # DeepSeek 路由获得 60s，而 provider 中立的工具默认值仍是 30s。DeepSeek Search 与
+    # Fetch API 以同一凭据分别注册为 deepseek-search-api 与 deepseek-fetch-api；Web 的
+    # 搜索设置开关会在这些默认值之外选中这两个。
     - id: web
       name: '@deepseek-ai/dsh-web'
       config:
@@ -492,36 +469,33 @@
     - id: mcp-resources
       name: '@deepseek-ai/dsh-mcp-resources'
 
-    # ── rows every mode mounts, whose values each overlay may state ──────────────
+    # ── 每种模式都会挂载、但其取值可由各覆盖层给出的行 ──────────────────────────
 
-    # The tool registry. Presentation mode is a deployment choice; omitting it here
-    # keeps the schema default (native).
+    # 工具注册表。呈现模式属于部署选择；这里省略它以保留 schema 默认值（native）。
     - id: tools
       name: '@deepseek-ai/dsh-tools'
 
-    # The deployment persona is a deployment choice; plan-mode and tool plugins own
-    # their own prompt sections.
+    # 部署人格属于部署选择；plan-mode 与工具插件各自拥有自己的提示词段落。
     - id: system-prompt
       name: '@deepseek-ai/dsh-system-prompt'
       config:
         personaPrefix: ''
 
-    # Agents created at startup. The base stays empty; raw overlays may create
-    # agents, while Web creates sessions on client request.
+    # 启动时创建的 Agent。base 保持为空；原始覆盖层可以创建 agent，而 Web 按客户端
+    # 请求创建 session。
     - id: agent-loop
       name: '@deepseek-ai/dsh-agent-loop'
       config:
         agents: []
 
-    # The sandboxed filesystem provider. `cwd` defaults to `process.cwd()`; an
-    # overlay can pin another workspace.
+    # 沙箱化的文件系统提供者。`cwd` 默认为 `process.cwd()`；覆盖层可以固定另一个
+    # workspace。
     - id: fs-sandbox
       name: '@deepseek-ai/dsh-fs-sandbox'
 
-    # The native DeepSeek adapter. No key or endpoint is inlined: both resolve per
-    # request from the `llm-deepseek:` settings section over this entry, with the
-    # key coming from the credential store below. Thinking defaults are a deployment
-    # choice.
+    # 原生的 DeepSeek 适配器。没有内联任何密钥或端点：二者都按请求从该条目之上的
+    # `llm-deepseek:` 设置段落解析，密钥来自下面的凭据存储。思考相关的默认值属于
+    # 部署选择。
     - id: llm-deepseek
       name: '@deepseek-ai/dsh-llm-deepseek-api-key'
 

@@ -1,15 +1,15 @@
-/** Combined byte accounting for retained program output. */
+/** 对保留下来的程序输出做合并字节计量。 */
 import type { PtcJsonValue, PtcRunFailure, PtcRunResult } from '@deepseek-ai/dsh-ptc-runtime'
 import { jsonStringBytesUpTo, jsonValueBytesUpTo, truncateJsonStringBytes } from './output-json.ts'
 
-/** One run's combined outer-output ledger; binding values never enter it. */
+/** 单次运行的合并外层输出账本；绑定值从不计入其中。 */
 export class OutputLedger {
-  private bytes = 2 // JSON serialization of the empty logs array: []
+  private bytes = 2 // 空日志数组的 JSON 序列化结果：[]
   private entries = 0
 
   constructor(private readonly maxBytes: number, private readonly overflowMessage?: string) {}
 
-  /** Admit one exact log entry, or report that the hard cap was crossed. */
+  /** 接纳一条完整日志项，或报告硬上限已被越过。 */
   admit(text: string, sink: string[]): boolean {
     const separatorBytes = this.entries > 0 ? 1 : 0
     const stringBytes = jsonStringBytesUpTo(text, this.maxBytes - this.bytes - separatorBytes)
@@ -20,22 +20,22 @@ export class OutputLedger {
     return true
   }
 
-  /** Finalize a successful absent-or-JSON completion against the combined cap. */
+  /** 对照合并上限，敲定一次成功且完成值为缺省或 JSON 的结果。 */
   success(logs: string[], value?: PtcJsonValue): PtcRunResult {
     if (value !== undefined && jsonValueBytesUpTo(value, this.maxBytes - this.bytes) === undefined) return this.limit(logs)
     return { logs, ...value !== undefined ? { value } : {} }
   }
 
-  /** Finalize a failure diagnostic, with output-limit taking precedence when combined bytes exceed the cap. */
+  /** 敲定一条失败诊断；当合并字节超出上限时，output-limit 优先。 */
   failure(logs: string[], error: PtcRunFailure): PtcRunResult {
     if (jsonStringBytesUpTo(error.message, this.maxBytes - this.bytes) === undefined) return this.limit(logs)
     return { logs, error }
   }
 
-  /** Build the explicit output-limit failure while retaining a fitting prefix of the final log. */
+  /** 构造显式的 output-limit 失败，同时保留最后那条日志能放下的前缀。 */
   limit(logs: string[]): PtcRunResult {
     const fullMessage = this.overflowMessage ?? `outer output exceeded ${this.maxBytes} bytes`
-    // The fixed diagnostic is ASCII, so every character is one byte plus the quotes.
+    // 该固定诊断文本是 ASCII，因此每个字符就是一个字节，再加上两侧的引号。
     const messageBytes = fullMessage.length + 2
     const retained: string[] = []
     let retainedBytes = 2
@@ -52,7 +52,7 @@ export class OutputLedger {
       const prefix = truncateJsonStringBytes(text, availableBytes)
       if (prefix.length > 0) {
         const prefixBytes = jsonStringBytesUpTo(prefix, availableBytes)
-        /* v8 ignore next -- truncateJsonStringBytes guarantees its returned prefix fits the same budget. */
+        /* v8 ignore next -- truncateJsonStringBytes 保证它返回的前缀能放进同一预算。 */
         if (prefixBytes === undefined) throw new Error('output ledger produced an oversized log prefix')
         retained.push(prefix)
         retainedBytes += prefixBytes + separatorBytes

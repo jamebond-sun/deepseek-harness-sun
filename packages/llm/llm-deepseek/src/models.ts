@@ -1,8 +1,8 @@
-/** Default DeepSeek model catalog. */
+/** 默认的 DeepSeek 模型目录。 */
 import { DEFAULT_CONTEXT_WINDOW } from './defaults.ts'
 import type { DeepSeekCatalogModel } from './types.ts'
 
-/** Advisory official model entries; deployments may replace the catalog. */
+/** 参考性的官方模型条目；部署可以替换整个目录。 */
 export const DEFAULT_MODELS: DeepSeekCatalogModel[] = [
   {
     id: 'deepseek-flash',

@@ -1,10 +1,8 @@
 /**
- * Function plugin registering the `sessionStats` projection unit: whole-log
- * turn/step counts and LLM/tool/first-token/decode wall times served through
- * the session-projection seam (registry snapshot, change feed, and every
- * projection carrier), so clients render full-session figures that paging and
- * compaction cannot change. The plugin owns only the fold; delivery is the
- * seam's.
+ * 注册 `sessionStats` 投影单元的函数插件：通过 session-projection 接缝
+ * （注册表快照、变更流与每个投影载体）提供整个日志的回合/步骤计数，以及
+ * LLM/工具/首 token/解码的墙钟时间，因此客户端能渲染出分页与压缩都无法
+ * 改变的、整会话的数字。本插件只拥有折叠；投递是接缝的事。
  *
  * @module @deepseek-ai/dsh-session-stats
  */
@@ -14,15 +12,15 @@ import { sessionStatsProjectionDefinition } from './projection.ts'
 
 export type * from './types.ts'
 
-/** Cordis plugin name. */
+/** Cordis 插件名称。 */
 export const name = 'session-stats'
-/** The projection registry is the plugin's whole purpose; without it the fiber stays pending. */
+/** 投影注册表是本插件的全部目的；没有它，纤程会一直保持 pending。 */
 export const inject = ['sessionProjections']
 
 /**
- * Register the `sessionStats` unit; the registration is an effect on this
- * plugin's fiber, so unloading removes the key.
- * @param ctx - registrant context carrying the projection registry.
+ * 注册 `sessionStats` 单元；该注册是作用于本插件纤程的一种 effect，因此
+ * 卸载会移除该键。
+ * @param ctx - 携带投影注册表的注册方上下文。
  */
 export function apply(ctx: Context): void {
   ctx.sessionProjections.register(sessionStatsProjectionDefinition)

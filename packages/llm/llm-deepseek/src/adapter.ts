@@ -1,4 +1,4 @@
-/** Direct Messages transport with one cancellable lifecycle per model request. */
+/** 直接的 Messages 传输，每次模型请求拥有独立且可取消的生命周期。 */
 
 import { attributionHeaders, LlmAdapter, LlmError } from '@deepseek-ai/dsh-llm'
 import type { GenerateOptions, ImageAttachmentAccessResolver, PreparedAdapterCall, StreamChunk } from '@deepseek-ai/dsh-llm'
@@ -18,7 +18,7 @@ import { providerError, providerErrorDetail } from './transport.ts'
 import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 import { resolveRequestImageTarget } from './request-pricing.ts'
 
-/** DeepSeek provider using Messages content and native thinking replay. */
+/** 使用 Messages 内容与原生 thinking 回放的 DeepSeek 提供方。 */
 export class DeepSeekAdapter<C extends Connection = Connection> extends LlmAdapter {
   private readonly files: DeepSeekFileStore
   private readonly imageAccess: ImageAttachmentAccessResolver = (ref) => {
@@ -80,10 +80,9 @@ export class DeepSeekAdapter<C extends Connection = Connection> extends LlmAdapt
       throw new LlmError('DeepSeek Messages transport failed', 'TRANSPORT', { cause: error })
     } finally {
       consumer.abort()
-      // The abort above owns the socket teardown. A demand the deadline abandoned
-      // can stay pending forever, and this generator queues its own return behind
-      // that demand, so awaiting the drain would re-hang the settled outcome.
-      /* v8 ignore next -- the detached drain only rejects while unwinding an abandoned request. */
+      // 上面的 abort 负责 socket 的拆除。被截止时间放弃的一次需求可能永远处于待定状态，
+      // 而本生成器会把自己的 return 排在那次需求之后，因此等待排空会让已落定的结果再次挂起。
+      /* v8 ignore next -- 该分离的排空只在展开一个被放弃的请求时才会 reject。 */
       void iterator.return(undefined).catch(() => {})
     }
   }
@@ -152,7 +151,7 @@ export class DeepSeekAdapter<C extends Connection = Connection> extends LlmAdapt
           const text = await response.text()
           let raw: unknown
           try { raw = JSON.parse(text) } catch (_nonJsonGatewayError) {
-            // HTTP status is authoritative when a gateway does not return JSON.
+            // 当网关不返回 JSON 时，HTTP 状态码具有权威性。
           }
           const detail = providerErrorDetail(raw)
           if (await files.retry(detail)) continue

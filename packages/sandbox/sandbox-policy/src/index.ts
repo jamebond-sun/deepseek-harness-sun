@@ -1,21 +1,16 @@
 /**
- * The sandbox POLICY home (`ctx.sandboxPolicy`): the single owner of the
- * deployment's sandbox fallbacks plus per-session resolution: the file-effect
- * {@link SandboxMode}, the `workspace-write` root, and the override kit (the
- * `sandbox/mode` event, its fold, and its write path; the fold is the
- * `sandboxMode` session-projection unit registered here, while the event and
- * write path come from `./session-mode.ts`).
- * Before each agent request, the owner also contributes the resolved policy to
- * the cache-safe runtime-context snapshot. The agent loop logs that snapshot as
- * model history, so replay reconstructs the same mode and root the enforcing
- * consumers resolve without rewriting the stable system prompt.
+ * 沙箱策略的唯一归属地（`ctx.sandboxPolicy`）：独自持有本次部署的沙箱
+ * 回退值以及按会话的解析逻辑——文件效应 {@link SandboxMode}、workspace-write
+ * 的根，以及覆盖工具箱（`sandbox/mode` 事件、它的折叠与写入路径；折叠即在此
+ * 注册的 `sandboxMode` 会话投影单元，而事件与写入路径来自 `./session-mode.ts`）。
+ * 在每次 agent 请求之前，所有者还会把已解析的策略贡献给可安全缓存的运行期
+ * 上下文快照。agent 循环把该快照作为模型历史记录，因此重放能重建出与各强制
+ * 消费者所解析的完全相同的模式与根，而无需改写稳定的系统提示。
  *
- * Enforcing filesystem, one-shot bash, and terminal backends read the SAME
- * resolved policy here. The context describes that policy without inventorying
- * capabilities, while each backend retains its own enforcement dialect and each
- * tool owns its operation-specific denial and escalation guidance. The service
- * reads session state once at each operation boundary; executors and providers
- * remain session-free.
+ * 强制性的文件系统、一次性 bash 与终端后端都从这里读取同一份已解析策略。
+ * 上下文只描述这份策略，不去清点能力；而每个后端保留各自的强制方言，每个
+ * 工具拥有各自操作特有的拒绝与升级指引。该服务在每个操作边界只读取一次
+ * 会话状态；执行器与提供者保持与会话无关。
  *
  * @module @deepseek-ai/dsh-sandbox-policy
  */
@@ -32,13 +27,13 @@ import type {} from '@deepseek-ai/dsh-system-prompt'
 
 export { SANDBOX_MODES, setSandboxMode } from './session-mode.ts'
 
-/** Preserve execution-world spelling; enforcing providers resolve filesystem identity on their host. */
+/** 保持执行世界的拼写；强制提供者在各自宿主机上解析文件系统身份。 */
 function resolveWorkspaceRoot(path: string): string {
   if (!isAbsolute(path)) throw new Error('sandbox-policy: workspace root must be an absolute execution-world path')
   return path
 }
 
-/** Render the policy without claiming which capabilities are mounted. */
+/** 渲染该策略，但不声称挂载了哪些能力。 */
 function renderPolicyContext(policy: SandboxExecutionPolicy): string {
   switch (policy.mode) {
     case 'read-only':
@@ -47,7 +42,7 @@ function renderPolicyContext(policy: SandboxExecutionPolicy): string {
       return `Current DSH file policy: workspace-write. Any available operation enforced by the DSH file sandbox may modify files under the session workspace: ${JSON.stringify(policy.workspaceRoot)}. Some platform temporary areas may also be writable.`
     case 'danger-full-access':
       return 'Current DSH file policy: danger-full-access. The DSH file sandbox does not restrict file modifications by available operations.'
-    /* v8 ignore next 4 -- SandboxMode is a typed same-process closed union; this branch is only the static exhaustiveness guard. */
+    /* v8 ignore next 4 -- SandboxMode 是同进程内带类型的封闭联合；该分支只是静态穷尽性守卫。 */
     default: {
       const mode: never = policy.mode
       throw new Error(`unreachable sandbox mode: ${String(mode)}`)
@@ -62,31 +57,30 @@ declare module '@deepseek-ai/cordis' {
 }
 
 /**
- * Plugin config: the deployment's sandbox default. All optional — `Config`
- * supplies the defaults (`mode: 'read-only'` is the fail-safe default; a
- * deployment that wants a workspace-writable agent opts in explicitly). The
- * runner choice is NOT here (it is the `ctx.sandbox` provider's config), nor
- * is any per-family knob: this is the one shared policy home.
+ * 插件配置：本次部署的沙箱默认值。全部可选——`Config` 提供默认值
+ * （`mode: 'read-only'` 是故障安全的默认值；希望 agent 可写工作区的部署需要
+ * 显式选择加入）。运行器选型不在这里（它属于 `ctx.sandbox` 提供者的配置），
+ * 也没有任何按工具族的旋钮：这里是唯一的共享策略归属地。
  */
 export interface Config {
-  /** File-sandbox mode a session starts from (default: `read-only`). */
+  /** 一个会话起始时的文件沙箱模式（默认：`read-only`）。 */
   mode?: SandboxMode
   /**
-   * Absolute fallback root for agentless calls and sessions without a cwd (default:
-   * `process.cwd()`). Normal agent calls use their session cwd instead.
+   * 无 agent 调用与没有 cwd 的会话所用的绝对回退根（默认：`process.cwd()`）。
+   * 普通的 agent 调用则改用其会话 cwd。
    */
   workspaceRoot?: string
 }
 
-/** Inputs that select the sandbox policy for one capability call. */
+/** 为一次能力调用选定沙箱策略的输入。 */
 export interface SandboxPolicyRequest {
-  /** Calling session; its immutable cwd becomes the workspace boundary. */
+  /** 调用会话；其不可变 cwd 成为工作区边界。 */
   session?: Session
-  /** Explicit approved mode override, which outranks session policy. */
+  /** 显式获批的模式覆盖，其优先级高于会话策略。 */
   mode?: SandboxMode
 }
 
-/** The sandbox-mode projection's state schema (state equals the public shape). */
+/** 沙箱模式投影的状态 schema（状态即公开形状）。 */
 const sandboxModeStateSchema = zod.union([
   zod.literal('read-only'),
   zod.literal('workspace-write'),
@@ -96,37 +90,36 @@ const sandboxModeStateSchema = zod.union([
 type SandboxModeState = zod.infer<typeof sandboxModeStateSchema>
 declare module '@deepseek-ai/dsh-session-projection/types' {
   interface SessionProjectionStateMap {
-    /** Last logged sandbox-mode override, or null before one (deployment default applies at resolve time). */
+    /** 最近一次记录的沙箱模式覆盖；尚未有过覆盖时为 null（解析时套用部署默认值）。 */
     sandboxMode: SandboxModeState
   }
 }
 
 /**
- * The sandbox-policy service (`ctx.sandboxPolicy`). Owns the deployment
- * default mode, fallback workspace root, and current request-time policy
- * section. Tool layers call {@link resolve} for each execution so a session's
- * mode log and immutable cwd travel together to every enforcing capability.
+ * 沙箱策略服务（`ctx.sandboxPolicy`）。持有部署的默认模式、回退工作区根，
+ * 以及当前的请求期策略段落。工具层为每次执行调用 {@link resolve}，使一个
+ * 会话的模式日志与其不可变 cwd 一并抵达每一个强制能力。
  */
 export class SandboxPolicyService extends Service {
-  // Inline schema call: the config catalog walks `static Config` statically.
+  // 内联 schema 调用：配置目录会静态地遍历 `static Config`。
   static Config: z<Config> = z.object({
     mode: z.union(['read-only', 'workspace-write', 'danger-full-access'] as const).default('read-only'),
-    // No schema default: process.cwd() is resolved in the constructor so the
-    // stored root is always absolute regardless of how it was supplied.
+    // 不设 schema 默认值：process.cwd() 在构造函数中解析，因此无论以何种
+    // 方式提供，存下来的根始终是绝对路径。
     workspaceRoot: z.string(),
   })
 
   static inject = ['sessionProjections']
 
-  /** The deployment default mode — the fallback beneath a session override. */
+  /** 部署的默认模式——位于会话覆盖之下的回退值。 */
   readonly defaultMode: SandboxMode
-  /** The absolute `workspace-write` fallback root for calls without a session cwd. */
+  /** 没有会话 cwd 的调用所用的绝对 `workspace-write` 回退根。 */
   readonly workspaceRoot: string
   constructor(ctx: Context, config: Config) {
     super(ctx, 'sandboxPolicy')
-    // schemastery (static Config) already filled `mode`; the cast records that
-    // runtime fact. `workspaceRoot` has NO schema default, so its fallback to
-    // the process cwd is real branching, resolved absolute either way.
+    // schemastery（static Config）已经填好了 `mode`；该断言记录的正是这一
+    // 运行期事实。`workspaceRoot` 没有 schema 默认值，因此它回退到进程 cwd
+    // 是真实的分支，两种情形下都会被解析为绝对路径。
     this.defaultMode = config.mode as SandboxMode
     this.workspaceRoot = resolveWorkspaceRoot(config.workspaceRoot ?? process.cwd())
 
@@ -153,13 +146,12 @@ export class SandboxPolicyService extends Service {
   }
 
   /**
-   * Resolve the complete policy for one capability call. An approved explicit
-   * mode outranks the session's last `sandbox/mode` event, which outranks the
-   * deployment default. A session cwd is its workspace-write boundary; the
-   * configured root is the fallback for agentless calls and sessions without a
-   * cwd.
-   * @param request - optional session and approved mode override.
-   * @returns the fully resolved per-call mode and absolute workspace root.
+   * 解析一次能力调用的完整策略。已获批的显式模式优先于会话最后一条
+   * `sandbox/mode` 事件，后者又优先于部署默认值。会话 cwd 即它的
+   * workspace-write 边界；配置中的根则是无 agent 调用与没有 cwd 的会话的
+   * 回退值。
+   * @param request - 可选的会话与已获批的模式覆盖。
+   * @returns 完全解析后的按调用模式与绝对工作区根。
    */
   resolve(request: SandboxPolicyRequest = {}): SandboxExecutionPolicy {
     const { session } = request
@@ -171,9 +163,9 @@ export class SandboxPolicyService extends Service {
   }
 
   /**
-   * Read the session override without applying the deployment default.
-   * @param session - session whose log supplies the override.
-   * @returns the last logged mode, or `undefined` without one.
+   * 读取会话覆盖，但不套用部署默认值。
+   * @param session - 其日志提供该覆盖的会话。
+   * @returns 最近一次记录的模式；没有时返回 `undefined`。
    */
   overrideOf(session: Session): SandboxMode | undefined {
     return this.ctx.sessionProjections.stateOf(session, 'sandboxMode') ?? undefined

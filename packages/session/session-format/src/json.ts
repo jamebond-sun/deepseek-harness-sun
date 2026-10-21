@@ -6,19 +6,19 @@ import type {
 } from './types.ts'
 
 /**
- * Test whether a value is a non-null, non-array object.
- * @param value - candidate value.
- * @returns whether the value is an object record.
+ * 判断一个值是否为非空、非数组的对象。
+ * @param value - 待检测的值。
+ * @returns 该值是否为对象记录。
  */
 export function isSessionFormatJsonObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 /**
- * Require a non-negative safe integer without the JSON-unstable negative zero.
- * @param value - candidate count.
- * @param label - diagnostic subject.
- * @returns validated count.
+ * 要求一个非负安全整数，且排除 JSON 中不稳定的负零。
+ * @param value - 待检测的计数。
+ * @param label - 诊断主体。
+ * @returns 已校验的计数。
  */
 export function sessionFormatCount(value: unknown, label: string): number {
   if (!Number.isSafeInteger(value) || (value as number) < 0 || Object.is(value, -0)) {
@@ -28,10 +28,10 @@ export function sessionFormatCount(value: unknown, label: string): number {
 }
 
 /**
- * Require a safe integer without the JSON-unstable negative zero.
- * @param value - candidate integer.
- * @param label - diagnostic subject.
- * @returns validated integer.
+ * 要求一个安全整数，且排除 JSON 中不稳定的负零。
+ * @param value - 待检测的整数。
+ * @param label - 诊断主体。
+ * @returns 已校验的整数。
  */
 export function sessionFormatSafeInteger(value: unknown, label: string): number {
   if (!Number.isSafeInteger(value) || Object.is(value, -0)) {
@@ -41,19 +41,19 @@ export function sessionFormatSafeInteger(value: unknown, label: string): number 
 }
 
 /**
- * Require a non-negative integral format version.
- * @param value - candidate version.
- * @param label - diagnostic subject.
- * @returns validated version.
+ * 要求一个非负整数格式版本。
+ * @param value - 待检测的版本。
+ * @param label - 诊断主体。
+ * @returns 已校验的版本。
  */
 export function sessionFormatVersion(value: unknown, label = 'Session format version'): number {
   return sessionFormatCount(value, label)
 }
 
 /**
- * Read only the version required for directional dispatch.
- * @param headerValue - untrusted physical header value.
- * @returns validated stored version.
+ * 仅读取定向分发所需的版本。
+ * @param headerValue - 未受信任的物理头部值。
+ * @returns 已校验的存储版本。
  */
 export function inspectSessionFormatVersion(headerValue: unknown): number {
   if (!isSessionFormatJsonObject(headerValue)) {
@@ -63,10 +63,10 @@ export function inspectSessionFormatVersion(headerValue: unknown): number {
 }
 
 /**
- * Detach and deeply freeze a caller-supplied lossless JSON value.
- * @param value - borrowed candidate.
- * @param label - diagnostic subject.
- * @returns an immutable detached JSON snapshot.
+ * 分离并深度冻结调用方提供的无损 JSON 值。
+ * @param value - 借用的候选值。
+ * @param label - 诊断主体。
+ * @returns 不可变的、已分离的 JSON 快照。
  */
 export function snapshotSessionFormatJson(value: unknown, label = 'Session value'): SessionFormatJsonValue {
   const snapshot = snapshotJsonValue(value)
@@ -77,10 +77,10 @@ export function snapshotSessionFormatJson(value: unknown, label = 'Session value
 }
 
 /**
- * Snapshot one logical header without inspecting an event body.
- * @param header - borrowed logical header.
- * @param label - diagnostic subject.
- * @returns immutable detached header.
+ * 在不检查事件体的前提下快照一个逻辑头部。
+ * @param header - 借用的逻辑头部。
+ * @param label - 诊断主体。
+ * @returns 不可变的、已分离的头部。
  */
 export function snapshotSessionFormatHeader(header: SessionFormatHeader, label = 'Session header'): SessionFormatHeader {
   const snapshot = snapshotSessionFormatJson(header, label)

@@ -1,4 +1,4 @@
-/** Tool-role V3-to-V4 migration with native V4 framing and delivery validation. */
+/** 具备原生 V4 分帧与投递校验的 tool-role V3→V4 迁移。 */
 
 export { releasedV3SessionFormatCodec } from '@deepseek-ai/dsh-session-format-v2-to-v3'
 export * from './codec.ts'

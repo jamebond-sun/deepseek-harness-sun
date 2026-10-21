@@ -1,4 +1,4 @@
-/** One-shot Linux exec bootstrap and Windows Job-owning subprocess runner. */
+/** 一次性的 Linux exec 引导程序，以及拥有 Job 的 Windows subprocess runner。 */
 
 import { SUBPROCESS_CONTROL_FD } from '@deepseek-ai/dsh-subprocess/control'
 import { closeSync } from 'node:fs'
@@ -41,7 +41,7 @@ type RunnerHost = Pick<NodeJS.Process, 'env' | 'exitCode' | 'connected' | 'cwd' 
   send?: NodeJS.Process['send']
 }
 
-/** Injectable operations used by the protocol-owner tests. */
+/** 由协议拥有者测试使用的、可注入的操作。 */
 export interface SpawnRunnerInternals {
   execve(file: string, argv: string[], env: Record<string, string>, control?: 'pipe'): never
   loadWin32ProcessBindings(): CurrentTokenProcessBindings
@@ -284,7 +284,7 @@ class WindowsJobRunner {
     }
     await new Promise<void>((resolveImmediate) => { setImmediate(resolveImmediate) })
     if (this.finished) return
-    // IPC may set this field while start() is suspended above.
+    // 当 start() 在上面挂起时，IPC 可能设置此字段。
     // oxlint-disable-next-line typescript/no-unnecessary-condition
     if (this.terminateRequested) {
       await this.publishTerminalResult({ type: 'error', error: windowsStartCancelledError() }, 0)
@@ -416,12 +416,12 @@ class WindowsJobRunner {
     const api = this.api
     if (api === undefined) return
     if (this.jobHandle !== undefined) {
-      try { this.internals.terminateJob(api, this.jobHandle, 1) } catch { /* Continue to kill-on-close. */ }
-      try { this.internals.closeHandleChecked(api, this.jobHandle, 'ordinary process Job cleanup') } catch { /* Best effort after failure. */ }
+      try { this.internals.terminateJob(api, this.jobHandle, 1) } catch { /* 继续走向“关闭时杀死”。 */ }
+      try { this.internals.closeHandleChecked(api, this.jobHandle, 'ordinary process Job cleanup') } catch { /* 失败之后尽力而为。 */ }
       this.jobHandle = undefined
     }
     if (this.processHandle !== undefined) {
-      try { this.internals.closeHandleChecked(api, this.processHandle, 'ordinary direct process cleanup') } catch { /* Best effort after failure. */ }
+      try { this.internals.closeHandleChecked(api, this.processHandle, 'ordinary direct process cleanup') } catch { /* 失败之后尽力而为。 */ }
       this.processHandle = undefined
     }
   }
@@ -440,11 +440,11 @@ class WindowsJobRunner {
 }
 
 /**
- * Execute the selected Linux bootstrap or Windows Job runner.
- * @param selection - Windows sentinel or Linux launch-request locator.
- * @param argv - private runner arguments beginning with the target delimiter.
- * @param host - process transport and lifecycle host.
- * @param internals - native and filesystem operations used by the runner.
+ * 执行所选的 Linux 引导程序或 Windows Job runner。
+ * @param selection - Windows 哨兵或 Linux 启动请求定位符。
+ * @param argv - 以目标分隔符开头的私有 runner 参数。
+ * @param host - 进程传输与生命周期宿主。
+ * @param internals - runner 所使用的原生与文件系统操作。
  */
 export async function runSpawnRunner(
   selection: string,
@@ -462,10 +462,10 @@ export async function runSpawnRunner(
 }
 
 /**
- * Best-effort reporting for failures before the selected runner established its owner.
- * @param selection - Windows sentinel, Linux launch-request locator, or no selection.
- * @param error - failure raised before normal runner settlement.
- * @param host - process transport and lifecycle host.
+ * 在所选 runner 建立其所有者之前，对失败的尽力而为报告。
+ * @param selection - Windows 哨兵、Linux 启动请求定位符，或无选择。
+ * @param error - 在正常 runner 结算之前抛出的失败。
+ * @param host - 进程传输与生命周期宿主。
  */
 export async function reportSpawnRunnerFailure(
   selection: string | undefined,
@@ -473,7 +473,7 @@ export async function reportSpawnRunnerFailure(
   host: RunnerHost = process,
 ): Promise<void> {
   if (selection === WINDOWS_RUNNER_SELECTION) {
-    try { await sendMessage(host, { type: 'error', error: serializeRunnerError(error) }) } catch { /* No transport remains. */ }
+    try { await sendMessage(host, { type: 'error', error: serializeRunnerError(error) }) } catch { /* 已无传输可用。 */ }
     host.exitCode = 127
     if (host.connected) host.disconnect()
     return
@@ -483,7 +483,7 @@ export async function reportSpawnRunnerFailure(
       const files: LinuxLaunchFiles = linuxLaunchFilesFromLocator(selection)
       writeLinuxStartupError(files, { type: 'error', error: serializeRunnerError(error) })
     } catch {
-      // The parent will report an unconsumed request or missing runner result.
+      // 父进程会报告一个未被消费的请求，或缺失的 runner 结果。
     }
   }
   host.exitCode = 127

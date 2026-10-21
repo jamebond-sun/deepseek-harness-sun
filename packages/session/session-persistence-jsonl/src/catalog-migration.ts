@@ -1,4 +1,4 @@
-/** Collect historical discovery facts without recursively preparing related current generations. */
+/** 收集历史发现事实，无需递归地准备相关的当前代际。 */
 
 import { stat } from 'node:fs/promises'
 import { basename } from 'node:path'
@@ -12,21 +12,21 @@ import type { JsonlCompression } from './format.ts'
 import { JsonlGenerationSourceChangedError, readDecodedJsonlSource } from './generation.ts'
 import type { JsonlPhysicalIdentity } from './generation.ts'
 
-/** Per-parent supplemental facts and the source checks required before serving or publishing them. */
+/** 每个父会话的补充事实，以及在提供或发布它们之前所需的源检查。 */
 interface PreparedCatalogFacts {
   readonly facts: readonly SessionFormatJsonObject[]
   readonly failures: readonly { readonly path: string; readonly error: unknown }[]
-  /** @returns resolves while every inspected child still has the captured physical revision. */
+  /** @returns 当每个被检查的子会话仍具有所捕获的物理修订时 resolve。 */
   validate(): Promise<void>
 }
 
 /**
- * Collect each related child's own descriptor through existing historical codecs.
- * @param parentId - parent whose incoming migration consumes these facts.
- * @param sources - header-indexed direct children in the selected source corpus.
- * @param compression - configured source encoding.
- * @param signal - cancellation forwarded through each source read.
- * @returns compact facts and child-local failures; complete child event arrays are released after extraction.
+ * 通过现有的历史编解码器收集每个相关子会话自身的描述符。
+ * @param parentId - 其入站迁移会消费这些事实的父会话。
+ * @param sources - 所选源语料中的、已按头部索引的直接子会话。
+ * @param compression - 已配置的源编码方式。
+ * @param signal - 贯穿每次源读取转发的取消信号。
+ * @returns 紧凑的事实与子会话局部的失败；完整的子会话事件数组在提取后即被释放。
  */
 export async function prepareCatalogFacts(
   parentId: SessionId,

@@ -1,8 +1,7 @@
 /**
- * Lossless compact representation of one model-stream attempt, plus record-level
- * readers that answer common consumer questions without materializing members.
- * Readers trust the static record type; expandAssistantStream is the validating
- * path for records read at a durable boundary.
+ * 一次模型流式尝试的无损紧凑表示，以及无需物化各成员即可回答常见
+ * 消费者问题的记录级读取器。读取器信任静态的记录类型；
+ * `expandAssistantStream` 是在持久化边界处读取记录时使用的校验路径。
  */
 
 import { assertNever, deepFreeze, snapshotJsonValue } from '@deepseek-ai/dsh-util-values'
@@ -10,13 +9,13 @@ import { BlockAssembler } from './assembler.ts'
 import type { ToolCallId } from './brand.ts'
 import type { ContentBlock, StreamChunk } from './types.ts'
 
-/** One model chunk paired with its original Session timestamp. */
+/** 一个模型块，与它原始的 Session 时间戳配对。 */
 export interface TimedStreamChunk {
   readonly time: number
   readonly chunk: StreamChunk
 }
 
-/** Lossless compact records embedded in durable Assistant attempt events. */
+/** 内嵌在持久化 Assistant 尝试事件中的无损紧凑记录。 */
 export type AssistantStreamRecord =
   | {
     readonly type: 'text-chunks'
@@ -43,12 +42,12 @@ export type AssistantStreamRecord =
   }
   | { readonly type: 'chunk'; readonly time: number; readonly chunk: StreamChunk }
 
-/** One packed delta run: every compact record except a raw `chunk`. */
+/** 一段已打包的增量序列：除一个原始 `chunk` 之外的每条紧凑记录。 */
 export type AssistantStreamRun = Exclude<AssistantStreamRecord, { type: 'chunk' }>
 
 /**
- * Chunk types the accumulator never packs into runs, so every occurrence is a raw
- * `chunk` record. Delta types are excluded because their packed members are not raw chunks.
+ * 累加器从不打包进序列的那些块类型，因此每次出现都是一个原始 `chunk`
+ * 记录。增量类型被排除，是因为它们打包后的成员不是原始块。
  */
 export type RawStreamChunkType = Exclude<StreamChunk['type'], 'text-delta' | 'reasoning-delta' | 'tool-call-delta'>
 
@@ -96,14 +95,14 @@ function safeGap(previous: number, next: number): number | undefined {
   return Number.isSafeInteger(gap) && previous + gap === next ? gap : undefined
 }
 
-/** Incrementally compacts one attempt without retaining a second raw-chunk list. */
+/** 增量地压缩一次尝试，而不保留第二份原始块列表。 */
 export class AssistantStreamAccumulator {
   private readonly records: MutableRecord[] = []
 
   /**
-   * Add one timed chunk to the compact attempt stream.
-   * @param value - model chunk and its original Session timestamp.
-   * @returns a detached immutable copy for assembly and live publication.
+   * 把一个带时间戳的块加入这次紧凑的尝试流。
+   * @param value - 模型块及其原始的 Session 时间戳。
+   * @returns 一份已分离的不可变副本，供装配与实时发布使用。
    */
   push(value: TimedStreamChunk): TimedStreamChunk {
     const time = safeTime(value.time)
@@ -177,8 +176,8 @@ export class AssistantStreamAccumulator {
   }
 
   /**
-   * Return the current compact attempt stream.
-   * @returns a detached immutable record list suitable for a durable event.
+   * 返回当前的紧凑尝试流。
+   * @returns 一份适合放进持久化事件的、已分离的不可变记录列表。
    */
   snapshot(): readonly AssistantStreamRecord[] {
     const records = this.records.map((record): AssistantStreamRecord => {
@@ -194,10 +193,10 @@ export class AssistantStreamAccumulator {
 }
 
 /**
- * Expand compact records into the exact timed chunk sequence.
- * @param stream - compact records from one durable Assistant settlement.
- * @returns detached timed chunks with every original delta boundary preserved.
- * @throws {TypeError} when a record or reconstructed timestamp is invalid.
+ * 把紧凑记录展开为精确的、带时间戳的块序列。
+ * @param stream - 来自一次持久化 Assistant 落定的紧凑记录。
+ * @returns 已分离的、带时间戳的块，其中每个原始增量边界都得以保留。
+ * @throws {TypeError} 当某条记录或某个被重建的时间戳无效时。
  */
 export function expandAssistantStream(stream: readonly AssistantStreamRecord[]): readonly TimedStreamChunk[] {
   const chunks: TimedStreamChunk[] = []
@@ -242,10 +241,10 @@ function blockIsVisible(block: ContentBlock): boolean {
 }
 
 /**
- * Whether one chunk carries the model's first output token for latency measurement.
- * @param chunk - any stream chunk.
- * @returns true for a non-empty text, reasoning, or Tool-call arguments fragment and for
- *   every name-bearing Tool-call delta; false for block, usage, and finish chunks.
+ * 某个块是否承载了模型用于延迟测量的首个输出令牌。
+ * @param chunk - 任意流式块。
+ * @returns 对一个非空的文本、推理或工具调用参数片段，以及每个携带名称的
+ *   工具调用增量为 true；对 block、usage 与 finish 块为 false。
  */
 export function isTokenDelta(chunk: StreamChunk): boolean {
   switch (chunk.type) {
@@ -260,12 +259,12 @@ export function isTokenDelta(chunk: StreamChunk): boolean {
 }
 
 /**
- * Whether one chunk by itself contributes reader-visible transcript content.
- * Text and reasoning count only with non-whitespace content, streamed as a delta or
- * completed as a block; a block of any other kind counts at its start and its end,
- * except a Tool call, which is protocol rather than content. Usage and finish never count.
- * @param chunk - any stream chunk.
- * @returns whether a transcript reader would see this chunk.
+ * 某个块自身是否贡献了读取者可见的对话内容。
+ * 文本与推理只在具备非空白内容时计入，无论是作为增量流式输出还是
+ * 作为一个已完成的块；任何其他种类的块在它的开始与结束时各计入一次，
+ * 但工具调用除外——它是协议而非内容。usage 与 finish 永不计入。
+ * @param chunk - 任意流式块。
+ * @returns 一个对话读取者是否会看到这个块。
  */
 export function isVisibleChunk(chunk: StreamChunk): boolean {
   switch (chunk.type) {
@@ -282,10 +281,10 @@ export function isVisibleChunk(chunk: StreamChunk): boolean {
 }
 
 /**
- * Whether one chunk carries non-whitespace text, as a text delta or a completed text block.
- * Reasoning, Tool calls, and other block kinds never count.
- * @param chunk - any stream chunk.
- * @returns whether the chunk contributes visible text.
+ * 某个块是否承载非空白文本，无论是作为一个文本增量还是一个已完成的文本块。
+ * 推理、工具调用与其他块种类永不计入。
+ * @param chunk - 任意流式块。
+ * @returns 该块是否贡献了可见文本。
  */
 export function chunkHasVisibleText(chunk: StreamChunk): boolean {
   if (chunk.type === 'text-delta') return hasNonWhitespace(chunk.text)
@@ -303,11 +302,11 @@ function firstRunMemberTime(run: AssistantStreamRun, predicate: (fragment: strin
 }
 
 /**
- * Time of the first member of one packed run that {@link isTokenDelta} accepts: a
- * name-bearing Tool-call run starts at its first member, otherwise the first non-empty fragment.
- * Stops scanning at that member.
- * @param run - one packed delta run.
- * @returns the member's reconstructed time, or undefined when no member qualifies.
+ * 一段已打包序列中第一个被 {@link isTokenDelta} 接受的成员的时间：
+ * 一个携带名称的工具调用序列从它的第一个成员开始，否则是第一个非空片段。
+ * 扫描在该成员处停止。
+ * @param run - 一段已打包的增量序列。
+ * @returns 该成员被重建出来的时间，或当没有成员合格时为 undefined。
  */
 export function runFirstTokenTime(run: AssistantStreamRun): number | undefined {
   if (run.type === 'tool-call-chunks' && run.name !== undefined) return run.time0
@@ -315,20 +314,21 @@ export function runFirstTokenTime(run: AssistantStreamRun): number | undefined {
 }
 
 /**
- * Time of the first member of one packed run that {@link isVisibleChunk} accepts: the first
- * non-whitespace text or reasoning fragment. A Tool-call run has none. Stops scanning at that member.
- * @param run - one packed delta run.
- * @returns the member's reconstructed time, or undefined when no member qualifies.
+ * 一段已打包序列中第一个被 {@link isVisibleChunk} 接受的成员的时间：
+ * 第一个非空白的文本或推理片段。一个工具调用序列没有这样的成员。
+ * 扫描在该成员处停止。
+ * @param run - 一段已打包的增量序列。
+ * @returns 该成员被重建出来的时间，或当没有成员合格时为 undefined。
  */
 export function runFirstVisibleTime(run: AssistantStreamRun): number | undefined {
   return run.type === 'tool-call-chunks' ? undefined : firstRunMemberTime(run, hasNonWhitespace)
 }
 
 /**
- * Time of the first token in one compact stream per {@link isTokenDelta}, read from the
- * records themselves and stopping at the first qualifying member.
- * @param stream - compact records from one durable Assistant settlement.
- * @returns the first token's time, or undefined when the stream carries no token.
+ * 按 {@link isTokenDelta}，从记录自身读取、并在第一个合格成员处停止的
+ * 某条紧凑流中首个令牌的时间。
+ * @param stream - 来自一次持久化 Assistant 落定的紧凑记录。
+ * @returns 首个令牌的时间，或当该流不承载任何令牌时为 undefined。
  */
 export function assistantStreamFirstTokenTime(stream: readonly AssistantStreamRecord[]): number | undefined {
   for (const record of stream) {
@@ -341,10 +341,10 @@ export function assistantStreamFirstTokenTime(stream: readonly AssistantStreamRe
 }
 
 /**
- * Whether one compact stream carries any reader-visible content per {@link isVisibleChunk},
- * stopping at the first qualifying member.
- * @param stream - compact records from one durable Assistant settlement.
- * @returns whether a transcript reader would see anything from this stream.
+ * 按 {@link isVisibleChunk}，某条紧凑流是否承载任何读取者可见的内容，
+ * 在第一个合格成员处停止。
+ * @param stream - 来自一次持久化 Assistant 落定的紧凑记录。
+ * @returns 一个对话读取者是否会从这条流看到任何东西。
  */
 export function assistantStreamHasVisibleContent(stream: readonly AssistantStreamRecord[]): boolean {
   return stream.some(record => record.type === 'chunk'
@@ -353,10 +353,10 @@ export function assistantStreamHasVisibleContent(stream: readonly AssistantStrea
 }
 
 /**
- * Whether one compact stream carries non-whitespace text per {@link chunkHasVisibleText},
- * stopping at the first qualifying member.
- * @param stream - compact records from one durable Assistant settlement.
- * @returns whether the stream contributes visible text.
+ * 按 {@link chunkHasVisibleText}，某条紧凑流是否承载非空白文本，
+ * 在第一个合格成员处停止。
+ * @param stream - 来自一次持久化 Assistant 落定的紧凑记录。
+ * @returns 该流是否贡献了可见文本。
  */
 export function assistantStreamHasVisibleText(stream: readonly AssistantStreamRecord[]): boolean {
   return stream.some(record => record.type === 'text-chunks'
@@ -365,10 +365,10 @@ export function assistantStreamHasVisibleText(stream: readonly AssistantStreamRe
 }
 
 /**
- * The last raw chunk of one never-packed type, scanning backwards and stopping at the first hit.
- * @param stream - compact records from one durable Assistant settlement.
- * @param type - chunk type that only appears as a raw record.
- * @returns the stream's final chunk of that type, or undefined when it has none.
+ * 某个从不打包的类型的最后一个原始块，从后向前扫描并在首个命中处停止。
+ * @param stream - 来自一次持久化 Assistant 落定的紧凑记录。
+ * @param type - 只作为原始记录出现的块类型。
+ * @returns 该流中该类型的最后一个块，或当它没有时为 undefined。
  */
 export function lastAssistantStreamChunk<T extends RawStreamChunkType>(
   stream: readonly AssistantStreamRecord[],
@@ -382,10 +382,10 @@ export function lastAssistantStreamChunk<T extends RawStreamChunkType>(
 }
 
 /**
- * Every raw chunk of one never-packed type, in stream order.
- * @param stream - compact records from one durable Assistant settlement.
- * @param type - chunk type that only appears as a raw record.
- * @returns the matching chunks; empty when the stream has none.
+ * 某个从不打包的类型的全部原始块，按流顺序排列。
+ * @param stream - 来自一次持久化 Assistant 落定的紧凑记录。
+ * @param type - 只作为原始记录出现的块类型。
+ * @returns 匹配的各个块；当该流没有时为 empty。
  */
 export function assistantStreamChunks<T extends RawStreamChunkType>(
   stream: readonly AssistantStreamRecord[],
@@ -399,9 +399,10 @@ export function assistantStreamChunks<T extends RawStreamChunkType>(
 }
 
 /**
- * Every streamed text-delta fragment joined in stream order; reasoning and Tool-call fragments are excluded.
- * @param stream - compact records from one durable Assistant settlement.
- * @returns the joined text, empty when the stream carries no text delta.
+ * 按流顺序拼接起来的、所有已流式输出的 text-delta 片段；
+ * 推理与工具调用片段被排除。
+ * @param stream - 来自一次持久化 Assistant 落定的紧凑记录。
+ * @returns 拼接后的文本，当该流不承载任何文本增量时为空。
  */
 export function joinAssistantStreamText(stream: readonly AssistantStreamRecord[]): string {
   const parts: string[] = []
@@ -413,14 +414,14 @@ export function joinAssistantStreamText(stream: readonly AssistantStreamRecord[]
 }
 
 /**
- * Feed one compact stream into a {@link BlockAssembler} without materializing members.
- * Each run contributes one delta carrying its joined fragments, which assembles the same
- * blocks as the original per-member deltas because assembly only concatenates them;
- * raw chunks are pushed as recorded. The records are trusted, not validated: validate a
- * stream read at a durable boundary with {@link expandAssistantStream} first.
- * @param stream - compact records from one durable Assistant settlement.
- * @param assembler - assembler to feed; a fresh one by default.
- * @returns the same assembler after every record was pushed.
+ * 把一条紧凑流喂入一个 {@link BlockAssembler}，而不物化其各个成员。
+ * 每段序列贡献一个携带其拼接后片段的增量，这会装配出与原来逐成员增量
+ * 相同的块，因为装配只是把它们连接起来；原始块则按记录原样推入。
+ * 这些记录是被信任的，而非被校验的：对于在持久化边界处读取的流，
+ * 请先用 {@link expandAssistantStream} 校验它。
+ * @param stream - 来自一次持久化 Assistant 落定的紧凑记录。
+ * @param assembler - 要喂入的装配器；默认为一个全新的。
+ * @returns 每条记录都被推入之后的同一个装配器。
  */
 export function assembleAssistantStream(
   stream: readonly AssistantStreamRecord[],

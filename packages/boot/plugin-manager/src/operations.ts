@@ -260,7 +260,7 @@ function bundleComponentManifests(manifest: ProfileManifest, dir: string, anchor
   return [...names].flatMap((name) => {
     let packageDir: string
     try { packageDir = resolveBundleDir('dsh', name, anchor, dir) } catch (error) {
-      // Resolution errors for uninstalled or dynamic rows remain subject to the startup loader's checks.
+      // 针对未安装或动态行的解析错误，仍交由启动加载器来检查。
       void error
       return []
     }
@@ -530,11 +530,11 @@ export async function runProfilePnpm(
   }
 }
 
-/** Initialize and run the dsh plugin command with the same write lock as the service.
- * @param context Launcher-owned locations.
- * @param args Pnpm arguments.
- * @param options Output and cancellation policy.
- * @returns Completed package-manager result.
+/** 以与服务相同的写锁来初始化并运行 dsh 插件命令。
+ * @param context 启动器拥有的位置。
+ * @param args Pnpm 参数。
+ * @param options 输出与取消策略。
+ * @returns 已完成的包管理器结果。
  */
 export async function runPluginCommand(
   context: PackageOperationContext, args: readonly string[], options: PackageOperationOptions,
@@ -551,40 +551,40 @@ export async function runPluginCommand(
   }, options.lockWaitMs === undefined ? undefined : { waitMs: options.lockWaitMs })
 }
 
-/** What one registry lookup answered. */
+/** 一次注册表查询所回答的内容。 */
 export interface PackageViewResult {
-  /** pnpm's exit code, null when it ended without one or never started. */
+  /** pnpm 的退出码；当它未带退出码结束或从未启动时取 null。 */
   exitCode: number | null
   stdout: string
   stderr: string
-  /** The lookup ran past its bound and was killed. */
+  /** 查询超过了其边界并被终止。 */
   timedOut: boolean
-  /** The failure of starting pnpm at all, when that is what happened. */
+  /** 当确实发生时的、启动 pnpm 本身的失败。 */
   cause?: unknown
 }
 
-/** Bounds of one registry lookup. */
+/** 一次注册表查询的边界。 */
 export interface PackageViewOptions {
-  /** The pnpm executable name or path. Defaults to `pnpm`. */
+  /** pnpm 可执行文件的名称或路径。默认为 `pnpm`。 */
   command?: string
-  /** Prefix arguments for an application-owned executable. */
+  /** 应用自有可执行文件的前缀参数。 */
   args?: readonly string[]
-  /** Application runtime environment, applied only to this package operation. */
+  /** 应用运行时环境，仅应用于本次包操作。 */
   env?: Readonly<Record<string, string>>
-  /** Ends the lookup early; the caller's signal, when it has one. */
+  /** 提前结束查询；调用方拥有的信号（若有）。 */
   signal?: AbortSignal
-  /** Bound on the lookup, in milliseconds. */
+  /** 查询的边界，以毫秒计。 */
   timeoutMs: number
-  /** The registry asked; null asks the one pnpm's own configuration names. */
+  /** 被查询的注册表；null 表示查询 pnpm 自身配置所命名的那个。 */
   registry?: Registry
 }
 
 /**
- * Read the registry pnpm's own configuration names in the profile: its `.npmrc` chain and workspace settings,
- * as `pnpm config get registry` resolves them.
- * @param dir Profile directory.
- * @param options The pnpm executable and the time bound.
- * @returns The registry URL as pnpm printed it, or null when pnpm did not answer with one.
+ * 读取 profile 内 pnpm 自身配置所命名的注册表：它的 `.npmrc` 链与工作区设置，
+ * 即 `pnpm config get registry` 所解析出的那个。
+ * @param dir profile 目录。
+ * @param options pnpm 可执行文件与时间边界。
+ * @returns pnpm 所打印的注册表 URL；当 pnpm 未以注册表作答时为 null。
  */
 export async function readProfileRegistry(
   dir: string, options: { command?: string; args?: readonly string[]; env?: Readonly<Record<string, string>>; timeoutMs: number },
@@ -592,30 +592,29 @@ export async function readProfileRegistry(
   const result = await execa(options.command ?? 'pnpm', [...options.args ?? [], 'config', 'get', 'registry'], {
     cwd: dir, env: { ...scrubbedParentEnv(), ...options.env }, extendEnv: false, reject: false, stdin: 'ignore', timeout: options.timeoutMs,
   })
-  // The registry is the last line: pnpm may print a notice before it.
+  // 注册表是最后一行：pnpm 可能在它之前打印一条提示。
   const answer = result.exitCode === 0 ? result.stdout.trim().replace(/^[\s\S]*\n/, '').trim() : ''
   return /^https?:\/\/\S+$/.test(answer) ? answer : null
 }
 
 /**
- * The argument that sends one pnpm command to a registry.
- * @param registry - the registry, or null for the one pnpm's own configuration names.
- * @returns `--registry=<url>` for a URL; nothing for null.
+ * 将一条 pnpm 命令发往某个注册表的参数。
+ * @param registry - 注册表；null 表示 pnpm 自身配置所命名的那个。
+ * @returns 针对 URL 的 `--registry=<url>`；针对 null 则为空。
  */
 export function registryArguments(registry: Registry): string[] {
   return registry === null ? [] : [`--registry=${registry}`]
 }
 
 /**
- * Ask the registry what a spec names through `pnpm view`, run in the profile
- * directory so the registry, proxy, and authentication settings of an install
- * apply. The lookup makes one request without pnpm's own retries: a registry
- * that does not answer is reported within `timeoutMs`, and the registries
- * configured after it are the retry.
- * @param dir Profile directory.
- * @param spec One registry spec: a package name with an optional range.
- * @param options The registry, cancellation, and the time bound.
- * @returns pnpm's exit, output, and how the lookup ended.
+ * 通过 `pnpm view` 询问注册表某个 spec 所指之物，运行于 profile
+ * 目录中，从而安装所用的注册表、代理与认证设置都会生效。该查询只发起一次请求，
+ * 不使用 pnpm 自身的重试：未能应答的注册表会在 `timeoutMs` 之内被报告，而
+ * 在其之后配置的注册表即为重试目标。
+ * @param dir profile 目录。
+ * @param spec 一个注册表 spec：带可选版本的包名。
+ * @param options 注册表、取消与时间边界。
+ * @returns pnpm 的退出、输出，以及查询如何结束。
  */
 export async function viewProfilePackage(dir: string, spec: string, options: PackageViewOptions): Promise<PackageViewResult> {
   const result = await execa(options.command ?? 'pnpm', [

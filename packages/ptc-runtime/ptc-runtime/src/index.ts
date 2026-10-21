@@ -1,6 +1,6 @@
 /**
- * Service Definition for the PTC execution capability seam that runs one model-written program against host async bindings.
- * Runtimes know nothing about tools or sessions; consumers own those concerns.
+ * PTC 执行能力 seam 的 Service Definition：把一段模型编写的程序跑起来，
+ * 并让它调用宿主侧异步绑定。运行时对工具与会话一无所知；这些关注点属于消费者。
  * @module @deepseek-ai/dsh-ptc-runtime
  */
 
@@ -21,23 +21,19 @@ export type {
 } from './types.ts'
 
 /**
- * Binding globals EVERY backend refuses because SOME backend owns the slot in
- * the program's namespace: `console` (Node's log capture), and
- * `__dsh_main__`/`__builtins__`/`__name__` (the Python backend's bootstrap
- * wrapper and seeded module globals),
- * and `__debug__`. One shared set — rather than each backend refusing only its
- * own slots — keeps the portability promise real: a namespace list valid on
- * one backend is valid on all, so a caller cannot pick a name that works on
- * Node and collides on Python (or vice versa). `__name__` et al. ARE
- * valid portable identifiers, so the identifier rule on
- * `PtcBindingNamespace.global` never rejects them — hence this explicit set.
- * (Error members differ: {@link DUNDER_MEMBER} refuses every dunder form
- * wholesale; binding globals refuse only the names listed here.) `__debug__`
- * is listed for a different reason than a collision: CPython compiles a bare
- * `__debug__` reference to the constant `True` and rejects any assignment to
- * the name at COMPILE time, so an injected global under that name is
- * unreachable from the program — accepted by validation, unusable on the
- * Python backend, which is exactly the split the shared set exists to prevent.
+ * 所有后端都会拒绝的绑定全局名 —— 因为总会有某个后端占用了程序命名空间中的该槽位：
+ * `console`（Node 的日志捕获），以及
+ * `__dsh_main__`/`__builtins__`/`__name__`（Python 后端的 bootstrap 包装器
+ * 与被预置的模块全局），还有 `__debug__`。共用一份集合 —— 而不是每个后端只拒绝自己
+ * 的那几个槽位 —— 才能让可移植承诺真正成立：在某一后端合法的命名空间列表在所有后端
+ * 都合法，调用方因此不可能挑到一个在 Node 上可用、却在 Python 上撞名的名字
+ * （反之亦然）。`__name__` 等确实是可移植标识符，`PtcBindingNamespace.global`
+ * 的标识符规则并不会拒绝它们，因此才需要这份显式集合。（错误成员不同：
+ * {@link DUNDER_MEMBER} 会整体拒绝一切 dunder 形式；绑定全局名只拒绝此处列出的
+ * 这几个。）`__debug__` 被列入的原因并非撞名：CPython 会把裸 `__debug__` 引用
+ * 编译成常量 `True`，并且在编译期就拒绝对该名字的任何赋值，因此注入到这个名字下的
+ * 全局在程序中根本不可达 —— 校验会接受它，Python 后端却用不了，而这正是共用集合
+ * 要避免的那种割裂。
  */
 export const RESERVED_BINDING_GLOBALS: ReadonlySet<string> = new Set([
   'console',
@@ -45,14 +41,13 @@ export const RESERVED_BINDING_GLOBALS: ReadonlySet<string> = new Set([
 ])
 
 /**
- * `PtcBindingErrorClass.memberNameProperty` names EVERY backend refuses, as
- * one shared contract so a request valid on one backend is valid on all. The
- * JS `Error` exclusions (`name`, `message`, `stack`) and Python's
- * exception-protocol members (`args`, `with_traceback`, `add_note`) are
- * listed by name; dunder-form names (`__x__`, non-empty middle) are refused
- * wholesale — several are constrained CPython descriptors whose `setattr`
- * raises while constructing the rejection, and the exact set is an interpreter
- * version detail. Any other non-empty own property name is accepted everywhere.
+ * 所有后端都会拒绝的 `PtcBindingErrorClass.memberNameProperty` 名称，作为一份共用契约，
+ * 使得在某一后端合法的请求在所有后端都合法。JS `Error` 的排除项
+ * （`name`、`message`、`stack`）与 Python 异常协议成员
+ * （`args`、`with_traceback`、`add_note`）按名列出；dunder 形式名
+ * （`__x__`，中间非空）则整体拒绝 —— 其中若干是受约束的 CPython 描述符，
+ * 构造拒绝时其 `setattr` 会抛错，而确切集合属于解释器版本的实现细节。
+ * 其他任何非空自有属性名都在所有后端被接受。
  */
 export const RESERVED_ERROR_MEMBERS: ReadonlySet<string> = new Set([
   'name', 'message', 'stack',
@@ -60,30 +55,28 @@ export const RESERVED_ERROR_MEMBERS: ReadonlySet<string> = new Set([
 ])
 
 /**
- * Dunder form (`__x__`, non-empty middle): object-protocol slots in Python,
- * refused as {@link RESERVED_ERROR_MEMBERS | error members} on every backend.
+ * Dunder 形式（`__x__`，中间非空）：在 Python 中属于对象协议槽位，
+ * 在所有后端都作为 {@link RESERVED_ERROR_MEMBERS | 错误成员} 被拒绝。
  */
 export const DUNDER_MEMBER = /^__.+__$/
 
 /**
- * Reserved words of every portable target language (ECMAScript ∪ Python),
- * refused as {@link PtcBindingNamespace.global} / error-class names by all
- * backends, one per language: the released TypeScript Node process and the
- * experimental, private CPython subprocess. The portable-identifier contract
- * promises a namespace list valid on one backend is valid on every backend; a
- * per-language check would let `lambda` pass the TypeScript backend and fail
- * the Python one. Extending the seam with a new language means widening this
- * union (a breaking review of existing binding names, by design).
+ * 所有可移植目标语言（ECMAScript ∪ Python）的保留字，由所有后端作为
+ * {@link PtcBindingNamespace.global} / 错误类名拒绝，每种语言各一份：已发布的
+ * TypeScript Node 进程，以及实验性、未公开的 CPython 子进程。可移植标识符契约承诺
+ * 在某一后端合法的命名空间列表在所有后端都合法；按语言分别检查会让 `lambda`
+ * 通过 TypeScript 后端却在 Python 后端失败。为 seam 新增一门语言意味着扩大该并集
+ * （按设计，这会对既有绑定名做一次破坏性复核）。
  */
 export const PORTABLE_RESERVED_WORDS: ReadonlySet<string> = new Set([
-  // ECMAScript reserved words and reserved-in-strict-mode names.
+  // ECMAScript 保留字，以及仅在严格模式下保留的名称。
   'await', 'break', 'case', 'catch', 'class', 'const', 'continue', 'debugger', 'default', 'delete', 'do',
   'else', 'enum', 'export', 'extends', 'false', 'finally', 'for', 'function', 'if', 'import', 'in',
   'instanceof', 'new', 'null', 'return', 'super', 'switch', 'this', 'throw', 'true', 'try', 'typeof',
   'var', 'void', 'while', 'with', 'yield', 'let', 'static', 'implements', 'interface', 'package',
   'private', 'protected', 'public', 'arguments', 'eval',
-  // Python 3.x keywords and soft keywords not already above ('type' and '_'
-  // are soft keywords: legal names in practice, reserved here for safety).
+  // 上面未列出的 Python 3.x 关键字与软关键字（'type' 与 '_' 是软关键字：
+  // 实践中是合法名称，此处为稳妥起见也一并保留）。
   'False', 'None', 'True', 'and', 'as', 'assert', 'async', 'def', 'del', 'elif', 'except', 'from',
   'global', 'is', 'lambda', 'nonlocal', 'not', 'or', 'pass', 'raise', 'match', 'type', '_',
 ])
@@ -95,51 +88,46 @@ declare module '@deepseek-ai/cordis' {
 }
 
 /**
- * Registers one `ctx.ptcRuntime` implementation. Program, budget, abort, and substrate
- * failures resolve in {@link PtcRunResult}; only Service Definition contract misuse rejects. Implementations bridge
- * structured-cloneable bindings, materialize each declared namespace rejection
- * class, treat programs as hostile peers, isolate distinct state owners, and
- * terminate and await in-flight runs during disposal.
+ * 注册一个 `ctx.ptcRuntime` 实现。程序、预算、中止与执行基座的失败都以
+ * {@link PtcRunResult} 的字段决议；只有 Service Definition 契约被误用时才拒绝。
+ * 实现方负责桥接可结构化克隆的绑定、具现化每个命名空间声明的拒绝类、把程序当作
+ * 敌对对等方对待、隔离不同的状态所有者，并在销毁时终止且等待进行中的运行结束。
  */
 export abstract class PtcRuntime extends Service {
   /**
-   * The source language {@link run} expects `program` to be written in, as a
-   * lowercase identifier. Informational, not gating — a consumer that
-   * generates language-specific presentation (typed SDK stubs, usage
-   * instructions) switches on it and fails loud on a language it cannot
-   * present. Well-known values: `'typescript'` and `'python'`, those
-   * `dsh-tools` presents; the TypeScript backend is released, the Python
-   * backend is experimental and private (not published).
+   * {@link run} 期望 `program` 使用的源语言，以小写标识符表示。仅供参考，不做门禁 ——
+   * 生成语言专属呈现（类型化 SDK 存根、使用说明）的消费者据此分支，遇到无法呈现的
+   * 语言就大声失败。已知取值：`'typescript'` 与 `'python'`，即 `dsh-tools` 会呈现的
+   * 两种；TypeScript 后端已发布，Python 后端是实验性且未公开的（不发布）。
    */
   abstract readonly language: string
 
   /**
-   * The execution substrate, as a lowercase identifier. Informational, not
-   * gating — a descriptor so deployments and diagnostics can tell backends
-   * apart, not a security claim. Well-known values: `'worker-thread'`,
-   * `'process'`, `'container'`.
+   * 执行基座，以小写标识符表示。仅供参考，不做门禁 —— 它是一段描述，让部署与诊断
+   * 能区分后端，而不是一项安全声明。已知取值：`'worker-thread'`、`'process'`、
+   * `'container'`。
    */
   abstract readonly isolation: string
 
-  /** Source evaluation form, independent of whether the provider retains state for an owner. */
+  /** 源码求值形式，与 provider 是否为某所有者保留状态无关。 */
   get programFormat(): 'function-body' | 'repl' { return 'function-body' }
 
   /**
-   * Release an owner's retained environment and await its execution resources.
-   * Stateless providers have no retained resources to release.
-   * @param owner - The exact object supplied as the request's state owner.
-   * @returns Completion after all owned execution resources have been released.
-   * @throws When managed resource cleanup fails.
+   * 释放某个所有者保留的环境，并等待其执行资源回收。
+   * 无状态 provider 没有需要释放的保留资源。
+   * @param owner - 作为请求状态所有者传入的那个确切对象。
+   * @returns 在其名下所有执行资源都已释放后完成。
+   * @throws 当托管资源清理失败时。
    */
   release(owner: object): Promise<void> { void owner; return Promise.resolve() }
 
-  /** Provider-owned program usage guidance for consumers to present alongside the source language. */
+  /** provider 自有的程序使用说明，供消费者与源语言一同呈现。 */
   get executionInstructions(): string { return '' }
 
-  /** Deployment file-policy mode, or undefined for a provider without confinement support. */
+  /** 部署的文件策略模式；provider 不支持隔离时为 undefined。 */
   get sandboxMode(): SandboxMode | undefined { return undefined }
 
-  /** Configured numeric elapsed-time defaults and cap, or undefined when per-call overrides are unsupported. */
+  /** 已配置的数值型执行时间默认值与上限；不支持逐次调用覆盖时为 undefined。 */
   get timeout(): { defaultMs: number; maxMs: number } | undefined { return undefined }
 
   constructor(ctx: Context) {
@@ -147,17 +135,17 @@ export abstract class PtcRuntime extends Service {
   }
 
   /**
-   * Resolve supported options and provider defaults before execution.
-   * @param request - Program, bindings, cancellation and optional execution choices.
-   * @returns Complete directory, deadline and supported authority for run.
-   * @throws When an explicit choice is invalid or unsupported by this provider.
+   * 在执行前解析受支持的选项与 provider 默认值。
+   * @param request - 程序、绑定、取消信号，以及可选的执行选择。
+   * @returns 供 run 使用的完整目录、截止时间与受支持的权限。
+   * @throws 当某个显式取值非法或不被该 provider 支持时。
    */
   abstract resolve(request: PtcRunRequest): PtcRunSpec
 
   /**
-   * Execute resolved inputs; program outcomes resolve as result fields.
-   * @param spec - directory, deadline, program, bindings, cancellation and supported policy.
-   * @returns Captured output and the execution outcome.
+   * 执行已解析的输入；程序的各种结果以结果字段的形式决议。
+   * @param spec - 目录、截止时间、程序、绑定、取消信号与受支持的策略。
+   * @returns 捕获到的输出与本次执行的结果。
    */
   abstract run(spec: PtcRunSpec): Promise<PtcRunResult>
 }

@@ -1,50 +1,47 @@
 /**
- * Wire-safe authorization types, free of cordis/service imports so browser type
- * chains can consume them without loading this
- * package's Context augmentation.
+ * 线路安全的授权类型，不含 cordis/service 导入，以便浏览器类型链能够在无需
+ * 加载本包 Context 增强的情况下消费它们。
  * @module @deepseek-ai/dsh-authorization/types
  */
 
 import type { CredentialKey } from '@deepseek-ai/dsh-credentials/types'
 
-/** One way a flow can obtain its credential, named by the flow that offers it. */
+/** 一个流程获取其凭证的一种方式，以其所提供流程命名。 */
 export interface AuthorizationMethod {
-  /** Flow-owned identifier, echoed back when a caller picks this method. */
+  /** 由流程拥有的标识符，调用方选定此方法时回显。 */
   id: string
-  /** User-facing label for a picker. */
+  /** 面向用户的、用于选择器的标签。 */
   label: string
 }
 
-/** A running flow's report to whoever is watching it. Never carries a secret. */
+/** 一个运行中的流程向正在观察它的对象所做的报告。绝不包含秘密。 */
 export interface AuthorizationNotice {
-  /** What is happening, or what the human must do next. */
+  /** 正在发生什么，或人类接下来必须做什么。 */
   message: string
-  /** A page the human must open to continue. */
+  /** 人类为了继续而必须打开的页面。 */
   url?: string
-  /** A short code the human must enter on that page. */
+  /** 人类必须在那个页面上输入的一个短代码。 */
   code?: string
 }
 
-/** One choice offered by a `select` prompt. */
+/** 一个 `select` 提示所提供的一个选项。 */
 export interface AuthorizationPromptOption {
-  /** Value returned when this option is chosen. */
+  /** 选定此选项时返回的值。 */
   id: string
-  /** User-facing label. */
+  /** 面向用户的标签。 */
   label: string
-  /** Optional extra context rendered by capable surfaces. */
+  /** 由能力型界面渲染的可选额外上下文。 */
   description?: string
 }
 
 /**
- * A question a flow must have answered before it can continue. `secret` differs
- * from `text` only in presentation — a surface masks it and keeps it out of
- * logs — and `select` answers with the chosen option's `id`.
+ * 一个流程在继续之前必须得到回答的问题。`secret` 与 `text` 仅在呈现上不同——
+ * 界面将其遮掩并排除在日志之外——而 `select` 以所选选项的 `id` 作答。
  */
 export type AuthorizationPrompt = {
   /**
-   * Withdraws this prompt alone, leaving the flow running. A flow that races a
-   * typed code against a browser callback aborts the losing prompt here; the
-   * whole authorization is cancelled through the request's signal instead.
+   * 仅撤回这一个提示，而让流程继续运行。一个将输入代码与浏览器回调竞速的流程
+   * 会在此处中止落败的提示；整个授权则改由请求的 signal 来取消。
    */
   signal?: AbortSignal
 } & ({
@@ -61,31 +58,30 @@ export type AuthorizationPrompt = {
   options: readonly AuthorizationPromptOption[]
 })
 
-/** How one authorization attempt ended, as its own caller sees it. */
+/** 一次授权尝试如何结束，以其自身调用方所见为准。 */
 export type AuthorizationStatus = 'authorized' | 'cancelled'
 
 /**
- * How one attempt ended, as an onlooker sees it. A failure reaches its caller
- * as a thrown error rather than an outcome, so `failed` exists only here — on
- * the event stream, where a watcher that did not start the attempt has no
- * other way to tell a refusal from a breakage.
+ * 一次尝试如何结束，以旁观者所见为准。失败以抛出的错误而非结果到达其调用方，
+ * 因此 `failed` 只存在于此——在事件流上，一个没有发起该尝试的观察者没有其他
+ * 办法区分“被拒绝”与“出故障”。
  */
 export type AuthorizationSettlement = AuthorizationStatus | 'failed'
 
-/** The result of one `begin()` attempt. */
+/** 一次 `begin()` 尝试的结果。 */
 export interface AuthorizationOutcome {
-  /** `authorized` once the record is committed and observed; `cancelled` when the human or caller withdrew. */
+  /** 记录被提交并被观测到后为 `authorized`；当人类或调用方撤回时为 `cancelled`。 */
   status: AuthorizationStatus
 }
 
-/** A registered flow as a surface sees it: what it authorizes and whether it is busy. */
+/** 一个已注册流程在界面中所呈现的样子：它所授权的内容，以及它是否正忙。 */
 export interface AuthorizationEntry {
-  /** The credential record this flow writes. */
+  /** 此流程所写入的凭证记录。 */
   key: CredentialKey
-  /** User-facing name of what is being authorized. */
+  /** 正被授权内容的、面向用户的名称。 */
   label: string
-  /** The methods this flow offers, most preferred first. */
+  /** 此流程所提供的方法，按偏好程度从高到低。 */
   methods: readonly AuthorizationMethod[]
-  /** Whether an attempt for this key is running right now. */
+  /** 当前是否正有针对此键的尝试在运行。 */
   inFlight: boolean
 }

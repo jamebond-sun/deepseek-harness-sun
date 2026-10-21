@@ -1,4 +1,4 @@
-/** Linux file associations from GIO, with shared XDG metadata and artwork lookup. */
+/** 来自 GIO 的 Linux 文件关联，带共享的 XDG 元数据与 artwork 查找。 */
 import { readdir, readFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join, relative, sep } from 'node:path'
@@ -6,11 +6,11 @@ import { desktopApplicationIcon, desktopDataDirectories, desktopEntryFields } fr
 import type { NativeCommandRunner } from './runner.ts'
 import type { NativeFileApplication } from './types.ts'
 
-/** Find a desktop id, including ids derived from nested application directories. */
+/** 查找一个 desktop id，包括由嵌套应用目录派生的 id。 */
 async function desktopFile(root: string, id: string, directory = root): Promise<string | null> {
   let entries
   try { entries = await readdir(directory, { withFileTypes: true }) } catch (_error) {
-    // An absent XDG root contributes no applications.
+    // 缺失的 XDG 根不贡献任何应用。
     return null
   }
   for (const entry of entries) {
@@ -27,12 +27,12 @@ async function desktopFile(root: string, id: string, directory = root): Promise<
 }
 
 /**
- * Query all registered file handlers from GIO without executing desktop-entry command text.
- * @param path - verified local file path.
- * @param signal - caller cancellation.
- * @param run - native command runner.
- * @param env - XDG and locale settings.
- * @returns registered applications with the desktop's default marked.
+ * 从 GIO 查询所有已注册的文件处理程序，而不执行 desktop-entry 命令文本。
+ * @param path - 已校验的本地文件路径。
+ * @param signal - 调用方取消。
+ * @param run - 原生命令运行器。
+ * @param env - XDG 与区域设置。
+ * @returns 带桌面默认标记、已注册的应用。
  */
 export async function linuxFileApplications(
   path: string, signal: AbortSignal, run: NativeCommandRunner, env: NodeJS.ProcessEnv,

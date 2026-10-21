@@ -1,22 +1,22 @@
-/** Deployment-owned preset choices for one delegation tool. */
+/** 一个委托工具的、由部署拥有的预设选择。 */
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-agent-preset-registry'
 import type { SubagentProvider } from '@deepseek-ai/dsh-subagent'
 
-/** Optional default and model-selectable preset ids for a spawn tool. */
+/** 一个 spawn 工具的可选默认值与可选模型的预设 id。 */
 export interface PresetSelectionConfig {
-  /** Default independent preset; omission inherits the parent when the model makes no selection. */
+  /** 默认独立预设；当模型未做选择时，省略则继承父代理。 */
   agentPreset?: string
-  /** Non-empty allowlist exposing agent_preset to the model; omission disables model selection. */
+  /** 向模型暴露 `agent_preset` 的非空允许名单；省略则禁用模型选择。 */
   allowedAgentPresets?: string[] | undefined
 }
 
-/** Untrusted preset selection from model/tool JSON. */
+/** 来自模型/工具 JSON 的、不受信任的预设选择。 */
 export interface PresetSelectionRequest {
   readonly agent_preset?: unknown
 }
 
-/** Validates configured references and resolves model input against the allowlist. */
+/** 校验已配置的引用，并针对允许名单解析模型输入。 */
 export class SubagentPresetSelection {
   private descriptions: string[] = []
 
@@ -31,17 +31,17 @@ export class SubagentPresetSelection {
     }
   }
 
-  /** Whether this tool requires the preset service and an independently composing provider. */
+  /** 本工具是否需要预设服务与一个独立组合的提供方。 */
   get configured(): boolean {
     return this.config.agentPreset !== undefined || this.config.allowedAgentPresets !== undefined
   }
 
-  /** Preset ids advertised in the model parameter. */
+  /** 在模型参数中声明的预设 id。 */
   get choices(): readonly string[] | undefined {
     return this.config.allowedAgentPresets
   }
 
-  /** Model-visible selection guidance and configured preset descriptions. */
+  /** 模型可见的选择指引与已配置预设的描述。 */
   get description(): string {
     const fallback = this.config.agentPreset === undefined
       ? 'Omit to inherit the parent agent\'s current preset.'
@@ -51,8 +51,8 @@ export class SubagentPresetSelection {
   }
 
   /**
-   * Read configured preset declarations before publishing the tool; mounting validates their activation.
-   * @param ctx - Tool composition containing the preset service.
+   * 在发布工具之前读取已配置的预设声明；挂载会校验它们的激活。
+   * @param ctx - 包含预设服务的工具组合。
    */
   async validate(ctx: Context): Promise<void> {
     const presets = ctx.get('agentPresets')
@@ -72,8 +72,8 @@ export class SubagentPresetSelection {
   }
 
   /**
-   * Reject independent selection for providers that inherit conversation history or lack support.
-   * @param provider - Currently registered delegation provider.
+   * 对继承对话历史或缺乏支持的提供方拒收独立选择。
+   * @param provider - 当前已注册的委托提供方。
    */
   assertProvider(provider: SubagentProvider): void {
     if (this.configured && (!provider.capabilities.agentPreset || provider.inheritsParentContext)) {
@@ -82,9 +82,9 @@ export class SubagentPresetSelection {
   }
 
   /**
-   * Validate model input and apply the deployment default.
-   * @param request - Model-supplied tool arguments.
-   * @returns Selected preset id, or omission to inherit the parent.
+   * 校验模型输入并应用部署默认值。
+   * @param request - 模型提供的工具实参。
+   * @returns 选中的预设 id，或省略以继承父代理。
    */
   resolve(request: PresetSelectionRequest): string | undefined {
     const id = request.agent_preset

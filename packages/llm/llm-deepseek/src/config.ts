@@ -1,4 +1,4 @@
-/** Plugin configuration and complete request-local resolution for DeepSeek. */
+/** DeepSeek 的插件配置与完整的请求级解析。 */
 import type { Volatile } from '@deepseek-ai/cordis'
 
 import z from '@deepseek-ai/schemastery'
@@ -14,61 +14,60 @@ import { DEFAULT_MAX_IMAGES_PER_REQUEST, DEFAULT_MAX_REQUEST_FILES_BYTES, DEFAUL
 
 const MODEL_MODALITIES = ['text', 'image'] as const satisfies readonly ModelModality[]
 
-/** Shared Messages request configuration, without provider credential selection. */
+/** 共享的 Messages 请求配置，不含提供方凭据选择。 */
 export interface Config {
-  /** Endpoint base; falls back to $DEEPSEEK_BASE_URL from a trusted environment layer, then the public API. */
+  /** 端点基址；依次回退到可信环境层中的 $DEEPSEEK_BASE_URL，然后是公共 API。 */
   baseURL: Volatile<string | undefined>
-  /** Deployment thinking policy; `disabled` limits every conversation request to `off`. */
+  /** 部署级的 thinking 策略；`disabled` 会把每次对话请求都限制为 `off`。 */
   thinking: Volatile<'enabled' | 'disabled' | undefined>
-  /** Default thinking effort (default `high`); `off` disables thinking per request. */
+  /** 默认的 thinking 强度（默认 `high`）；`off` 会按请求禁用 thinking。 */
   reasoningEffort: Volatile<'off' | 'low' | 'high' | 'max' | undefined>
-  /** Default per-request output cap (default 256,000); a model's own cap and explicit request values win. */
+  /** 默认的按请求输出上限（默认 256,000）；模型自身的上限与显式请求值优先。 */
   maxTokens: Volatile<number>
-  /** Positive context capacity used when the selected model has no exact value (default 1,000,000). */
+  /** 当选中的模型没有精确值时使用的正上下文容量（默认 1,000,000）。 */
   defaultContextWindow: Volatile<number>
-  /** Advisory models shown by discovery consumers; defaults to V4.1 Flash and V4 Pro. */
+  /** 发现消费者展示的参考模型；默认为 V4.1 Flash 与 V4 Pro。 */
   models: Volatile<DeepSeekCatalogModel[]>
-  /** Maximum provider idle time while one stream read is outstanding (default five minutes). */
+  /** 一次流式读取处于未完成状态时提供方的最大空闲时间（默认五分钟）。 */
   streamIdleTimeoutMs: Volatile<number>
-  /** Maximum accumulated file-referenced image bytes per chat request (default 128 MiB). */
+  /** 每次对话请求中文件引用的图像字节累计上限（默认 128 MiB）。 */
   maxRequestFilesBytes: Volatile<number>
-  /** Maximum accumulated base64 image payload after Files API fallback (default 20 MiB). */
+  /** Files API 回退之后 base64 图像载荷的累计上限（默认 20 MiB）。 */
   maxInlineRequestImageBytes: Volatile<number>
-  /** Maximum number of represented images per chat request (default 600). */
+  /** 每次对话请求中被表示出来的图像的最大数量（默认 600）。 */
   maxImagesPerRequest: Volatile<number>
-  /** Raw-byte removal step after the request exceeds its file bound (default 64 MiB). */
+  /** 请求超出其文件上限之后的原始字节移除步长（默认 64 MiB）。 */
   imageOffloadByteQuantum: Volatile<number>
-  /** Base64-byte removal step after inline fallback exceeds its bound (default 10 MiB). */
+  /** 内联回退超出其上限之后的 base64 字节移除步长（默认 10 MiB）。 */
   inlineImageOffloadByteQuantum: Volatile<number>
-  /** Image-count removal step after the request exceeds its count bound (default 20). */
+  /** 请求超出其数量上限之后的图像数量移除步长（默认 20）。 */
   imageOffloadCountQuantum: Volatile<number>
-  /** Maximum duration of one request-image Files API resolution (default one minute). */
+  /** 一张请求图像通过 Files API 解析的最长时间（默认一分钟）。 */
   filesApiTimeoutMs: Volatile<number>
-  /** Explicit lifetime assigned to each uploaded image (default seven days). */
+  /** 为每张上传图像指派的显式生命周期（默认七天）。 */
   fileExpiresAfterSeconds: Volatile<number>
-  /** Remaining lifetime below which an indexed file is replaced (default one hour). */
+  /** 已索引文件的剩余生命周期低于该值时会被替换（默认一小时）。 */
   fileRefreshMarginSeconds: Volatile<number>
-  /** Oldest harness-owned files deleted before one quota-recovery upload retry (default 100). */
+  /** 一次配额恢复上传重试之前删除的最早的 harness 自有文件数量（默认 100）。 */
   fileQuotaCleanupBatch: Volatile<number>
-  /** Provider-owned model-request retry policy; omission uses normal mode with five retries. */
+  /** 由提供方持有的模型请求重试策略；省略时使用普通模式并重试五次。 */
   retryPolicy: Volatile<RetryPolicyConfig | undefined>
 }
 
-/** Plain options accepted by the provider resolver. */
+/** 提供方解析器接受的纯选项。 */
 export type Options = { [K in keyof Config]?: Config[K] extends Volatile<infer T> ? Exclude<T, undefined> : never }
 
-/** Read the current value behind every reference of a validated Config.
- * @param config Parsed plugin Config.
- * @returns Plain options for the resolver.
+/** 读取一份已校验 Config 中每个引用背后的当前值。
+ * @param config 已解析的插件 Config。
+ * @returns 供解析器使用的纯选项。
  */
 export function plainOptions(config: Config): Options {
   return Object.fromEntries(Object.entries(config).map(([key, value]) => [key, isVolatile(value) ? value.get() : value]))
 }
 
 /**
- * Schemas of the catalog-entry fields other than `id` and `inputModalities`,
- * whose requiredness and defaults differ between a `models` entry and a
- * provider's per-model overrides.
+ * 除 `id` 与 `inputModalities` 之外的目录条目字段的 schema；
+ * 在 `models` 条目与提供方的按模型覆盖项之间，它们的必填性与默认值不同。
  */
 export const catalogModelFields = {
   name: z.string(),
@@ -87,7 +86,7 @@ const catalogModel: z<DeepSeekCatalogModel> = z.object({
   inputModalities: z.array(z.union(MODEL_MODALITIES)).min(1).default(['text']),
 })
 
-/** Shared schema fields for Messages protocol options. */
+/** Messages 协议选项的共享 schema 字段。 */
 export const deepSeekConfigFields = {
   baseURL: z.string().volatile(),
   thinking: z.union(['enabled', 'disabled']).volatile(),
@@ -111,16 +110,16 @@ export const deepSeekConfigFields = {
 
 export const Config = z.object(deepSeekConfigFields)
 
-/** Public API default; the internal endpoint comes from $DEEPSEEK_BASE_URL. */
+/** 公共 API 默认值；内部端点来自 $DEEPSEEK_BASE_URL。 */
 export const PUBLIC_BASE_URL = 'https://api.deepseek.com/anthropic'
 
-/** Environment variable naming this provider's endpoint, honored only from trusted layers. */
+/** 命名本提供方端点的环境变量，仅对可信层生效。 */
 const BASE_URL_ENV = 'DEEPSEEK_BASE_URL'
 
-/** Complete protocol settings captured for one request operation. */
+/** 为一次请求操作捕获的完整协议设置。 */
 export type ResolvedDeepSeekOptions = DeepSeekConnectionOptions
 
-/** Resolve, validate, and detach the advisory model catalog. */
+/** 解析、校验并分离参考模型目录。 */
 function resolveModels(models: readonly DeepSeekCatalogModel[] | undefined): DeepSeekCatalogModel[] {
   const seen = new Set<string>()
   return (models ?? DEFAULT_MODELS).map((model) => {
@@ -168,7 +167,7 @@ function resolveModels(models: readonly DeepSeekCatalogModel[] | undefined): Dee
       && (!Number.isSafeInteger(model.imageMaxBytes) || model.imageMaxBytes <= 0)) {
       throw new Error(`llm-deepseek: catalog model "${model.id}" imageMaxBytes must be a positive safe integer`)
     }
-    // Widened: a dynamic config update reaches this check without schema validation.
+    // 放宽：一次动态配置更新会在没有 schema 校验的情况下到达这项检查。
     const systemPromptUpdate: string | undefined = model.systemPromptUpdate
     if (systemPromptUpdate !== undefined && systemPromptUpdate !== 'in-history') {
       throw new Error(`llm-deepseek: catalog model "${model.id}" systemPromptUpdate must be "in-history" when present`)
@@ -199,20 +198,18 @@ function resolveModels(models: readonly DeepSeekCatalogModel[] | undefined): Dee
 }
 
 /**
- * The one explicit resolve step from raw config to validated protocol
- * settings. Programmatic construction may bypass Schemastery normalization, so
- * every default and bound is re-judged here — for the composition entry at
- * load (fail loud) and for each settings snapshot at its first use.
- * @param config - raw plugin config or resolved settings snapshot.
- * @param environment - this run's environment layers, or `undefined` outside
- * the product CLI. Every layer may supply an endpoint: the product trusts the
- * project it is launched in, so a checkout can point its own agent at the
- * gateway that checkout is meant to use.
- * @returns validated protocol settings; `models` holds one resolved entry per
- * input model in input order, or the built-in catalog when `models` is absent.
+ * 从原始配置到已校验协议设置的唯一显式解析步骤。
+ * 程序化构造可能绕过 Schemastery 的规范化，因此每个默认值与边界都在此重新判定——
+ * 既针对加载时的组合条目（立即失败），也针对每次设置快照的首次使用。
+ * @param config - 原始插件配置或已解析的设置快照。
+ * @param environment - 本次运行的环境层；在产品 CLI 之外为
+ * `undefined`。每一层都可以提供端点：产品信任它启动时所在的项目，
+ * 因此一次检出可以把自己的 agent 指向该检出应当使用的网关。
+ * @returns 已校验的协议设置；`models` 按输入顺序为每个输入模型保存一个已解析条目，
+ * 当 `models` 缺失时则为内置目录。
  */
 export function resolveAdapterOptions(config: Options, environment?: LaunchEnvironmentSnapshot): ResolvedDeepSeekOptions {
-  // Settings updates can reach this resolver without schema validation.
+  // 设置更新可以在没有 schema 校验的情况下到达本解析器。
   if (Object.hasOwn(config, 'protocol')) {
     throw new Error('llm-deepseek: protocol is not configurable; remove it and use a Messages-compatible baseURL')
   }

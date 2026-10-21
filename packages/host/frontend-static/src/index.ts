@@ -1,14 +1,11 @@
 /**
- * @deepseek-ai/dsh-host-frontend-static — SPA dist server over the webserver
- * fallback seat: serves the built frontend directory with explicit index
- * entry points. A readable index renders at the dist root and configured index
- * path; missing paths return 404, traversal outside the dist root is 403,
- * unknown extensions ship as octet-stream, and non-GET/HEAD is 405. Every
- * index response first passes Connection's browser authentication, then the
- * webserver's index render (structured injection rows, then raw taps).
- * Non-index assets stay public. The dist location is workspace knowledge of
- * the composing application, so `distIndex` is typically supplied through a
- * `!!js` expression, never hardcoded by a deployment.
+ * @deepseek-ai/dsh-host-frontend-static —— 基于 webserver 回退座位的 SPA dist 服务器：以
+ * 显式的 index 入口服务构建好的前端目录。dist 根与配置的 index 路径处会渲染出可读的
+ * index；缺失的路径返回 404；越出 dist 根的目录穿越返回 403；未知扩展名以 octet-stream
+ * 发送；非 GET/HEAD 返回 405。每个 index 响应先通过 Connection 的浏览器身份认证，再经过
+ * webserver 的 index 渲染（先是结构化注入行，然后是原始钩子）。非 index 的静态资源保持
+ * 公开。dist 的位置属于组合应用的 workspace 知识，因此 `distIndex` 通常通过 `!!js`
+ * 表达式提供，绝不应由某个部署硬编码。
  * @module @deepseek-ai/dsh-host-frontend-static
  */
 
@@ -20,15 +17,15 @@ import z from '@deepseek-ai/schemastery'
 import type {} from '@deepseek-ai/dsh-client-connection'
 import type {} from '@deepseek-ai/dsh-host-webserver'
 
-/** Stable Cordis plugin name. */
+/** 稳定的 Cordis 插件名。 */
 export const name = 'frontend-static'
 
-/** Services required before the authenticated fallback seat can be claimed. */
+/** 在占用带身份认证的回退座位之前所必需的服务。 */
 export const inject = ['webServer', 'connection']
 
-/** Plugin config: the dist anchor. */
+/** 插件配置：dist 锚点。 */
 export interface Config {
-  /** Absolute path of index.html inside the dist root. */
+  /** dist 根内 index.html 的绝对路径。 */
   distIndex: string
 }
 
@@ -46,9 +43,8 @@ const MIME: Record<string, string> = {
   '.json': 'application/json',
   '.map': 'application/json',
   '.webmanifest': 'application/manifest+json',
-  // The packed VFS image. Served as its own bytes, never as a Content-Encoding:
-  // the worker inflates the body itself, and a transport-level encoding would
-  // leave it inflating an already-decoded archive.
+  // 打包后的 VFS 镜像。以其自身字节发送，绝不带 Content-Encoding：worker 自行解压消息体，
+  // 而传输层的编码会让它去解压一个已被解码过的归档。
   '.gz': 'application/gzip',
 }
 
@@ -59,14 +55,14 @@ const STATIC_MISS_CODES: ReadonlySet<string | undefined> = new Set([
 ])
 
 /**
- * Serve one GET/HEAD static request from the dist root.
- * @param pathname - decoded URL pathname of the request.
- * @param res - the node:http response to write.
- * @param distRoot - absolute dist root directory (resolved by the caller).
- * @param distIndex - absolute path of index.html inside distRoot.
- * @param authorizeIndex - authenticates an index response before its bytes are read.
- * @param renderIndex - produces the index.html body (structured injection
- * rendering) for the dist root and configured index path.
+ * 从 dist 根处理一个 GET/HEAD 静态请求。
+ * @param pathname - 请求解码后的 URL pathname。
+ * @param res - 要写入的 node:http 响应。
+ * @param distRoot - 绝对的 dist 根目录（由调用方解析）。
+ * @param distIndex - distRoot 内 index.html 的绝对路径。
+ * @param authorizeIndex - 在读取 index 字节之前对其进行身份认证。
+ * @param renderIndex - 为 dist 根与配置的 index 路径生成 index.html 消息体（结构化注入
+ * 渲染）。
  */
 export async function serveStatic(
   pathname: string, res: ServerResponse, distRoot: string, distIndex: string,
@@ -74,9 +70,8 @@ export async function serveStatic(
   renderIndex: () => Promise<string>,
 ): Promise<void> {
   const target = resolve(normalize(join(distRoot, pathname)))
-  // Traversal rejection: the target must be distRoot itself (`/`) or stay under
-  // it. `sep`, not '/': resolve() emits backslash paths on Windows, where a '/'
-  // suffix would reject every legitimate subpath as traversal.
+  // 目录穿越拒绝：目标必须是 distRoot 本身（`/`）或位于其下。这里用 `sep` 而不是 '/'：
+  // resolve() 在 Windows 上产出反斜杠路径，而 '/' 后缀会把每个合法子路径都判为穿越。
   if (target !== distRoot && !target.startsWith(distRoot + sep)) {
     res.writeHead(403)
     res.end()
@@ -94,8 +89,7 @@ export async function serveStatic(
       type = MIME[extname(target)] ?? 'application/octet-stream'
     }
   } catch (error) {
-    // Only absent or non-file targets are 404; other filesystem failures reach
-    // the webserver's request-failure handling.
+    // 只有目标不存在或不是文件才是 404；其他文件系统失败交给 webserver 的请求失败处理。
     if (!STATIC_MISS_CODES.has((error as NodeJS.ErrnoException).code)) throw error
     res.writeHead(404)
     res.end()
@@ -106,27 +100,26 @@ export async function serveStatic(
 }
 
 /**
- * Claim the webserver fallback seat and serve the dist.
- * @param ctx - plugin context carrying the webServer service.
- * @param config - validated {@link Config}.
+ * 占用 webserver 回退座位并服务 dist。
+ * @param ctx - 携带 webServer 服务的插件 context。
+ * @param config - 已校验的 {@link Config}。
  */
 export function apply(ctx: Context, config: Config): void {
   const distIndex = config.distIndex
   const distRoot = dirname(distIndex)
-  // Insert after all index transforms so the base precedes every resource reference.
+  // 在所有 index 变换之后插入，使 base 先于每个资源引用。
   const renderIndex = async (): Promise<string> => {
     const body = ctx.webServer.renderIndex(await readFile(distIndex, 'utf8'))
     return body.replace(/<head(?:\s[^>]*)?>/i, open => `${open}<base href="./">`)
   }
   ctx.effect(() => ctx.webServer.registerFallback(async (req, res) => {
-    // Non-GET/HEAD without a matching named route is 405 (fallback-only
-    // semantics: named routes own their method handling).
+    // 非 GET/HEAD 且没有匹配的具名路由时为 405（仅回退语义：具名路由自行处理各自的方法）。
     if (req.method !== 'GET' && req.method !== 'HEAD') {
       res.writeHead(405)
       res.end()
       return
     }
-    /* v8 ignore next -- node:http always sets url on server requests */
+    /* v8 ignore next -- node:http 总是为服务端请求设置 url */
     const rawPath = new URL(req.url ?? '/', 'http://x').pathname
     await serveStatic(
       decodeURIComponent(rawPath),

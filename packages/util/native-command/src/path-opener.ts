@@ -1,14 +1,11 @@
 /**
- * Cross-platform native path and text-document openers for Host UI
- * integrations.
+ * 面向 Host UI 集成的、跨平台原生路径与文本文档打开器。
  *
- * The default intent prefers the default browser for documents it renders when
- * the platform can name one, then falls back to the default application. WSL
- * translates every path for the Windows desktop instead of assuming a Linux
- * GUI. The text-editor intent never consults the browser. Windows hands every
- * intent to Explorer: the shell's own default-application resolution, the one
- * a double-click uses, selects the application, while a process that resolves
- * the association itself reads a narrower record and reports none.
+ * 默认意图优先使用平台能指名时、由浏览器渲染的文档所对应的默认浏览器，然后回退到
+ * 默认应用。WSL 将每个路径翻译为 Windows 桌面，而非假定一个 Linux GUI。文本编辑器
+ * 意图从不咨询浏览器。Windows 将每个意图都交给 Explorer：shell 自身那个双击所用的
+ * 默认应用解析来选择应用，而一个自己去解析关联关系的进程读到的是更窄的记录，并报告
+ * 无应用。
  * @module @deepseek-ai/dsh-native-command/path-opener
  */
 
@@ -17,26 +14,25 @@ import { dirname, extname } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { runNativeCommand, type NativeCommandRunner } from './runner.ts'
 
-/** Testable command boundary; native implementations never invoke a shell. */
+/** 可测试的命令边界；原生实现绝不调用 shell。 */
 export type PathOpenerRunner = NativeCommandRunner
 
-/** Injectable platform facts for deterministic adapter tests. */
+/** 用于确定性适配器测试的可注入平台事实。 */
 export interface PathOpenerInternals {
   platform?: NodeJS.Platform
-  /** Kernel release override used to distinguish WSL from desktop Linux. */
+  /** 用于区分 WSL 与桌面 Linux 的内核发行覆盖值。 */
   osRelease?: string
-  /** Environment used for WSL markers and the desktop Linux browser convention. */
+  /** 用于 WSL 标记与桌面 Linux 浏览器约定的环境。 */
   env?: NodeJS.ProcessEnv
   run?: PathOpenerRunner
 }
 
-/** Documents a browser renders, as opposed to ones an editor merely edits. */
+/** 浏览器所渲染的文档，而非编辑器仅做编辑的那些。 */
 const BROWSER_DOCUMENTS = new Set(['.html', '.htm', '.xhtml', '.svg'])
 
 /**
- * The macOS bundle registered for `https` — the default browser, as
- * LaunchServices records it. The nested version dict is stripped first
- * because it carries its own `LSHandlerRoleAll`.
+ * 为 `https` 注册的 macOS bundle——即默认浏览器，正如 LaunchServices 所记录的那样。
+ * 嵌套的版本字典会先被剥离，因为它携带自身的 `LSHandlerRoleAll`。
  */
 function macBundleForHttps(plist: string): string | undefined {
   const stripped = plist.replace(/LSHandlerPreferredVersions\s*=\s*\{[^}]*\};/g, '')
@@ -46,9 +42,9 @@ function macBundleForHttps(plist: string): string | undefined {
 }
 
 /**
- * Open one browser-renderable document with the default browser.
- * @returns true when a browser took it; false when this platform cannot name
- * one, or naming it failed — the caller then uses the default application.
+ * 用默认浏览器打开一份浏览器可渲染的文档。
+ * @returns 当浏览器接管时为 true；当本平台无法指名一个，或指名失败时为 false——
+ *   此时调用方改用默认应用。
  */
 async function openInBrowser(
   path: string, signal: AbortSignal, platform: NodeJS.Platform,
@@ -61,8 +57,8 @@ async function openInBrowser(
         'defaults', ['read', 'com.apple.LaunchServices/com.apple.launchservices.secure'], signal, 'hidden')
       bundle = macBundleForHttps(stdout)
     } catch {
-      // No LaunchServices record (a fresh account never changed a default):
-      // the content-type handler is then the system's own choice anyway.
+      // 没有 LaunchServices 记录（一个从未改过默认的新账户）：内容类型处理程序
+      // 本就由系统自行选择。
       return false
     }
     if (bundle === undefined) return false
@@ -70,52 +66,37 @@ async function openInBrowser(
     return true
   }
   if (platform === 'linux') {
-    // $BROWSER is the portable convention; desktop-entry resolution through
-    // xdg-settings needs a launcher this package has no business shipping.
+    // $BROWSER 是可移植约定；经 xdg-settings 的 desktop-entry 解析需要一个本包不该
+    // 发布的启动器。
     const browser = env.BROWSER
     if (browser === undefined || browser === '') return false
     await run(browser, [path], signal, 'hidden')
     return true
   }
-  // Windows names no browser without reading the UserChoice registry, and its
-  // .html association is the browser in the ordinary case.
+  // Windows 在不读取 UserChoice 注册表的情况下指名不了浏览器，且其 .html 关联在通常
+  // 情形下就是这个浏览器。
   return false
 }
 
-/** Native path-open intent; macOS distinguishes text editing from file association. */
+/** 原生路径打开意图；macOS 区分文本编辑与文件关联。 */
 type PathOpenIntent = 'default' | 'association' | 'text-editor'
 
-/** Whether one environment marker is set to a non-empty value. */
+/** 某个环境标记是否被设为一个非空值。 */
 function present(value: string | undefined): boolean {
   return value !== undefined && value !== ''
 }
 
-/** Distinguish WSL from desktop Linux using its process and kernel markers. */
+/** 用其进程与内核标记区分 WSL 与桌面 Linux。 */
 function isWsl(internals: PathOpenerInternals): boolean {
   const env = internals.env ?? process.env
   if (present(env.WSL_DISTRO_NAME) || present(env.WSL_INTEROP)) return true
   return (internals.osRelease ?? osRelease()).toLowerCase().includes('microsoft')
 }
 
-/**
- * Encode one Windows path as the target Explorer can receive intact.
- *
- * Explorer parses its own command line and splits fields at commas and equals
- * signs, so a raw path loses everything after the first separator and the shell
- * opens a different target without reporting it; both separators are escaped.
- * Nothing else is: Explorer rejects percent-encoded non-ASCII in a file URI and
- * opens the user's Documents folder instead, while it resolves the literal
- * characters, so Node's non-ASCII escapes are decoded back and its ASCII escapes
- * stand. Node resolves the path before encoding it, so a verbatim `\\?\` or
- * `\\?\UNC\` prefix reaches Explorer as the ordinary drive or UNC URI; a `\\.\`
- * device path keeps that same UNC handling and names a device rather than a
- * shell item, which this opener does not open.
- * @param windowsPath - path already translated for the Windows desktop.
- * @returns the target for an open, or the object of a `/select,` reveal.
- */
+/** 将某个 Windows 路径编码为 Explorer 能完好接收的目标。 */
 function explorerTarget(windowsPath: string): string {
   const href = pathToFileURL(windowsPath, { windows: true }).href
-  // A run of escapes whose every byte starts above ASCII is one non-ASCII character.
+  // 一段其每个字节都高于 ASCII 的转义，是一个非 ASCII 字符。
   return href
     .replace(/(?:%[89A-F][0-9A-F])+/gi, escaped => decodeURIComponent(escaped))
     .replaceAll(',', '%2C')
@@ -123,39 +104,38 @@ function explorerTarget(windowsPath: string): string {
 }
 
 /**
- * Hand one target to Explorer, accepting its delegated-handoff exit code.
+ * 将某个目标交给 Explorer，接受其委托交接的退出码。
  *
- * Explorer exits 1 after handing the request to the desktop process already
- * running, so exit 1 means the shell took it. Every other failure still
- * rejects, and cancellation wins over a delegate's exit 1.
- * @param args - Explorer argv: the encoded target alone to open it, or `/select,<encoded target>` to reveal it.
- * @param signal - caller lifetime; abort terminates the command.
- * @param run - shell-free command runner.
- * @throws The runner's failure unless it is Explorer's delegate exit 1.
+ * Explorer 在将请求交给已经运行的桌面进程后会以退出码 1 退出，因此退出码 1 意味着
+ * shell 已接管。其余每个失败仍会拒绝，且取消优先于一个委托方的退出码 1。
+ * @param args - Explorer 的 argv：仅编码目标以打开它，或 `/select,<编码目标>` 以揭示它。
+ * @param signal - 调用方生命周期；abort 终止命令。
+ * @param run - 无 shell 的命令运行器。
+ * @throws 除非是 Explorer 的委托退出码 1，否则抛出运行器的失败。
  */
 async function runExplorer(args: readonly string[], signal: AbortSignal, run: PathOpenerRunner): Promise<void> {
   try {
-    // SW_HIDE also hides Explorer's folder window, not just console windows.
+    // SW_HIDE 同时隐藏 Explorer 的文件夹窗口，而不仅仅是控制台窗口。
     await run('explorer.exe', args, signal, 'visible')
   } catch (error: unknown) {
     signal.throwIfAborted()
-    // Explorer can exit 1 after delegating to the existing desktop process.
+    // Explorer 在委托给已存在的桌面进程后可能退出 1。
     if (!(error instanceof Error) || !('code' in error) || error.code !== 1) throw error
   }
 }
 
 /**
- * Open one Windows-resolvable path through Explorer, the shell that owns the
- * default-application resolution a double-click uses.
- * @param path - Windows-resolvable path; Explorer receives its encoded file URI as one argv element, never a command string.
- * @param signal - caller lifetime; abort terminates the command.
- * @param run - shell-free command runner.
+ * 经由 Explorer 打开一个 Windows 可解析的路径——那个拥有双击所用的默认应用解析的 shell。
+ * @param path - Windows 可解析的路径；Explorer 将其编码后的文件 URI 作为单一 argv 元素
+ *   接收，绝不作为一个命令字符串。
+ * @param signal - 调用方生命周期；abort 终止命令。
+ * @param run - 无 shell 的命令运行器。
  */
 async function openWindowsPath(path: string, signal: AbortSignal, run: PathOpenerRunner): Promise<void> {
   await runExplorer([explorerTarget(path)], signal, run)
 }
 
-/** Translate a WSL path before handing it to the Windows desktop. */
+/** 在交给 Windows 桌面之前翻译一个 WSL 路径。 */
 async function openWslPath(path: string, signal: AbortSignal, run: PathOpenerRunner): Promise<void> {
   const translated = await run('wslpath', ['-w', path], signal, 'hidden')
   signal.throwIfAborted()
@@ -164,7 +144,7 @@ async function openWslPath(path: string, signal: AbortSignal, run: PathOpenerRun
   await openWindowsPath(windowsPath, signal, run)
 }
 
-/** Dispatch one shell-free platform command for the requested open intent. */
+/** 为所请求的打开意图分发某个无 shell 的平台命令。 */
 async function openNativePathWithIntent(
   path: string,
   signal: AbortSignal,
@@ -202,15 +182,13 @@ async function openNativePathWithIntent(
 }
 
 /**
- * Whether {@link openNativePath} plausibly reaches a desktop on this host.
+ * {@link openNativePath} 是否能在本宿主上合理地抵达一个桌面。
  *
- * macOS and Windows always carry a desktop opener; Linux does when it is WSL
- * (the Windows desktop takes the path) or a display server is announced.
- * A headless or containerised Linux host answers false, which is what lets a
- * surface show a path as text instead of offering a button that would spawn
- * `xdg-open` into nothing.
- * @param internals - platform and environment seam for deterministic tests.
- * @returns true when handing a path to the native opener can work at all.
+ * macOS 与 Windows 总带有桌面打开器；Linux 在它是 WSL（Windows 桌面接管该路径）或
+ * 已通告显示服务器时也是如此。无头或容器化的 Linux 宿主回答 false，这正是一个界面
+ * 把路径显示为文本、而非提供会向空处 spawn `xdg-open` 的按钮的原因。
+ * @param internals - 用于确定性测试的平台与环境接缝。
+ * @returns 将路径交给原生打开器时是否根本可行。
  */
 export function canOpenNativePath(internals: PathOpenerInternals = {}): boolean {
   const platform = internals.platform ?? process.platform
@@ -221,11 +199,11 @@ export function canOpenNativePath(internals: PathOpenerInternals = {}): boolean 
 }
 
 /**
- * Open a filesystem path with the operating system's default application, or
- * with the default browser when the path names a document a browser renders.
- * @param path - absolute or host-resolvable path (caller owns resolution).
- * @param signal - caller/connection lifetime; abort terminates the native command.
- * @param internals - Platform, environment, and runner hooks for deterministic tests.
+ * 用操作系统的默认应用打开一个文件系统路径；或在路径命名一个浏览器渲染的文档时，
+ * 用默认浏览器打开它。
+ * @param path - 绝对或宿主可解析的路径（解析由调用方负责）。
+ * @param signal - 调用方/连接生命周期；abort 终止原生命令。
+ * @param internals - 用于确定性测试的平台、环境及运行器钩子。
  */
 export function openNativePath(
   path: string,
@@ -236,11 +214,11 @@ export function openNativePath(
 }
 
 /**
- * Open a filesystem path through its file-type association, including HTML and SVG.
- * @param path - absolute or host-resolvable path; the caller verifies local access.
- * @param signal - caller lifetime; abort terminates the native command.
- * @param internals - platform, environment, and runner facts for adapter tests.
- * @returns after the associated application accepts the path.
+ * 经由其文件类型关联打开一个文件系统路径，包括 HTML 与 SVG。
+ * @param path - 绝对或宿主可解析的路径；调用方验证本地访问。
+ * @param signal - 调用方生命周期；abort 终止原生命令。
+ * @param internals - 用于适配器测试的平台、环境及运行器事实。
+ * @returns 在关联应用接受该路径之后。
  */
 export function openNativeAssociatedPath(
   path: string, signal: AbortSignal, internals: PathOpenerInternals = {},
@@ -249,11 +227,11 @@ export function openNativeAssociatedPath(
 }
 
 /**
- * Open a text document for editing; macOS bypasses the file-type association
- * so a YAML association with a browser cannot consume the gesture.
- * @param path - absolute or host-resolvable text-document path.
- * @param signal - caller/connection lifetime; abort terminates the native command.
- * @param internals - Platform and runner hooks for deterministic tests.
+ * 打开一个文本文档进行编辑；macOS 绕过文件类型关联，因此一个指向浏览器的 YAML 关联
+ * 无法吞掉这个手势。
+ * @param path - 绝对或宿主可解析的文本文档路径。
+ * @param signal - 调用方/连接生命周期；abort 终止原生命令。
+ * @param internals - 用于确定性测试的平台与运行器钩子。
  */
 export function openNativeTextFile(
   path: string,
@@ -263,13 +241,13 @@ export function openNativeTextFile(
   return openNativePathWithIntent(path, signal, 'text-editor', internals)
 }
 
-/** File-manager behavior available on the serving Host, including WSL's Windows desktop. */
+/** 服务宿主上可用的文件管理器行为，包括 WSL 的 Windows 桌面。 */
 export type NativeFileManager = 'finder' | 'explorer' | 'directory'
 
 /**
- * Identify the native file-manager action without inspecting the browser's platform.
- * @param internals - platform and WSL facts.
- * @returns the supported file-manager action, or null on unsupported platforms.
+ * 在不检查浏览器平台的情况下识别原生文件管理器动作。
+ * @param internals - 平台与 WSL 事实。
+ * @returns 受支持的文件管理器动作，或在不支持的平台上的 null。
  */
 export function nativeFileManager(internals: PathOpenerInternals = {}): NativeFileManager | null {
   const platform = internals.platform ?? process.platform
@@ -279,11 +257,11 @@ export function nativeFileManager(internals: PathOpenerInternals = {}): NativeFi
 }
 
 /**
- * Reveal a file in Finder or Explorer, or open its parent in the Linux default file manager.
- * @param path - absolute file path already authorized by the caller.
- * @param signal - caller lifetime; abort terminates the native command.
- * @param internals - platform, environment, and command runner for adapter tests.
- * @returns after command completion; Explorer exit 1 is accepted as a delegated handoff, not proof of selection.
+ * 在 Finder 或 Explorer 中揭示一个文件，或在 Linux 默认文件管理器中打开其父目录。
+ * @param path - 已由调用方授权的绝对文件路径。
+ * @param signal - 调用方生命周期；abort 终止原生命令。
+ * @param internals - 用于适配器测试的平台、环境及命令运行器。
+ * @returns 在命令完成后；Explorer 的退出码 1 被视为一次委托交接，而非已选中证明。
  */
 export async function revealNativePath(
   path: string, signal: AbortSignal, internals: PathOpenerInternals = {},

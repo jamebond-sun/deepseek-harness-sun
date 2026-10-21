@@ -1,35 +1,35 @@
-/** Credential-scoped `/models` cache with single-flight loads, background refresh, and last-known-good retention. */
+/** 按凭据范围隔离的 `/models` 缓存：单飞加载、后台刷新，并保留最后已知的良好结果。 */
 import { createHash } from 'node:crypto'
 import { deadline } from '@deepseek-ai/dsh-timeout'
 import type { CatalogSettings } from './config.ts'
 import { LISTING_TIMEOUT } from './listing.ts'
 import type { ModelListing } from './listing.ts'
 
-/** Host-owned inputs of one catalog instance. */
+/** 一个目录实例由宿主持有的输入。 */
 export interface CatalogDependencies {
-  /** Current endpoint settings, re-read on every access. */
+  /** 当前的端点设置，每次访问时重新读取。 */
   readonly settings: () => CatalogSettings
-  /** The account token allowed for `url`, or `undefined` while signed out. */
+  /** `url` 允许使用的账号令牌；未登录时为 `undefined`。 */
   readonly token: (url: string) => Promise<string | undefined>
-  /** Perform one listing request authenticated with `token`; `signal` carries the {@link LISTING_TIMEOUT} request deadline. */
+  /** 执行一次用 `token` 认证的清单请求；`signal` 携带 {@link LISTING_TIMEOUT} 请求截止时间。 */
   readonly load: (url: string, token: string, signal: AbortSignal) => Promise<ModelListing>
-  /** Wall clock used for listing age. */
+  /** 用于计算清单时效的挂钟。 */
   readonly now: () => number
-  /** Report a loaded listing. */
+  /** 报告一次已加载的清单。 */
   readonly info: (message: string) => void
-  /** Report the first failure of a failing streak. */
+  /** 报告一次失败连续中的首次失败。 */
   readonly warn: (message: string) => void
 }
 
-/** What request resolution reads. */
+/** 请求解析所读取的内容。 */
 export interface CatalogView {
-  /** Whether an account token is available for the listing endpoint. */
+  /** 清单端点是否具备可用的账号令牌。 */
   readonly signedIn: boolean
-  /** Last successful listing for this credential and endpoint; `undefined` until one succeeds. */
+  /** 本凭据与端点下最近一次成功的清单；在成功之前为 `undefined`。 */
   readonly listing: ModelListing | undefined
 }
 
-/** Wait for `task` unless `signal` aborts first; the task keeps running. */
+/** 等待 `task`，除非 `signal` 先中止；任务本身会继续运行。 */
 async function abandonable(task: Promise<void>, signal: AbortSignal | undefined): Promise<void> {
   if (signal === undefined) return task
   const abandoned = Promise.withResolvers<never>()
@@ -42,11 +42,11 @@ async function abandonable(task: Promise<void>, signal: AbortSignal | undefined)
   }
 }
 
-/** One account route's listing cache; each endpoint and credential pair has its own scope. */
+/** 一条账号路由的清单缓存；每个端点与凭据组合各自拥有独立的作用域。 */
 export class AccountModelCatalog {
   private scope: string | undefined
   private listing: ModelListing | undefined
-  /** Settle time of the latest load in this scope; `undefined` before the first one settles. */
+  /** 本作用域中最近一次加载的落定时刻；在首次落定之前为 `undefined`。 */
   private settledAt: number | undefined
   private inflight: Promise<void> | undefined
   private request: AbortController | undefined
@@ -54,23 +54,22 @@ export class AccountModelCatalog {
   private failing = false
   private closed = false
 
-  /** @param dependencies - settings, credential, transport, clock, and diagnostic callbacks. */
+  /** @param dependencies - 设置、凭据、传输、时钟与诊断回调。 */
   constructor(private readonly dependencies: CatalogDependencies) {}
 
   /**
-   * The last published view, without I/O.
-   * @returns the signed-in state and listing of the current scope.
+   * 最近一次发布的视图，不产生 I/O。
+   * @returns 当前作用域的登录状态与清单。
    */
   current(): CatalogView {
     return { signedIn: this.scope !== undefined, listing: this.listing }
   }
 
   /**
-   * Resolve the view for the current credential. The first access of a scope
-   * waits for its load, which the request deadline bounds; later accesses
-   * return at once and refresh a stale listing in the background.
-   * @param signal - abandons this wait only; the shared load continues.
-   * @returns the view after any first load of the scope settles.
+   * 为当前凭据解析视图。某个作用域的首次访问会等待其加载，
+   * 该等待由请求截止时间约束；之后的访问立即返回，并在后台刷新过期的清单。
+   * @param signal - 仅放弃本次等待；共享的加载会继续。
+   * @returns 该作用域首次加载落定之后的视图。
    */
   async view(signal?: AbortSignal): Promise<CatalogView> {
     const settings = this.dependencies.settings()
@@ -86,7 +85,7 @@ export class AccountModelCatalog {
     return this.current()
   }
 
-  /** Abort in-flight loads; later results and accesses change nothing. */
+  /** 中止进行中的加载；之后的结果与访问都不再产生任何改变。 */
   dispose(): void {
     this.closed = true
     this.generation += 1

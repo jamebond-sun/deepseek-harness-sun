@@ -1,5 +1,5 @@
 /**
- * File-reference discovery seam shared by host-backed user interfaces.
+ * 由宿主支撑的用户界面所共享的文件引用发现接缝。
  *
  * @module @deepseek-ai/dsh-file-reference
  */
@@ -13,7 +13,7 @@ export { activeAtToken, formatFileMention } from './grammar.ts'
 export type { ActiveAtToken } from './grammar.ts'
 export type { FileReferenceCandidate } from './types.ts'
 
-/** Model guidance for path-only references selected by a user interface. */
+/** 针对由用户界面所选、仅含路径的引用，提供给模型的指引。 */
 export const FILE_REFERENCE_PROMPT = 'Tokens prefixed with @ are paths the user explicitly referenced. Relative paths resolve from the workspace root; absolute paths identify files or directories on the host. A trailing slash marks a directory: list it when its contents matter. Anything else is a file: use the read tool when its contents are needed, and do not claim to have inspected it before reading. @"..." quotes a path containing spaces.'
 
 declare module '@deepseek-ai/cordis' {
@@ -22,18 +22,18 @@ declare module '@deepseek-ai/cordis' {
   }
 }
 
-/** Host capability for cancellable file-reference discovery. */
+/** 用于可取消的文件引用发现的主机能力。 */
 export abstract class FileReferenceService extends Service {
   constructor(ctx: Context) {
     super(ctx, 'fileReferences')
   }
 
   /**
-   * List file and directory candidates for one agent's working directory.
-   * @param agent - target agent whose session cwd bounds discovery.
-   * @param query - path text following `@` or `@"`.
-   * @param signal - caller cancellation.
-   * @returns deterministic path-only candidates.
+   * 列出某个代理工作目录下的文件与目录候选。
+   * @param agent - 其会话 cwd 界定发现范围的目标代理。
+   * @param query - `@` 或 `@"` 之后的路径文本。
+   * @param signal - 调用方取消信号。
+   * @returns 确定性的、仅含路径的候选。
    */
   abstract list(
     agent: Agent,

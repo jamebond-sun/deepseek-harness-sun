@@ -1,7 +1,6 @@
 /**
- * Worker Thread entry for workspace-mode Typert generation. It generates every
- * explicit contributor of the requested workspace, posts exactly one
- * {@link WorkspaceWorkerResponse}, and exits.
+ * workspace 模式 Typert 生成的 Worker 线程入口。它生成所请求 workspace 的每一个
+ * 显式贡献者，恰好发出一条 {@link WorkspaceWorkerResponse}，然后退出。
  * @module @deepseek-ai/dsh-typert-generator/worker
  */
 
@@ -10,17 +9,17 @@ import { WorkspaceTypertGenerator } from './workspace.ts'
 import type { WorkspaceEmitResult, WorkspaceTypertGeneratorOptions } from './workspace.ts'
 import type { TypertFace } from './model.ts'
 
-/** Generation inputs passed as `workerData`. */
+/** 作为 `workerData` 传入的生成输入。 */
 export interface WorkspaceWorkerRequest {
-  /** Workspace root containing the face aggregate tsconfigs. */
+  /** 包含端聚合 tsconfig 的 workspace 根。 */
   readonly root: string
-  /** Faces to generate; every face when absent. */
+  /** 要生成的端；缺省时为每个端。 */
   readonly faces?: readonly TypertFace[]
-  /** Generator switches applied to the pass. */
+  /** 应用于本次通过的生成器开关。 */
   readonly options: WorkspaceTypertGeneratorOptions
 }
 
-/** The single message the worker posts: every generated artifact, or the failure that stopped generation. */
+/** worker 发出的唯一消息：每个生成的产物，或中止生成的失败。 */
 export type WorkspaceWorkerResponse =
   | { readonly kind: 'artifacts'; readonly artifacts: readonly WorkspaceEmitResult[] }
   | { readonly kind: 'failure'; readonly name: string; readonly message: string; readonly stack?: string }

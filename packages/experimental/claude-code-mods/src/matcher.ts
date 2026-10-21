@@ -1,13 +1,13 @@
 /**
- * Event-name patterns and field matchers: which registered hooks an event
- * selects. Event names are Claude Code's; a hook on a name this bridge never
- * raises registers fine and never runs.
+ * 事件名模式与字段匹配器：某事件会选中哪些已注册的钩子。
+ * 事件名称沿用 Claude Code 的；挂在一个本桥接永远不会引发的名称上的钩子
+ * 会正常注册，但永远不会运行。
  * @module
  */
 
 import type { HookMatcher, MatcherValue } from './types.ts'
 
-/** The events the engine raises on its own, as opposed to the `<namespace>.<method>` events a mods API call raises. */
+/** 引擎自身所引发的事件，与 mods API 调用所引发的 `<namespace>.<method>` 事件相对。 */
 export const ENGINE_EVENTS: ReadonlySet<string> = new Set([
   'tool.call', 'tool.check', 'tool.describe',
   'prompt.submit', 'prompt.fill', 'prompt.suggest', 'prompt.edit', 'prompt.compose', 'prompt.section',
@@ -23,10 +23,10 @@ export const ENGINE_EVENTS: ReadonlySet<string> = new Set([
 ])
 
 /**
- * Every event name a mod may hook, in Claude Code's reference order: engine
- * events, then every mods API method as `<namespace>.<method>`. `on` refuses a
- * name outside this list with Claude Code's own wording, so a misspelling
- * fails at load rather than registering a hook that never runs.
+ * 某个 mod 可能钩住的每一个事件名称，按 Claude Code 的参考顺序排列：
+ * 先是引擎事件，再是每一个以 `<namespace>.<method>` 形式出现的 mods API 方法。
+ * `on` 会以 Claude Code 自身的措辞拒绝列表之外的名称，因此拼写错误会在
+ * 加载时失败，而非注册一个永不运行的钩子。
  */
 export const KNOWN_EVENTS: ReadonlySet<string> = new Set([
   ...ENGINE_EVENTS,
@@ -54,9 +54,9 @@ export const KNOWN_EVENTS: ReadonlySet<string> = new Set([
 ])
 
 /**
- * Whether a name passed to `on` is an exact event name, `*`, or a `<namespace>.*` glob.
- * @param pattern - the name or glob.
- * @returns true when `on` accepts it.
+ * 传给 `on` 的名称是否为精确事件名、`*`，或 `<namespace>.*` 形式的 glob。
+ * @param pattern - 名称或 glob。
+ * @returns 当 `on` 接受它时为 true。
  */
 export function isEventPattern(pattern: string): boolean {
   if (pattern === '*') return true
@@ -68,11 +68,11 @@ export function isEventPattern(pattern: string): boolean {
 }
 
 /**
- * Whether a registered pattern selects an event. `*` selects every event
- * except the telemetry ones, which a mod hooks by name or as `telemetry.*`.
- * @param pattern - the name or glob passed to `on`.
- * @param event - the event being raised.
- * @returns true when the pattern selects the event.
+ * 某个已注册的模式是否选中了一个事件。`*` 选中除了遥测事件之外的所有事件，
+ * 而遥测事件需由 mod 按名称或 `telemetry.*` 来钩取。
+ * @param pattern - 传给 `on` 的名称或 glob。
+ * @param event - 正在被引发的事件。
+ * @returns 当该模式选中该事件时为 true。
  */
 export function eventMatches(pattern: string, event: string): boolean {
   if (pattern === event) return true
@@ -82,7 +82,7 @@ export function eventMatches(pattern: string, event: string): boolean {
 
 function valueMatches(expected: MatcherValue, actual: unknown): boolean {
   if (expected instanceof RegExp) {
-    // A global or sticky expression remembers where its last test stopped; every event starts fresh.
+    // 全局或 sticky 的正则表达式会记住其上一次测试的停止位置；但每个事件都从头开始。
     expected.lastIndex = 0
     return (typeof actual === 'string' || typeof actual === 'number') && expected.test(String(actual))
   }
@@ -91,11 +91,11 @@ function valueMatches(expected: MatcherValue, actual: unknown): boolean {
 }
 
 /**
- * Whether every matcher field accepts the event's top-level field of the same
- * name: a scalar by equality, an array by membership, a RegExp by test.
- * @param matcher - the matcher passed to `on`.
- * @param input - the event input as this hook would receive it.
- * @returns true when the hook should run.
+ * 匹配器的每一个字段是否都接受事件同名的最顶层字段：标量按相等、
+ * 数组按成员资格、RegExp 按测试。
+ * @param matcher - 传给 `on` 的匹配器。
+ * @param input - 该钩子将收到的事件输入。
+ * @returns 当该钩子应当运行时为 true。
  */
 export function matcherMatches(matcher: HookMatcher, input: unknown): boolean {
   if (typeof input !== 'object' || input === null) return false
@@ -104,9 +104,9 @@ export function matcherMatches(matcher: HookMatcher, input: unknown): boolean {
 }
 
 /**
- * Render a matcher the way `claude plugin validate` prints it.
- * @param matcher - the matcher, or undefined for a hook without one.
- * @returns `{field=value,...}`, or an empty string.
+ * 以 `claude plugin validate` 打印匹配器的方式来渲染它。
+ * @param matcher - 匹配器，或为不带匹配器的钩子时的 undefined。
+ * @returns `{field=value,...}`，或空字符串。
  */
 export function describeMatcher(matcher: HookMatcher | undefined): string {
   if (matcher === undefined) return ''

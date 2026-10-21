@@ -1,53 +1,53 @@
-/** DeepSeek `GET /models` listing: one authenticated request and per-entry decoding. */
+/** DeepSeek `GET /models` 清单：一次带认证的请求，以及逐条解码。 */
 import { APP_IDENTITY, attributionHeaders, LlmError } from '@deepseek-ai/dsh-llm'
 import type { ModelModality } from '@deepseek-ai/dsh-llm'
 import { timeoutOf } from '@deepseek-ai/dsh-timeout'
 
 const LISTED_MODALITIES = ['text', 'image'] as const satisfies readonly ModelModality[]
 
-/** Code of a listing deadline's timeout reason; {@link requestModelListing} reports it as `TIMEOUT`. */
+/** 清单截止时间的超时原因码；{@link requestModelListing} 将其报告为 `TIMEOUT`。 */
 export const LISTING_TIMEOUT = 'MODEL_LISTING_TIMEOUT'
 
-/** The requirement one listing entry declares under this client's product token. */
+/** 在本客户端的产品令牌下，一条清单条目所声明的要求。 */
 export type ClientRequirement =
   | { readonly kind: 'none' }
   | { readonly kind: 'min-version'; readonly version: string }
   | { readonly kind: 'invalid' }
 
-/** Capabilities a usable listing entry declares, in catalog vocabulary. */
+/** 一条可用清单条目以目录词汇声明的能力。 */
 export interface ListedFacts {
-  /** Accepted request modalities this build sends. */
+  /** 本构建会发送的、被接受的请求模态。 */
   readonly inputModalities: readonly ModelModality[]
-  /** Combined request and response context, when declared. */
+  /** 请求与响应的合计上下文，若已声明。 */
   readonly contextWindow?: number
-  /** Output capability, when declared. */
+  /** 输出能力，若已声明。 */
   readonly maxOutputTokens?: number
-  /** Messages system prompt mode, when declared; any value other than `in-history` reads as `leading-only`. */
+  /** Messages 系统提示模式，若已声明；除 `in-history` 之外的任何值都读作 `leading-only`。 */
   readonly systemPromptUpdate?: 'in-history' | 'leading-only'
 }
 
-/** Declared capabilities, or why the Messages transport cannot drive the model. */
+/** 已声明的能力，或 Messages 传输无法驱动该模型的原因。 */
 export type ListedCapabilities =
   | { readonly usable: true; readonly facts: ListedFacts }
   | { readonly usable: false; readonly reason: string }
 
-/** One decoded listing entry; unusable capabilities never hide its id, name, or requirement. */
+/** 一条已解码的清单条目；能力不可用也不会隐藏它的 id、名称或要求。 */
 export interface ListingEntry {
-  /** Wire model id. */
+  /** 线格式模型 id。 */
   readonly id: string
-  /** Display name, when the entry declares a non-empty one. */
+  /** 展示名称，若该条目声明了非空名称。 */
   readonly name?: string
-  /** Requirement declared under `client_requirements[APP_IDENTITY.product]`. */
+  /** 在 `client_requirements[APP_IDENTITY.product]` 之下声明的要求。 */
   readonly requirement: ClientRequirement
-  /** Declared capabilities. */
+  /** 已声明的能力。 */
   readonly capabilities: ListedCapabilities
 }
 
-/** A decoded listing with at least one entry. */
+/** 至少含有一条条目的已解码清单。 */
 export interface ModelListing {
-  /** Entries in listing order. */
+  /** 按清单顺序排列的条目。 */
   readonly entries: readonly ListingEntry[]
-  /** Rows without a usable id, and repeated ids. */
+  /** 没有可用 id 的行，以及重复的 id。 */
   readonly skipped: number
 }
 
@@ -57,7 +57,7 @@ function fieldsOf(value: unknown): Fields | undefined {
   return typeof value === 'object' && value !== null && !Array.isArray(value) ? value as Fields : undefined
 }
 
-/** Listed modalities this build sends, in listing order without repeats; `undefined` when the value is not an array. */
+/** 本构建会发送的、按清单顺序去重后的已列出模态；当值不是数组时为 `undefined`。 */
 function knownModalities(value: unknown): ModelModality[] | undefined {
   if (!Array.isArray(value)) return undefined
   const listed: readonly unknown[] = value
@@ -65,7 +65,7 @@ function knownModalities(value: unknown): ModelModality[] | undefined {
     .toSorted((left, right) => listed.indexOf(left) - listed.indexOf(right))
 }
 
-/** A declared capacity: `undefined` when absent, `false` when not a positive safe integer. */
+/** 一个已声明的容量：缺失时为 `undefined`，不是正整数安全整数时为 `false`。 */
 function capacity(value: unknown): number | undefined | false {
   if (value === undefined) return undefined
   return typeof value === 'number' && Number.isSafeInteger(value) && value > 0 ? value : false
@@ -110,10 +110,10 @@ function capabilitiesOf(entry: Fields): ListedCapabilities {
 }
 
 /**
- * Decode one `/models` body entry by entry.
- * @param body - parsed JSON response.
- * @returns the entries with a usable id, in listing order.
- * @throws LlmError `INVALID_RESPONSE` when the body has no `data` array or no usable entry.
+ * 逐条解码一个 `/models` 响应体。
+ * @param body - 已解析的 JSON 响应。
+ * @returns 具备可用 id 的条目，按清单顺序排列。
+ * @throws LlmError `INVALID_RESPONSE` 当响应体没有 `data` 数组或没有可用条目时。
  */
 export function parseModelListing(body: unknown): ModelListing {
   const data = fieldsOf(body)?.data
@@ -138,14 +138,14 @@ export function parseModelListing(body: unknown): ModelListing {
 }
 
 /**
- * Request and decode one model listing. Redirects fail, so credentials stay on the requested origin.
- * @param url - listing endpoint.
- * @param headers - authentication headers for this endpoint.
- * @param signal - cancellation and deadline of the whole exchange.
- * @returns the decoded listing.
- * @throws LlmError `TIMEOUT` when a {@link LISTING_TIMEOUT} deadline elapses before a complete body, `ABORTED` for
- *   another abort, `TRANSPORT` for a network failure, `HTTP_<status>` for a non-2xx answer,
- *   and `INVALID_RESPONSE` for a body that is not a JSON listing.
+ * 请求并解码一份模型清单。重定向会失败，因此凭据只停留在被请求的源上。
+ * @param url - 清单端点。
+ * @param headers - 该端点使用的认证头。
+ * @param signal - 整次交换的取消信号与截止时间。
+ * @returns 已解码的清单。
+ * @throws LlmError `TIMEOUT` 当 {@link LISTING_TIMEOUT} 截止时间在完整响应体到达之前耗尽时，`ABORTED` 表示
+ *   其他中止，`TRANSPORT` 表示网络故障，`HTTP_<status>` 表示非 2xx 应答，
+ *   `INVALID_RESPONSE` 表示响应体不是 JSON 清单。
  */
 export async function requestModelListing(
   url: string, headers: Readonly<Record<string, string>>, signal: AbortSignal,

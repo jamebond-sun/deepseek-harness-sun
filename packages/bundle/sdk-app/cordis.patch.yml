@@ -1,4 +1,4 @@
-# The SDK application over dsh-base. Stdout belongs exclusively to JSON-RPC.
+# 构建在 dsh-base 之上的 SDK 应用。stdout 专属于 JSON-RPC。
 
 - id: system-prompt
   config:
@@ -23,8 +23,8 @@
 - id: hmr
   disabled: true
 
-# The packaged carrier supplies a default; DSH_PRIMARY_RUNTIME overrides it,
-# including an empty-string opt-out. Each row can be patched independently.
+# 打包载体提供默认值；DSH_PRIMARY_RUNTIME 可以覆盖它，包括用空字符串显式退出。
+# 每一行都可以被独立打补丁。
 - insert:
     - id: workspace-dependencies
       name: '@deepseek-ai/dsh-tool-workspace-dependencies'

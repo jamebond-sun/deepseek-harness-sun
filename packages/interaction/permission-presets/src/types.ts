@@ -1,48 +1,45 @@
 /**
- * Pure types of the permission domain: the ONE home of the `permissions`
- * projection-key declaration plus its payload types, free of this package's
- * host-side value imports (cordis, schemastery). Two namespace projections
- * serve it — the package root re-export for host consumers, `./client` (the
- * browser half-entry's re-export) for client aggregates — with zero content
- * duplication.
+ * 权限领域的纯类型：`permissions` 投影键声明及其载荷类型的唯一归属地，不含本包
+ * Host 侧的值依赖（cordis、schemastery）。两个命名空间投影都为它服务 ——
+ * 面向 Host 消费方的是包根再导出，面向 Client 聚合的是 `./client`（浏览器半入口的
+ * 再导出）—— 且内容零重复。
  *
  * @module @deepseek-ai/dsh-permission-presets/types
  */
 
-/** Presentation for an available preset or the derived `custom` current value. */
+/** 一个可用预设（或推导出的 `custom` 当前值）的呈现信息。 */
 export interface PresetOption {
-  /** Stable option value: a configured preset key, live `auto`, or derived `custom`. */
+  /** 稳定的选项值：已配置的预设键、生效中的 `auto`，或推导出的 `custom`。 */
   value: string
-  /** The display label. */
+  /** 展示名称。 */
   name: string
-  /** One user-facing sentence on what the value means; omitted when not configured. */
+  /** 一句面向用户的话，说明该取值的含义；未配置时缺省。 */
   description?: string
 }
 
 /**
- * Process-level permission catalog. It changes with live contributions and is
- * deliberately separate from Session history.
+ * 进程级的权限目录。它随实时贡献而变化，并被有意地与 Session 历史分离。
  */
 export interface PermissionCatalog {
-  /** Every currently selectable preset, in contribution order. */
+  /** 当前全部可选预设，按贡献顺序排列。 */
   options: PresetOption[]
-  /** Configured presets eligible as defaults for future sessions. */
+  /** 有资格作为未来 Session 默认值的已配置预设。 */
   defaultOptions: PresetOption[]
-  /** Effective default when the Config field is omitted. */
+  /** Config 字段缺省时生效的默认值。 */
   defaultPreset: string
 }
 
-/** Whole `permissions` Session projection: current durable selection only. */
+/** 整个 `permissions` Session 投影：只包含当前已持久化的选择。 */
 export interface PermissionSelection {
-  /** The effective current value: a configured preset key, `auto`, or `custom`. */
+  /** 当前生效的值：某个已配置的预设键、`auto`，或 `custom`。 */
   currentValue: string
 }
 
 declare module '@deepseek-ai/cordis' {
   interface Events {
     /**
-     * The selectable process catalog changed. Payload-free by design:
-     * consumers subscribe first, then re-read the complete catalog.
+     * 可选的进程级目录发生了变化。按设计不带载荷：消费方先订阅，
+     * 再重新读取完整目录。
      * @mode emit
      */
     'permission-presets/catalog-changed'(): void
@@ -52,11 +49,9 @@ declare module '@deepseek-ai/cordis' {
 declare module '@deepseek-ai/dsh-session-projection/types' {
   interface SessionProjectionMap {
     /**
-     * The session's current permission, folded from the three whole-value
-     * knob events (`permission/preset`, `sandbox/mode`, `approval/policy`)
-     * over the composition defaults. Selectable options come from the
-     * process-level catalog Remote. Key absence means no permission service
-     * is composed — clients hide the control.
+     * 该 Session 当前的权限，由三个整体取值型开关事件（`permission/preset`、
+     * `sandbox/mode`、`approval/policy`）在组合默认值之上折叠得出。可选项目来自
+     * 进程级目录 Remote。键缺省意味着没有组合权限服务 —— 客户端应当隐藏该控件。
      */
     permissions: PermissionSelection
   }

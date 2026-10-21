@@ -1,41 +1,41 @@
 import type { ToolCallId } from '@deepseek-ai/dsh-llm'
 import type { SessionSeq } from '@deepseek-ai/dsh-session/types'
 
-/** Character-budget policy for deterministic tool-result pruning. */
+/** 确定性工具结果修剪的字符预算策略。 */
 export interface ToolResultPruneConfig {
-  /** Prune when total text exceeds this many Unicode code points. Defaults to `8192`. */
+  /** 当文本总量超过该数量的 Unicode 码点时进行修剪。默认 `8192`。 */
   thresholdChars?: number
-  /** Maximum leading Unicode code points retained. Defaults to `4096`. */
+  /** 保留的最大前导 Unicode 码点数量。默认 `4096`。 */
   headChars?: number
-  /** Maximum trailing Unicode code points retained. Defaults to `1024`. */
+  /** 保留的最大尾部 Unicode 码点数量。默认 `1024`。 */
   tailChars?: number
 }
 
-/** Validated, detached, deeply immutable pruning configuration. */
+/** 经过校验、解耦、深度不可变的修剪配置。 */
 export interface ResolvedConfig {
   readonly thresholdChars: number
   readonly headChars: number
   readonly tailChars: number
 }
 
-/** Cited source event and size accounting for one landed surface replacement. */
+/** 一次落地表层替换所引用的来源事件与尺寸计量。 */
 export interface PrunedEntry {
-  /** Full-fidelity tool-result event shadowed by the replacement. */
+  /** 被替换所遮蔽的、全保真的工具结果事件。 */
   readonly originalSeq: SessionSeq
-  /** Newly appended pruned tool-result event. */
+  /** 新追加的、已修剪的工具结果事件。 */
   readonly replacementSeq: SessionSeq
-  /** Tool call shared by the original and replacement. */
+  /** 原始与替换所共享的工具调用。 */
   readonly callId: ToolCallId
-  /** Original text size in Unicode code points. */
+  /** 原始文本大小，以 Unicode 码点计。 */
   readonly charsBefore: number
-  /** Replacement text size in Unicode code points. */
+  /** 替换文本大小，以 Unicode 码点计。 */
   readonly charsAfter: number
 }
 
-/** Aggregate outcome of one stable-surface pruning pass. */
+/** 一次稳定表层修剪遍的聚合结果。 */
 export interface PruneResult {
-  /** Replacements in the snapshotted surface order. */
+  /** 按快照表层顺序的替换项。 */
   readonly pruned: readonly PrunedEntry[]
-  /** Total Unicode code points removed across replacements. */
+  /** 跨所有替换移除的 Unicode 码点总数。 */
   readonly charsRemoved: number
 }

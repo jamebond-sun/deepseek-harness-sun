@@ -1,15 +1,12 @@
 /**
- * Capture coordinator for the telemetry capability. Live capture subscribes to
- * the session firehose plus the one live-bus relay (`agent/error`). Both
- * capture paths build one logical record per canonical Session event and run
- * each through the
- * `session-telemetry/record` waterfall (deployment-mounted redaction rules;
- * pass-through when none), then hands the result to the backend. Live capture
- * follows the session firehose; on-demand capture replays the canonical log
- * only when requested. Every synchronous handler is self-contained so a
- * failing backend can never starve other subscribers (cordis `emit` is
- * stop-on-throw) or touch the agent loop. Composed by a backend in its
- * constructor.
+ * 遥测能力的捕获协调器。实时捕获订阅会话 firehose 加上那一个实时总线
+ * 中继（`agent/error`）。两条捕获路径都为每个规范会话事件构建一条逻辑
+ * 记录，并让它们各自经过 `session-telemetry/record` 这个 waterfall
+ * （由部署挂载的脱敏规则；没有时则透传），然后把结果交给后端。实时捕获
+ * 跟随会话 firehose；按需捕获只在被请求时才重放规范日志。每个同步处理函数
+ * 都是自包含的，因此一个失败的后端绝不可能饿死其它订阅方（cordis 的
+ * `emit` 在遇到抛出时停止），也绝不可能触及 agent 循环。由后端在其
+ * 构造函数中组合。
  *
  * @module @deepseek-ai/dsh-session-telemetry/coordinator
  */
@@ -26,63 +23,58 @@ import {
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { SessionTelemetrySink, SessionTelemetryRecord, SessionTelemetrySeverity } from './index.ts'
 
-/** Whether capture follows live events or reads the canonical log only when requested. */
+/** 捕获是跟随实时事件，还是仅在被请求时才读取规范日志。 */
 export type SessionTelemetryCapture = 'live' | 'on-demand'
 
-/** Backend-selected capture mode and history policy. */
+/** 由后端选择的捕获模式与历史策略。 */
 export interface SessionTelemetryCaptureOptions {
-  /** Follow live events, or wait for explicit capture; defaults to live. */
+  /** 跟随实时事件，还是等待显式捕获；默认为实时。 */
   capture?: SessionTelemetryCapture
-  /** Include inherited fork history and stored history from earlier lifecycles; defaults to false. */
+  /** 包含继承得到的 fork 历史，以及来自更早生命周期的已存储历史；默认为 false。 */
   includeHistory?: boolean
 }
 
-/** One record ready for backend handoff. */
+/** 一条已准备好交给后端的记录。 */
 interface PendingRecord {
   readonly record: SessionTelemetryRecord
-  /** Ledger cursor advanced only after the backend accepts this record. */
+  /** 仅在后端接受这条记录之后才推进的账本游标。 */
   readonly seq?: SessionSeqType
 }
 
 /**
- * The handoff cursor: per session, the highest `seq` handed to a backend.
- * Deliberately MODULE-scope ambient state — a narrow, documented exception
- * to the registrations-are-effects discipline: cordis has no HMR
- * state-handover API, and keying by the `Session` object (which belongs to
- * the session store and outlives any telemetry fiber) is the only in-process
- * lifetime that lets a re-adopting fiber resume instead of re-handing
- * history. Entries die with their sessions; a missing entry safely means
- * "re-hand everything". Advanced only at emit time — the cursor marks
- * handed-off, not delivered.
+ * 交接游标：按会话记录交给后端的、最高的 `seq`。刻意做成模块级的环境状态——
+ * 这是对“注册即 effect”纪律的一处狭窄且有文档记载的例外：cordis 没有
+ * HMR 状态交接 API，而用 `Session` 对象（它属于会话存储，且比任何遥测
+ * 纤程都活得久）作为键，是唯一一种能让重新采纳的纤程续上、而非重新交接
+ * 历史的内存内生命周期。条目随其会话一起消亡；缺失的条目安全地意味着
+ * “重新交接一切”。只在 emit 时刻推进——该游标标记的是已交接，而非已投递。
  */
 const handoffCursor = new WeakMap<Session, SessionSeqCursor>()
 
 /**
- * Install the telemetry capture side onto a context for one backend.
+ * 为某个后端把遥测捕获侧安装到一个上下文上。
  *
- * Live capture registers its own `session/created` / `session/event` /
- * `session/disposed` listener set plus the `agent/error` relay, all through
- * `ctx.effect()`/`ctx.on()` on the composing fiber, and sweeps already-live
- * sessions (a hot reload does not replay `session/created`). A `session/disposed` captures the session's `shutdown`
- * operational record at its own termination edge and retires it from the
- * adopted set. On-demand capture registers none of those continuous listeners;
- * {@link captureSession} reads the canonical log explicitly and never creates
- * operational records. Disposal captures shutdown markers for live-adopted
- * sessions, then awaits the backend's `shutdown()`; a failure there warns
- * instead of throwing — best-effort reporting must not fail application
- * teardown.
+ * 实时捕获注册它自己的一套 `session/created` / `session/event` /
+ * `session/disposed` 监听器，加上 `agent/error` 中继，全部通过组合纤程上的
+ * `ctx.effect()`/`ctx.on()`，并清扫已经活跃的会话（热重载不会重放
+ * `session/created`）。一个 `session/disposed` 会在会话自身的终止边缘捕获
+ * 其 `shutdown` 操作记录，并把它从已采纳集合中退役。按需捕获不注册那些
+ * 连续监听器中的任何一个；{@link captureSession} 显式读取规范日志，且
+ * 从不创建操作记录。处置会为实时采纳的会话捕获 shutdown 标记，然后等待
+ * 后端的 `shutdown()`；那里若失败则发出警告而非抛出——尽力上报绝不能让
+ * 应用拆卸失败。
  */
 export class SessionTelemetryCoordinator {
   /**
-   * Sessions adopted by THIS fiber and still live, for double-adoption
-   * protection and the teardown sweep of unmarked sessions;
-   * `session/disposed` marks and retires entries.
+   * 被本纤程采纳且仍然活跃的会话，用于防二次采纳，以及清扫未标记的会话；
+   * `session/disposed` 会标记并退役条目。
    */
   private readonly adopted = new Set<Session>()
   /**
-   * @param ctx - the composing backend's context; listeners bind to its fiber.
-   * @param backend - the backend receiving records; owned elsewhere, never disposed here beyond `shutdown()` forwarding.
-   * @param options - capture mode and history policy.
+   * @param ctx - 组合后端的上下文；监听器绑定到其纤程。
+   * @param backend - 接收记录的后端；所有权在别处，此处除转发 `shutdown()`
+   *   外从不处置它。
+   * @param options - 捕获模式与历史策略。
    */
   constructor(
     private readonly ctx: Context,
@@ -93,8 +85,8 @@ export class SessionTelemetryCoordinator {
       ctx.on('session/created', (session) => {
         this.adopt(session)
       })
-      // Capture the shutdown marker at the session's own termination edge,
-      // then retire the only strong reference owned by this coordinator.
+      // 在会话自身的终止边缘捕获 shutdown 标记，然后退役本协调器拥有的
+      // 唯一强引用。
       ctx.on('session/disposed', (session) => {
         this.contain(() => {
           if (!this.adopted.delete(session)) return
@@ -106,8 +98,8 @@ export class SessionTelemetryCoordinator {
           this.captureEvent(session, event)
         })
       })
-      // Parallel listeners are awaited by the loop at turn end; returning void
-      // (not the SDK's flush promise) is the turn-latency contract.
+      // 并行监听器会在回合结束时被循环等待；返回 void（而非 SDK 的 flush
+      // promise）是回合延迟契约。
       ctx.on('session/flush', (session) => {
         this.contain(() => {
           this.hintFlush(session)
@@ -123,8 +115,8 @@ export class SessionTelemetryCoordinator {
       }
     }
     ctx.effect(() => async () => {
-      // Sessions still adopted here are alive through whole-application
-      // teardown, so capture the marker before the backend quiesces.
+      // 仍被此处采纳的会话会存活到整个应用拆卸，因此在后端静默之前
+      // 先捕获该标记。
       for (const session of this.adopted) {
         this.contain(() => {
           this.deliver(session, { record: this.redact(shutdownRecord(session)) })
@@ -139,22 +131,20 @@ export class SessionTelemetryCoordinator {
   }
 
   /**
-   * Copy, redact, and hand over the canonical session-log suffix after the handoff
-   * cursor, optionally stopping at an inclusive sequence boundary. Redaction
-   * runs during this call, so an on-demand caller retains no copied records
-   * before requesting capture and uses the policy mounted at that time.
-   * Backend and policy failures remain contained per event and do not starve
-   * later events in the same replay.
-   * @param session - session whose current canonical-log prefix may be handed over.
-   * @param throughSeq - optional last sequence included in this capture.
+   * 复制、脱敏并交接位于交接游标之后的规范会话日志后缀，可选择性地停在
+   * 一个含尾序号边界处。脱敏在本次调用期间运行，因此一个按需调用方在
+   * 请求捕获之前不会保留任何已复制的记录，也使用彼时已挂载的策略。后端与
+   * 策略的失败按事件各自被容纳，不会饿死同一轮重放中后续的事件。
+   * @param session - 其当前规范日志前缀可能被交接的会话。
+   * @param throughSeq - 本次捕获所包含的可选最后一个序号。
    */
   captureSession(session: Session, throughSeq?: SessionSeqType): void {
     const start = session.firstLifecycleSeq
     const cursor = handoffCursor.get(session)
       ?? (this.options.includeHistory === true || start === 0 ? -1 : SessionSeq(start - 1))
-    // Containment is PER EVENT: one rejected record is withheld fail-closed
-    // while the rest of the historical replay proceeds.
-    // oxlint-disable-next-line typescript/no-deprecated -- Existing Session history read; migration deferred.
+    // 容纳是按事件的：一条被拒绝的记录会被失败关闭地扣留，而历史重放的
+    // 其余部分继续进行。
+    // oxlint-disable-next-line typescript/no-deprecated -- 读取已有会话历史；迁移已推迟。
     for (const event of session.snapshotEvents(SessionLogOffset(cursor + 1))) {
       if (throughSeq !== undefined && event.seq > throughSeq) break
       this.contain(() => {
@@ -164,11 +154,11 @@ export class SessionTelemetryCoordinator {
   }
 
   /**
-   * Adopt a session and replay after its handoff cursor, then follow live events.
-   * New fork objects include child-owned seed markers and closers. Restored
-   * objects start after the stored prefix, including restored forks. includeHistory starts either object at seq 0;
-   * re-adopting the same object resumes after its cursor.
-   * @param session - the live session to adopt; a second adoption is a no-op.
+   * 采纳一个会话，并在其交接游标之后重放，随后跟随实时事件。新的 fork
+   * 对象包含子会话拥有的种子标记与收尾标记。被恢复的对象从已存储前缀
+   * 之后开始，包括被恢复的 fork。includeHistory 会让任一对象都从 seq 0
+   * 开始；重新采纳同一个对象会在其游标之后续上。
+   * @param session - 要采纳的活跃会话；第二次采纳是无操作。
    */
   private adopt(session: Session): void {
     if (this.adopted.has(session)) return
@@ -186,8 +176,8 @@ export class SessionTelemetryCoordinator {
         time: event.time,
         severity: severityOf(event),
         attributes: identityOf(session, event),
-        // The canonical event object is mutable and the backend serializes
-        // later; append-time validation guarantees this clone cannot throw.
+        // 规范事件对象是可变的，且后端稍后才会序列化；追加时的校验保证了
+        // 这个克隆不会抛出。
         body: structuredClone(data),
       }),
       seq: event.seq,
@@ -195,29 +185,28 @@ export class SessionTelemetryCoordinator {
   }
 
   /**
-   * Run the `session-telemetry/record` waterfall at capture time. The innermost `next`
-   * passes the record through unchanged — this package ships no rules; exported
-   * data is as clean as the listeners a deployment mounts. Callers run inside
-   * {@link contain}, so a throwing rule withholds the record instead of
-   * reaching the loop (fail-closed). On-demand capture invokes this waterfall
-   * while reading the canonical session log, not when the event was appended.
+   * 在捕获时刻运行 `session-telemetry/record` 这个 waterfall。最内层的 `next`
+   * 原样透传记录——本包不带任何规则；导出的数据干净到何种程度，取决于一次
+   * 部署所挂载的监听器。调用方运行在 {@link contain} 内部，因此一条抛出的
+   * 规则会扣留该记录，而不会到达循环（失败关闭）。按需捕获是在读取规范
+   * 会话日志时调用这个 waterfall，而非在事件被追加时。
    */
   private redact(record: SessionTelemetryRecord): SessionTelemetryRecord {
     return this.ctx.waterfall('session-telemetry/record', record, () => record)
   }
 
-  /** Hand one redacted record to the backend, then advance its ledger cursor. */
+  /** 把一条已脱敏的记录交给后端，随后推进其账本游标。 */
   private deliver(session: Session, pending: PendingRecord): void {
     this.backend.emit(pending.record)
     if (pending.seq !== undefined) handoffCursor.set(session, pending.seq)
   }
 
-  /** Forward the turn-end boundary to the backend's optional flush hint. */
+  /** 把回合结束边界转发给后端的可选 flush 提示。 */
   private hintFlush(session: Session): void {
     if (this.adopted.has(session)) this.backend.flush?.()
   }
 
-  /** Relay one `agent/error` bus emission as an `agent-error` operational record. */
+  /** 把一次 `agent/error` 总线发射作为一条 `agent-error` 操作记录来中继。 */
   private relayAgentError(agent: Agent, turn: number, step: number, error: unknown): void {
     const detail = errorDetail(error)
     this.deliver(agent.session, {
@@ -239,9 +228,9 @@ export class SessionTelemetryCoordinator {
   }
 
   /**
-   * Run one capture-side step with its exception contained: cordis `emit`
-   * is stop-on-throw, so a throwing listener would starve every subscriber
-   * registered after this plugin — nothing from the backend may escape.
+   * 运行一个捕获侧步骤，并容纳其异常：cordis 的 `emit` 在遇到抛出时停止，
+   * 因此一个抛出的监听器会饿死本插件之后注册的所有订阅方——来自后端的东西
+   * 绝不能逃逸出去。
    */
   private contain(step: () => void): void {
     try {
@@ -253,8 +242,8 @@ export class SessionTelemetryCoordinator {
 }
 
 /**
- * Build the per-session clean-exit marker: emitted at the session's own
- * disposal edge, or at coordinator dispose for sessions still alive then.
+ * 构建按会话的干净退出标记：在会话自身的处置边缘发出，或在协调器 dispose
+ * 时为那时仍然存活的会话发出。
  */
 function shutdownRecord(session: Session): SessionTelemetryRecord {
   return {
@@ -266,7 +255,7 @@ function shutdownRecord(session: Session): SessionTelemetryRecord {
   }
 }
 
-/** Map an event's own outcome flag to the pre-baked alerting severity. */
+/** 把一个事件自身的结局标志映射到预先设定好的告警严重级别。 */
 function severityOf(event: SessionEvent): SessionTelemetrySeverity {
   switch (event.type) {
     case 'tool/result':
@@ -274,20 +263,20 @@ function severityOf(event: SessionEvent): SessionTelemetrySeverity {
     case 'turn/end':
       return event.data.reason.kind === 'error' ? 'error' : 'info'
     default:
-      // Merge-extensible fall-through (no assertNever): event types this coordinator
-      // does not depend on — including plugin-merged ones it never heard of —
-      // pass through as info; their owners' outcome semantics stay theirs.
+      // 可合并扩展的穿透（无 assertNever）：本协调器不依赖的事件类型——
+      // 包括它从未听说过的、由插件合并进来的那些——按 info 透传；它们
+      // 所有者的结局语义仍归其所有者所有。
       return 'info'
   }
 }
 
-/** Normalize the live bus's arbitrary thrown value into the stable operational-record shape. */
+/** 把实时总线任意的抛出值规范化为稳定的操作记录形状。 */
 function errorDetail(error: unknown): { name: string; message: string } {
   const normalized = error instanceof Error ? error : new Error(String(error))
   return { name: normalized.name, message: normalized.message }
 }
 
-/** Build the minimal identity attributes: envelope plus self-contained header facts. */
+/** 构建最小的身份属性：信封，加上自包含的头部事实。 */
 function identityOf(session: Session, event: SessionEvent): Record<string, string | number> {
   const attributes: Record<string, string | number> = {
     'session.id': String(session.id),
@@ -298,8 +287,8 @@ function identityOf(session: Session, event: SessionEvent): Record<string, strin
   const { cwd, parentSession, isSeeded } = session.header
   if (cwd !== undefined) attributes['session.cwd'] = cwd
   if (parentSession !== undefined) attributes['session.parent_id'] = String(parentSession)
-  // The durable fork boundary and lineage: the child ledger is complete;
-  // parent_id and seed_length identify which leading events were inherited.
+  // 持久的 fork 边界与谱系：子账本是完整的；parent_id 与 seed_length
+  // 标识哪些领头事件是被继承来的。
   if (isSeeded) attributes['session.seed_length'] = session.inheritedEventCount
   return attributes
 }

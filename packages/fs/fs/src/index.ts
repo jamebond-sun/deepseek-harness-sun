@@ -1,10 +1,7 @@
 /**
- * Filesystem Service Definition for one execution world. Backends own stable target
- * identity, process paths and file URIs, containment, text reads, decoding,
- * binary rejection, and atomic mutations. Read windows and
- * observed-state policy stay in consumer and policy plugins; `editText`
- * remains here so version check, literal match, and rewrite share one critical
- * section.
+ * 单个执行世界的文件系统服务定义。后端负责稳定的目标标识、进程路径与文件 URI、
+ * 隔离约束、文本读取、解码、二进制拒绝以及原子修改。读取窗口与观测态策略由消费方
+ * 与策略插件负责；`editText` 保留在此处，使版本校验、字面量匹配与重写共享同一段临界区。
  * @module @deepseek-ai/dsh-fs
  */
 
@@ -49,29 +46,27 @@ declare module '@deepseek-ai/cordis' {
 
   interface Events {
     /**
-     * Single-slot decision for the next {@link FileSystem.writeText}. Calling
-     * `next()` yields the bare provider's unconditional write; the first listener
-     * that returns an intent owns the decision rather than composing with peers.
-     * @param target - the resolved target about to be written.
-     * @param actor - the opaque tool-execution context the decider keys off.
+     * 下一次 {@link FileSystem.writeText} 的单槽决策。调用 `next()` 会产出裸提供者的
+     * 无条件写入；首个返回意图的监听器独占该决策，而不是与同级监听器组合。
+     * @param target - 即将被写入的已解析目标。
+     * @param actor - 决策方据以判断的不透明工具执行上下文。
      * @mode waterfall
      */
     'fs/write-intent'(target: FsTarget, actor: object | undefined, next: () => FsWriteIntent | undefined | Promise<FsWriteIntent | undefined>): Promise<FsWriteIntent | undefined>
     /**
-     * Single-slot decision for the next {@link FileSystem.editText}. Calling
-     * `next()` yields an unconditional edit; the first returned guard wins.
-     * @param target - the resolved target about to be edited.
-     * @param actor - the opaque tool-execution context the decider keys off.
+     * 下一次 {@link FileSystem.editText} 的单槽决策。调用 `next()` 会产出无条件编辑；
+     * 首个返回的守卫生效。
+     * @param target - 即将被编辑的已解析目标。
+     * @param actor - 决策方据以判断的不透明工具执行上下文。
      * @mode waterfall
      */
     'fs/edit-intent'(target: FsTarget, actor: object | undefined, next: () => { version: FsVersion } | undefined | Promise<{ version: FsVersion } | undefined>): Promise<{ version: FsVersion } | undefined>
     /**
-     * Record an authoritative positive or negative observation. Listeners must
-     * be synchronous recorders: throws fail the tool call and returned promises
-     * are not awaited.
-     * @param target - the target whose presence or absence was observed.
-     * @param observation - present with its version, or confirmed absent.
-     * @param actor - the observing tool-execution context; undefined records nothing useful.
+     * 记录一次权威的肯定或否定观测。监听器必须是同步的记录者：抛出异常会使工具调用失败，
+     * 返回的 promise 不会被等待。
+     * @param target - 被观测到存在或不存在的目标。
+     * @param observation - 存在并附带版本，或已确认不存在。
+     * @param actor - 执行观测的工具上下文；为 undefined 时记录不出有意义的信息。
      * @mode emit
      */
     'fs/observed'(target: FsTarget, observation: FsObservation, actor: object | undefined): void
@@ -79,10 +74,9 @@ declare module '@deepseek-ai/cordis' {
 }
 
 /**
- * Abstract filesystem provider. Targets must preserve identity across aliases;
- * reads expose regular UTF-8 text or typed errors, listings are stable and
- * content-free, and mutations are atomic. Optional guards add stale protection
- * without changing the unguarded provider contract.
+ * 抽象的文件系统提供者。目标必须在别名之间保持同一性；读取暴露常规的 UTF-8 文本或
+ * 类型化错误，列举结果稳定且不含内容，修改操作是原子的。可选的守卫提供过期保护，
+ * 但不改变无守卫时的提供者契约。
  */
 export abstract class FileSystem extends Service {
   constructor(ctx: Context) {
@@ -90,12 +84,12 @@ export abstract class FileSystem extends Service {
   }
 
   /**
-   * Observe one file or a directory's direct entries in this provider's execution world.
-   * @param target - resolved file or directory, including an absent path to observe for creation.
-   * @param changed - invalidation callback; errors can be reported during or after initialization.
-   * @param signal - cancels watcher initialization; the caller closes an initialized watcher.
-   * @returns a promise resolving once observation is active, with an asynchronous close function.
-   * @throws when the provider does not support watching or cannot initialize the watcher.
+   * 在该提供者的执行世界中观测一个文件或一个目录的直接子项。
+   * @param target - 已解析的文件或目录，也可以是不存在的路径，用于观测其创建。
+   * @param changed - 失效回调；错误可在初始化期间或之后上报。
+   * @param signal - 取消监听器的初始化；已初始化的监听器由调用方关闭。
+   * @returns promise 在观测生效后 resolve，并返回一个异步的关闭函数。
+   * @throws 当提供者不支持监听或无法初始化监听器时抛出。
    */
   watch(target: FsTarget, changed: (error?: Error) => void, signal: AbortSignal): Promise<() => Promise<void>> {
     void target
@@ -105,49 +99,42 @@ export abstract class FileSystem extends Service {
   }
 
   /**
-   * The sandbox mode this backend enforces on mutations BY DEFAULT, or
-   * `undefined` when it does not confine at all — the capability fact the tool
-   * layer reads to advertise the escalation fields honestly (mirrors
-   * `ShellExecutor.sandboxMode`). The base class and the bare local backend
-   * report `undefined`; a sandboxing backend (`@deepseek-ai/dsh-fs-sandbox`)
-   * overrides it with the deployment default. A session override may make the
-   * effective mode narrower or wider, so strict escalation widening is checked
-   * per call rather than encoded in this default-relative fact.
-   * @returns the configured default mode of a sandboxing backend; `undefined`
-   *   for a backend that never confines.
+   * 该后端**默认**对修改操作强制施加的沙箱模式，若完全不做隔离则为 `undefined` ——
+   * 工具层读取这一能力事实，以便诚实地宣示提级字段（对应 `ShellExecutor.sandboxMode`）。
+   * 基类与裸本地后端返回 `undefined`；做隔离的后端（`@deepseek-ai/dsh-fs-sandbox`）
+   * 用部署默认值覆写它。会话级覆写可能让有效模式更窄或更宽，因此提级是否被严格放宽
+   * 是按次调用检查的，而不编码进这个相对默认的事实里。
+   * @returns 隔离后端已配置的默认模式；永不做隔离的后端为 `undefined`。
    */
   get sandboxMode(): SandboxMode | undefined {
     return undefined
   }
 
   /**
-   * Resolve a model/plugin-supplied path into a stable {@link FsTarget}. May perform I/O (a
-   * remote/sandboxed backend may need a round-trip to map a path to a stable identity), hence
-   * async even though the local backend only normalizes + realpaths.
+   * 把模型/插件提供的路径解析为稳定的 {@link FsTarget}。可能会执行 I/O（远端或沙箱后端
+   * 可能需要一次往返才能把路径映射为稳定标识），因此是异步的，尽管本地后端只做规范化
+   * 加 realpath。
    *
-   * @param path - the path to resolve; relative paths resolve against `opts.cwd`.
-   * @param opts - optional cwd override and cancellation signal.
-   * @returns the stable target; the same file yields the same `targetKey`.
+   * @param path - 待解析的路径；相对路径基于 `opts.cwd` 解析。
+   * @param opts - 可选的 cwd 覆写与取消信号。
+   * @returns 稳定的目标；同一个文件产出相同的 `targetKey`。
    */
   abstract resolve(path: string, opts?: { cwd?: string; signal?: AbortSignal }): Promise<FsTarget>
 
   /**
-   * Return the canonical absolute path a subprocess in this filesystem's
-   * execution world can open. The path is deliberately separate from
-   * {@link FsTarget.targetKey}: consumers may pass this value to another OS
-   * capability, but must continue treating the target key as opaque.
-   * @param target - the resolved target whose process path is required.
-   * @returns an absolute path in the backend's execution world.
+   * 返回该文件系统执行世界中子进程可以打开的规范绝对路径。该路径刻意与
+   * {@link FsTarget.targetKey} 分离：消费方可以把这个值交给另一个操作系统能力，
+   * 但必须继续把目标键当作不透明值。
+   * @param target - 需要其进程路径的已解析目标。
+   * @returns 后端执行世界中的绝对路径。
    */
   abstract processPath(target: FsTarget): string
 
   /**
-   * Map an absolute path from the harness host into this filesystem's
-   * execution world when both paths identify the same file. The base provider
-   * exposes no mapping; host-backed or explicitly shared backends override it.
-   * @param hostPath - absolute path in the harness host filesystem.
-   * @returns the process path for the same file, or undefined when this
-   *   execution world cannot read that host file.
+   * 当宿主路径与本文件系统执行世界中的某个路径指向同一文件时，把宿主的绝对路径映射到
+   * 本文件系统的执行世界。基础提供者不提供任何映射；由宿主持有或显式共享的后端会覆写它。
+   * @param hostPath - 宿主文件系统中的绝对路径。
+   * @returns 同一文件在该执行世界中的进程路径；当该执行世界读不到这个宿主文件时为 undefined。
    */
   processPathFromHostPath(hostPath: string): string | undefined {
     void hostPath
@@ -155,113 +142,101 @@ export abstract class FileSystem extends Service {
   }
 
   /**
-   * Return the canonical `file:` URI for a target in this filesystem's
-   * execution world. Backends own URI encoding because the host platform may
-   * differ from the execution platform.
-   * @param target - the resolved target to encode.
-   * @returns the target's canonical file URI.
+   * 返回目标在该文件系统执行世界中的规范 `file:` URI。URI 编码由后端负责，因为宿主平台
+   * 可能与执行平台不同。
+   * @param target - 待编码的已解析目标。
+   * @returns 目标的规范文件 URI。
    */
   abstract fileUrl(target: FsTarget): string
 
   /**
-   * Test canonical containment without exposing or parsing backend target
-   * keys. Both targets must come from this provider.
-   * @param parent - canonical directory target.
-   * @param child - canonical candidate target.
-   * @returns true when `child` is `parent` or a descendant of it.
+   * 在不暴露或解析后端目标键的前提下测试规范的包含关系。两个目标都必须来自本提供者。
+   * @param parent - 规范的目录目标。
+   * @param child - 规范的候选目标。
+   * @returns 当 `child` 就是 `parent` 或其后代时为 true。
    */
   abstract contains(parent: FsTarget, child: FsTarget): boolean
 
   /**
-   * Return target metadata, or `undefined` when the target does not exist.
-   * @param target - the resolved target to stat.
-   * @param signal - aborts the metadata round-trip.
-   * @returns metadata only, never content; undefined for an absent target.
+   * 返回目标元数据；当目标不存在时为 `undefined`。
+   * @param target - 待 stat 的已解析目标。
+   * @param signal - 中断元数据的往返。
+   * @returns 仅元数据，绝不含内容；目标不存在时为 undefined。
    */
   abstract stat(target: FsTarget, signal?: AbortSignal): Promise<FsInfo | undefined>
 
   /**
-   * Return path metadata without following the final path component when it is a
-   * symbolic link. This is intentionally path-shaped, not target-shaped:
-   * {@link resolve} follows symlinks to produce the stable identity used by
-   * normal reads/writes, while `lstat` lets a consumer reject the path itself
-   * before that follow happens.
+   * 当最后一个路径分量是符号链接时，返回不跟随该分量的路径元数据。它刻意是路径形态而非
+   * 目标形态：{@link resolve} 会跟随符号链接以产出普通读写所用的稳定标识，而 `lstat` 让
+   * 消费方能在跟随发生之前先拒绝该路径本身。
    *
-   * `opts.cwd` follows {@link resolve}'s cwd rules. `undefined` means the path is
-   * absent.
-   * @param path - the path to inspect; relative paths resolve against `opts.cwd`.
-   * @param opts - `cwd` overrides the backend's default base for relative paths.
-   * @param signal - aborts the metadata round-trip.
-   * @returns metadata only, never content; undefined for an absent path.
+   * `opts.cwd` 遵循 {@link resolve} 的 cwd 规则。`undefined` 表示路径不存在。
+   * @param path - 待检查的路径；相对路径基于 `opts.cwd` 解析。
+   * @param opts - `cwd` 覆写后端解析相对路径时使用的默认基准。
+   * @param signal - 中断元数据的往返。
+   * @returns 仅元数据，绝不含内容；路径不存在时为 undefined。
    */
   abstract lstat(path: string, opts?: { cwd?: string }, signal?: AbortSignal): Promise<FsPathInfo | undefined>
 
   /**
-   * Read the whole regular text file as a single decoded string.
-   * @param target - the resolved target to read.
-   * @param signal - aborts the read.
-   * @returns the full decoded UTF-8 content.
+   * 把整个常规文本文件读成一个已解码的字符串。
+   * @param target - 待读取的已解析目标。
+   * @param signal - 中断读取。
+   * @returns 完整解码后的 UTF-8 内容。
    */
   abstract readText(target: FsTarget, signal?: AbortSignal): Promise<string>
 
   /**
-   * Stream the whole regular text file as decoded text chunks (same text
-   * semantics as {@link readText}, for large files). The backend owns
-   * cross-chunk UTF-8 decoding and binary rejection so the policy layer never
-   * touches raw bytes.
-   * @param target - the resolved target to read.
-   * @param signal - aborts the stream, including between chunks.
-   * @returns the chunk iterable, decoded and validated like {@link readText}.
+   * 以已解码的文本分块流式读取整个常规文本文件（文本语义同 {@link readText}，用于大文件）。
+   * 后端负责跨分块的 UTF-8 解码与二进制拒绝，使策略层永远不接触原始字节。
+   * @param target - 待读取的已解析目标。
+   * @param signal - 中断流读取，包括分块之间的中断。
+   * @returns 已解码并按 {@link readText} 同样校验过的分块可迭代对象。
    */
   abstract streamText(target: FsTarget, signal?: AbortSignal): Promise<AsyncIterable<string>>
 
   /**
-   * Read the whole regular file as raw bytes with no decoding or binary
-   * rejection. The bound lives at this seam so a backend can never buffer an
-   * unbounded file: a target known or discovered to exceed `maxBytes` fails
-   * with `FS_TOO_LARGE` instead of returning a truncated result.
-   * @param target - the resolved target to read.
-   * @param signal - aborts the read.
-   * @param maxBytes - inclusive byte cap on the complete content.
-   * @returns the full raw content, at most `maxBytes` long.
+   * 把整个常规文件读成原始字节，不做任何解码与二进制拒绝。上限就设在这个接缝处，使后端
+   * 永远不会缓冲无界大的文件：已知或发现超过 `maxBytes` 的目标会以 `FS_TOO_LARGE` 失败，
+   * 而不是返回被截断的结果。
+   * @param target - 待读取的已解析目标。
+   * @param signal - 中断读取。
+   * @param maxBytes - 对完整内容的字节上限，含边界值。
+   * @returns 完整的原始内容，长度至多为 `maxBytes`。
    */
   abstract readBytes(target: FsTarget, signal: AbortSignal | undefined, maxBytes: number): Promise<Uint8Array>
 
   /**
-   * Read one byte window of the regular file as raw bytes with no decoding or
-   * binary rejection: the bytes at `[offset, offset + length)`, shorter when
-   * the file ends inside the window and empty when `offset` lies at or past
-   * its end. The window is the bound here, not the file: a backend transfers
-   * at most `length` bytes of content beyond the prefix it skips to reach
-   * `offset` and never buffers the whole file, so the caller's cap on `length`
-   * is the guard against unbounded buffering.
-   * @param target - the resolved target to read.
-   * @param range - `offset`, the 0-based first byte, and `length`, the largest byte count; both non-negative integers.
-   * @param signal - aborts the read.
-   * @returns the window's bytes, at most `length` long.
+   * 以原始字节读取常规文件的一个字节窗口，不做任何解码与二进制拒绝：即 `[offset, offset + length)`
+   * 处的字节；当文件在窗口内结束时结果更短，当 `offset` 位于或超过文件末尾时结果为空。
+   * 这里的界限是窗口而不是文件：除了为到达 `offset` 而跳过的那部分前缀，后端最多再传输
+   * `length` 字节的内容，永不会缓冲整个文件，因此调用方对 `length` 的限制才是防止无界
+   * 缓冲的守卫。
+   * @param target - 待读取的已解析目标。
+   * @param range - `offset` 为 0 基的首字节位置，`length` 为最大字节数；均为非负整数。
+   * @param signal - 中断读取。
+   * @returns 窗口内的字节，长度至多为 `length`。
    */
   abstract readByteRange(target: FsTarget, range: { offset: number; length: number }, signal?: AbortSignal): Promise<Uint8Array>
 
   /**
-   * List direct children of a directory in stable name order. Returns resolved
-   * child targets plus cheap metadata only; never reads file contents.
-   * @param target - the resolved directory target.
-   * @param signal - aborts the listing.
-   * @returns one entry per direct child, in stable name order.
+   * 以稳定的名称顺序列出目录的直接子项。返回已解析的子目标外加廉价的元数据，绝不读取
+   * 文件内容。
+   * @param target - 已解析的目录目标。
+   * @param signal - 中断列举。
+   * @returns 每个直接子项一个条目，按稳定的名称顺序排列。
    */
   abstract listDir(target: FsTarget, signal?: AbortSignal): Promise<FsDirEntry[]>
 
   /**
-   * Atomically create or replace UTF-8 text. `expected` guards intent and
-   * staleness; omission allows unconditional overwrite.
-   * @param target - the resolved target to write.
-   * @param content - the full new file content.
-   * @param expected - the write intent guarding the write; omit for unconditional.
-   * @param signal - aborts before atomic publication takes effect.
-   * @param sandboxPolicy - the per-call mode and workspace root this write
-   *   runs under; a sandboxing backend fences the write by it, the bare backend
-   *   ignores it. Omit to leave the backend its own default.
-   * @returns the outcome, including the version the write produced.
+   * 原子地创建或替换 UTF-8 文本。`expected` 守卫意图与过期；省略则允许无条件覆盖。
+   * @param target - 待写入的已解析目标。
+   * @param content - 文件的全新完整内容。
+   * @param expected - 守卫本次写入的写入意图；省略表示无条件写入。
+   * @param signal - 在原子发布生效之前中断本次写入。
+   * @param sandboxPolicy - 本次写入所依据的按次调用模式与工作区根目录；隔离型后端据此围栏
+   *   本次写入，裸后端忽略它。省略则让后端沿用自身默认值。
+   * @returns 写入结果，包含本次写入产生的版本。
    */
   abstract writeText(
     target: FsTarget,
@@ -272,17 +247,15 @@ export abstract class FileSystem extends Service {
   ): Promise<FsWriteOutcome>
 
   /**
-   * Atomically edit literal text. When supplied, the version guard is checked
-   * before matching so stale content reports `FS_STALE_VERSION`; omission edits
-   * the current content without a freshness precondition.
-   * @param target - the resolved target to edit.
-   * @param edit - the literal search/replace request.
-   * @param expected - the version guard; omit for an unconditional edit.
-   * @param signal - aborts before atomic publication takes effect.
-   * @param sandboxPolicy - the per-call mode and workspace root this edit runs
-   *   under; a sandboxing backend fences the edit by it, the bare backend
-   *   ignores it. Omit to leave the backend its own default.
-   * @returns the outcome, including the version the edit produced.
+   * 原子地编辑字面量文本。给定版本守卫时，会在匹配之前先校验版本，使过期内容报
+   * `FS_STALE_VERSION`；省略则不带新鲜度前置条件地编辑当前内容。
+   * @param target - 待编辑的已解析目标。
+   * @param edit - 字面量的查找/替换请求。
+   * @param expected - 版本守卫；省略表示无条件编辑。
+   * @param signal - 在原子发布生效之前中断本次编辑。
+   * @param sandboxPolicy - 本次编辑所依据的按次调用模式与工作区根目录；隔离型后端据此围栏
+   *   本次编辑，裸后端忽略它。省略则让后端沿用自身默认值。
+   * @returns 编辑结果，包含本次编辑产生的版本。
    */
   abstract editText(
     target: FsTarget,

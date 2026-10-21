@@ -1,4 +1,4 @@
-/** Host registry for model-visible, read-only Cordis capability queries. */
+/** 面向模型可见、只读的 Cordis 能力查询的 Host 注册表。 */
 
 import { Service } from '@deepseek-ai/cordis'
 import type { Context } from '@deepseek-ai/cordis'
@@ -13,19 +13,19 @@ import type {
   CordisInspectRequestId, CordisInspectResolveAck,
 } from './types.ts'
 
-/** Context supplied to a Host inspect query. */
+/** 提供给一次 Host inspect 查询的上下文。 */
 export interface HostCordisInspectQueryContext {
-  /** Tool-call cancellation. */
+  /** 工具调用取消。 */
   signal: AbortSignal
-  /** Agent whose scoped runtime is being inspected. */
+  /** 其作用域化运行时正被检视的 Agent。 */
   agent: Agent
 }
 
-/** Local registration paired with its serializable manifest. */
+/** 与自身可序列化清单配对的一份本地注册。 */
 export interface HostCordisInspectProviderRegistration {
-  /** Provider and explicit method directory. */
+  /** 提供方与显式的方法目录。 */
   manifest: CordisInspectProviderManifest
-  /** Execute one declared method. */
+  /** 执行一个已声明的方法。 */
   query(method: string, input: JsonValue | undefined, context: HostCordisInspectQueryContext): Promise<JsonValue>
 }
 
@@ -38,12 +38,12 @@ interface PendingClientQuery {
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
-    /** Host registry for Cordis inspect providers and Client manifest/query routing. */
+    /** 用于 Cordis inspect 提供方与 Client 清单/查询路由的 Host 注册表。 */
     cordisInspect: CordisInspectRegistryService
   }
 }
 
-/** Registry and cross-page router behind the two model-facing inspect tools. */
+/** 两个面向模型的 inspect 工具背后的注册表与跨页面路由器。 */
 export class CordisInspectRegistryService extends Service {
   private readonly providers = new Map<string, HostCordisInspectProviderRegistration>()
   private readonly pending = new Map<CordisInspectRequestId, PendingClientQuery>()
@@ -51,9 +51,9 @@ export class CordisInspectRegistryService extends Service {
   private nextRequest = 1
 
   /**
-   * Register the process-global Host registry.
-   * @param ctx - owning Host context.
-   * @param clientQueryTimeoutMs - maximum wait for a valid Client response, in milliseconds.
+   * 注册进程全局的 Host 注册表。
+   * @param ctx - 拥有的 Host 上下文。
+   * @param clientQueryTimeoutMs - 等待一次有效 Client 响应的最长时间，以毫秒计。
    */
   constructor(ctx: Context, private readonly clientQueryTimeoutMs: number) {
     super(ctx, 'cordisInspect')
@@ -65,9 +65,9 @@ export class CordisInspectRegistryService extends Service {
   }
 
   /**
-   * Register one Host provider.
-   * @param registration - manifest and local query handler.
-   * @returns idempotent disposer.
+   * 注册一个 Host 提供方。
+   * @param registration - 清单与本地查询处理器。
+   * @returns 幂等的释放器。
    */
   register(registration: HostCordisInspectProviderRegistration): () => void {
     const manifest = validateManifest(registration.manifest)
@@ -80,8 +80,8 @@ export class CordisInspectRegistryService extends Service {
   }
 
   /**
-   * Replace the mirrored Client provider directory.
-   * @param providers - complete Client manifest snapshot.
+   * 替换被镜像的 Client 提供方目录。
+   * @param providers - 完整的 Client 清单快照。
    */
   syncClientManifest(providers: readonly CordisInspectProviderManifest[]): void {
     const ids = new Set<string>()
@@ -95,8 +95,8 @@ export class CordisInspectRegistryService extends Service {
   }
 
   /**
-   * Return the complete known Host and Client provider directory.
-   * @returns Host providers followed by the Client providers.
+   * 返回已知的、完整的 Host 与 Client 提供方目录。
+   * @returns Host 提供方在前，Client 提供方在后。
    */
   list(): CordisInspectProviderView[] {
     return [
@@ -106,15 +106,15 @@ export class CordisInspectRegistryService extends Service {
   }
 
   /**
-   * Execute one provider query on its owning platform.
-   * @param platform - Host or Client runtime.
-   * @param providerId - provider selected from {@link list}.
-   * @param methodName - declared method name.
-   * @param input - optional lossless JSON input.
-   * @param agent - requesting Agent and scope.
-   * @param signal - tool-call cancellation.
-   * @returns provider JSON data; Client queries fail fast when Gateway has no live Client
-   * and retain only the first observed failure diagnostic for timeout reporting.
+   * 在其所属平台上执行一次提供方查询。
+   * @param platform - Host 或 Client 运行时。
+   * @param providerId - 从 {@link list} 中选出的提供方。
+   * @param methodName - 已声明的方法名。
+   * @param input - 可选的、无损的 JSON 输入。
+   * @param agent - 发起请求的 Agent 与作用域。
+   * @param signal - 工具调用取消。
+   * @returns 提供方 JSON 数据；当 Gateway 没有活跃 Client 时 Client 查询会快速失败，
+   * 且只为超时报告保留观察到的第一个失败诊断。
    */
   async query(
     platform: CordisInspectPlatform,
@@ -138,11 +138,11 @@ export class CordisInspectRegistryService extends Service {
   }
 
   /**
-   * Accept the first valid Client response for a pending query.
-   * @param agent - Agent whose Session owns the query.
-   * @param requestId - Pending Client query identity.
-   * @param resolution - Client provider result or failure.
-   * @returns acknowledgement with accepted true only for a success that settles the query; only the first failure diagnostic is retained.
+   * 为一个待定查询接受第一个有效的 Client 响应。
+   * @param agent - 其 Session 拥有该查询的 Agent。
+   * @param requestId - 待定 Client 查询标识。
+   * @param resolution - Client 提供方的结果或失败。
+   * @returns 确认；仅对一次能了结查询的成功，`accepted` 为真；只保留第一个失败诊断。
    */
   resolveClientQuery(
     agent: Agent,
@@ -151,7 +151,7 @@ export class CordisInspectRegistryService extends Service {
   ): CordisInspectResolveAck {
     const pending = this.pending.get(requestId)
     if (pending === undefined || pending.request.agentId !== agent.id) return { accepted: false }
-    // A failed page must not prevent another page from supplying a valid result.
+    // 一个失败的页面不得阻止另一个页面提供一个有效结果。
     if (!resolution.ok) {
       pending.failure ??= `${resolution.reason}: ${resolution.message}`
       return { accepted: false }

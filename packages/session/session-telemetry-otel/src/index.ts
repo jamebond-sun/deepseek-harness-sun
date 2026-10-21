@@ -1,9 +1,9 @@
 /**
- * OpenTelemetry Service Provider for the DeepSeek Harness telemetry capability.
+ * 面向 DeepSeek Harness 遥测能力的 OpenTelemetry 服务提供者。
  *
- * Authorizes feedback-bounded capture and hands complete event strings to the
- * Session-log reporter. This plugin owns resource identity and an outer
- * shutdown deadline; the reporter owns byte-bounded SDK delivery.
+ * 授权有反馈边界的捕获，并把完整的事件字符串交给 Session-log 上报器。
+ * 本插件负责资源身份与一个外层关闭截止时间；上报器负责有字节边界的
+ * SDK 投递。
  *
  * @module @deepseek-ai/dsh-session-telemetry-otel
  */
@@ -27,19 +27,19 @@ import { getOrCreateAnonymousUserId } from '@deepseek-ai/dsh-anonymous-user-id'
 import type { LogExporterOptions, SessionLogProcessorOptions, SessionLogReporter } from '@deepseek-ai/dsh-otel'
 import { SeverityNumber } from '@opentelemetry/api-logs'
 
-/** Session-sharing policy selected by {@link Config.mode}. */
+/** 由 {@link Config.mode} 选定的会话共享策略。 */
 export enum SessionTelemetryMode {
   FEEDBACK_ONLY = 'FEEDBACK_ONLY',
   DISABLED = 'DISABLED',
 }
 
-/** Default session-sharing policy for schema and direct construction. */
+/** 用于 schema 与直接构造的默认会话共享策略。 */
 export const DEFAULT_TELEMETRY_MODE = SessionTelemetryMode.FEEDBACK_ONLY
 
 const DISABLED_FEEDBACK_WARNING = 'OpenTelemetry session upload is DISABLED; this feedback is not uploaded through OpenTelemetry'
 const NON_CANONICAL_EVENT_WARNING = 'session telemetry ignored an event absent from the canonical session log'
 
-/** Only this Session's explicit feedback authorizes replay; fork seeds do not. */
+/** 只有本会话显式的反馈才授权重放；fork 种子不行。 */
 function isFeedback(session: Session, event: SessionEvent): boolean {
   if (event.seq < session.inheritedEventCount) return false
   switch (event.type) {
@@ -50,7 +50,7 @@ function isFeedback(session: Session, event: SessionEvent): boolean {
   }
 }
 
-/** Resolve the default and reject unknown runtime values before transport setup. */
+/** 在传输设置之前解析默认值，并拒绝未知的运行时取值。 */
 function resolveMode(mode: SessionTelemetryMode | undefined): SessionTelemetryMode {
   const resolved = mode ?? DEFAULT_TELEMETRY_MODE
   switch (resolved) {
@@ -62,56 +62,53 @@ function resolveMode(mode: SessionTelemetryMode | undefined): SessionTelemetryMo
   }
 }
 
-/** Fail closed when direct construction bypasses the runtime config schema. */
+/** 当直接构造绕过了运行时配置 schema 时，失败关闭。 */
 function assertNever(value: never): never {
   throw new Error(`session-telemetry-otel: unsupported mode ${JSON.stringify(value)}`)
 }
 
-/** Map the serialized mode onto the seam's backend-independent sharing vocabulary. */
+/** 把序列化后的模式映射到接缝中、与后端无关的共享词汇。 */
 function sharingStatusFor(mode: SessionTelemetryMode): SessionTelemetrySharingStatus {
   switch (mode) {
     case SessionTelemetryMode.FEEDBACK_ONLY: return 'feedback-only'
     case SessionTelemetryMode.DISABLED: return 'disabled'
-    /* v8 ignore next 2 -- resolveMode already rejected unknown values before this switch; the closed enum cannot reach the default. */
+    /* v8 ignore next 2 -- resolveMode 已在本 switch 之前拒绝未知取值；这个封闭枚举无法到达 default。 */
     default: return assertNever(mode)
   }
 }
 
 /**
- * Plugin configuration: sharing policy, SDK transport options, byte/count queue
- * settings, and an overall shutdown bound. Uploading modes validate their endpoint
- * and shutdown deadline at plugin load; `DISABLED` reads neither.
+ * 插件配置：共享策略、SDK 传输选项、字节/计数队列设置，以及一个整体的
+ * 关闭上界。上传模式会在插件加载时校验其端点与关闭截止时间；`DISABLED`
+ * 两者都不读取。
  */
 export interface Config {
-  /** Defaults to `FEEDBACK_ONLY`: capture session history only when feedback is explicitly submitted. */
+  /** 默认为 `FEEDBACK_ONLY`：仅当反馈被显式提交时才捕获会话历史。 */
   mode?: SessionTelemetryMode
   /**
-   * Explicit SDK HTTP transport settings, including optional routing headers.
-   * Ambient credentials are not inherited. URL is required while uploading.
-   * Exporter self-observability metering is not supported.
+   * 显式的 SDK HTTP 传输设置，包括可选的路由头。不继承环境凭证。上传时
+   * URL 为必需。不支持导出器自观测计量。
    */
   exporter?: Omit<LogExporterOptions, 'url'> & {
-    /** Full logs endpoint (e.g. `https://collector.example.com/v1/logs`). Required outside `DISABLED`; validated at load. */
+    /** 完整的日志端点（如 `https://collector.example.com/v1/logs`）。在 `DISABLED`
+     * 之外为必需；在加载时校验。 */
     url?: string
   }
   /**
-   * Count, queue, cadence, and per-request watchdog settings for the byte-bounded
-   * processor. A watchdog warning never releases an unsettled transport slot.
-   * SDK processor self-observability metering is not supported.
+   * 用于有字节边界的处理器的计数、队列、节奏与每请求看门狗设置。看门狗
+   * 告警永远不会释放一个未结算的传输槽。不支持 SDK 处理器自观测计量。
    */
   processor?: SessionLogProcessorOptions
-  /** Maximum time spent awaiting the SDK provider's complete shutdown path. */
+  /** 等待 SDK 提供者完整关闭路径所花费的最长时间。 */
   shutdownTimeoutMillis?: number
-  /** Uncompressed OTLP request byte limit, at most 4,000,000. */
+  /** 未压缩的 OTLP 请求字节上限，至多 4,000,000。 */
   maxRequestBytes?: number
 }
 
 /**
- * Schemastery validator for {@link Config}; cordis runs it before the plugin
- * starts. The constructor validates endpoint and shutdown requirements; the
- * reporter validates Session byte and queue limits. SDK transport and
- * processor settings use the reporter's accepted option types, which exclude
- * self-observability metering.
+ * 针对 {@link Config} 的 Schemastery 校验器；cordis 在插件启动前运行它。
+ * 构造函数校验端点与关闭要求；上报器校验会话字节与队列限制。SDK 传输与
+ * 处理器设置使用上报器所接受的选项类型，其中排除了自观测计量。
  */
 export const Config: z<Config> = z.object({
   mode: z.union(Object.values(SessionTelemetryMode)).default(DEFAULT_TELEMETRY_MODE),
@@ -121,14 +118,14 @@ export const Config: z<Config> = z.object({
   maxRequestBytes: z.number().step(1).min(1).max(4_000_000),
 })
 
-/** Default outer allowance for the SDK's complete shutdown sequence. */
+/** 供 SDK 完整关闭序列使用的默认外层宽限时间。 */
 export const DEFAULT_SHUTDOWN_TIMEOUT_MILLIS = 3_000
 
-// Node clamps larger timer delays to one millisecond. This is a runtime
-// protocol limit, not a deployment default.
+// Node 会把更大的定时器延迟钳制为一毫秒。这是一个运行时协议上限，而非
+// 部署默认值。
 const MAX_TIMER_DELAY_MILLIS = 2_147_483_647
 
-/** Severity mapping from the Service Definition's three-level vocabulary to OTel severity numbers. */
+/** 从服务定义的三级词汇到 OTel 严重级别数字的严重级别映射。 */
 const SEVERITY: Record<SessionTelemetrySeverity, SeverityNumber> = {
   info: SeverityNumber.INFO,
   warn: SeverityNumber.WARN,
@@ -136,10 +133,10 @@ const SEVERITY: Record<SessionTelemetrySeverity, SeverityNumber> = {
 }
 
 /**
- * The backend plugin — the only entry a deployment loads. It always registers
- * the `sessionTelemetry` service (duplicate load throws). `FEEDBACK_ONLY` wires the SDK
- * pipeline and on-demand {@link SessionTelemetryCoordinator}; `DISABLED` constructs no
- * SDK state and listens only to warn when recorded feedback stays local.
+ * 后端插件——即一次部署加载的唯一入口。它总是注册 `sessionTelemetry` 服务
+ * （重复加载会抛出）。`FEEDBACK_ONLY` 接好 SDK 管线与按需的
+ * {@link SessionTelemetryCoordinator}；`DISABLED` 不构造任何 SDK 状态，且
+ * 只在被记录的反馈仍停留在本地时发出警告。
  */
 export class OpenTelemetrySessionBackend extends SessionTelemetryBackend {
   static inject = ['sessions', 'otel']
@@ -170,13 +167,13 @@ export class OpenTelemetrySessionBackend extends SessionTelemetryBackend {
     try {
       parsed = new URL(url)
     } catch {
-      // Re-thrown as a config error: the only way here is a malformed url string.
+      // 作为配置错误重新抛出：能到达这里的唯一原因是 url 字符串畸形。
       throw new Error(`session-telemetry-otel: exporter.url is not a valid URL: ${JSON.stringify(url)}`)
     }
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
       throw new Error(`session-telemetry-otel: exporter.url must be http(s), got ${parsed.protocol}`)
     }
-    // Reject empty batches before allocating the reporter.
+    // 在分配上报器之前拒绝空批次。
     const batchSize = config.processor?.maxExportBatchSize
     if (batchSize !== undefined && (!Number.isInteger(batchSize) || batchSize < 1)) {
       throw new Error(`session-telemetry-otel: processor.maxExportBatchSize must be a positive integer, got ${String(batchSize)}`)
@@ -222,8 +219,8 @@ export class OpenTelemetrySessionBackend extends SessionTelemetryBackend {
     })
     ctx.on('session/event', (session, event) => {
       if (!isFeedback(session, event)) return
-      // Only the canonical appended event authorizes this exact prefix.
-      // oxlint-disable-next-line typescript/no-deprecated -- Existing Session history read; migration deferred.
+      // 只有规范的已追加事件才授权这个精确前缀。
+      // oxlint-disable-next-line typescript/no-deprecated -- 读取已有会话历史；迁移已推迟。
       if (session.eventAt(event.seq) !== event) {
         ctx.logger.warn(NON_CANONICAL_EVENT_WARNING)
         return
@@ -238,23 +235,23 @@ export class OpenTelemetrySessionBackend extends SessionTelemetryBackend {
         snapshot.meta.id, snapshot.events, snapshot.meta, snapshot.inheritedEventCount,
         'detached', ctx.sessions.messageProjections,
       )
-      // fromRestore appends a lifecycle marker that this submission did not commit.
+      // fromRestore 会追加一个本次提交并未提交的、生命周期的标记。
       if (isFeedback(session, committed)) coordinator.captureSession(session, committed.seq)
     })
   }
 
   /**
-   * Drop direct records. Only a new canonical feedback submission can authorize
-   * capture through the private coordinator sink, for every provider.
-   * @param _record - the direct record, never uploaded.
+   * 丢弃直接记录。对任意提供者，只有一次新的规范反馈提交才能通过私有
+   * 协调器 sink 授权捕获。
+   * @param _record - 直接记录，永不上传。
    */
   emit(_record: SessionTelemetryRecord): void {}
 
   /**
-   * Drain queued HTTP requests until the deployment deadline. The watchdog
-   * never releases an unsettled transport slot. At the outer deadline,
-   * queued records are abandoned and no further requests may start.
-   * @returns completion after transport shutdown, or rejection at the configured deadline.
+   * 在部署截止时间之前排空已排队的 HTTP 请求。看门狗永远不会释放一个
+   * 未结算的传输槽。到达外层截止时间时，已排队的记录被放弃，且不再有新的
+   * 请求可以启动。
+   * @returns 在传输关闭之后的完成，或在所配置截止时间处的拒绝。
    */
   async shutdown(): Promise<void> {
     if (this.provider === undefined) return
@@ -269,7 +266,7 @@ export class OpenTelemetrySessionBackend extends SessionTelemetryBackend {
     try {
       await Promise.race([providerShutdown, deadline])
     } finally {
-      /* v8 ignore else -- the Promise executor assigns timer synchronously before this race starts. */
+      /* v8 ignore else -- Promise 执行器在本 race 开始前同步地分配了 timer。 */
       if (timer !== undefined) clearTimeout(timer)
     }
   }

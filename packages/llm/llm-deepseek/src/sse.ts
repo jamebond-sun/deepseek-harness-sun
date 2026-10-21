@@ -1,14 +1,14 @@
-/** SSE framing delegated to eventsource-parser; JSON errors remain provider failures. */
+/** SSE 分帧委托给 eventsource-parser；JSON 错误仍然是提供方失败。 */
 
 import { EventSourceParserStream } from 'eventsource-parser/stream'
 import { LlmError } from '@deepseek-ai/dsh-llm'
 import { object } from './replay.ts'
 import { providerError } from './transport.ts'
 
-/** Decode complete SSE frames without treating an unterminated tail as an event.
- * @param body - provider response bytes.
- * @param activity - pulse the idle watchdog for events and heartbeat comments.
- * @returns JSON events, including message_stop; the translator owns completion.
+/** 解码完整的 SSE 帧，且不把未结束的尾部当作一个事件。
+ * @param body - 提供方响应字节。
+ * @param activity - 为事件与心跳注释向空闲看门狗发送脉冲。
+ * @returns JSON 事件，包含 message_stop；完成由转换器负责判定。
  */
 export async function* parseSse(body: ReadableStream<BufferSource>, activity: () => void): AsyncGenerator<Record<string, unknown>> {
   const events = body.pipeThrough(new TextDecoderStream()).pipeThrough(new EventSourceParserStream({ onComment: activity }))

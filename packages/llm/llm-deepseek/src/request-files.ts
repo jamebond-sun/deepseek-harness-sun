@@ -1,17 +1,17 @@
-/** Shared Files resolution, bounded stale-id recovery, and normalized-image diagnostics. */
+/** 共享的 Files 解析、有界的过期 id 恢复，以及规范化图像的诊断。 */
 
 import type { RequestImageAttachment } from '@deepseek-ai/dsh-attachment'
 import { deadline } from '@deepseek-ai/dsh-timeout'
 import type { DeepSeekFileStore, DeepSeekFileConnection, DeepSeekFilePolicy } from './file-store.ts'
 import type { DeepSeekFileId } from './file-id.ts'
 
-/** Position of an image occurrence in the request's conversation messages. */
+/** 一次图像出现在请求的对话消息中的位置。 */
 export interface ImageWireLocation {
   message: number
   image: number
 }
 
-/** A file upload failure eligible for request-wide inline fallback. */
+/** 有资格触发请求级内联回退的一次文件上传失败。 */
 export class FileResolutionFailure extends Error {
   constructor(cause: unknown) {
     super('DeepSeek Files API could not resolve a request image.', { cause })
@@ -90,7 +90,7 @@ function normalizedImageDiagnostic(
 }
 
 
-/** Files state owned by one model request, including at most one stale-id retry. */
+/** 由一次模型请求持有的 Files 状态，其中最多包含一次过期 id 重试。 */
 export class RequestFiles {
   private used: UsedRequestFile[] = []
   private retried = false
@@ -104,14 +104,14 @@ export class RequestFiles {
     private readonly activity: () => void,
   ) {}
 
-  /** Reset occurrence tracking before serializing the next HTTP attempt. */
+  /** 在序列化下一次 HTTP 尝试之前重置出现跟踪。 */
   beginAttempt(): void { this.used = [] }
 
   /**
-   * Resolve a retained image under its own upload deadline.
-   * @param version - prepared request image.
-   * @param location - occurrence used by provider-rejection diagnostics.
-   * @returns the reusable provider id.
+   * 在其自身的上传截止时间之内解析一张被保留的图像。
+   * @param version - 已准备好的请求图像。
+   * @param location - 供提供方拒绝诊断使用的出现位置。
+   * @returns 可复用的提供方 id。
    */
   async resolve(version: RequestImageAttachment, location: ImageWireLocation): Promise<DeepSeekFileId> {
     using limit = deadline(this.signal, this.timeoutMs, 'DEEPSEEK_FILES_API_TIMEOUT')
@@ -128,9 +128,9 @@ export class RequestFiles {
   }
 
   /**
-   * Invalidate every rejected mapping in one index update; only the first stale-id response permits another request.
-   * @param detail - provider error fields used for stale-id classification.
-   * @returns whether the caller should serialize and dispatch again.
+   * 在一次索引更新中让所有被拒绝的映射失效；只有首次过期 id 响应才允许再发一次请求。
+   * @param detail - 用于过期 id 分类的提供方错误字段。
+   * @returns 调用方是否应当重新序列化并再次分发。
    */
   async retry(detail: string): Promise<boolean> {
     if (this.used.length === 0 || !providerRejectedFileId(detail)) return false
@@ -144,11 +144,11 @@ export class RequestFiles {
   }
 
   /**
-   * Attribute a normalized-image rejection to the actual uploaded image occurrences.
-   * @param status - rejected request's HTTP status.
-   * @param message - provider's error message.
-   * @param detail - provider error classification fields.
-   * @returns the image diagnostic or the original provider message.
+   * 把一次规范化图像拒绝归因到实际上传的图像出现。
+   * @param status - 被拒绝请求的 HTTP 状态码。
+   * @param message - 提供方的错误消息。
+   * @param detail - 提供方错误分类字段。
+   * @returns 图像诊断信息，或原始的提供方消息。
    */
   errorMessage(status: number, message: string, detail: string): string {
     return status === 400 && this.used.length > 0 && providerRejectedNormalizedImage(detail)

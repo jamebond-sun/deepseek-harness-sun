@@ -1,37 +1,30 @@
 /**
- * File-backed credentials provider over `$DSH_HOME/.credentials.yaml`, layered
- * over the environment in this precedence order:
+ * 以 `$DSH_HOME/.credentials.yaml` 为后盾、叠加于环境之上、按以下优先级排序的
+ * 凭证提供方：
  *
  * ```text
- * $DSH_HOME/.credentials.yaml        (provider-managed, written by set/unset)
- * > inherited process environment    (fallback; this provider never writes it)
- * > <invocation cwd>/.env            (fallback; this provider never writes it)
- * > $DSH_HOME/.env                   (fallback; this provider never writes it)
+ * $DSH_HOME/.credentials.yaml        (提供方管理，由 set/unset 写入)
+ * > 继承而来的进程环境            (回退；本提供方从不写入)
+ * > <调用方 cwd>/.env            (回退；本提供方从不写入)
+ * > $DSH_HOME/.env                   (回退；本提供方从不写入)
  * ```
  *
- * The managed store wins because a credential the user explicitly saved in
- * the product must take effect consistently for every provider. The launch
- * environment, CI secrets included, applies only while the file stores no
- * value for the reference. See
- * `.agents/notes/implemented/architecture/2026-10-09-stored-credential-precedence.md`.
+ * 托管存储胜出，是因为用户在产品中显式保存的凭证必须对每个提供方一致地生效。
+ * 启动环境（含 CI 密钥）仅在文件未为该引用存储任何值时适用。参见
+ * `.agents/notes/implemented/architecture/2026-10-09-stored-credential-precedence.md`。
  *
- * The invoking project may supply a key, because the product trusts the
- * project it is launched in. It ranks below the managed store, so a key stored
- * through the Models page is never displaced by one a checkout happens to carry.
+ * 被调用的项目可以提供某个键，因为产品信任其所在的启动项目。它排在托管存储之下，
+ * 因此通过 Models 页面存储的键绝不会被某个签出恰好携带的键所取代。
  *
- * The file is the provider-managed writable source: every write re-reads the
- * document under a cross-process writer lock before patching only its own key
- * — comments and the formatting of every untouched entry survive — external
- * edits hot-publish through the seam, and each reload replaces the snapshot
- * wholesale so a deleted entry never lingers in memory.
+ * 该文件即提供方管理的可写来源：每次写入都会在一把跨进程写锁之下重新读取文档，
+ * 然后只修补它自己的键——每条未改动条目的注释与格式都得以保留——外部编辑通过
+ * 该 seam 即时发布，而每次重新加载都会整体替换快照，因此一条被删除的条目绝不会
+ * 残留在内存中。
  *
- * The document holds credentials, which is why `refs` is a strict
- * `CredentialRef`-to-string mapping rather than a dotenv file; a foreign
- * top-level key another tool wrote is kept but resolves nothing: a store the
- * Harness owns and never materializes into the environment cannot also serve
- * as the user's environment layer; a store that doubled as the environment
- * layer would shadow non-secret entries behind its precedence, making them
- * silently unreachable.
+ * 该文档持有凭证，这正是 `refs` 是一个严格的、`CredentialRef` 到字符串的映射
+ * 而非 dotenv 文件的原因；另一个工具写入的、陌生的顶层键会被保留但解析不出任何
+ * 东西：一个由 Harness 拥有、且从不物化进环境的存储，也不可能同时充当用户的环境
+ * 层；一个兼任环境层的存储会以其优先级遮蔽非秘密条目，使它们静默地无法访问。
  * @module @deepseek-ai/dsh-credentials-local
  */
 
@@ -57,22 +50,22 @@ import type {
 } from '@deepseek-ai/dsh-credentials'
 import type { LaunchEnvironmentEntry } from '@deepseek-ai/dsh-launch-environment'
 
-/** Basename of the credentials document inside the harness home. */
+/** 凭证文档在 harness home 内的基本文件名。 */
 export const CREDENTIALS_FILENAME = '.credentials.yaml'
 
-/** Plugin config: file location and hot-reload behavior. */
+/** 插件配置：文件位置与热重载行为。 */
 export interface Config {
-  /** Credentials document path; defaults to `.credentials.yaml` under the harness home. */
+  /** 凭证文档路径；默认为 harness home 下的 `.credentials.yaml`。 */
   path?: string
-  /** Harness home used when `path` is omitted; defaults to `$DSH_HOME` or `~/.dsh`. */
+  /** 当省略 `path` 时使用的 harness home；默认为 `$DSH_HOME` 或 `~/.dsh`。 */
   dshHome?: string
-  /** Watch the document and hot-publish external edits; defaults to true. */
+  /** 监视该文档并即时发布外部编辑；默认为 true。 */
   watch?: boolean
-  /** Watcher write-settle window in milliseconds; defaults to 100. */
+  /** 监视器的写落定窗口，以毫秒计；默认为 100。 */
   debounceMs?: number
 }
 
-/** Fully resolved provider parameters; defaulting happens here, never inline. */
+/** 完全解析后的提供方参数；默认值在此处解析，绝不内联。 */
 interface ResolvedSpec {
   filename: string
   watch: boolean
@@ -80,10 +73,10 @@ interface ResolvedSpec {
 }
 
 /**
- * Resolve the runtime spec from plugin config: an explicit `path` wins,
- * otherwise the document lives at `<harness home>/.credentials.yaml`.
- * @param config - raw plugin config.
- * @returns the resolved file location and watch behavior.
+ * 从插件配置解析运行时 spec：显式的 `path` 优先，否则文档位于
+ * `<harness home>/.credentials.yaml`。
+ * @param config - 原始插件配置。
+ * @returns 解析后的文件位置与监视行为。
  */
 export function resolveSpec(config: Config): ResolvedSpec {
   return {
@@ -93,36 +86,29 @@ export function resolveSpec(config: Config): ResolvedSpec {
   }
 }
 
-/** Permission bits outside the owner; a credentials document must have none of them. */
+/** 属主之外的权限位；凭证文档不得带任何此类权限位。 */
 const GROUP_OTHER_BITS = 0o077
 
 /**
- * How long a record write waits for the cross-process writer lock. A record
- * mutation runs its caller's decision while holding the lock, and for the
- * operation this half exists to serve — an owner refreshing an expired token —
- * that decision includes a network round trip. The file-work default would
- * fail every other writer of this document for its duration. A contender's
- * wait is sized by the longest holder it can meet, and refs and records share
- * one file and one lock, so every writer of this document — reference writes
- * and record deletes included — waits this long, not only the mutation that
- * holds it. Like the retry cadence in `dsh-atomic-write`, this is a
- * robustness bound of the write protocol rather than a deployment choice: it
- * is sized by what a provider request costs, which no deployment varies.
+ * 一次记录写入等待跨进程写锁的时长。一次记录变更会在持有锁的同时运行其调用方的
+ * 决策，而对于本半边所要服务的操作——一个拥有者刷新过期的令牌——该决策包含一次
+ * 网络往返。文件操作的默认时长会在其持续期间让该文档的所有其他写入者都失败。
+ * 竞争者的等待按它能遇到的、持有最久的一方来定长，而 refs 与 records 共用一个文件
+ * 与一把锁，因此该文档的每一个写入者——引用写入与记录删除都包括在内——都等待这么久，
+ * 而不只是持有锁的那次变更。与 `dsh-atomic-write` 中的重试节奏一样，这是写协议的
+ * 健壮性上界，而非部署选择：它由一次提供方请求的成本决定，没有任何部署会改变它。
  */
 const DOCUMENT_LOCK_WAIT_MS = 30_000
 
 /**
- * Reject a credentials document other OS users can read, before its contents
- * are read at all. The provider creates and replaces the file at `0600`, but a
- * hand-written or externally generated one carries whatever umask produced it,
- * and silently serving secrets out of a world-readable file would make the
- * mode the provider promises meaningless.
+ * 在读取凭证文档的内容之前，就拒绝一个其他 OS 用户可读取的文档。该提供方以 `0600`
+ * 创建并替换该文件，但一个手工书写或由外部生成的文件带有其 umask 所产生的任何权限，
+ * 而从一个世界可读的文件静默地提供秘密，会使该提供方所承诺的模式变得毫无意义。
  *
- * POSIX only: Windows has no mode to inspect — its ACLs are not expressible
- * here — so the check is skipped rather than faked, and the file's protection
- * there is whatever the create and replace APIs express.
- * @param filename - absolute path of the document.
- * @throws when the path hierarchy is invalid or the file exists with group or other permission bits set.
+ * 仅限 POSIX：Windows 没有可检查的 mode——它的 ACL 在此无法表达——因此该检查被跳过
+ * 而非被伪造，而该处文件的保护就是创建与替换 API 所表达的内容。
+ * @param filename - 文档的绝对路径。
+ * @throws 当路径层级无效，或文件存在且带有组或其他用户的权限位时。
  */
 async function assertOwnerOnly(filename: string): Promise<void> {
   let mode: number
@@ -133,9 +119,9 @@ async function assertOwnerOnly(filename: string): Promise<void> {
     await canonicalizeWatchPath(filename)
     return
   }
-  /* v8 ignore next -- POSIX coverage cannot take the Windows peer; native Windows coverage does. */
+  /* v8 ignore next -- POSIX 覆盖无法接管 Windows 对等分支；原生的 Windows 覆盖可以。 */
   if (process.platform === 'win32') return
-  /* v8 ignore start -- Windows has no POSIX mode enforcement; POSIX behavior tests enforce this peer. */
+  /* v8 ignore start -- Windows 没有 POSIX 模式强制；POSIX 行为测试会强制这一对等分支。 */
   const offending = mode & GROUP_OTHER_BITS
   if (offending === 0) return
   throw new Error(
@@ -145,56 +131,51 @@ async function assertOwnerOnly(filename: string): Promise<void> {
   /* v8 ignore stop */
 }
 
-/** Whether a filesystem error means absence; every non-ENOENT failure must surface. */
+/** 一个文件系统错误是否意味着“不存在”；每一个非 ENOENT 的失败都必须浮现。 */
 function isENOENT(error: unknown): boolean {
   return (error as NodeJS.ErrnoException | null)?.code === 'ENOENT'
 }
 
 /**
- * Describe one YAML parse failure without quoting the source. The parser's own
- * message embeds the offending line, which here holds a secret.
- * @param error - the parser's error.
- * @returns the error code with its line and column.
+ * 描述一次 YAML 解析失败，但不引用源文本。解析器自身的消息内嵌了出错的行，而在此
+ * 处该行正是秘密。
+ * @param error - 解析器的错误。
+ * @returns 错误码及其行号与列号。
  */
 function describeYamlError(error: YAMLError): string {
   const at = error.linePos?.[0]
-  /* v8 ignore next -- `prettyErrors` populates linePos on every error; the guard answers its optional type */
+  /* v8 ignore next -- `prettyErrors` 在每次错误时都会填充 linePos；此守卫正是对其可选类型的应答 */
   const where = at === undefined ? '' : ` at line ${String(at.line)}, column ${String(at.col)}`
   return `${error.code}${where}`
 }
 
-/** The document layout this build reads and writes. */
+/** 本构建所读取与写入的文档布局。 */
 export const DOCUMENT_VERSION = 1
 
-/** One parsed credentials document: the two key spaces it stores, keyed as written, plus the top-level keys it does not read. */
+/** 一份已解析的凭证文档：它存储的两个键空间（按所写形式建键），加上它不读取的顶层键。 */
 export interface CredentialsDocument {
-  /** Reference entries, keyed by {@link CredentialRef}. */
+  /** 引用条目，以 {@link CredentialRef} 为键。 */
   refs: Map<string, string>
-  /** Stored records, keyed by {@link CredentialKey}. */
+  /** 已存储的记录，以 {@link CredentialKey} 为键。 */
   records: Map<string, CredentialRecord>
-  /** Top-level keys this build does not read; they stay on disk and resolve nothing. */
+  /** 本构建不读取的顶层键；它们保留在磁盘上，且解析不出任何东西。 */
   ignoredKeys: string[]
 }
 
 /**
- * Parse one credentials document. Inside `refs` and `records` everything is
- * rejected rather than skipped — a key that is not addressable, a wrong-typed
- * value, an unknown record tag or field — because a silently ignored entry
- * reads as "the credential I stored has no effect"; an unversioned root is
- * rejected too. An unknown top-level key is returned in `ignoredKeys` for the
- * caller to report, so a foreign entry another tool wrote does not stop boot.
- * Duplicate keys surface as parser errors. An empty document is an empty store
- * and needs no version.
- * @param text - the document's text.
- * @param filename - absolute path, quoted in errors.
- * @returns the parsed references, records, and ignored top-level keys.
+ * 解析一份凭证文档。在 `refs` 与 `records` 内部，一切都被拒绝而非跳过——不可寻址的
+ * 键、类型错误的值、未知的记录标签或字段——因为一个被静默忽略的条目会被读作
+ * “我存储的凭证没有效果”；一个未带版本的文档根也被拒绝。一个未知的顶层键会在
+ * `ignoredKeys` 中返回给调用方报告，因此另一个工具写入的陌生条目不会阻断启动。
+ * 重复的键作为解析器错误浮现。一份空文档即一个空存储，且无需版本。
+ * @param text - 文档的文本。
+ * @param filename - 绝对路径，在错误中引用。
+ * @returns 已解析的引用、记录，以及被忽略的顶层键。
  */
 export function parseCredentialsDocument(text: string, filename: string): CredentialsDocument {
-  // `prettyErrors` is on only for `linePos`; `error.message` is never used,
-  // because the parser quotes the offending source line and in this document
-  // that line is a secret. Only the code and position leave this function, and
-  // the same rule governs every other diagnostic here — a key name is safe to
-  // print, a value is not.
+  // `prettyErrors` 仅为 `linePos` 开启；`error.message` 从不使用，因为解析器会引用
+  // 出错的源行，而在此文档中那一行正是秘密。只有错误码与位置会离开此函数，且同样的
+  // 规则约束此处所有其他诊断——键名可以打印，值则不行。
   const document = parseDocument(text, { prettyErrors: true, uniqueKeys: true })
   if (document.errors.length > 0) {
     throw new Error(`credentials-local: invalid document at ${filename}: ${
@@ -206,8 +187,8 @@ export function parseCredentialsDocument(text: string, filename: string): Creden
   }
   const fields = root as Record<string, unknown>
   const keys = Object.keys(fields)
-  // An empty (or comment-only) document is the empty store and needs no
-  // version: there is nothing in it a later layout could have meant.
+  // 一份空（或仅含注释）的文档即是空存储，且无需版本：其中没有任何内容会被
+  // 后续的布局所意指。
   if (keys.length === 0) return { refs: new Map(), records: new Map(), ignoredKeys: [] }
   if (!('version' in fields)) {
     throw new Error(
@@ -230,17 +211,14 @@ export function parseCredentialsDocument(text: string, filename: string): Creden
 }
 
 /**
- * Render the version-1 layout for a pre-release flat document, or `undefined`
- * for anything else. The flat layout is recognized exactly — a non-empty
- * top-level mapping of addressable reference names to non-empty string
- * scalars, with no `version` key and no document directives — and the rewrite
- * nests the original lines verbatim under `refs:` at two spaces' indent, so
- * comments, blank lines, and each value's spelling survive byte for byte.
- * Anything the recognizer declines keeps {@link parseCredentialsDocument}'s
- * loud rejection: a document this build cannot prove it understands is never
- * rewritten. Remove with the pre-release stance at the first tagged release.
- * @param text - the document's text.
- * @returns the migrated text, or `undefined` when the text is not the recognized flat layout.
+ * 为一份预发布扁平文档渲染 1 版布局，或对其他任何内容返回 `undefined`。扁平布局被
+ * 精确识别——一个非空的、顶层映射，从可寻址引用名映射到非空字符串标量，没有 `version`
+ * 键，也没有文档指令——而重写会把原始行按原样嵌套到 `refs:` 之下、缩进两空格，
+ * 因此注释、空行，以及每个值的拼写都逐字节保留。
+ * 任何识别器拒绝的内容都保留 {@link parseCredentialsDocument} 那响亮的拒绝：一份本构建
+ * 无法证明自己理解的文档绝不会被重写。随首个带标签的发布、与预发布姿态一同移除。
+ * @param text - 文档的文本。
+ * @returns 迁移后的文本；当文本不是被识别的扁平布局时为 `undefined`。
  */
 export function renderFlatLayoutMigration(text: string): string | undefined {
   const document = parseDocument(text, { prettyErrors: true, uniqueKeys: true })
@@ -248,8 +226,8 @@ export function renderFlatLayoutMigration(text: string): string | undefined {
   const flat = document.contents
   if (!isMap(flat) || flat.items.length === 0) return undefined
   for (const line of text.split('\n')) {
-    // A directive or document marker would not survive being indented into
-    // the `refs:` block; no shipped writer ever emitted one here.
+    // 指令或文档标记在缩进进 `refs:` 块之后无法存活；任何已发布的写入器都从未在此
+    // 发出过此类内容。
     if (/^(%|---|\.\.\.)/.test(line)) return undefined
   }
   for (const pair of flat.items) {
@@ -257,9 +235,8 @@ export function renderFlatLayoutMigration(text: string): string | undefined {
     try {
       credentialRef(pair.key.value)
     } catch {
-      // Only credentialRef's rejection of a non-POSIX name lands here; the
-      // flat reader refused such a key too, so this is not the recognized
-      // layout and the loud rejection stands.
+      // 只有 credentialRef 对“非 POSIX 名称”的拒绝会落在此处；扁平读取器也拒绝过此种
+      // 键，因此这不是被识别的布局，那响亮的拒绝维持不变。
       return undefined
     }
     if (!isScalar(pair.value) || typeof pair.value.value !== 'string' || pair.value.value.length === 0) return undefined
@@ -268,16 +245,14 @@ export function renderFlatLayoutMigration(text: string): string | undefined {
   return `version: ${DOCUMENT_VERSION}\nrefs:\n${body}${text.endsWith('\n') ? '' : '\n'}`
 }
 
-/** Admit a `refs` section: POSIX-identifier keys over non-empty string values. */
+/** 接纳一个 `refs` 段：以 POSIX 标识符为键、非空字符串为值。 */
 function parseRefs(section: unknown, filename: string): Map<string, string> {
   const entries = new Map<string, string>()
   for (const [key, value] of Object.entries(asSection(section, 'refs', filename))) {
-    // credentialRef throws on anything that is not a POSIX identifier, which
-    // is exactly the constraint a stored reference must satisfy to be
-    // addressable through the seam.
+    // credentialRef 会对任何非 POSIX 标识符抛出，而这正是一条已存储引用若要可寻址
+    // 于该 seam 所必须满足的约束。
     credentialRef(key)
-    // The key name is quoted, never the value: a wrong-typed entry is still a
-    // secret the user meant to store.
+    // 被引用的是键名，绝不是值：一个类型错误的条目仍然是用户想要存储的秘密。
     if (typeof value !== 'string') {
       throw new TypeError(`credentials-local: the value for "${key}" in ${filename} must be a string`)
     }
@@ -289,7 +264,7 @@ function parseRefs(section: unknown, filename: string): Map<string, string> {
   return entries
 }
 
-/** Admit a `records` section: `<scope>/<id>` keys over tagged record mappings. */
+/** 接纳一个 `records` 段：以 `<scope>/<id>` 为键、带标签的记录映射为值。 */
 function parseRecords(section: unknown, filename: string): Map<string, CredentialRecord> {
   const entries = new Map<string, CredentialRecord>()
   for (const [key, value] of Object.entries(asSection(section, 'records', filename))) {
@@ -300,12 +275,11 @@ function parseRecords(section: unknown, filename: string): Map<string, Credentia
 }
 
 /**
- * Refuse an api-key record the read path could not admit, before it is
- * rendered: an empty key, an env name outside the reference grammar, or an
- * empty env value would persist a document `parseRecord` rejects at the next
- * boot — a durable-boundary write is validated where it is written.
- * @param key - the record's credential key, for the failure message.
- * @param record - the api-key record a mutation returned.
+ * 在渲染之前，就拒绝一条读路径本无法接纳的 api-key 记录：空的 key、超出引用文法的
+ * 环境名，或空的环境值会持久化出一份 `parseRecord` 在下一次启动时会拒绝的文档——
+ * 一处持久化边界的写入要在它被写入之处就被校验。
+ * @param key - 该记录的凭证键，用于失败消息。
+ * @param record - 一次变更所返回的 api-key 记录。
  */
 function assertStorableApiKey(key: CredentialKey, record: ApiKeyRecord): void {
   if (record.key !== undefined && record.key.length === 0) {
@@ -319,7 +293,7 @@ function assertStorableApiKey(key: CredentialKey, record: ApiKeyRecord): void {
   }
 }
 
-/** One section of the document as a plain mapping; absent and null both mean empty. */
+/** 文档的一个段，视为普通映射；缺省与 null 都表示空。 */
 function asSection(section: unknown, name: string, filename: string): Record<string, unknown> {
   if (section === undefined || section === null) return {}
   if (typeof section !== 'object' || Array.isArray(section)) {
@@ -328,7 +302,7 @@ function asSection(section: unknown, name: string, filename: string): Record<str
   return section as Record<string, unknown>
 }
 
-/** Admit one record entry, rejecting an unknown tag or field rather than dropping it. */
+/** 接纳一条记录条目，拒绝未知的标签或字段，而非将其丢弃。 */
 function parseRecord(key: string, value: unknown, filename: string): CredentialRecord {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     throw new TypeError(`credentials-local: record "${key}" in ${filename} must be a mapping`)
@@ -360,7 +334,7 @@ function parseRecord(key: string, value: unknown, filename: string): CredentialR
   throw new Error(`credentials-local: record "${key}" in ${filename} has unknown kind ${JSON.stringify(kind)}`)
 }
 
-/** Reject a field the tag does not define, so a typo is not silently dropped. */
+/** 拒绝该标签未定义的字段，以免一处拼写错误被静默丢弃。 */
 function assertFields(key: string, fields: Record<string, unknown>, allowed: string[], filename: string): void {
   for (const field of Object.keys(fields)) {
     if (!allowed.includes(field)) {
@@ -369,7 +343,7 @@ function assertFields(key: string, fields: Record<string, unknown>, allowed: str
   }
 }
 
-/** Admit an api-key record's provider environment: POSIX names over non-empty strings. */
+/** 接纳一条 api-key 记录的提供方环境：以 POSIX 名为键、非空字符串为值。 */
 function parseRecordEnv(key: string, env: unknown, filename: string): Record<string, string> | undefined {
   if (env === undefined) return undefined
   if (typeof env !== 'object' || env === null || Array.isArray(env)) {
@@ -389,16 +363,14 @@ function parseRecordEnv(key: string, env: unknown, filename: string): Record<str
 }
 
 /**
- * Reject a payload that cannot survive a JSON round trip, on the way in and on
- * the way out. The seam promises owners their payload comes back exactly as
- * written, and both directions can break that: a document may spell `.inf` or
- * an alias cycle, and an owner may hand over a `Date`, a class instance, or a
- * `bigint` that this document has no faithful spelling for. Neither the value
- * nor any nested value is quoted in a diagnostic.
- * @param where - the subject named in a diagnostic, already free of any value.
- * @param value - the payload or nested value to admit.
- * @param seen - objects on the current path, for cycle detection.
- * @throws TypeError naming `where` when the value cannot round-trip.
+ * 拒绝一个无法经历 JSON 往返的载荷，无论是进来时还是出去时。该 seam 向拥有者承诺
+ * 其载荷会逐字原样返回，而两个方向都可能破坏这一点：文档可能拼出 `.inf` 或一个别名
+ * 环，而拥有者可能交出本文档无法忠实拼写出的 `Date`、类实例或 `bigint`。在诊断中，
+ * 无论是该值还是任何嵌套值都不会被引用。
+ * @param where - 在诊断中所指明的主体，已经不含任何值。
+ * @param value - 要接纳的载荷或嵌套值。
+ * @param seen - 当前路径上的对象，用于环检测。
+ * @throws 当该值无法往返时，以 `where` 命名的 TypeError。
  */
 function assertJsonValue(where: string, value: unknown, seen: Set<object>): void {
   if (value === null || typeof value === 'string' || typeof value === 'boolean') return
@@ -419,30 +391,28 @@ function assertJsonValue(where: string, value: unknown, seen: Set<object>): void
 }
 
 /**
- * The comment-preserving mutable tree one edit renders from. Editing the
- * parsed document rather than rebuilding it keeps comments and the formatting
- * of every untouched entry; an absent document starts a fresh one.
- * @param text - the current document text, `undefined` while the file is absent.
- * @returns the tree to edit, carrying this build's version stamp.
+ * 一次编辑所基于的、保留注释的可变树。编辑已解析的文档而非重建它，能保留注释与
+ * 每条未改动条目的格式；一份缺省的文档则从一个全新的文档开始。
+ * @param text - 当前文档文本，文件缺省时为 `undefined`。
+ * @returns 待编辑的树，带有本构建的版本戳。
  */
 function mutableDocument(text: string | undefined): Document {
-  // `text` only ever caches content that parsed successfully, so this re-parse
-  // for the mutable comment-preserving tree cannot fail. `intAsBigInt` keeps an
-  // integer beyond 2^53 in a foreign top-level entry exact when re-serialized.
+  // `text` 只会缓存解析成功的.content，因此这次为保留注释的可变树所做的重新解析
+  // 不可能失败。`intAsBigInt` 能在一个陌生的顶层条目被重新序列化时，让超出 2^53 的
+  // 整数保持精确。
   const document = text === undefined ? new Document({}) : parseDocument(text, { intAsBigInt: true })
-  // Stamped on every edit so a document this provider creates is readable by
-  // the same parser that admitted the one it edits; an existing stamp is
-  // rewritten to the identical value.
+  // 每次编辑都盖上戳，使得本提供方创建的文档能被接纳它所编辑文档的同一个解析器读取；
+  // 既有的戳会被改写为相同的值。
   document.setIn(['version'], DOCUMENT_VERSION)
   return document
 }
 
 /**
- * Render the next document text with one reference set or deleted.
- * @param text - the current document text, `undefined` while the file is absent.
- * @param ref - the reference to write.
- * @param value - the new value, or `undefined` to delete the key.
- * @returns the text to persist.
+ * 渲染出设置了或删除了某条引用的下一份文档文本。
+ * @param text - 当前文档文本，文件缺省时为 `undefined`。
+ * @param ref - 要写入的引用。
+ * @param value - 新值，或 `undefined` 以删除该键。
+ * @returns 待持久化的文本。
  */
 function renderRef(text: string | undefined, ref: CredentialRef, value: string | undefined): string {
   const document = mutableDocument(text)
@@ -452,13 +422,12 @@ function renderRef(text: string | undefined, ref: CredentialRef, value: string |
 }
 
 /**
- * Render the next document text with one record written or deleted. The record
- * node is replaced wholesale rather than edited field by field: records are
- * machine-written, so there is no hand formatting inside one to preserve.
- * @param text - the current document text, `undefined` while the file is absent.
- * @param key - the record to write.
- * @param record - the new record, or `undefined` to delete it.
- * @returns the text to persist.
+ * 渲染出写入或删除了某条记录的下一份文档文本。记录节点被整体替换，而非逐字段编辑：
+ * 记录是由机器写入的，因此其中没有需要保留的手工格式。
+ * @param text - 当前文档文本，文件缺省时为 `undefined`。
+ * @param key - 要写入的记录。
+ * @param record - 新记录，或 `undefined` 以删除它。
+ * @returns 待持久化的文本。
  */
 function renderRecord(text: string | undefined, key: CredentialKey, record: CredentialRecord | undefined): string {
   const document = mutableDocument(text)
@@ -468,24 +437,22 @@ function renderRecord(text: string | undefined, key: CredentialKey, record: Cred
 }
 
 /**
- * Remove one entry from a section, taking its annotation with it. A comment
- * block written above a section's first entry annotates that entry, but the
- * parser attaches it to the section's map rather than to the pair — leaving it
- * behind would move it onto whichever entry became first, which reads as an
- * annotation of a credential nobody wrote it for.
- * @param document - the mutable tree being edited.
- * @param section - the section holding the entry.
- * @param key - the entry to remove.
+ * 从一个 section 中移除一条条目，并一并带走它的注释。写在某个 section 首个条目上方的
+ * 注释块标注的是该条目，但解析器把它挂到了该 section 的 map 上而非那个键值对——
+ * 若把它留下，它会移动到变成第一个的任意条目上，看起来就像在为一个没有人写过的
+ * 凭证做标注。
+ * @param document - 正在被编辑的可变树。
+ * @param section - 持有该条目的 section。
+ * @param key - 要移除的条目。
  */
 function deleteSectionEntry(document: Document, section: 'refs' | 'records', key: string): void {
   const map: unknown = document.get(section, true)
-  /* v8 ignore next -- both callers render a delete only for an entry they just
-     found in the parsed snapshot, so the section it lives in is always a map;
-     the guard is what narrows `get`'s `unknown`. */
+  /* v8 ignore next -- 两个调用方都只对它们刚在已解析快照中找到的条目渲染删除，
+     因此该条目所在的 section 始终是 map；此守卫正是收窄 `get` 的 `unknown` 之处。 */
   if (isMap(map)) {
     const first = map.items[0]
-    /* v8 ignore next -- a map that holds the entry has a first item, and the
-       parser admits only scalar keys, so only the identity test can be false. */
+    /* v8 ignore next -- 持有该条目的 map 必有首个项，且解析器只接纳标量键，
+       因此只有同一性测试可能为假。 */
     if (first !== undefined && isScalar(first.key) && first.key.value === key) {
       map.commentBefore = null
     }
@@ -494,13 +461,12 @@ function deleteSectionEntry(document: Document, section: 'refs' | 'records', key
 }
 
 /**
- * Structural equality over two admitted JSON values. Records reach this after
- * {@link assertJsonValue}, so the walk meets only JSON shapes; key order is
- * ignored because an external editor may reorder a record's fields without
- * changing what it stores.
- * @param left - one value.
- * @param right - the other value.
- * @returns whether the two carry the same JSON content.
+ * 两个已接纳 JSON 值之间的结构性相等。记录是在经过 {@link assertJsonValue} 之后才
+ * 到达此处，因此遍历只会遇到 JSON 形状；键的顺序被忽略，因为外部编辑器可能在不改变
+ * 所存储内容的情况下重排记录的字段。
+ * @param left - 一个值。
+ * @param right - 另一个值。
+ * @returns 两者是否携带相同的 JSON 内容。
  */
 function sameJsonValue(left: unknown, right: unknown): boolean {
   if (left === right) return true
@@ -513,7 +479,7 @@ function sameJsonValue(left: unknown, right: unknown): boolean {
     && sameJsonValue((left as Record<string, unknown>)[key], (right as Record<string, unknown>)[key]))
 }
 
-/** File-backed credentials provider (`$DSH_HOME/.credentials.yaml`). */
+/** 以文件为后盾的凭证提供方（`$DSH_HOME/.credentials.yaml`）。 */
 export class LocalCredentialProvider extends CredentialProvider {
   static Config: z<Config> = z.object({
     path: z.string(),
@@ -524,46 +490,42 @@ export class LocalCredentialProvider extends CredentialProvider {
 
   private readonly spec: ResolvedSpec
   /**
-   * Raw text of the last read or persisted document; `undefined` while the
-   * file is absent. Watcher events whose content equals this cache are no-ops,
-   * which is also the self-write suppression.
+   * 上一次读取或持久化文档的原始文本；文件缺省时为 `undefined`。内容与此缓存相同的
+   * 监视器事件是无操作，这也正是自我写入抑制。
    */
   private text: string | undefined
-  /** Parsed reference snapshot; replaced wholesale on every reload. */
+  /** 已解析的引用快照；每次重新加载都被整体替换。 */
   private values = new Map<string, string>()
-  /** Parsed record snapshot; replaced wholesale on every reload. */
+  /** 已解析的记录快照；每次重新加载都被整体替换。 */
   private records = new Map<string, CredentialRecord>()
   /**
-   * Single exclusive operation chain: watcher reloads and line edits run one
-   * at a time in queue order (settled tail), so an edit can never render from
-   * text a concurrent reload is busy replacing.
+   * 单一独占操作链：监视器的重新加载与行编辑按入队顺序一次一个地运行（已结算尾），
+   * 因此一次编辑绝不会从一份正被并发重新加载忙着替换的文本渲染出来。
    */
   private operations: Promise<void> = Promise.resolve()
-  /** Set at dispose: refuse new writes and let in-flight work no-op. */
+  /** 在 dispose 时置位：拒绝新的写入，并让在途工作变为无操作。 */
   private closed = false
 
-  /** Opaque read of {@link closed}: control flow cannot narrow it across awaits. */
+  /** 对 {@link closed} 的不透明读取：控制流无法跨 await 收窄它。 */
   private isClosed(): boolean {
     return this.closed
   }
 
   constructor(ctx: Context, public config: Config) {
     super(ctx)
-    // Programmatic construction may bypass Schemastery normalization; resolve
-    // the same defaults in one explicit step either way.
+    // 编程式构造可能绕过 Schemastery 的归一化；无论如何都用一个显式步骤解析相同的默认值。
     this.spec = resolveSpec(config)
   }
 
-  /** The inherited-environment value for a reference, or `undefined` when empty or unset. */
+  /** 某个引用的、继承自环境的值；为空或未设置时为 `undefined`。 */
   private inherited(ref: CredentialRef): string | undefined {
     const entry = launchEnvironmentOf(this.ctx).getFrom(ref, ['process'])
     return entry !== undefined && entry.value.length > 0 ? entry.value : undefined
   }
 
   /**
-   * The `.env` fallback for a reference — below the managed store, never above
-   * it. The invoking project ranks over the user's home file, matching the
-   * environment layering: the more specific location wins.
+   * 针对某个引用的、`.env` 回退——排在托管存储之下，绝不在其上。被调用的项目排在
+   * 用户主目录文件之上，与环境分层一致：更具体的位置胜出。
    */
   private dotenvFallback(ref: CredentialRef): LaunchEnvironmentEntry | undefined {
     const entry = launchEnvironmentOf(this.ctx).getFrom(ref, ['project-env', 'user-env'])
@@ -572,8 +534,7 @@ export class LocalCredentialProvider extends CredentialProvider {
 
   async* [Service.init](): AsyncGenerator<() => Promise<void> | void, void, void> {
     yield async () => {
-      // Drain: refuse new operations, then settle the queued ones so disposal
-      // completes only once storage is quiescent.
+      // 排空：拒绝新的操作，然后结算已入队的那些，以便处置只在存储静默之后完成。
       this.closed = true
       await this.operations
     }
@@ -591,29 +552,27 @@ export class LocalCredentialProvider extends CredentialProvider {
       this.queueRefresh()
     })
     watcher.on('ready', () => {
-      // The initial load raced the watcher's own setup: a change written
-      // between that read and the watcher becoming active never fires an
-      // event. One reconcile at ready closes the gap.
+      // 初始加载与监视器自身的建立发生了竞速：在那一读取与监视器变为活跃之间写入的
+      // 变更永远不会触发事件。在 ready 时做一次对账即可弥合这一间隙。
       if (this.closed) return
       this.queueRefresh()
     })
     const reportWatcherError = (error: unknown): void => {
-      // A watcher error after disposal is not actionable: the watched home is
-      // going away with this provider, and logging it would be noise.
+      // 处置之后的监视器错误是不可操作的：被监视的 home 正随本提供方一同消失，记录它
+      // 只会成为噪声。
       if (this.closed) return
       this.ctx.logger.warn('credentials-local: watcher error on %s', this.spec.filename)
       this.ctx.logger.warn(error)
     }
     watcher.on('error', reportWatcherError)
     yield async () => {
-      // Quiesce: stop accepting events, close the watcher, then wait out any
-      // queued or in-flight operation so nothing publishes after disposal.
+      // 静默：停止接收事件、关闭监视器，然后等待任何已入队或在途的操作，以便没有任何
+      // 东西在处置之后发布。
       this.closed = true
-      // `close()` drops every listener but leaves a scheduled write-settle
-      // poll; its straggler stats the document this teardown is deleting,
-      // which Windows reports as EPERM, and an 'error' emission with no
-      // listener is rethrown as an uncaught exception. Re-attach across the
-      // close so that straggler stays inside this provider.
+      // `close()` 会丢弃所有监听器，但留下一个已排程的写落定轮询；它的滞留者会 stat
+      // 本拆卸正在删除的文档，Windows 将其报告为 EPERM，而一个没有任何监听器时的
+      // 'error' 发射会被重新抛出为未捕获异常。在 close 期间重新挂接，使该滞留者仍留在本
+      // 提供方内部。
       const closing = watcher.close()
       watcher.on('error', reportWatcherError)
       await closing
@@ -634,8 +593,8 @@ export class LocalCredentialProvider extends CredentialProvider {
   override describe(ref: CredentialRef): Promise<CredentialInfo> {
     const stored = this.values.get(ref)
     if (stored !== undefined) return Promise.resolve({ configured: true, source: 'file', writable: true })
-    // Every reference is writable: a set writes the managed file, which
-    // outranks every fallback, and an unset exposes the fallback again.
+    // 每个引用都是可写的：一次 set 会写入托管文件，而它优先于每一个回退；一次 unset
+    // 则会再次让回退暴露出来。
     if (this.inherited(ref) !== undefined) return Promise.resolve({ configured: true, source: 'env', writable: true })
     const fallback = this.dotenvFallback(ref)
     if (fallback !== undefined) return Promise.resolve({ configured: true, source: fallback.source, writable: true })
@@ -659,17 +618,15 @@ export class LocalCredentialProvider extends CredentialProvider {
 
   override describeRecord(key: CredentialKey): Promise<CredentialRecordInfo> {
     const stored = this.records.get(key)
-    // Presence is the whole fact here: no layer ranks above this document for
-    // a record, so nothing can shadow one, and an api-key record carrying
-    // neither a key nor environment values is a deliberate statement rather
-    // than a blank.
+    // 此处存在性就是全部事实：没有任何层会在记录之上排名，因此没有任何东西能遮蔽一条
+    // 记录，而一条既无 key 也无环境值的 api-key 记录是一种刻意的声明，而非空白。
     if (stored === undefined) return Promise.resolve({ configured: false, writable: true })
     return Promise.resolve({ configured: true, kind: stored.kind, writable: true })
   }
 
   override listRecords(): Promise<readonly CredentialRecordEntry[]> {
     return Promise.resolve([...this.records].map(([key, record]) => ({
-      // The parser has already proven every stored key addressable.
+      // 解析器已经证明每条已存储的键都是可寻址的。
       key: parseCredentialKey(key),
       kind: record.kind,
     })))
@@ -686,24 +643,22 @@ export class LocalCredentialProvider extends CredentialProvider {
       }
       await mkdir(dirname(this.spec.filename), { recursive: true, mode: 0o700 })
       return withFileLock(this.spec.filename, async () => {
-        // Read-modify-write: `mutate` must decide against the record as it
-        // stands now, not as this process last saw it — another process may
-        // have rotated it since.
+        // 读取-修改-写入：`mutate` 必须依据记录此刻的状态做决定，而非本进程上一次
+        // 看到的状态——另一个进程可能自那时起已经轮转过它。
         await this.reconcileFromDisk()
         const current = this.records.get(key)
         const next = await mutate(current)
         if (next === undefined) return current
-        // Admitted before it is rendered: what the read path would refuse is
-        // refused here first, so a caller can never persist a document the
-        // next boot rejects, and a value refused here has not been stored.
+        // 在渲染之前即被接纳校验：读路径会拒绝的东西在此处先被拒绝，因此调用方绝不可能
+        // 持久化出一份下一次启动会拒绝的文档，而在此被拒绝的值也尚未被存储。
         if (next.kind === 'grant') assertJsonValue(`record "${key}" payload`, next.payload, new Set())
         else assertStorableApiKey(key, next)
         const nextText = renderRecord(this.text, key, next)
-        // 0600: a document holding secrets is never world-readable.
+        // 0600：一份持有秘密的文档绝不可被世界可读。
         await writeFileAtomic(this.spec.filename, nextText, { mode: 0o600, dirMode: 0o700 })
         this.text = nextText
         this.records.set(key, next)
-        // After the commit, on the same terms as a reference write.
+        // 提交之后，与引用写入相同的条件。
         this.notifyRecordUpdated(key)
         return next
       }, { waitMs: DOCUMENT_LOCK_WAIT_MS })
@@ -729,19 +684,19 @@ export class LocalCredentialProvider extends CredentialProvider {
     })
   }
 
-  /** Queue one exclusive document operation behind every earlier one. */
+  /** 将一次独占文档操作排入每一处更早操作之后。 */
   private enqueue<T>(operation: () => Promise<T>): Promise<T> {
     const task = this.operations.then(operation)
     this.operations = task.then(() => undefined, () => undefined)
     return task
   }
 
-  /** Queue a reload; `refresh()` contains its own failures, so the queued task never rejects. */
+  /** 排入一次重新加载；`refresh()` 会包容它自身的失败，因此入队任务从不拒绝。 */
   private queueRefresh(): void {
     void this.enqueue(() => this.refresh())
   }
 
-  /** Queue one line edit; disposal is checked on entry and again when the queued edit runs. */
+  /** 排入一次行编辑；在入口与入队编辑运行时都会检查是否已被处置。 */
   private async write(ref: CredentialRef, value: string | undefined): Promise<void> {
     const verb = value === undefined ? 'unset' : 'set'
     if (this.isClosed()) {
@@ -751,37 +706,32 @@ export class LocalCredentialProvider extends CredentialProvider {
       if (this.isClosed()) {
         throw new Error(`credentials-local was disposed before the queued "${ref}" ${verb} ran`)
       }
-      // The writer lock's exclusive create needs the parent to exist; 0700
-      // because the harness home holds user-private data.
+      // 写锁的独占创建需要父目录存在；0700 是因为 harness home 持有用户私有数据。
       await mkdir(dirname(this.spec.filename), { recursive: true, mode: 0o700 })
       await withFileLock(this.spec.filename, async () => {
-        // Read-modify-write: fold in any on-disk state this process has not
-        // observed yet — an external edit still inside the watcher debounce
-        // window, a change the watcher missed, or another process's write —
-        // so the line edit below can never resurrect a stale document.
+        // 读取-修改-写入：并入本进程尚未观测到的任何磁盘状态——一个仍处在监视器去抖
+        // 窗口内的外部编辑、监视器错过的一次变更，或另一个进程的写入——从而下方的行编辑
+        // 绝不可能复活一份陈旧的文档。
         await this.reconcileFromDisk()
         const existing = this.values.get(ref)
         if (value === undefined && existing === undefined) return
         const nextText = renderRef(this.text, ref, value)
-        // 0600: a document holding secrets is never world-readable.
+        // 0600：一份持有秘密的文档绝不可被世界可读。
         await writeFileAtomic(this.spec.filename, nextText, { mode: 0o600, dirMode: 0o700 })
         this.text = nextText
         if (value === undefined) this.values.delete(ref)
         else this.values.set(ref, value)
-        // After the commit: a broken observer must never make the durable
-        // write look failed.
+        // 提交之后：一个损坏的观察者绝不可让这次持久的写入看起来像是失败。
         this.notifyUpdated(ref)
       }, { waitMs: DOCUMENT_LOCK_WAIT_MS })
     })
   }
 
   /**
-   * Boot read: an absent file is an empty store; an invalid one fails the
-   * plugin's activation, because a credentials document that exists but
-   * cannot be trusted must never be treated as "no credentials stored". The
-   * one exception is the recognized pre-release flat layout, which is
-   * upgraded in place first — a key stored by an earlier build must survive
-   * the layout change without a hand edit.
+   * 启动读取：缺省的文件即一个空存储；而一份无效的文档会使插件激活失败，因为一份
+   * 存在却不可信的凭证文档绝不可被当作“未存储任何凭证”。唯一的例外是那份被识别的、
+   * 预发布的扁平布局，它会先就地升级——一份由更早构建存储的键必须能在布局变更后存活，
+   * 而无需手工编辑。
    */
   private async loadInitial(): Promise<void> {
     await assertOwnerOnly(this.spec.filename)
@@ -801,26 +751,22 @@ export class LocalCredentialProvider extends CredentialProvider {
   }
 
   /**
-   * One-shot upgrade of the recognized pre-release flat layout, before the
-   * watcher exists. The rewrite runs under the document's writer lock and
-   * re-reads first — a concurrent boot may have migrated already — and
-   * whatever the re-read finds that is not the flat layout is returned
-   * untouched for the ordinary parse. Values are carried verbatim; only the
-   * enclosing layout changes. Remove with the pre-release stance at the
-   * first tagged release.
-   * @returns the document text this boot should parse.
+   * 在监视器存在之前，对那份被识别的、预发布扁平布局的一次性升级。重写在该文档的写锁
+   * 之下运行，且先重新读取——一次并发的启动可能已迁移过——而重新读取所发现的、非扁平
+   * 布局的任何内容都原样返回给普通的解析。值被逐字携带；只有外层布局发生变化。随首个
+   * 带标签的发布、与预发布姿态一同移除。
+   * @returns 本次启动应当解析的文档文本。
    */
   private async migrateFlatDocument(): Promise<string> {
     return withFileLock(this.spec.filename, async () => {
       const current = await readFile(this.spec.filename, 'utf8')
       const migrated = renderFlatLayoutMigration(current)
-      /* v8 ignore next 2 -- the losing side of the cross-process migration race:
-         another boot rewrote the document between the unlocked recognize and
-         this lock. That interleaving cannot be scheduled deterministically
-         through a whole boot (migration.spec drives it best-effort); the
-         decision itself is the recognizer's covered versioned-document decline. */
+      /* v8 ignore next 2 -- 跨进程迁移竞速中落败的一方：另一个启动在未被锁保护的
+         识别与这把锁之间重写了该文档。这种交错无法在整个启动过程中被确定性地调度
+         （migration.spec 以尽力而为方式驱动它）；其决策本身正是识别器所覆盖的、
+         对带版本文档的拒绝。 */
       if (migrated === undefined) return current
-      // 0600: a document holding secrets is never world-readable.
+      // 0600：一份持有秘密的文档绝不可被世界可读。
       await writeFileAtomic(this.spec.filename, migrated, { mode: 0o600, dirMode: 0o700 })
       this.ctx.logger.info(
         'credentials-local: migrated %s to the version %d layout; values are unchanged',
@@ -832,10 +778,9 @@ export class LocalCredentialProvider extends CredentialProvider {
   }
 
   /**
-   * Re-read the document after a watcher event. Unchanged content (including
-   * this provider's own writes) is a no-op; an unreadable document keeps the
-   * last good snapshot and warns — a live hot-reload must never take the
-   * process down.
+   * 在监视器事件之后重新读取文档。未变更的内容（包括本提供方自身的写入）是无操作；
+   * 一份不可读的文档会保留上一份良好快照并发出警告——一次进行中的热重载绝不可让
+   * 进程崩溃。
    */
   private async refresh(): Promise<void> {
     if (this.closed) return
@@ -848,15 +793,13 @@ export class LocalCredentialProvider extends CredentialProvider {
   }
 
   /**
-   * Compare the on-disk text against the cache and publish any difference
-   * into the seam. Absence publishes the empty store; an unreadable or
-   * invalid document throws, so each caller picks its policy — a reload warns
-   * and keeps the last good snapshot, a write fails loud rather than
-   * overwriting a document it could not understand.
+   * 将磁盘上的文本与缓存比较，并把任何差异发布到该 seam。缺省会发布空存储；一份不可读
+   * 或无效的文档会抛出，因此每个调用方选择自己的策略——一次重新加载会警告并保留上一份
+   * 良好快照，一次写入则响亮地失败，而非覆盖一份它无法理解的文档。
    */
   private async reconcileFromDisk(): Promise<void> {
-    // Re-checked on every reload and before every write: an external editor or
-    // a restored backup can loosen the mode after boot.
+    // 在每次重新加载与每次写入之前都重新检查：外部编辑器或一份被恢复的备份可能在启动
+    // 之后放宽该 mode。
     await assertOwnerOnly(this.spec.filename)
     let text: string | undefined
     try {
@@ -879,7 +822,7 @@ export class LocalCredentialProvider extends CredentialProvider {
     for (const key of changedRecords) this.notifyRecordUpdated(key)
   }
 
-  /** Report top-level keys that resolve nothing; only key names are printed, never values. */
+  /** 报告那些解析不出任何东西的顶层键；只打印键名，绝不打印值。 */
   private warnIgnoredKeys(document: CredentialsDocument): void {
     if (document.ignoredKeys.length === 0) return
     this.ctx.logger.warn(
@@ -889,7 +832,7 @@ export class LocalCredentialProvider extends CredentialProvider {
     )
   }
 
-  /** Entries whose stored value changed; the parser has already proven every key addressable. */
+  /** 已存储值发生变化的条目；解析器已经证明每个键都是可寻址的。 */
   private changedRefs(prev: Map<string, string>, next: Map<string, string>): CredentialRef[] {
     const changed: CredentialRef[] = []
     for (const key of new Set([...prev.keys(), ...next.keys()])) {
@@ -899,7 +842,7 @@ export class LocalCredentialProvider extends CredentialProvider {
     return changed
   }
 
-  /** Records whose stored value changed; the parser has already proven every key addressable. */
+  /** 已存储值发生变化的记录；解析器已经证明每个键都是可寻址的。 */
   private changedRecords(
     prev: Map<string, CredentialRecord>,
     next: Map<string, CredentialRecord>,

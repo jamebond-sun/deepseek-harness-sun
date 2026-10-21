@@ -1,5 +1,5 @@
 /**
- * Read or change the calling Session's working directory.
+ * 读取或改变调用方会话的工作目录。
  * @module @deepseek-ai/dsh-tool-working-directory
  */
 
@@ -7,14 +7,14 @@ import type { Context } from '@deepseek-ai/cordis'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type {} from '@deepseek-ai/dsh-working-directory'
 
-/** Cordis plugin name. */
+/** Cordis 插件名称。 */
 export const name = 'tool-working-directory'
-/** Services used by the tool. */
+/** 该工具所使用的服务。 */
 export const inject = ['tools', 'workingDirectory']
 
 /**
- * Register the working-directory tool for this composition.
- * @param ctx - context providing the tool registry and directory owner.
+ * 为本组合注册工作目录工具。
+ * @param ctx - 提供工具注册表与目录所有者的上下文。
  */
 export function apply(ctx: Context): void {
   ctx.tools.register(defineTool({

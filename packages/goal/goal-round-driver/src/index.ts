@@ -1,5 +1,5 @@
 /**
- * Same-session goal-round driver over public agent, session, and goal services.
+ * 构建在公开的 agent、session 与 goal 服务之上的同会话 goal 轮次驱动器。
  * @module @deepseek-ai/dsh-goal-round-driver
  */
 
@@ -19,14 +19,14 @@ export { renderGoalRoundPrompt } from './prompt.ts'
 export const name = 'goal-round-driver'
 export const inject = ['agents', 'goals', 'sessions']
 
-/** Identity reserved before a goal continuation enters the agent inbox. */
+/** 在目标续跑进入 agent 收件箱之前预留的身份。 */
 interface RoundIdentity {
   readonly goalId: GoalRef['id']
   readonly revision: number
   readonly round: number
 }
 
-/** One queued, claimed, or admitted goal message retained until whole-agent quiescence. */
+/** 一条已排队、已认领或已准入的 goal 消息，保留到整个 agent 静默为止。 */
 interface RoundAttempt extends RoundIdentity {
   readonly messageId: MessageId
   readonly content: ContentBlock[]
@@ -35,7 +35,7 @@ interface RoundAttempt extends RoundIdentity {
   stale: boolean
 }
 
-/** Serialized process-local scheduling state for one exact Agent lifecycle. */
+/** 某个精确 Agent 生命周期的序列化进程本地调度状态。 */
 interface DriverState {
   readonly agent: Agent
   attempt: RoundAttempt | undefined
@@ -46,40 +46,40 @@ interface DriverState {
   stopping: boolean
 }
 
-/** Whether a source identifies an automatic, positive-numbered goal round. */
+/** 判断某个来源是否标识一次自动的、编号为正的 goal 轮次。 */
 function isGoalRoundSource(source: MessageSource): source is GoalMessageSource {
   return source.kind === 'goal' && source.round > 0
 }
 
-/** Compare a source to one reserved identity. */
+/** 把一个来源与某个预留身份进行比较。 */
 function sameRound(source: GoalMessageSource, round: RoundIdentity): boolean {
   return source.goalId === round.goalId
     && source.revision === round.revision
     && source.round === round.round
 }
 
-/** Compare the complete queued record to the driver's reservation. */
+/** 把完整的排队记录与驱动器的预留进行比较。 */
 function sameQueued(content: readonly ContentBlock[], source: MessageSource, attempt: RoundAttempt): boolean {
   return isGoalRoundSource(source) && sameRound(source, attempt) && isDeepStrictEqual(content, attempt.content)
 }
 
-/** Exact current ref for a view. */
+/** 视图对应的精确当前 ref。 */
 function goalRef(goal: GoalView): GoalRef {
   return { id: goal.id, revision: goal.revision }
 }
 
-/** Human-readable unexpected values for logs. */
+/** 为日志生成人类可读的意外值表示。 */
 function renderThrown(value: unknown): string {
   return value instanceof Error ? value.message : String(value)
 }
 
-/** Install automatic same-session continuation and its race fences. */
+/** 安装同会话自动续跑及其竞态栅栏。 */
 export function apply(ctx: Context): void {
   const states = new Map<Agent, DriverState>()
-  // Releases drivers still joining subagents when the plugin unloads.
+  // 插件卸载时释放仍在等待加入子代理的驱动器。
   const unloading = Promise.withResolvers<void>()
 
-  /** Create state for an exact currently live agent. */
+  /** 为某个精确的当前存活 agent 创建状态。 */
   function stateFor(agent: Agent): DriverState {
     const existing = states.get(agent)
     if (existing !== undefined) return existing
@@ -96,18 +96,18 @@ export function apply(ctx: Context): void {
     return state
   }
 
-  /** Read only when the exact Agent remains live. */
+  /** 仅当该精确 Agent 仍然存活时才读取。 */
   function currentGoal(state: DriverState): GoalView | undefined {
     if (ctx.agents.get(state.agent.id) !== state.agent) return undefined
     return ctx.goals.get(state.agent)
   }
 
-  /** Whether a goal may receive automatic rounds. */
+  /** 判断一个目标是否可以接收自动轮次。 */
   function drivable(goal: GoalView | undefined): goal is GoalView {
     return goal !== undefined && goal.phase === 'active' && goal.activation === 'armed'
   }
 
-  /** Whether this exact lifecycle is quiescent with no competing prompt. */
+  /** 判断该精确生命周期是否处于静默状态且没有竞争提示。 */
   function readyToDrive(state: DriverState): boolean {
     return ctx.fiber.state === FiberState.ACTIVE
       && !state.stopping
@@ -116,12 +116,12 @@ export function apply(ctx: Context): void {
       && !state.competingQueued
   }
 
-  /** Recheck every condition that an awaited checkpoint may have changed. */
+  /** 复查一次被等待的检查点可能改变的所有条件。 */
   function readyAfterCheckpoint(state: DriverState): boolean {
     return readyToDrive(state) && !state.needsCheckpoint
   }
 
-  /** Remove automatic authority while preserving the durable phase. */
+  /** 在保留持久化阶段的前提下移除自动续跑权限。 */
   function disarm(state: DriverState): void {
     try {
       const goal = currentGoal(state)
@@ -131,7 +131,7 @@ export function apply(ctx: Context): void {
     }
   }
 
-  /** Preserve claimed step context when this driver drops only its own round. */
+  /** 当本驱动器只丢弃自己的轮次时，保留其它已认领的步上下文。 */
   function restoreOtherClaimed(agent: Agent, messages: UserMessage[], messageId: MessageId): void {
     const retained = messages.filter(message => message.id !== messageId
       && !(message.source.kind === 'goal' && message.source.round === 0))
@@ -142,7 +142,7 @@ export function apply(ctx: Context): void {
     }
   }
 
-  /** Process admitted work at quiescence, then reserve at most one next round. */
+  /** 在静默时处理已准入的工作，然后最多预留一个下一轮次。 */
   async function drive(state: DriverState): Promise<void> {
     const { agent } = state
     if (!readyToDrive(state)) return
@@ -156,8 +156,8 @@ export function apply(ctx: Context): void {
         disarm(state)
         return
       }
-      // A mutation or ordinary prompt may have arrived while the checkpoint
-      // was settling. Give it its own checkpoint / turn before reserving.
+      // 检查点落定期间可能已到达一次变更或普通提示。在预留之前，
+      // 先给它自己的检查点 / 轮次。
       if (!readyAfterCheckpoint(state)) return
     }
 
@@ -171,9 +171,8 @@ export function apply(ctx: Context): void {
 
     const goal = currentGoal(state)
     if (!drivable(goal)) return
-    // A round started while descendants progress would only wait for them.
-    // Every goal mutation requests a checkpoint, so passing the recheck
-    // proves this goal view is still current.
+    // 在后代仍在推进时启动一个轮次只会干等它们。每次目标变更都会请求
+    // 检查点，因此通过复查即证明该目标视图仍然是最新的。
     const subagents = ctx.get('subagents')
     if (subagents !== undefined) {
       await Promise.race([subagents.waitForChildren(agent), unloading.promise])
@@ -220,9 +219,9 @@ export function apply(ctx: Context): void {
     }
   }
 
-  /** Coalesce triggers onto one agent-local serialized driver. */
+  /** 把触发信号合并到单个 agent 本地的串行驱动器上。 */
   function requestDrive(state: DriverState): void {
-    /* v8 ignore next -- teardown may race a final trigger after synchronously closing the step fence */
+    /* v8 ignore next -- 同步关闭步栅栏后，拆卸过程仍可能与最后一次触发竞争 */
     if (state.stopping) return
     state.requested = true
     if (state.run !== undefined) return
@@ -256,8 +255,7 @@ export function apply(ctx: Context): void {
     })
   }
 
-  // One composite effect keeps the step fence installed until this
-  // plugin's own scheduling tasks settle.
+  // 一个组合 effect 让步栅栏一直安装着，直到本插件自身的调度任务收敛。
   ctx.effect(function* () {
     ctx.on('agent/error', ({ agent }) => {
       const state = stateFor(agent)
@@ -277,15 +275,15 @@ export function apply(ctx: Context): void {
         state.competingQueued = false
         const attempt = state.attempt
         const goal = currentGoal(state)
-        // Fence the pause to the exact dropped attempt's ref. A resume bumps
-        // the revision, so a host pause followed by an immediate resume (before
-        // the aborted turn converges to idle) must not re-pause the resumed goal.
+        // 把暂停栅栏限定在被丢弃的那次尝试的精确 ref 上。resume 会提升修订号，
+        // 因此在宿主暂停之后紧接着 resume（在被中止的轮次收敛到 idle 之前）
+        // 时，不得对已恢复的目标再次暂停。
         const pause = attempt !== undefined
           && (attempt.phase === 'queued' || attempt.phase === 'claimed' || attempt.cancelled)
           && goal !== undefined && goal.phase === 'active' && goal.activation === 'armed'
           && attempt.goalId === goal.id && attempt.revision === goal.revision
-        // A reservation still queued when the agent reaches idle cannot run:
-        // withdraw it so human input queued behind it is not stranded.
+        // agent 进入 idle 时仍在排队的预留无法运行：撤回它，以免排在它
+        // 后面的人类输入被搁置。
         if (pause || attempt?.phase === 'queued') {
           state.attempt = undefined
           try {
@@ -302,9 +300,9 @@ export function apply(ctx: Context): void {
     ctx.on('goal/changed', ({ agent, change }) => {
       const state = stateFor(agent)
       state.needsCheckpoint = true
-      // A host-initiated pause stops goal execution: abort the live turn so the
-      // model cannot keep acting or resume in the same turn. A model-initiated
-      // pause (update_goal inside its own turn) finishes normally.
+      // 宿主发起的暂停会终止目标执行：中止当前轮次，使模型无法在同一轮次中
+      // 继续行动或恢复。模型自己发起的暂停（在其轮次内调用 update_goal）
+      // 则正常结束。
       if (change.operation === 'pause' && agent.status === 'running'
         && ctx.agents.currentInitiator() !== agent) {
         agent.cancel({ kind: 'user' }, { keepInbox: true })
@@ -361,7 +359,7 @@ export function apply(ctx: Context): void {
       }
     })
 
-    /** Fail closed unless the queued prompt still owns the exact live revision. */
+    /** 除非排队的提示仍持有精确的存活修订，否则按失败处理。 */
     function validReservation(
       state: DriverState,
       content: readonly ContentBlock[],
@@ -405,9 +403,8 @@ export function apply(ctx: Context): void {
         decision = await next()
       } catch (error: unknown) {
         if (signal.aborted) throw error
-        // A throwing downstream hook drops the whole step proposal. Clear the
-        // reservation before the balanced no-step turn returns to idle so the
-        // next drive pass can reschedule the round.
+        // 下游钩子抛出会丢弃整个步提案。在这个配平的“无步”轮次回到 idle
+        // 之前清除预留，以便下一轮驱动可以重新调度该轮次。
         state.attempt = undefined
         requestDrive(state)
         throw error
@@ -444,15 +441,15 @@ export function apply(ctx: Context): void {
       return { ...decision, startsRequestSeries: true }
     })
 
-    // Loading a lifecycle driver over existing agents never inherits hidden
-    // automatic authority from an earlier producer instance.
+    // 在既有 agent 上加载生命周期驱动器时，绝不继承先前生产者实例遗留的
+    // 隐藏自动权限。
     for (const agent of ctx.agents.list()) {
       const state = stateFor(agent)
       disarm(state)
     }
 
-    // Yielded after listener registration, so this close runs first and the
-    // composite effect removes listeners only after its promise settles.
+    // 在监听器注册之后才 yield，因此该关闭逻辑先执行，组合 effect 只有在
+    // 它的 promise 落定后才移除监听器。
     yield async () => {
       unloading.resolve()
       const waits: Promise<void>[] = []
@@ -462,7 +459,7 @@ export function apply(ctx: Context): void {
         const attempt = state.attempt
         if (attempt !== undefined) {
           attempt.stale = true
-          /* v8 ignore next -- followup reserves the live agent before publishing a queued attempt */
+          /* v8 ignore next -- followup 在发布排队尝试之前已预留存活 agent */
           if (state.agent.status === 'running') {
             state.agent.cancel({ kind: 'parent' })
             waits.push(state.agent.whenIdle())

@@ -1,17 +1,17 @@
-/** Browser-zone derivation and model-facing policy text for one open request turn. */
+/** 针对一个开放请求轮次、浏览器时区的派生与面向模型的策略文本。 */
 
 import type { UserMessage } from '@deepseek-ai/dsh-llm'
 import { assertNever } from '@deepseek-ai/dsh-util-values'
 
 const IANA_TIME_ZONE = /^[A-Za-z][A-Za-z0-9_+.-]*(?:\/[A-Za-z0-9_+.-]+)+$/
 
-/** Browser-zone facts derived from user-rpc messages in one open turn. */
+/** 从某个开放轮次中的 user-rpc 消息派生出的浏览器时区事实。 */
 export type BrowserTimeZoneContext =
   | { readonly kind: 'resolved'; readonly timeZone: string }
   | { readonly kind: 'mixed'; readonly timeZones: readonly string[] }
   | { readonly kind: 'missing' }
 
-/** Read and validate a Host-canonicalized browser zone from one ordinary user-rpc message. */
+/** 从一条普通 user-rpc 消息读取并校验由宿主规范化的浏览器时区。 */
 function browserTimeZone(message: UserMessage): string | undefined {
   const source = message.source
   const value = source.kind === 'user'
@@ -40,10 +40,10 @@ function browserTimeZone(message: UserMessage): string | undefined {
 }
 
 /**
- * Derive the unique, mixed, or missing browser zone for one open turn.
- * @param messages - Entered and proposed user messages belonging to the turn.
- * @returns Sorted, duplicate-free browser-zone facts.
- * @throws TypeError when a user-rpc source carries an invalid or noncanonical zone.
+ * 为某个开放轮次派生唯一的、混合的或缺失的浏览器时区。
+ * @param messages - 属于该轮次、已输入与提议的 user 消息。
+ * @returns 已排序、无重复的浏览器时区事实。
+ * @throws 当某个 user-rpc 来源携带无效或非规范化的时区时，抛出 TypeError。
  */
 export function deriveBrowserTimeZoneContext(
   messages: readonly UserMessage[],
@@ -59,9 +59,9 @@ export function deriveBrowserTimeZoneContext(
 }
 
 /**
- * Render the model instruction for one browser-zone context.
- * @param context - Browser-zone facts for the open turn.
- * @returns One durable policy line.
+ * 为某个浏览器时区上下文渲染面向模型的指令。
+ * @param context - 开放轮次的浏览器时区事实。
+ * @returns 一行持久化的策略文本。
  */
 export function renderBrowserTimeZoneContext(context: BrowserTimeZoneContext): string {
   switch (context.kind) {

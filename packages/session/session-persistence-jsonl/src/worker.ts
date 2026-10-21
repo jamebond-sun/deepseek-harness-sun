@@ -1,4 +1,4 @@
-/** Worker entry for current-generation physical and logical verification. */
+/** 用于当前代际物理与逻辑校验的 worker 入口。 */
 
 import { parentPort, workerData } from 'node:worker_threads'
 import { verifyJsonlCurrentGeneration } from './generation.ts'

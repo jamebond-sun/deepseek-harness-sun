@@ -1,5 +1,5 @@
 /**
- * Log-backed session title service, deterministic fallback, and provider contract.
+ * 由日志支撑的会话标题服务、确定性回退与提供方契约。
  * @module @deepseek-ai/dsh-session-title
  */
 
@@ -38,13 +38,13 @@ import type {
   TitleProjection,
 } from './types.ts'
 
-/** Identifies one session-title provider registration. */
+/** 标识一次会话标题提供方注册。 */
 export type SessionTitleProviderId = Branded<'SessionTitleProviderId'>
 
 /**
- * Brand a raw provider id.
- * @param id - stable non-empty provider identifier supplied by a plugin.
- * @returns the same string with the session-title provider brand.
+ * 给一个原始提供方 id 打上品牌。
+ * @param id - 由插件提供的、稳定的非空提供方标识符。
+ * @returns 带会话标题提供方品牌的同一个字符串。
  */
 export function SessionTitleProviderId(id: string): SessionTitleProviderId {
   return id as SessionTitleProviderId
@@ -52,13 +52,13 @@ export function SessionTitleProviderId(id: string): SessionTitleProviderId {
 
 export { fallbackSessionTitle, normalizeSessionTitle, truncateTitleUtf8 } from './normalize.ts'
 
-/** Required deterministic fallback and accepted-title limits. */
+/** 必需的确定性回退与可接受标题的限制。 */
 export interface Config {
-  /** Maximum whitespace-delimited words in the built-in fallback. */
+  /** 内置回退中以空白分隔的词的最大数量。 */
   readonly fallbackMaxWords: number
-  /** Maximum UTF-8 bytes in the built-in fallback. */
+  /** 内置回退的最大 UTF-8 字节数。 */
   readonly fallbackMaxBytes: number
-  /** Maximum UTF-8 bytes in any accepted title. */
+  /** 任何被接受标题的最大 UTF-8 字节数。 */
   readonly maxTitleBytes: number
 }
 
@@ -71,69 +71,69 @@ declare module '@deepseek-ai/cordis' {
 declare module '@deepseek-ai/dsh-session/types' {
   interface SessionEventMap {
     /**
-     * Latest-wins session title snapshot. Log-only: it never enters the model
-     * surface or derived history.
+     * 最新者胜的会话标题快照。仅日志：它从不进入模型 surface 或派生历史。
      */
     'session/title': SessionTitleEventData
   }
 }
 
 /**
- * Rejection of an explicit user title whose text normalizes to empty — the
- * one {@link SessionTitleService.rename} failure that blames the input.
- * Callers translating rename failures onto a wire (`title-invalid`) narrow on
- * this class; liveness and disposal failures stay plain `Error`s.
+ * 对一条文本归一化后为空、因而被拒绝的显式用户标题——这是 {@link
+ * SessionTitleService.rename} 中唯一把责任归咎于输入的失败。把 rename
+ * 失败翻译到线上（`title-invalid`）的调用方会针对这个类收窄；活性与处置
+ * 失败仍保持为普通的 `Error`。
  */
 export class SessionTitleInvalidError extends Error {
   override readonly name = 'SessionTitleInvalidError'
 }
 
-/** Automatic generation cadence owned by a registered provider. */
+/** 由已注册提供方拥有的自动生成节奏。 */
 export type SessionTitleAutomaticMode = 'first-prompt' | 'all-prompts'
 
-/** Immutable input supplied to one title-provider call. */
+/** 提供给一次标题提供方调用的、不可变的输入。 */
 export interface SessionTitleProviderRequest {
-  /** Live session being titled. */
+  /** 正在被加标题的活跃会话。 */
   readonly session: Session
-  /** All eligible human messages through this generation revision. */
+  /** 直到本次生成修订为止、所有合格的人类消息。 */
   readonly messages: readonly SessionTitleUserMessage[]
-  /** Exact current logged main-request route, when one has been recorded. */
+  /** 确切的、当前已记录的主动请求路由，已记录时存在。 */
   readonly route?: SessionTitleModelIdentity
   /**
-   * Latest accepted title captured at invocation, including an accepted
-   * fallback whose event may follow the last eligible message. Absent before
-   * any title is accepted. The provider decides whether and how to use it.
+   * 在调用时捕获的最新已接受标题，包括其事件可能位于最后一条合格消息
+   * 之后的一个已接受回退。在任何标题被接受之前不存在。提供方自行决定是否
+   * 以及如何使用它。
    */
   readonly currentTitle?: SessionTitleSnapshot
-  /** Cancellation for supersession, disposal, timeout composition, or the explicit caller. */
+  /** 用于取代、处置、超时组合或显式调用方的取消。 */
   readonly signal: AbortSignal
 }
 
-/** Provider output before service-owned normalization and log acceptance. */
+/** 介于服务自有归一化与日志接受之间的提供方输出。 */
 export interface SessionTitleProviderResult {
-  /** Proposed title text. */
+  /** 提议的标题文本。 */
   readonly title: string
-  /** Exact seqs from `request.messages` used by this result. */
+  /** 本结果使用的、来自 `request.messages` 的确切 seq。 */
   readonly messageSeqs: readonly SessionSeq[]
-  /** Auxiliary LLM route, when generation used a model. */
+  /** 辅助的 LLM 路由，当生成使用了一个模型时存在。 */
   readonly model?: SessionTitleModelIdentity
 }
 
-/** One optional asynchronous title implementation registered with the service. */
+/** 一个向服务注册的、可选异步标题实现。 */
 export interface SessionTitleProvider {
-  /** Stable id of the provider recorded with the title. */
+  /** 随标题一并记录的、稳定的提供方 id。 */
   readonly id: SessionTitleProviderId
-  /** When new human prompts start automatic generation. */
+  /** 新的哪些人类提示会启动自动生成。 */
   readonly automatic: SessionTitleAutomaticMode
   /**
-   * Produce one title revision.
-   * @param request - message snapshot, current title, current route, session, and cancellation.
-   * @returns proposed title plus exact input seqs and the optional provider/model route used to generate it.
+   * 产生一个标题修订。
+   * @param request - 消息快照、当前标题、当前路由、会话与取消信号。
+   * @returns 提议的标题，加上确切的输入 seq，以及用于生成它的可选的
+   *   提供方/模型路由。
    */
   generate(request: SessionTitleProviderRequest): Promise<SessionTitleProviderResult>
 }
 
-/** Extract one eligible human text message from a session event. */
+/** 从一条会话事件中抽取一条合格的人类文本消息。 */
 function sessionTitleUserMessageOf(event: SessionEvent): SessionTitleUserMessage | undefined {
   if (event.type !== 'user/message' || event.data.source.kind !== 'user') return undefined
   const content = event.data.content
@@ -144,7 +144,7 @@ function sessionTitleUserMessageOf(event: SessionEvent): SessionTitleUserMessage
   if (normalizeSessionTitle(text, Number.MAX_SAFE_INTEGER).length === 0) return undefined
   return { seq: event.seq, text }
 }
-/** Defensive copy of a logged title source (the snapshot must not alias log-owned objects). */
+/** 对一条已记录标题源的防御性拷贝（快照不得别名到日志所拥有的对象）。 */
 function copySessionTitleSource(source: SessionTitleSource): SessionTitleSource {
   switch (source.kind) {
     case 'fallback': return { kind: 'fallback' }
@@ -154,39 +154,39 @@ function copySessionTitleSource(source: SessionTitleSource): SessionTitleSource 
       ...(source.model === undefined ? {} : { model: { ...source.model } }),
     }
     case 'user': return { kind: 'user' }
-    /* v8 ignore next -- closed-union exhaustiveness guard */
+    /* v8 ignore next -- 封闭联合的穷尽性守卫 */
     default: return assertNever(source, 'SessionTitleSource')
   }
 }
 
-/** Service-owned resolved limits. */
+/** 服务自有的、已解析的限制。 */
 interface ResolvedConfig {
   readonly fallbackMaxWords: number
   readonly fallbackMaxBytes: number
   readonly maxTitleBytes: number
 }
 
-/** One exact provider registration generation. */
+/** 一代确切的提供方注册。 */
 interface ProviderRegistration {
   readonly provider: SessionTitleProvider
   readonly active: Set<Promise<unknown>>
   closing: boolean
 }
 
-/** Automatic work waiting for the matching main-request header. */
+/** 正在等待匹配的主动请求头的自动工作。 */
 interface PendingAutomaticWork {
   readonly registration: ProviderRegistration
   readonly revision: number
   readonly throughSeq: SessionSeq
 }
 
-/** Provider call currently allowed to commit for one session. */
+/** 当前被允许为某个会话提交的提供方调用。 */
 interface ActiveProviderWork extends PendingAutomaticWork {
   readonly controller: AbortController
   readonly signal: AbortSignal
 }
 
-/** Mutable concurrency state scoped to one live session. */
+/** 作用域限定于一个活跃会话的可变并发状态。 */
 interface SessionTitleWorkState {
   revision: number
   fallback?: Promise<SessionTitleSnapshot | undefined>
@@ -194,7 +194,7 @@ interface SessionTitleWorkState {
   active?: ActiveProviderWork
 }
 
-/** Validate one positive integer configuration field. */
+/** 校验一个正整数配置字段。 */
 function assertPositiveInteger(name: keyof Config, value: number): void {
   if (!Number.isInteger(value) || value <= 0) {
     throw new Error(`session-title: ${name} must be a positive integer`)
@@ -202,9 +202,9 @@ function assertPositiveInteger(name: keyof Config, value: number): void {
 }
 
 /**
- * Convert title projection state into an immutable snapshot.
- * @param state - the title unit's folded state.
- * @returns the immutable snapshot.
+ * 把标题投影状态转换为一个不可变快照。
+ * @param state - 标题单元的折叠状态。
+ * @returns 不可变快照。
  */
 function titleSnapshotFromState(state: TitleProjection): SessionTitleSnapshot {
   return deepFreeze({
@@ -242,13 +242,12 @@ const titleInputStateSchema: ZodType<TitleInputState> = zod.object({
 })
 
 /**
- * Collect eligible human text messages from a session log, in seq order.
- * The full eligible prefix is only materialized for one provider generation,
- * so it is scanned from the log at execution time rather than retained by
- * the O(1) `titleInput` projection.
- * @param events - the session event log.
- * @param throughSeq - optional inclusive upper seq bound.
- * @returns eligible messages with exact source seqs.
+ * 按 seq 顺序，从一段会话日志中收集合格的人类文本消息。完整的合格前缀
+ * 只为一代提供方生成而物化，因此它是在执行时从日志扫描得到，而不是由
+ * O(1) 的 `titleInput` 投影保留下来。
+ * @param events - 会话事件日志。
+ * @param throughSeq - 可选、含尾的 seq 上界。
+ * @returns 带确切源 seq 的合格消息。
  */
 function collectSessionTitleMessages(
   events: readonly SessionEvent[],
@@ -265,7 +264,7 @@ function collectSessionTitleMessages(
 
 const titleViewSchema: ZodType<string | null> = zod.string().min(1).nullable()
 
-/** Latest logged title text and its client view. */
+/** 最新已记录标题文本及其客户端视图。 */
 export const titleProjectionDefinition = {
   key: 'title',
   stateVersion: 1,
@@ -281,9 +280,9 @@ export const titleProjectionDefinition = {
 } satisfies ProjectionDefinition<'title', string | null>
 
 /**
- * Fold the latest logged title without consulting mutable metadata.
- * @param events - live or persisted session log.
- * @returns the latest immutable title snapshot, or `undefined`.
+ * 不咨询可变元数据，折叠最新的已记录标题。
+ * @param events - 活跃或已持久化的会话日志。
+ * @returns 最新的不可变标题快照，或 `undefined`。
  */
 export function foldSessionTitle(events: readonly SessionEvent[]): SessionTitleSnapshot | undefined {
   const event = events.findLast(item => item.type === 'session/title')
@@ -297,7 +296,7 @@ export function foldSessionTitle(events: readonly SessionEvent[]): SessionTitleS
   })
 }
 
-/** Log-backed title fold plus asynchronous fallback generation. */
+/** 由日志支撑的标题折叠，加上异步回退生成。 */
 export class SessionTitleService extends Service {
   static inject = ['sessions', 'sessionProjections']
   static Config: z<Config> = z.object({
@@ -384,25 +383,24 @@ export class SessionTitleService extends Service {
   }
 
   /**
-   * Read the latest folded title from one live or replayed session.
-   * @param session - session whose log is the title source of truth.
-   * @returns latest title snapshot, or `undefined` before eligible input.
+   * 从一个活跃或重放的会话读取最新的已折叠标题。
+   * @param session - 其日志即标题真相来源的会话。
+   * @returns 最新的标题快照，或在出现合格输入之前为 `undefined`。
    */
   get(session: Session): SessionTitleSnapshot | undefined {
-    // oxlint-disable-next-line typescript/no-deprecated -- Existing Session history read; migration deferred.
+    // oxlint-disable-next-line typescript/no-deprecated -- 读取已有会话历史；迁移已推迟。
     return foldSessionTitle(session.snapshotEvents())
   }
 
   /**
-   * Accept an explicit user title. Appends a `session/title` event with the
-   * `user` source, which pins the title: in-flight automatic generation is
-   * superseded and later user messages schedule none (an explicit
-   * {@link SessionTitleService.refresh} remains the deliberate unpin).
-   * @param session - exact live session to rename.
-   * @param title - raw user input; normalized before acceptance.
-   * @returns the accepted title snapshot.
-   * @throws {SessionTitleInvalidError} when the title normalizes to empty.
-   * @throws {Error} when the session is not live or the service is disposed.
+   * 接受一个显式的用户标题。追加一个带 `user` 源的 `session/title` 事件，
+   * 它会固定该标题：在途的自动生成被取代，而后来的用户消息不再排程任何
+   * 生成（一次显式的 {@link SessionTitleService.refresh} 仍是刻意的“取消固定”）。
+   * @param session - 要重命名的、确切的活跃会话。
+   * @param title - 原始用户输入；在接受前被归一化。
+   * @returns 被接受的标题快照。
+   * @throws {SessionTitleInvalidError} 当标题归一化后为空时。
+   * @throws {Error} 当会话不活跃或服务已处置时。
    */
   rename(session: Session, title: string): SessionTitleSnapshot {
     this.assertServiceActive()
@@ -427,11 +425,10 @@ export class SessionTitleService extends Service {
   }
 
   /**
-   * Explicitly retry the registered provider, or materialize the built-in
-   * fallback when no provider is registered.
-   * @param session - exact live session to refresh.
-   * @param signal - optional caller cancellation.
-   * @returns latest accepted title, or `undefined` when no eligible text exists.
+   * 显式地重试已注册的提供方；当没有注册任何提供方时，物化内置回退。
+   * @param session - 要刷新的、确切的活跃会话。
+   * @param signal - 可选的调用方取消信号。
+   * @returns 最新的已接受标题，或当不存在合格文本时为 `undefined`。
    */
   async refresh(session: Session, signal?: AbortSignal): Promise<SessionTitleSnapshot | undefined> {
     signal?.throwIfAborted()
@@ -442,9 +439,9 @@ export class SessionTitleService extends Service {
     const registration = this.registration
     const input = this.titleInputOf(session)
     if (registration === undefined || registration.closing || input.lastSeq === null) {
-      // Explicit refresh is the unpin even without a provider: a standing
-      // user title must not short-circuit ensureFallback into a no-op, so
-      // re-derive and append the fallback over it when one is derivable.
+      // 即使没有提供方，显式刷新也是“取消固定”：一个站立的用户标题绝不能
+      // 把 ensureFallback 短路成空操作，因此当可以推导出回退时，在上面重新
+      // 推导并追加回退。
       const current = this.get(session)
       const first = input.first
       if (current?.source.kind === 'user' && first !== null) {
@@ -469,11 +466,11 @@ export class SessionTitleService extends Service {
   }
 
   /**
-   * Register the sole optional title provider. Disposal aborts its pending and
-   * active work; a replacement may register once disposal has started, and the
-   * closing provider's late results never commit.
-   * @param provider - provider identity, cadence, and generation function.
-   * @returns exact Cordis effect disposer, which settles after active calls quiesce.
+   * 注册唯一一个可选的标题提供方。处置会中止其挂起与活跃的工作；一旦处置
+   * 开始，可以注册一个替代者，而正在关闭的提供方那些迟来的结果永远不会
+   * 提交。
+   * @param provider - 提供方身份、节奏与生成函数。
+   * @returns 确切的 Cordis effect disposer，在活跃调用静默之后结算。
    */
   register(provider: SessionTitleProvider): () => Promise<void> {
     this.validateProvider(provider)
@@ -502,11 +499,11 @@ export class SessionTitleService extends Service {
     return dispose
   }
 
-  /** Schedule fallback creation and any provider cadence for one eligible event. */
+  /** 为一个合格事件排程回退创建，以及任意提供方节奏。 */
   private onUserMessage(session: Session, event: Extract<SessionEvent, { type: 'user/message' }>): void {
     if (!this.serviceActive()) return
     if (event.data.source.kind !== 'user' || sessionTitleUserMessageOf(event) === undefined) return
-    // A user rename pins the title: no automatic revision may override it.
+    // 一次用户重命名固定了标题：任何自动修订都不得覆盖它。
     if (this.get(session)?.source.kind === 'user') return
     const registration = this.registration
     if (registration !== undefined && !registration.closing) {
@@ -529,7 +526,7 @@ export class SessionTitleService extends Service {
     })
   }
 
-  /** Start pending automatic work only after its exact main-request route is logged. */
+  /** 只有在确切的主动请求路由被记录之后，才启动挂起的自动工作。 */
   private onRequestHeader(session: Session, event: Extract<SessionEvent, { type: 'request/header' }>): void {
     if (!this.serviceActive()) return
     const state = this.work.get(session)
@@ -542,7 +539,7 @@ export class SessionTitleService extends Service {
     this.startPending(session, state, pending, route)
   }
 
-  /** Start unchanged-route work from the marked loop request after its header fold is current. */
+  /** 在标记的循环请求其头部折叠变为当前之后，以未变路由启动其工作。 */
   private onMainRequest(options: GenerateOptions): void {
     if (!this.serviceActive() || options.sessionId === undefined || !isAgentLoopRequest(options)) return
     const session = this.ctx.sessions.get(options.sessionId)
@@ -557,7 +554,7 @@ export class SessionTitleService extends Service {
     this.startPending(session, state, pending, { provider: options.provider, model: options.model })
   }
 
-  /** Consume one pending revision and schedule its non-blocking provider call. */
+  /** 消费一个挂起修订，并排程其非阻塞的提供方调用。 */
   private startPending(
     session: Session,
     state: SessionTitleWorkState,
@@ -580,7 +577,7 @@ export class SessionTitleService extends Service {
     })
   }
 
-  /** Start one tracked provider call after publishing its active revision. */
+  /** 在发布其活跃修订之后，启动一个被追踪的提供方调用。 */
   private startProvider(
     session: Session,
     work: ActiveProviderWork,
@@ -590,7 +587,7 @@ export class SessionTitleService extends Service {
     return this.track(run, work.registration)
   }
 
-  /** Execute and accept one current provider revision. */
+  /** 执行并接受一个当前的提供方修订。 */
   private async runProvider(
     session: Session,
     work: ActiveProviderWork,
@@ -600,9 +597,9 @@ export class SessionTitleService extends Service {
       this.assertCurrent(session, work)
       await this.ensureFallback(session)
       this.assertCurrent(session, work)
-      // One snapshot supplies both inputs: messages stop at the scheduled
-      // watermark, while the current title is not bounded by that watermark.
-      // oxlint-disable-next-line typescript/no-deprecated -- Existing Session history read; migration deferred.
+      // 一份快照同时供应两个输入：消息停在已排程的水位处，而当前标题并不
+      // 受该水位约束。
+      // oxlint-disable-next-line typescript/no-deprecated -- 读取已有会话历史；迁移已推迟。
       const events = session.snapshotEvents()
       const messages = collectSessionTitleMessages(events, work.throughSeq)
       const currentTitle = foldSessionTitle(events)
@@ -631,7 +628,7 @@ export class SessionTitleService extends Service {
     }
   }
 
-  /** Validate and normalize provider output against the supplied message snapshot. */
+  /** 针对所提供的消息快照，校验并归一化提供方输出。 */
   private validateResult(
     result: unknown,
     messages: readonly SessionTitleUserMessage[],
@@ -681,13 +678,12 @@ export class SessionTitleService extends Service {
     }
   }
 
-  /** Fail a completion whose provider, revision, session, or signal is stale. */
+  /** 让一个提供方、修订、会话或信号已过时的完成失败。 */
   private assertCurrent(session: Session, work: ActiveProviderWork): void {
     this.assertServiceActive()
     work.signal.throwIfAborted()
     const state = this.work.get(session)
-    /* v8 ignore next -- every supported supersession, provider disposal, and session disposal aborts
-     * the work signal before changing this state. */
+    /* v8 ignore next -- 每个受支持的取代、提供方处置与会话处置都会在改变本状态之前中止该工作信号。 */
     if (this.registration !== work.registration
       || state?.active !== work
       || state.revision !== work.revision
@@ -696,7 +692,7 @@ export class SessionTitleService extends Service {
     }
   }
 
-  /** Create and publish an active provider call from one fixed revision. */
+  /** 从一代固定的修订创建并发布一个活跃的提供方调用。 */
   private activate(
     pending: PendingAutomaticWork,
     state: SessionTitleWorkState,
@@ -711,7 +707,7 @@ export class SessionTitleService extends Service {
     return work
   }
 
-  /** Abort older active work and reserve the next session-local revision. */
+  /** 中止较旧的活跃工作，并预留下一个会话局部的修订。 */
   private supersede(state: SessionTitleWorkState, reason: string): number {
     state.active?.controller.abort(new Error(reason))
     delete state.pending
@@ -719,7 +715,7 @@ export class SessionTitleService extends Service {
     return state.revision
   }
 
-  /** Return mutable work state for one session. */
+  /** 返回某个会话的可变工作状态。 */
   private stateFor(session: Session): SessionTitleWorkState {
     let state = this.work.get(session)
     if (state === undefined) {
@@ -733,7 +729,7 @@ export class SessionTitleService extends Service {
     return this.ctx.sessionProjections.stateOf(session, 'titleInput') as TitleInputState
   }
 
-  /** Queue detached service work and retain it through service disposal. */
+  /** 排程分离的服务工作，并在服务处置期间保留它。 */
   private defer(task: () => Promise<void>): void {
     const run = Promise.resolve().then(async () => {
       if (!this.serviceActive()) return
@@ -742,7 +738,7 @@ export class SessionTitleService extends Service {
     void this.track(run)
   }
 
-  /** Retain one promise until settlement for service and optional provider teardown. */
+  /** 为服务与可选的提供方拆卸，保留一个 promise 直到其结算。 */
   private track<T>(run: Promise<T>, registration?: ProviderRegistration): Promise<T> {
     this.inFlight.add(run)
     registration?.active.add(run)
@@ -754,24 +750,24 @@ export class SessionTitleService extends Service {
     return run
   }
 
-  /** Await every current and settling promise in one lifecycle registry. */
+  /** 等待一个生命周期注册表中每个当前与正在结算的 promise。 */
   private async drain(active: Set<Promise<unknown>>): Promise<void> {
     while (active.size > 0) await Promise.allSettled([...active])
   }
 
-  /** Whether the owning plugin fiber can still start or commit title work. */
+  /** 所属的插件纤程是否仍能启动或提交标题工作。 */
   private serviceActive(): boolean {
     return !this.lifetime.signal.aborted
       && this.ownerFiber.uid !== null
       && this.ownerFiber.state === FiberState.ACTIVE
   }
 
-  /** Reject work once the owning plugin fiber has begun unloading. */
+  /** 一旦所属插件纤程已开始卸载，就拒绝工作。 */
   private assertServiceActive(): void {
     if (!this.serviceActive()) throw new Error('session-title service disposed')
   }
 
-  /** Reject malformed provider registrations before publishing an effect. */
+  /** 在发布一个 effect 之前，拒绝畸形的提供方注册。 */
   private validateProvider(provider: unknown): asserts provider is SessionTitleProvider {
     if (provider === null || typeof provider !== 'object') {
       throw new Error('session-title provider must be an object')
@@ -805,7 +801,7 @@ export class SessionTitleService extends Service {
     })
   }
 
-  /** Create the first deterministic fallback if the session still lacks a title. */
+  /** 如果会话仍然缺少标题，创建第一个确定性回退。 */
   private async ensureFallback(session: Session): Promise<SessionTitleSnapshot | undefined> {
     this.assertServiceActive()
     const current = this.get(session)

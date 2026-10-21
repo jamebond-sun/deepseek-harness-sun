@@ -1,8 +1,7 @@
 /**
- * The one-shot app's command-line provider: it parses the task positional,
- * `--session-id`, `--json`, and `--help`, then publishes
- * {@link HEADLESS_STARTUP_SERVICE}. The runner is an ordinary consumer whose
- * lazy config waits for that service.
+ * 一次性应用的命令行提供者：它解析 task 位置参数、`--session-id`、`--json` 与
+ * `--help`，然后发布 {@link HEADLESS_STARTUP_SERVICE}。runner 是一个普通消费者，
+ * 其惰性配置等待该服务。
  * @module @deepseek-ai/dsh-headless/startup
  */
 
@@ -12,28 +11,28 @@ import { parseCmdline } from '@deepseek-ai/dsh-cmdline'
 import { boundJsonLine } from './json-stream.ts'
 import { internals } from './startup-internals.ts'
 
-/** Stable Cordis plugin name. */
+/** 稳定的 Cordis 插件名。 */
 export const name = 'headless-startup'
 
-/** Services required before the task can be resolved. */
+/** 解析任务之前所需的服务。 */
 export const inject = ['cmdlineArgs']
 
-/** Service provided by this plugin and injected by the one-shot runner. */
+/** 本插件提供、并由一次性 runner 注入的服务。 */
 export const HEADLESS_STARTUP_SERVICE = 'headlessStartup'
 
-/** What the runner row reads from {@link HEADLESS_STARTUP_SERVICE}. */
+/** runner 行从 {@link HEADLESS_STARTUP_SERVICE} 读取的内容。 */
 export interface HeadlessStartupValues {
-  /** The task text this invocation asked for; absent when the runner reads stdin. */
+  /** 本次调用给出的任务文本；当 runner 读取 stdin 时缺省。 */
   task: string | undefined
-  /** Exact Session identity to adopt; absent for a fresh random identity. */
+  /** 要沿用的确切 Session 身份；缺省时使用新的随机身份。 */
   sessionId: string | undefined
-  /** Whether stdout carries the machine-readable event stream instead of final text. */
+  /** stdout 是否输出机器可读的事件流而不是最终文本。 */
   json: boolean
 }
 
 /**
- * This app's command: the task positional, its options, and its help text.
- * @returns a fresh program, so one process can parse more than once (tests).
+ * 本应用的命令：task 位置参数、它的选项与帮助文本。
+ * @returns 一个全新的 program，这样一个进程可以多次解析（测试所需）。
  */
 function headlessCommand(): Command {
   return new Command()
@@ -53,11 +52,10 @@ Examples:
 }
 
 /**
- * Whether the raw invocation asks for the machine-readable stream. The scan
- * stops at `--` and skips a `--session-id` value, so a literal `--json` used as
- * an option value or a positional never installs the JSON error override.
- * @param argv - the invocation's raw arguments.
- * @returns whether `--json` is a real flag of this invocation.
+ * 原始调用是否请求机器可读的事件流。扫描在 `--` 处停止，并跳过 `--session-id`
+ * 的值，因此作为选项值或位置参数出现的字面量 `--json` 永远不会安装 JSON 错误覆写。
+ * @param argv - 本次调用的原始参数。
+ * @returns `--json` 是否为本次调用中真实的标志。
  */
 function jsonRequested(argv: readonly string[]): boolean {
   for (let index = 0; index < argv.length; index += 1) {
@@ -70,25 +68,21 @@ function jsonRequested(argv: readonly string[]): boolean {
 }
 
 /**
- * Parse and provide the one-shot task as an ordinary Cordis service. The
- * command's action publishes the task; a missing task on an interactive stdin
- * is a usage error, so on rejection (and on `--help`) nothing is provided.
- * @param ctx - plugin context carrying the command line.
+ * 把一次性任务解析出来，并以普通 Cordis 服务的形式提供。命令的 action 发布该任务；
+ * 在交互式 stdin 上缺少任务属于用法错误，因此解析被拒绝时（以及 `--help`）不提供任何服务。
+ * @param ctx - 承载命令行的插件上下文。
  */
 export function apply(ctx: Context): void {
   const program = headlessCommand()
-  // The raw snapshot decides the JSON contract: Commander rejects a grammar
-  // error (an unknown option, a missing option value) before the action runs,
-  // and such a rejection still owes a --json caller the error event.
+  // 由原始快照决定 JSON 契约：Commander 会在 action 运行之前拒绝语法错误（未知选项、
+  // 缺少选项值），而这类拒绝仍应向 --json 调用方补上 error 事件。
   if (jsonRequested(ctx.get('cmdlineArgs')?.get() ?? [])) {
     program.error = (message: string, errorOptions?: Parameters<Command['error']>[1]): never => {
-      // The event message matches the runner's runtime errors, which carry no
-      // commander `error: ` prefix.
+      // 事件消息与 runner 的运行时错误保持一致，后者不携带 commander 的 `error: ` 前缀。
       const payload = boundJsonLine({ type: 'error', message: message.replace(/^error: /, '') })
       internals.stdout.write(`${payload}\n`)
-      // The JSON contract keeps stderr to `dsh:` diagnostics, so commander's
-      // own print of this message must not run; throwing the same control-flow
-      // error still leaves through the launcher's exit path.
+      // JSON 契约把 stderr 留给 `dsh:` 诊断信息，因此 commander 自身对该消息的打印
+      // 不得执行；抛出同样的控制流错误仍会经由启动器的退出路径离开。
       throw new CommanderError(1, errorOptions?.code ?? 'commander.error', message)
     }
   }
@@ -105,8 +99,8 @@ export function apply(ctx: Context): void {
       program.error('error: a task is required, for example: dsh --profile headless "run the tests"')
     }
     const options = program.opts<{ json?: boolean; sessionId?: string }>()
-    // A SessionId is opaque, so whitespace is part of the identity: validate
-    // emptiness on the trimmed value but hand the runner the exact string.
+    // SessionId 是不透明的，空白也属于身份的一部分：用修剪后的值校验是否为空，
+    // 但交给 runner 的是原始字符串。
     const sessionId = options.sessionId
     if (sessionId !== undefined && sessionId.trim() === '') {
       program.error('error: --session-id requires a non-empty session id')

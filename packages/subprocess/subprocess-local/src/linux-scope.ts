@@ -1,4 +1,4 @@
-/** Linux user-systemd scope launch and managed-range ownership. */
+/** Linux 用户态 systemd scope 启动与受管范围所有权。 */
 
 import { controlPipe } from './control-spawn.ts'
 import { execFile, spawn, spawnSync } from 'node:child_process'
@@ -29,7 +29,7 @@ import {
 import type { RunnerInvocation } from './runner-launch.ts'
 import { childEnv } from './spawn.ts'
 
-/** Test seams for systemd command execution. */
+/** 用于 systemd 命令执行的测试 seam。 */
 export interface LinuxScopeInternals {
   spawn?: typeof spawn
   spawnSync?: typeof spawnSync
@@ -41,7 +41,7 @@ export interface LinuxScopeInternals {
   runnerAvailable?: (invocation: RunnerInvocation) => boolean
   loadLinuxExecve?: typeof loadLinuxExecve
   sleep?: (delayMs: number, signal?: AbortSignal) => Promise<void>
-  /** Kernel unix socket table read by the user-manager confirmation; defaults to /proc/net/unix. */
+  /** 由用户管理器确认逻辑读取的内核 unix 套接字表；默认为 /proc/net/unix。 */
   unixSocketTable?: string
 }
 
@@ -56,14 +56,14 @@ const SYSTEMCTL_TIMEOUT_MS = 5_000
 const SCOPE_INITIAL_POLL_INTERVAL_MS = 50
 const MISSING_UNIT = /\bunit\b[^\r\n]*(?:could not be found|not found|not loaded)/iu
 const LITERAL_ARGV_OPTION = '--expand-environment=no'
-// systemd-run before v254 rejects the option; its scope mode passes argv to execvpe unexpanded.
+// v254 之前的 systemd-run 会拒绝该选项；其 scope 模式将 argv 原样传给 execvpe，不做展开。
 const LITERAL_ARGV_OPTION_REJECTED = /unrecognized option\b.*expand-environment/u
-// The spelling before systemctl v252 and an unambiguous prefix of the later `--kill-whom`.
+// systemctl v252 之前的拼写，也是后续 `--kill-whom` 的无歧义前缀。
 const KILL_ALL_MEMBERS = '--kill-who=all'
-/** Flags bit that /proc/net/unix sets on a listening socket (__SO_ACCEPTCON). */
+/** /proc/net/unix 在监听套接字上设置的标志位（__SO_ACCEPTCON）。 */
 const UNIX_SOCKET_ACCEPTING = 0x10000
 
-/** systemd-run options that keep target argv literal; empty where scope mode never expands argv. */
+/** 让目标 argv 保持字面的 systemd-run 选项；在 scope 模式从不展开 argv 时为空。 */
 export type LiteralArgvOptions = readonly string[]
 
 function managerEnvironment(): NodeJS.ProcessEnv {
@@ -103,9 +103,9 @@ function sleepWithAbort(delayMs: number, signal?: AbortSignal): Promise<void> {
 }
 
 /**
- * Confirm this exact runner entry and libc execve binding without a probe mode.
- * @param internals - optional runner and libc-binding seams used by tests.
- * @returns whether the bootstrap can enter the final target.
+ * 在没有探测模式的情况下，确认这一确切的 runner 入口与 libc execve 绑定。
+ * @param internals - 由测试使用的、可选的 runner 与 libc 绑定 seam。
+ * @returns 引导程序能否进入最终目标。
  */
 export function probeLinuxBootstrap(internals: LinuxScopeInternals = {}): boolean {
   try {
@@ -119,9 +119,9 @@ export function probeLinuxBootstrap(internals: LinuxScopeInternals = {}): boolea
 }
 
 /**
- * Confirm current literal-argv transient-scope support before selecting native launch.
- * @param internals - optional systemd command seams used by tests.
- * @returns the options that keep target argv literal, or undefined when the user manager cannot create the scope.
+ * 在选择原生启动之前，确认当前的字面 argv 临时 scope 支持。
+ * @param internals - 由测试使用的、可选的 systemd 命令 seam。
+ * @returns 让目标 argv 保持字面的选项；当用户管理器无法创建 scope 时为 undefined。
  */
 export function probeLinuxScope(internals: LinuxScopeInternals = {}): LiteralArgvOptions | undefined {
   const attempt = (literalArgv: LiteralArgvOptions): { created: boolean; stderr: string } => {
@@ -155,18 +155,18 @@ export function probeLinuxScope(internals: LinuxScopeInternals = {}): LiteralArg
 }
 
 /**
- * Check every Linux native prerequisite on each call.
- * @param internals - optional native capability seams used by tests.
- * @returns the literal-argv scope options when Linux native containment is available, otherwise undefined.
+ * 在每次调用时检查每一个 Linux 原生前置条件。
+ * @param internals - 由测试使用的、可选的原生能力 seam。
+ * @returns 当 Linux 原生隔离可用时的字面 argv scope 选项，否则为 undefined。
  */
 export function probeLinuxNative(internals: LinuxScopeInternals = {}): LiteralArgvOptions | undefined {
   return probeLinuxBootstrap(internals) ? probeLinuxScope(internals) : undefined
 }
 
 /**
- * Query the user manager once through systemctl.
- * @param internals - optional systemctl seam used by tests.
- * @returns whether the query succeeds.
+ * 通过 systemctl 对查询用户管理器一次。
+ * @param internals - 由测试使用的、可选的 systemctl seam。
+ * @returns 查询是否成功。
  */
 export function probeLinuxManager(internals: LinuxScopeInternals = {}): boolean {
   const result = (internals.spawnSync ?? spawnSync)(internals.systemctl ?? 'systemctl', [
@@ -179,16 +179,15 @@ export function probeLinuxManager(internals: LinuxScopeInternals = {}): boolean 
 }
 
 /**
- * Find the socket a process in this network namespace listens on at path. The kernel lists a
- * bound socket only while a process holds it open, so a socket file that a stopped or crashed
- * listener left behind does not count.
+ * 找出此网络命名空间中、在给定路径上监听的套接字。内核只在进程保持套接字打开时才
+ * 列出它，因此一个已停止或崩溃的监听者留下的套接字文件不算数。
  */
 function unixSocketListener(path: string, table: string): string | undefined {
   let text: string
   try {
     text = readFileSync(table, 'utf8')
   } catch (_unreadableSocketTable) {
-    // Without the socket table nothing is known, so callers fall back to systemctl or keep their verdict.
+    // 没有套接字表就无从得知，因此调用方退回到 systemctl 或保持各自的结论。
     return undefined
   }
   const suffix = ` ${path}`
@@ -203,11 +202,11 @@ function unixSocketListener(path: string, table: string): string | undefined {
 }
 
 /**
- * Identify the user manager's listener on `$XDG_RUNTIME_DIR/systemd/private`, the socket
- * `systemd-run --user` connects through.
- * @param internals - optional socket-table seam used by tests.
- * @returns the listening socket's inode from the kernel socket table, or undefined when
- *   XDG_RUNTIME_DIR is unset or nothing in this network namespace listens there.
+ * 识别用户管理器在 `$XDG_RUNTIME_DIR/systemd/private` 上的监听者，即
+ * `systemd-run --user` 所连接通过的套接字。
+ * @param internals - 由测试使用的、可选的套接字表 seam。
+ * @returns 来自内核套接字表的监听套接字 inode；当 XDG_RUNTIME_DIR 未设置或此网络
+ *   命名空间中没有任何监听者时，为 undefined。
  */
 export function linuxManagerListener(internals: LinuxScopeInternals = {}): string | undefined {
   const runtimeDirectory = childEnv().XDG_RUNTIME_DIR
@@ -216,10 +215,10 @@ export function linuxManagerListener(internals: LinuxScopeInternals = {}): strin
 }
 
 /**
- * Identify the systemd-run binary that scope launches resolve through PATH, so a package upgrade
- * that replaces it triggers another probe of its literal-argv options.
- * @param internals - optional systemd-run seam used by tests.
- * @returns the device, inode, size, and modification time of the first match, or undefined when none resolves.
+ * 识别 scope 启动经由 PATH 解析到的 systemd-run 可执行文件，以便一个替换它的包升级会
+ * 触发对其字面 argv 选项的又一次探测。
+ * @param internals - 由测试使用的、可选的 systemd-run seam。
+ * @returns 第一个匹配项的设备号、inode、大小与修改时间；当没有任何匹配时，为 undefined。
  */
 export function systemdRunIdentity(internals: LinuxScopeInternals = {}): string | undefined {
   const command = internals.systemdRun ?? 'systemd-run'
@@ -231,7 +230,7 @@ export function systemdRunIdentity(internals: LinuxScopeInternals = {}): string 
     try {
       stats = statSync(candidate, { throwIfNoEntry: false })
     } catch (_unreadableCandidate) {
-      // A PATH entry that is not a searchable directory cannot hold systemd-run.
+      // 一个不可搜索的目录形式的 PATH 项不可能包含 systemd-run。
       continue
     }
     if (stats?.isFile() === true) return `${String(stats.dev)}:${String(stats.ino)}:${String(stats.size)}:${String(stats.mtimeMs)}`
@@ -240,11 +239,11 @@ export function systemdRunIdentity(internals: LinuxScopeInternals = {}): string 
 }
 
 /**
- * Confirm the user manager before a scope launch. A listener on its private socket confirms it
- * without a child process; otherwise one systemctl query decides. A hung manager that still
- * listens passes, and its scope launch fails with LinuxScopeNotStartedError.
- * @param internals - optional socket-table and systemctl seams used by tests.
- * @returns whether a scope launch can reach the user manager.
+ * 在 scope 启动之前确认用户管理器。其私有套接字上的监听者无需子进程即可确认它；
+ * 否则由一次 systemctl 查询决定。一个仍在监听但已挂起的管理器会通过，而其 scope
+ * 启动会以 LinuxScopeNotStartedError 失败。
+ * @param internals - 由测试使用的、可选的套接字表与 systemctl seam。
+ * @returns 一次 scope 启动能否联络到用户管理器。
  */
 export function confirmLinuxManager(internals: LinuxScopeInternals = {}): boolean {
   return linuxManagerListener(internals) !== undefined || probeLinuxManager(internals)
@@ -252,13 +251,13 @@ export function confirmLinuxManager(internals: LinuxScopeInternals = {}): boolea
 
 interface DirectRange {
   running(): boolean
-  /** True for group TERM delivery, direct signal submission, or proven direct-PID absence. */
+  /** 组 TERM 投递、直接信号提交，或已证实的直接 PID 缺失时为 true。 */
   signal(signal: 'SIGTERM' | 'SIGKILL'): boolean
-  /** Direct exit/error settlement, independent of output drain and managed-range completion. */
+  /** 直接的退出/错误结算，独立于输出排空与受管范围的完成。 */
   settled: Promise<unknown>
 }
 
-/** A scope launch whose bootstrap never consumed its launch request, so its target never ran. */
+/** 一次其引导程序从未消费启动请求、因而目标从未运行的 scope 启动。 */
 export class LinuxScopeNotStartedError extends Error {
   override readonly name = 'LinuxScopeNotStartedError'
 }
@@ -340,7 +339,7 @@ class SystemdScopeOwner implements BoundProcessOwner {
         this.killFailure = result.error ?? new Error(
           `systemctl could not signal ${this.unit}: ${output.trim() || `exit ${String(result.status)}`}`,
         )
-        // The direct outcome retains errors; this barrier only joins its physical settlement.
+        // 直接结果会保留错误；此屏障只汇入其物理结算。
         this.directKillSettlement = directSignalled
           ? this.direct.settled.then(() => {}, () => {})
           : undefined
@@ -352,7 +351,7 @@ class SystemdScopeOwner implements BoundProcessOwner {
     if (this.stopped) return
     try {
       if (this.direct.running()) this.direct.signal('SIGKILL')
-    } catch { /* Continue with the native owner. */ }
+    } catch { /* 继续沿用原生所有者。 */ }
     try {
       this.runSync(this.systemctl, [
         '--user',
@@ -383,19 +382,17 @@ class SystemdScopeOwner implements BoundProcessOwner {
   }
 
   /**
-   * Prove an active unit with no processes is the empty managed range rather
-   * than a launch still placing its payload. systemd ends a scope only on the
-   * populated-to-empty transition, so a payload killed before it entered the
-   * cgroup leaves the unit active forever. A departed client cannot add another
-   * payload; a consumed request proves the payload already entered the scope,
-   * even while its direct-process exit notification is pending.
+   * 证明一个没有进程的活动单元是空的受管范围，而非仍在布置其负载的启动。systemd 只在
+   * “由非空到空”的跃迁时才结束一个 scope，因此一个在进入 cgroup 之前就被杀死的负载会让
+   * 该单元永远处于活动状态。一个已离去的客户端无法再添加另一个负载；而一个已被消费的
+   * 请求能证明负载已进入 scope，即便其直接进程的退出通知尚在等待中。
    */
   private emptyRange(tasksCurrent: number | undefined): boolean {
     return this.terminationRequested && tasksCurrent === 0
       && (!this.direct.running() || !existsSync(this.startup.files.requestPath))
   }
 
-  /** Release a leftover empty scope so the transient unit is collected and cannot accumulate. */
+  /** 释放一个遗留的空 scope，使临时单元被回收且不会累积。 */
   private releaseEmptyRange(): void {
     try {
       this.runSync(this.systemctl, ['--user', 'stop', this.unit], {
@@ -404,7 +401,7 @@ class SystemdScopeOwner implements BoundProcessOwner {
         timeout: SYSTEMCTL_TIMEOUT_MS,
       })
     } catch {
-      // The range is already empty; a failed cleanup leaves only the transient unit.
+      // 范围已为空；清理失败只会留下临时单元。
     }
   }
 
@@ -424,7 +421,7 @@ class SystemdScopeOwner implements BoundProcessOwner {
     }
     const loadState = values.get('LoadState')
     const activeState = values.get('ActiveState')
-    // The manager prints this sentinel for a property the unit does not carry.
+    // 管理器会为一个单元并不携带的属性打印此哨兵值。
     const reportedTasks = values.get('TasksCurrent')
     const tasksCurrent = reportedTasks === '[not set]' ? undefined : reportedTasks
     if (values.size !== (reportedTasks === undefined ? 2 : 3)
@@ -453,7 +450,7 @@ class SystemdScopeOwner implements BoundProcessOwner {
       '--property=ActiveState',
       '--property=TasksCurrent',
     ])
-    // A signal invalidates state queried before its delivery and direct fallback.
+    // 信号会使在其投递与直接回退之前查询到的状态失效。
     if (generation !== this.wakeGeneration) return true
     const output = `${result.stdout}\n${result.stderr}`
     if (result.status === 0) {
@@ -478,7 +475,7 @@ class SystemdScopeOwner implements BoundProcessOwner {
           const settlement = this.directKillSettlement
           this.directKillSettlement = undefined
           await settlement
-          // A query preceding direct exit cannot prove that its signalled processes survived.
+          // 直接退出之前的查询无法证明那些被发信号的进程是否存活。
           return this.rangeActive()
         }
         throw this.killFailure
@@ -520,8 +517,8 @@ class SystemdScopeOwner implements BoundProcessOwner {
       while (await this.rangeActive()) {
         await this.waitForPoll(pollIntervalMs, generation)
         generation = this.wakeGeneration
-        // Keep establishment responsive, then reduce systemctl process churn
-        // while systemd remains the authoritative owner of an active range.
+        // 先让建立过程保持响应，再在 systemd 仍是活动范围的权威所有者期间
+        // 降低 systemctl 的进程抖动。
         if (this.establishment === 'established') {
           pollIntervalMs = Math.min(pollIntervalMs * 2, SYSTEMCTL_TIMEOUT_MS)
         }
@@ -585,15 +582,15 @@ function directOutcome(
 }
 
 /**
- * Send a direct-process signal, distinguishing an absent PID from failed delivery.
- * @param pid - owned direct-process identity whose exit notification can still be pending.
- * @param send - platform signal operation; true means the signal was submitted.
- * @returns whether the signal was submitted or the owned PID is already absent.
+ * 发送一个直接进程信号，区分缺失的 PID 与失败的投递。
+ * @param pid - 被拥有的直接进程身份，其退出通知可能仍在等待中。
+ * @param send - 平台信号操作；返回 true 表示信号已提交。
+ * @returns 信号是否已提交，或该被拥有的 PID 是否已缺失。
  */
 export function signalLinuxDirectProcess(pid: number, send: () => boolean): boolean {
   try {
     if (send()) return true
-  } catch { /* A failed signal still permits an independent absence observation. */ }
+  } catch { /* 一次失败的信号仍允许一次独立的缺失观察。 */ }
   try {
     process.kill(pid, 0)
     return false
@@ -606,14 +603,14 @@ function signalChildGroup(child: ReturnType<typeof spawn>, signal: 'SIGTERM' | '
   let groupSignalled = false
   try {
     groupSignalled = process.kill(-(child.pid as number), signal)
-  } catch { /* A missing or inaccessible group still permits a direct-process attempt. */ }
+  } catch { /* 缺失或不可访问的进程组仍允许一次直接进程的尝试。 */ }
   if (groupSignalled && signal === 'SIGTERM') return true
-  // Group success can reflect another member; joining direct exit requires its own SIGKILL submission.
-  // ChildProcess.kill can emit an error that settles directOutcome before the real exit.
+  // 组的成功可能反映的是另一个成员；要并入直接退出，需要它自身的 SIGKILL 提交。
+  // ChildProcess.kill 可能抛出一个错误，在真正退出之前便结算了 directOutcome。
   return signalLinuxDirectProcess(child.pid as number, () => process.kill(child.pid as number, signal))
 }
 
-/** Linux PTY invocation and owner for the exact one-shot scope/bootstrap. */
+/** 对应一次性 scope/bootstrap 的 Linux PTY 调用与所有者。 */
 export interface LinuxTerminalScopeLaunch {
   command: string
   args: string[]
@@ -662,12 +659,12 @@ export function prepareLinuxTerminalScope(
 }
 
 /**
- * Launch one ordinary target inside a transient user scope.
- * @param spec - ordinary target request.
- * @param targetEnv - validated complete target environment.
- * @param literalArgv - options from the provider's positive scope probe.
- * @param internals - optional runner and systemd seams used by tests.
- * @returns streams, result, and scope owner; requested termination preserves the observed signal even before bootstrap consumption.
+ * 在一个临时用户 scope 内启动一个普通目标。
+ * @param spec - 普通目标请求。
+ * @param targetEnv - 经过校验的完整目标环境。
+ * @param literalArgv - 来自提供方肯定 scope 探测的选项。
+ * @param internals - 由测试使用的、可选的 runner 与 systemd seam。
+ * @returns 流、结果以及 scope 所有者；被请求的终止会在引导程序消费之前就保留所观察到的信号。
  */
 export function launchLinuxScope(
   spec: SubprocessSpawnSpec,

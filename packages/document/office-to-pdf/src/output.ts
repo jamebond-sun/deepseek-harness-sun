@@ -1,14 +1,14 @@
-/** Read only the bounded, regular PDF created inside a private task directory. */
+/** 只读在私有任务目录内创建的、有界的常规 PDF。 */
 import { constants } from 'node:fs'
 import { lstat, open } from 'node:fs/promises'
 import { OfficeToPdfError } from './errors.ts'
 
 /**
- * Refuse missing, link-shaped, oversized, truncated, and non-PDF output.
- * @param path - kit output path in the provider-owned scratch directory.
- * @param limit - inclusive PDF byte limit.
- * @param signal - conversion lifetime.
- * @returns complete bytes independent of the scratch file.
+ * 拒绝缺失、呈链接形态、超大、被截断以及非 PDF 的输出。
+ * @param path - 提供方拥有的临时目录中的 kit 输出路径。
+ * @param limit - 含上限的 PDF 字节上限。
+ * @param signal - 转换生命周期。
+ * @returns 独立于临时文件的完整字节。
  */
 export async function readPdf(path: string, limit: number, signal: AbortSignal): Promise<Uint8Array> {
   signal.throwIfAborted()

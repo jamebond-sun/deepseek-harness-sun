@@ -1,6 +1,6 @@
 /**
- * Surface retention selection and the shared log-recorded compaction
- * transaction for automatic open-turn and manual idle-session compaction.
+ * 表层保留选择，以及供自动开放轮次与手动空闲会话压缩共用的、记录于日志的
+ * 压缩事务。
  *
  * @module @deepseek-ai/dsh-compaction-basic/region
  */
@@ -29,7 +29,7 @@ interface RegionDependencies {
   recover(error: unknown, agent: Agent, sourceEventSeqs: readonly SessionSeq[], signal?: AbortSignal): boolean
 }
 
-/** One validated inclusive span of current surface positions. */
+/** 已校验的、当前表层位置上的一个包含性区间。 */
 interface SurfaceSelection {
   readonly start: SessionSeq
   readonly end: SessionSeq
@@ -38,12 +38,12 @@ interface SurfaceSelection {
   readonly shadowedSeqs: readonly SessionSeq[]
 }
 
-/** A selection with its priced snapshot and the replay input built from it. */
+/** 一个选择，连同它的计价快照，以及由其构建的重放输入。 */
 interface PreparedCompaction extends SurfaceSelection {
   readonly measurement: TokenMeasurement
   readonly selectedNodes: TokenMeasurement['nodes']
   readonly shadowedTokenCount: number
-  /** Route-priced total of the selected span; the shrink comparison's unit. */
+  /** 所选区间的路由计价总额；即缩减比较的单位。 */
   readonly shadowedRouteTokenCount: number
   readonly input: SummarizationInput
 }
@@ -53,13 +53,13 @@ type SummarizedCompaction = PreparedCompaction & SummaryResult & {
 }
 
 interface CompactionTransactionOptions {
-  /** `current-turn` derives a numbered owner; `null` writes a standalone bracket. */
+  /** `current-turn` 派生一个带编号的拥有者；`null` 写入一个独立括号。 */
   readonly owner: 'current-turn' | null
-  /** Surface relationship that must survive asynchronous summarization. */
+  /** 必须经受住异步摘要过程的表层关系。 */
   readonly stability: 'whole-surface' | 'selected-span'
-  /** Optional durability checkpoint after a successfully closed bracket. */
+  /** 在成功关闭括号之后可选的持久化检查点。 */
   readonly flush?: () => Promise<void>
-  /** Manual command that initiated this transaction, when present. */
+  /** 发起本次事务的手动命令，存在时提供。 */
   readonly sourceCommandId?: CommandId
 }
 
@@ -70,49 +70,46 @@ interface CompactionEntryState {
 }
 
 /**
- * Rejects a summary whose replacement boundaries are no longer the ones it was
- * built from, distinguished from summarizer and shrink failures so a manual
- * caller can report the two causes differently.
+ * 拒绝一个其替换边界已不再是它构建时所依据边界的摘要，
+ * 将其与摘要器失败及缩减失败区分开来，以便手动调用方可以不同方式报告这两种原因。
  */
 class SurfaceChangedError extends Error {}
 
-/** Whether the summary may still replace the span it was built from. */
+/** 摘要是否仍可替换它构建时所依据的区间。 */
 type StabilityCheck = (
   dependencies: RegionDependencies,
   session: Session,
   prepared: PreparedCompaction,
 ) => void
 
-/** Failure captured after `compaction/start` has committed. */
+/** 在 `compaction/start` 已提交之后捕获的失败。 */
 interface TransactionFailure {
   readonly error: unknown
   readonly stage: 'summary' | 'commit'
 }
 
 /**
- * The `system/message` holding surface node 0, or `undefined` when another
- * message-producing event starts the surface.
- * @param session - session supplying the log behind the current surface.
- * @param headSeq - seq at surface node 0 of a non-empty surface.
- * @returns the system head event, or `undefined` without one.
+ * 持有表层节点 0 的 `system/message`，当表层由另一个产生消息的事件开始时则为 `undefined`。
+ * @param session - 为当前表层提供底层日志的会话。
+ * @param headSeq - 非空表层的表层节点 0 处的 seq。
+ * @returns 系统头事件，若不存在则为 `undefined`。
  */
 function systemHead(session: Session, headSeq: SessionSeq): SessionEvent<'system/message'> | undefined {
-  // Surface nodes are current log seqs, so the event exists.
-  // Existing Session history read; migration deferred.
+  // 表层节点即当前的日志 seq，因此该事件必然存在。
+  // 既有 Session 历史读取；迁移暂缓。
   // oxlint-disable-next-line typescript/no-non-null-assertion, typescript/no-deprecated
   const head = session.eventAt(headSeq)!
   return head.type === 'system/message' ? head : undefined
 }
 
 /**
- * Resolve the next range starting at the first non-system surface node while
- * retaining a priced recent tail and never splitting an assistant
- * tool-call/result pair. A `system/message` at surface node 0 is never inside
- * the range; without one the range starts at node 0.
- * @param session - session supplying authoritative current surface positions.
- * @param measurement - unified pressure and surface measurement from the conversation meter.
- * @param retainTokens - minimum recent tail budget retained verbatim.
- * @returns the inclusive positional seq range to compact, or `null`.
+ * 解析从首个非系统表层节点开始的下一段区间，同时保留一个已计价的近期尾部，
+ * 且绝不拆开助手的工具调用/结果对。位于表层节点 0 的 `system/message`
+ * 永远不在该区间内；若不存在这样的消息，则区间从节点 0 开始。
+ * @param session - 提供权威当前表层位置的会话。
+ * @param measurement - 来自对话计量器的统一压力与表层测量。
+ * @param retainTokens - 逐字保留的最小近期尾部预算。
+ * @returns 待压缩的包含性位置 seq 区间，或 `null`。
  */
 export function selectCompactableRange(
   session: Session,
@@ -128,7 +125,7 @@ export function selectCompactableRange(
     throw new Error('compaction: token-meter surface does not match the current session surface')
   }
   // oxlint-disable-next-line typescript/no-non-null-assertion
-  const firstIdx = systemHead(session, surfaceNodes[0]!) === undefined ? 0 : 1
+  const firstIdx = systemHead(session, surfaceNodes[0]!) === undefined ? 0 : 1  // 无系统头则从节点 0 开始，否则跳过系统头
 
   let accumulated = 0
   let keepFromIdx = pricedNodes.length
@@ -155,20 +152,18 @@ export function selectCompactableRange(
 }
 
 /**
- * Run the single compaction transaction over one selected positional span.
- * Selection and validation are read-only. Idle/log validation and
- * `compaction/start` are synchronously adjacent, so the durable opening marker is
- * the compaction lock before summarization yields. Every later failure makes
- * exactly one `compaction/end` attempt; a failed close deliberately leaves the
- * unmatched start detectable.
- * @param dependencies - conversation meter and dynamically dispatched summarizer hook.
- * @param session - session whose surface is mutated.
- * @param start - inclusive first surface-node seq.
- * @param end - inclusive last surface-node seq.
- * @param agent - agent used by the summarizer.
- * @param options - bracket owner, stability rule, and optional durability checkpoint.
- * @param signal - optional summarization cancellation signal.
- * @returns the successful durable compaction result.
+ * 在所选的一个位置区间上运行单一的压缩事务。
+ * 选择与校验都是只读的。空闲/日志校验与 `compaction/start` 是同步相邻的，
+ * 因此在摘要让出之前，持久化的开启标记即为压缩锁。此后每一次失败都恰好尝试
+ * 一次 `compaction/end`；一次失败的关闭会刻意保留未匹配的 start 以便被检测到。
+ * @param dependencies - 对话计量器与动态分发的摘要钩子。
+ * @param session - 其表层被修改的会话。
+ * @param start - 包含的首个表层节点 seq。
+ * @param end - 包含的末个表层节点 seq。
+ * @param agent - 供摘要器使用的代理。
+ * @param options - 括号拥有者、稳定性规则，以及可选的持久化检查点。
+ * @param signal - 可选的摘要取消信号。
+ * @returns 成功的持久化压缩结果。
  */
 export async function compactSurfaceRegion(
   dependencies: RegionDependencies,
@@ -275,7 +270,7 @@ export async function compactSurfaceRegion(
   return result
 }
 
-/** Classify one closed manual attempt without weakening cancellation precedence. */
+/** 在不削弱取消优先级的条件下，对一次已关闭的手动尝试进行分类。 */
 function throwManualFailure(failure: TransactionFailure): never {
   if (failure.stage === 'commit') {
     throw new ManualCompactionError(
@@ -299,11 +294,11 @@ function throwManualFailure(failure: TransactionFailure): never {
 }
 
 /**
- * Reject a durable unmatched compaction marker unless a later constructor-seed
- * boundary proves that its owner belongs to an earlier session lifecycle.
- * @param unmatchedCompactionStart - latest unmatched opening marker, if any.
- * @param latestEndSeedSeq - newest constructor-seed boundary, if any.
- * @param stage - operation label included in the busy diagnostic.
+ * 拒绝一个持久化且未匹配的压缩标记，除非其后的构造器种子边界证明它的拥有者
+ * 属于更早的会话生命周期。
+ * @param unmatchedCompactionStart - 最新的未匹配开启标记（若有）。
+ * @param latestEndSeedSeq - 最新的构造器种子边界（若有）。
+ * @param stage - 包含在繁忙诊断中的操作标签。
  */
 function assertCompactionInactive(
   unmatchedCompactionStart: SessionEvent<'compaction/start'> | undefined,
@@ -320,9 +315,9 @@ function assertCompactionInactive(
 }
 
 /**
- * Recheck the durable compaction lock after an asynchronous policy decision.
- * @param session - session whose latest marker state is inspected.
- * @param stage - operation label included in the busy diagnostic.
+ * 在一次异步策略决策之后重新检查持久化的压缩锁。
+ * @param session - 其最新标记状态被检查的会话。
+ * @param stage - 包含在繁忙诊断中的操作标签。
  */
 export function assertNoActiveCompaction(session: Session, stage: string): void {
   const entryState = inspectCompactionEntryState(session)
@@ -333,7 +328,7 @@ export function assertNoActiveCompaction(session: Session, stage: string): void 
   )
 }
 
-/** Validate one requested surface-position span before asynchronous work begins. */
+/** 在异步工作开始前，校验一段被请求的表层位置区间。 */
 function validateSurfaceRegion(session: Session, start: SessionSeq, end: SessionSeq): SurfaceSelection {
   const nodes = session.surface.nodes
   const startIdx = nodes.indexOf(start)
@@ -357,7 +352,7 @@ function validateSurfaceRegion(session: Session, start: SessionSeq, end: Session
   return { start, end, startIdx, endIdx, shadowedSeqs: nodes.slice(startIdx, endIdx + 1) }
 }
 
-/** Snapshot pricing and replay input for a validated surface range. */
+/** 为一段已校验的表层区间快照计价并构建重放输入。 */
 function prepareCompaction(
   dependencies: RegionDependencies,
   session: Session,
@@ -373,17 +368,16 @@ function prepareCompaction(
     ...selection,
     measurement,
     selectedNodes,
-    // The shadow-price protocol prices replacements with the fixed heuristic
-    // so the O(1) projection fold stays in agreement with its own appends;
-    // retention, range selection, and the shrink comparison read the
-    // route-priced `tokens` instead.
+    // 影子价格协议使用固定的启发式方法为替换计价，
+    // 以便 O(1) 的投影折叠与其自身的追加保持一致；
+    // 而保留、区间选择以及缩减比较则改读路由计价的 `tokens`。
     shadowedTokenCount: selectedNodes.reduce((total, node) => total + node.heuristicTokens, 0),
     shadowedRouteTokenCount: selectedNodes.reduce((total, node) => total + node.tokens, 0),
     input: buildSummarizationInput(session, selection.shadowedSeqs),
   }
 }
 
-/** Run the summarizer and frame its replacement checkpoint. */
+/** 运行摘要器并为其替换检查点定框。 */
 async function summarizeCompaction(
   dependencies: RegionDependencies,
   prepared: PreparedCompaction,
@@ -411,9 +405,8 @@ async function summarizeCompaction(
     content: frameSummary(summaryResult.summary),
     source: compactCheckpointSource(compactionId, sourceCommandId),
   })
-  // The checkpoint is text-only, so its fixed-heuristic price IS its route
-  // price; comparing it against the span's route price asks the real
-  // question — does the replacement lower the next request's pressure.
+  // 检查点仅为文本，因此其固定启发式价格即为其路由价格；
+  // 将其与区间的路由价格比较，问的是真正的问题——该替换是否降低了下一次请求的压力。
   const framedSummaryTokenCount = dependencies.meter.estimateMessage(checkpointMessage)
   if (framedSummaryTokenCount >= prepared.shadowedRouteTokenCount) {
     throw new Error(
@@ -427,7 +420,7 @@ async function summarizeCompaction(
   }
 }
 
-/** Reject a summary prepared against any earlier surface generation. */
+/** 拒绝针对任何更早表层代次所准备的摘要。 */
 function assertWholeSurfaceUnchanged(
   dependencies: RegionDependencies,
   session: Session,
@@ -440,9 +433,8 @@ function assertWholeSurfaceUnchanged(
 }
 
 /**
- * Require only that the selected span remain the same present, contiguous,
- * equally priced, balanced replacement target. Nodes added outside it remain
- * visible and do not invalidate the summary.
+ * 仅要求所选区间仍然是相同的、当前存在的、连续的、同等计价的、平衡的替换目标。
+ * 在它之外新增的节点仍然可见，且不会使摘要失效。
  */
 function assertSelectedSpanStable(
   dependencies: RegionDependencies,
@@ -467,7 +459,7 @@ function assertSelectedSpanStable(
   }
 }
 
-/** Append one completed summary record and replacement body without yielding. */
+/** 在不让出的情况下，追加一条已完成的摘要记录与替换体。 */
 function commitCompactionBody(
   session: Session,
   startEvent: SessionEvent<'compaction/start'>,
@@ -521,7 +513,7 @@ function commitCompactionBody(
   }
 }
 
-/** Attach the successfully appended close event to a pending result. */
+/** 将成功追加的关闭事件附加到一个待定结果上。 */
 function completeCompaction(
   pending: Omit<CompactionResult, 'endSeq'>,
   endEvent: SessionEvent<'compaction/end'>,
@@ -530,29 +522,27 @@ function completeCompaction(
 }
 
 /**
- * Reconstruct the last routed request's cacheable prefix for the shadowed
- * region: the system prompt held by the `system/message` at surface node 0,
- * the header's tool schemas, then the region's own derived messages in surface
- * order. The summarizer appends only the compaction instruction after this, so
- * the call is a genuine prefix of the conversation and reuses the provider's
- * KV cache. A surface without a system head, or whose head projects to no
- * message, contributes no leading system message.
- * @param session - session supplying the surface head, request header, and per-node projection.
- * @param shadowedSeqs - the surface-node seqs, in order, being compacted.
- * @returns the replayed conversation prefix to condense.
+ * 为被遮蔽区域重建最后一次路由请求可缓存的前缀：位于表层节点 0 的
+ * `system/message` 所持有的系统提示、请求头的工具模式，然后是按表层顺序
+ * 排列的该区域自身的派生消息。摘要器仅在此之后追加压缩指令，因此该调用
+ * 是这段对话的真正前缀，并能复用提供方的 KV 缓存。没有系统头的表层，
+ * 或其头部投影不到任何消息的表层，不贡献任何前导系统消息。
+ * @param session - 提供表层头部、请求头与逐节点投影的会话。
+ * @param shadowedSeqs - 正被压缩的、按顺序排列的表层节点 seq。
+ * @returns 待压缩的重放对话前缀。
  */
 function buildSummarizationInput(
   session: Session,
   shadowedSeqs: readonly SessionSeq[],
 ): SummarizationInput {
   const header = session.requestHeader()
-  // shadowedSeqs are current surface seqs, so the surface has a node 0.
+  // shadowedSeqs 即当前表层 seq，因此表层存在节点 0。
   // oxlint-disable-next-line typescript/no-non-null-assertion
   const head = systemHead(session, session.surface.nodes[0]!)
   const system = head === undefined ? null : session.deriveEventMessage(head)
   const regionMessages = shadowedSeqs
-    // shadowedSeqs are current surface seqs, so each is a valid log index.
-    // Existing Session history read; migration deferred.
+    // shadowedSeqs 即当前表层 seq，因此每个都是有效的日志索引。
+    // 既有 Session 历史读取；迁移暂缓。
     // oxlint-disable-next-line typescript/no-non-null-assertion, typescript/no-deprecated
     .map(seq => session.deriveEventMessage(session.eventAt(seq)!))
     .filter((message): message is Message => message !== null)
@@ -562,7 +552,7 @@ function buildSummarizationInput(
   }
 }
 
-/** Inspect open-turn, unmatched-compaction, and latest seed-boundary state independently. */
+/** 独立地检视开放轮次、未匹配压缩，以及最新种子边界状态。 */
 function inspectCompactionEntryState(session: Session): CompactionEntryState {
   let openTurn: number | null = null
   let openTurnStateKnown = false
@@ -570,7 +560,7 @@ function inspectCompactionEntryState(session: Session): CompactionEntryState {
   let compactionEntryStateKnown = false
   let latestEndSeedSeq: SessionSeq | undefined
   for (let seq = session.seq - 1; seq >= 0; seq -= 1) {
-    // Existing Session history read; migration deferred.
+    // 既有 Session 历史读取；迁移暂缓。
     // oxlint-disable-next-line typescript/no-non-null-assertion, typescript/no-deprecated
     const event = session.eventAt(SessionSeq(seq))!
     if (latestEndSeedSeq === undefined && event.type === 'session/end-seed') {

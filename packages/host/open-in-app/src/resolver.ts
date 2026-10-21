@@ -1,15 +1,12 @@
 /**
- * Platform resolution for the open-in-app catalog: each entry's locator
- * chain resolves to a verified {@link OpenInAppResolvedLaunch} — a
- * launcher this host actually holds — and one resolution pass yields the
- * map the routes serve and launch from, so a click never re-runs detection.
- * PATH names resolve in-process through the injected subprocess capability;
- * the remaining host commands (`xcode-select`, `reg.exe`) run through
- * `@deepseek-ai/dsh-native-command` (argv, never a shell). Application
- * adapters spawn detached with a credential-scrubbed environment and their
- * declared Windows visibility policy ({@link launchDetachedApp}); `shell-open`
- * launches (the file managers) go through the same package's path opener —
- * the OS shell's open verb — instead of a direct spawn.
+ * open-in-app 目录的平台解析：每个条目的定位器链解析为一个经过校验的
+ * {@link OpenInAppResolvedLaunch}——本宿主真实持有的一个启动器——而一轮解析产出的映射表
+ * 就是路由所服务并从中启动的映射，因此一次点击永远不会重跑检测。PATH 名字通过注入的
+ * subprocess 能力在进程内解析；其余宿主命令（`xcode-select`、`reg.exe`）通过
+ * `@deepseek-ai/dsh-native-command` 运行（argv，绝不走 shell）。应用程序适配器以分离方式
+ * 派生，使用已剔除凭据的环境以及其声明的 Windows 可见性策略（{@link launchDetachedApp}）；
+ * `shell-open` 启动（文件管理器）则走同一个包的路径打开器——即操作系统 shell 的 open
+ * 动作——而不是直接派生进程。
  */
 
 import { spawn } from 'node:child_process'
@@ -25,23 +22,23 @@ import {
   type OpenInAppApp, type OpenInAppLaunch, type OpenInAppLocator, type OpenInAppPlatformSpec,
 } from './catalog.ts'
 
-/** Where this host holds one resolved application's icon pixels. */
+/** 本宿主保存某个已解析应用程序图标像素的位置。 */
 export type OpenInAppIconSource =
   | { readonly kind: 'app-bundle'; readonly path: string }
   | { readonly kind: 'executable'; readonly path: string }
 
-/** One entry's verified launchers and icon source on this host. */
+/** 某个条目在本宿主机上经过校验的启动器与图标来源。 */
 export interface OpenInAppResolvedLaunch {
   readonly launch: OpenInAppLaunch
   readonly fallbackLaunch?: OpenInAppLaunch | undefined
   /**
-   * Icon pixels source; absent on Linux (the icon route follows the spec's
-   * desktop entry instead) and for launchers with no artwork of their own.
+   * 图标像素来源；Linux 上缺省（图标路由改为跟随规格中的 desktop entry），以及那些自身
+   * 没有美术资源的启动器也缺省。
    */
   readonly icon?: OpenInAppIconSource | undefined
 }
 
-/** One detached GUI launch: spawn, then watch the window for early failure. */
+/** 一次分离的 GUI 启动：派生进程，然后观察窗口是否出现早期失败。 */
 export type OpenInAppLauncher = (
   command: string,
   args: readonly string[],
@@ -52,24 +49,20 @@ export type OpenInAppLauncher = (
   },
 ) => Promise<void>
 
-/** How one launch attempt ended; `missing` marks a stale resolution (ENOENT). */
+/** 一次启动尝试的结束方式；`missing` 表示解析已过期（ENOENT）。 */
 export type OpenInAppLaunchOutcome = 'launched' | 'missing' | 'failed'
 
 /**
- * Launch one application adapter detached from this process: the child gets a
- * credential-scrubbed environment (never the harness's `*KEY*`/`*SECRET*`
- * variables) plus the adapter's explicit environment entries, holds no stdio
- * pipe, and outlives dsh. Windows GUI processes remain visible unless the
- * adapter explicitly hides its own CLI process. Launch success is decoupled
- * from process exit — launchers such as kitty or the JetBrains IDEs stay in
- * the foreground for their whole window lifetime, so the watch window only
- * catches launchers that fail immediately: rejects on a spawn failure and on
- * a nonzero exit inside the window; a child still running when the window
- * closes is unrefed and counted launched, never killed.
- * @param command - executable path or PATH name.
- * @param args - argv (never a shell string).
- * @param options - watch-window length and adapter-specific process options.
- * @returns after the launch is counted successful; rejects on early failure.
+ * 以与本进程分离的方式启动一个应用程序适配器：子进程获得一份已剔除凭据的环境（绝不包含
+ * 框架的 `*KEY*`/`*SECRET*` 变量）再加上适配器显式的环境条目，不持有任何 stdio 管道，并
+ * 比 dsh 活得更久。Windows 的 GUI 进程保持可见，除非适配器显式隐藏自己的 CLI 进程。
+ * 启动成功与进程退出是解耦的——像 kitty 或 JetBrains IDE 这类启动器会在其窗口的整个生命
+ * 周期内留在前台，因此观察窗口只用于捕捉那些立即失败的启动器：派生失败以及窗口内非零
+ * 退出会被拒绝；窗口关闭时仍在运行的子进程会被 unref 并计为已启动，绝不被杀掉。
+ * @param command - 可执行文件路径或 PATH 名字。
+ * @param args - argv（绝不是一个 shell 字符串）。
+ * @param options - 观察窗口长度与适配器特有的进程选项。
+ * @returns 在启动被计为成功之后返回；发生早期失败时拒绝。
  */
 export const launchDetachedApp: OpenInAppLauncher = (command, args, options) =>
   new Promise((resolve, reject) => {
@@ -95,24 +88,24 @@ export const launchDetachedApp: OpenInAppLauncher = (command, args, options) =>
     })
   })
 
-/** Injectable platform facts for deterministic tests. */
+/** 为确定性测试注入的平台事实。 */
 export interface OpenInAppInternals {
   platform?: NodeJS.Platform
-  /** SSH launch fact from the inherited process layer, independent of `.env` values. */
+  /** 来自继承进程层的 SSH 启动事实，与 `.env` 取值无关。 */
   ssh?: boolean
-  /** Bundle-directory roots replacing `/Applications` and `~/Applications`. */
+  /** 替代 `/Applications` 与 `~/Applications` 的 bundle 目录根。 */
   applicationRoots?: readonly string[]
-  /** Environment for `${VAR}`/`%VAR%` expansion in candidates and registry values. */
+  /** 用于展开候选与注册表中 `${VAR}`/`%VAR%` 的环境。 */
   env?: Readonly<Record<string, string | undefined>>
-  /** Home directory replacing a leading `~/` in candidates. */
+  /** 替代候选中前导 `~/` 的主目录。 */
   home?: string
   run?: NativeCommandRunner
   launch?: OpenInAppLauncher
-  /** In-process PATH-name resolution; null when the name is not on PATH. */
+  /** 进程内的 PATH 名字解析；名字不在 PATH 上时返回 null。 */
   resolveExecutable?: (name: string) => Promise<string | null>
 }
 
-/** Platform facts after the one explicit defaulting step at each public entry. */
+/** 在每个公开入口处经过一次显式补全步骤之后的平台事实。 */
 export interface ResolvedInternals {
   platform: NodeJS.Platform
   ssh: boolean
@@ -125,12 +118,11 @@ export interface ResolvedInternals {
 }
 
 /**
- * Resolve the injectable facts against the running host. `resolveExecutable`
- * has no host default — the plugin supplies the composition's subprocess
- * capability — so a caller that omits it fails loud here rather than
- * silently resolving every `cli` locator as missing.
- * @param internals - injectable facts.
- * @returns the completed facts.
+ * 依据当前运行的宿主补全可注入的事实。`resolveExecutable` 没有宿主默认值——它由插件提供
+ * 组合中的 subprocess 能力——因此省略它的调用方会在此大声失败，而不是把每个 `cli` 定位器
+ * 静默地解析为缺失。
+ * @param internals - 可注入的事实。
+ * @returns 补全后的事实。
  */
 export function resolveInternals(internals: OpenInAppInternals): ResolvedInternals {
   const home = internals.home ?? homedir()
@@ -150,19 +142,19 @@ export function resolveInternals(internals: OpenInAppInternals): ResolvedInterna
   }
 }
 
-/** Closed-union exhaustiveness fence for the catalog's locator kinds. */
-/* v8 ignore next 3 -- closed catalog union; only reached if an entry is forged */
+/** 目录定位器 kind 的封闭联合穷尽性栅栏。 */
+/* v8 ignore next 3 -- 封闭的目录联合类型；仅在条目被伪造时才会到达 */
 function assertNever(value: never): never {
   throw new Error(`unhandled open-in-app catalog kind: ${JSON.stringify(value)}`)
 }
 
 /**
- * Run one bounded host command.
- * @param command - executable path or PATH name.
- * @param args - argv (never a shell string).
- * @param timeoutMs - command deadline.
- * @param internals - completed platform facts.
- * @returns stdout on exit 0; null on any failure (spawn, nonzero exit, timeout).
+ * 运行一条有界的宿主命令。
+ * @param command - 可执行文件路径或 PATH 名字。
+ * @param args - argv（绝不是一个 shell 字符串）。
+ * @param timeoutMs - 命令时限。
+ * @param internals - 补全后的平台事实。
+ * @returns 退出码为 0 时返回 stdout；任何失败（派生、非零退出、超时）返回 null。
  */
 export async function output(
   command: string, args: readonly string[], timeoutMs: number, internals: ResolvedInternals,
@@ -171,47 +163,45 @@ export async function output(
     const { stdout } = await internals.run(command, args, AbortSignal.timeout(timeoutMs), 'hidden')
     return stdout
   } catch {
-    // Swallows spawn, non-zero-exit, and timeout-abort failures alike: a
-    // failed host command has exactly one meaning here — unavailable.
+    // 同等对待派生失败、非零退出与超时中止：一条失败的宿主命令在此只有一种含义——不可用。
     return null
   }
 }
 
 /**
- * Probe one path as an existing directory.
- * @param path - candidate path.
- * @returns true when the path exists and is a directory.
+ * 探测某个路径是否为已存在的目录。
+ * @param path - 候选路径。
+ * @returns 该路径存在且为目录时为 true。
  */
 export async function isDirectory(path: string): Promise<boolean> {
   try {
     return (await stat(path)).isDirectory()
   } catch {
-    // Swallows ENOENT/EACCES: an unreadable candidate is not a bundle.
+    // 吞掉 ENOENT/EACCES：不可读的候选不是一个 bundle。
     return false
   }
 }
 
 /**
- * Probe one path as an existing regular file.
- * @param path - candidate path.
- * @returns true when the path exists and is a regular file.
+ * 探测某个路径是否为已存在的常规文件。
+ * @param path - 候选路径。
+ * @returns 该路径存在且为常规文件时为 true。
  */
 export async function isFile(path: string): Promise<boolean> {
   try {
     return (await stat(path)).isFile()
   } catch {
-    // Swallows ENOENT/EACCES: an unreadable candidate is not a launcher.
+    // 吞掉 ENOENT/EACCES：不可读的候选不是一个启动器。
     return false
   }
 }
 
 /**
- * Expand `${VAR}` references and a leading `~/`. Expansion is string
- * substitution: a candidate keeps its template's `/` separators after the
- * expanded prefix, which Win32 path APIs accept.
- * @param template - candidate template.
- * @param internals - completed platform facts.
- * @returns the expanded candidate, or null when a variable is unset.
+ * 展开 `${VAR}` 引用与前导 `~/`。展开是字符串替换：候选在展开前缀之后保留其模板的 `/`
+ * 分隔符，而 Win32 路径 API 接受这种写法。
+ * @param template - 候选模板。
+ * @param internals - 补全后的平台事实。
+ * @returns 展开后的候选；某个变量未设置时为 null。
  */
 export function expandCandidate(template: string, internals: ResolvedInternals): string | null {
   const unset: string[] = []
@@ -224,7 +214,7 @@ export function expandCandidate(template: string, internals: ResolvedInternals):
   return expanded.startsWith('~/') ? join(internals.home, expanded.slice(2)) : expanded
 }
 
-/** Expand `%VAR%` references in a Windows registry value; null when a variable is unset. */
+/** 展开 Windows 注册表值中的 `%VAR%` 引用；某个变量未设置时为 null。 */
 function expandRegistryValue(value: string, internals: ResolvedInternals): string | null {
   const unset: string[] = []
   const expanded = value.replace(/%([^%]+)%/g, (token, name: string) => {
@@ -235,27 +225,27 @@ function expandRegistryValue(value: string, internals: ResolvedInternals): strin
   return unset.length > 0 ? null : expanded
 }
 
-/** One Windows Uninstall record's fields relevant to launcher derivation. */
+/** 一条 Windows 卸载记录中与推导启动器相关的字段。 */
 interface WindowsInstallRecord {
   readonly displayName: string
   readonly installLocation?: string | undefined
   readonly displayIcon?: string | undefined
 }
 
-/** Lazily built Windows registry facts shared by one resolution pass. */
+/** 一轮解析共享的、惰性构建的 Windows 注册表事实。 */
 export interface WindowsRegistryView {
-  /** Lower-cased registered executable name to its `App Paths` default value. */
+  /** 已注册可执行文件的小写名称到其 `App Paths` 默认值的映射。 */
   readonly appPaths: ReadonlyMap<string, string>
   readonly installRecords: readonly WindowsInstallRecord[]
 }
 
-/** `App Paths` roots, user hive first (per-user installs shadow machine ones). */
+/** `App Paths` 的根键，用户 hive 在前（按用户安装覆盖机器级安装）。 */
 const APP_PATHS_ROOTS = [
   'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\App Paths',
   'HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths',
 ] as const
 
-/** Uninstall-record roots: user hive, 64-bit machine hive, 32-bit machine view. */
+/** 卸载记录的根键：用户 hive、64 位机器 hive、32 位机器视图。 */
 const UNINSTALL_ROOTS = [
   'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall',
   'HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall',
@@ -263,13 +253,12 @@ const UNINSTALL_ROOTS = [
 ] as const
 
 /**
- * Parse `reg.exe query <root> /s` output into per-subkey string values.
- * `reg.exe` prints one key path line per subkey followed by indented value
- * lines; the value-name/type/data columns are matched by the `REG_*` type
- * token because the default-value marker localizes (`(Default)`, `(默认)`).
- * @param dump - raw `reg.exe` stdout.
- * @returns subkey path to its `REG_SZ`/`REG_EXPAND_SZ` values by value name
- *   (the default value under the name `(Default)` regardless of locale).
+ * 把 `reg.exe query <root> /s` 的输出解析为各子键的字符串值。`reg.exe` 为每个子键打印一行
+ * 键路径，其后是缩进的值行；值名/类型/数据三列通过 `REG_*` 类型标记来匹配，因为默认值
+ * 标记会本地化（`(Default)`、`(默认)`）。
+ * @param dump - `reg.exe` 的原始 stdout。
+ * @returns 子键路径到其按值名索引的 `REG_SZ`/`REG_EXPAND_SZ` 值的映射（默认值一律以
+ *   `(Default)` 为名，不受区域影响）。
  */
 export function parseRegistryDump(dump: string): ReadonlyMap<string, ReadonlyMap<string, string>> {
   const keys = new Map<string, Map<string, string>>()
@@ -282,21 +271,20 @@ export function parseRegistryDump(dump: string): ReadonlyMap<string, ReadonlyMap
     }
     const value = /^\s+(.*?)\s+(REG_SZ|REG_EXPAND_SZ)\s+(.*)$/.exec(line)
     if (value === null || current === undefined) continue
-    // oxlint-disable-next-line typescript/no-non-null-assertion -- both capture groups exist on any match
+    // oxlint-disable-next-line typescript/no-non-null-assertion -- 任何匹配上都存在这两个捕获组
     const [name, data] = [value[1]!, value[3]!]
-    // reg.exe localizes the default-value marker; every locale wraps it in parentheses.
+    // reg.exe 会本地化默认值标记；每种区域语言都用括号包裹它。
     current.set(/^\(.*\)$/.test(name) ? '(Default)' : name, data.trim())
   }
   return keys
 }
 
 /**
- * Build the Windows registry facts for one resolution pass: the `App Paths`
- * table and the Uninstall records, one `reg.exe query /s` per root. A root
- * that fails or is absent contributes nothing.
- * @param timeoutMs - per-`reg.exe` deadline.
- * @param internals - completed platform facts.
- * @returns the parsed view.
+ * 为一轮解析构建 Windows 注册表事实：`App Paths` 表与卸载记录，每个根键一次
+ * `reg.exe query /s`。某个根键失败或不存在则不贡献任何内容。
+ * @param timeoutMs - 每次 `reg.exe` 的时限。
+ * @param internals - 补全后的平台事实。
+ * @returns 解析后的视图。
  */
 export async function readWindowsRegistryView(
   timeoutMs: number, internals: ResolvedInternals,
@@ -307,8 +295,8 @@ export async function readWindowsRegistryView(
     const dump = await output('reg.exe', ['query', root, '/s'], timeoutMs, internals)
     if (dump === null) continue
     for (const [key, values] of parseRegistryDump(dump)) {
-      // Registry keys separate with '\' on every host this parser runs on
-      // (tests parse fixtures on POSIX), so path.basename does not apply.
+      // 本解析器所运行的任何宿主上，注册表键都以 '\' 分隔（测试在 POSIX 上解析夹具），
+      // 因此 path.basename 不适用。
       const exe = key.slice(key.lastIndexOf('\\') + 1).toLowerCase()
       const target = values.get('(Default)')
       if (!exe.endsWith('.exe') || target === undefined || appPaths.has(exe)) continue
@@ -332,19 +320,19 @@ export async function readWindowsRegistryView(
   return { appPaths, installRecords }
 }
 
-/** Pass-scoped lazy holder so one detection pass reads the registry at most once. */
+/** 按轮次作用域的惰性持有者，使一轮检测最多读取一次注册表。 */
 class RegistryViewOnce {
   private view: Promise<WindowsRegistryView> | undefined
   constructor(private readonly timeoutMs: number, private readonly internals: ResolvedInternals) {}
 
-  /** The pass's registry view, read on first use. */
+  /** 本轮的注册表视图，首次使用时读取。 */
   read(): Promise<WindowsRegistryView> {
     this.view ??= readWindowsRegistryView(this.timeoutMs, this.internals)
     return this.view
   }
 }
 
-/** The executable a Windows Uninstall record proves, or null when it proves none. */
+/** 一条 Windows 卸载记录所证明的可执行文件，未证明任何文件时为 null。 */
 async function recordLauncher(
   record: WindowsInstallRecord,
   relativeLauncher: string | undefined,
@@ -358,7 +346,7 @@ async function recordLauncher(
     }
   }
   if (record.displayIcon !== undefined) {
-    // DisplayIcon may carry a `,<index>` suffix and quotes around the path.
+    // DisplayIcon 可能带有 `,<index>` 后缀以及包裹路径的引号。
     const bare = record.displayIcon.replace(/,-?\d+$/, '').replace(/^"|"$/g, '').trim()
     const expanded = expandRegistryValue(bare, internals)
     if (expanded !== null && expanded.toLowerCase().endsWith('.exe') && await isFile(expanded)) return expanded
@@ -366,7 +354,7 @@ async function recordLauncher(
   return null
 }
 
-/** Fields of one parsed XDG desktop entry the resolver and icon route read. */
+/** 解析器与图标路由所读取的、一个已解析 XDG desktop entry 的字段。 */
 export interface DesktopEntry {
   readonly exec?: string
   readonly tryExec?: string
@@ -374,9 +362,9 @@ export interface DesktopEntry {
 }
 
 /**
- * Parse the `[Desktop Entry]` section's `Exec`/`TryExec`/`Icon` keys.
- * @param text - desktop-entry file text.
- * @returns the recognized fields; keys outside the entry section are ignored.
+ * 解析 `[Desktop Entry]` 段中的 `Exec`/`TryExec`/`Icon` 键。
+ * @param text - desktop entry 文件的文本。
+ * @returns 已识别的字段；该段之外的键被忽略。
  */
 export function parseDesktopEntry(text: string): DesktopEntry {
   const fields = desktopEntryFields(text)
@@ -388,19 +376,19 @@ export function parseDesktopEntry(text: string): DesktopEntry {
 }
 
 /**
- * XDG data directories in precedence order (`XDG_DATA_HOME`, then `XDG_DATA_DIRS`).
- * @param internals - completed platform facts.
- * @returns the data directories, freedesktop defaults applied.
+ * 按优先级排列的 XDG 数据目录（`XDG_DATA_HOME`，然后是 `XDG_DATA_DIRS`）。
+ * @param internals - 补全后的平台事实。
+ * @returns 应用了 freedesktop 默认值的数据目录。
  */
 export function xdgDataDirectories(internals: ResolvedInternals): readonly string[] {
   return desktopDataDirectories(internals.home, internals.env)
 }
 
 /**
- * Read one desktop entry by id from the XDG application directories.
- * @param desktopId - entry id without the `.desktop` suffix.
- * @param internals - completed platform facts.
- * @returns the parsed entry, or null when no directory holds it.
+ * 从 XDG 应用程序目录中按 id 读取一个 desktop entry。
+ * @param desktopId - 不带 `.desktop` 后缀的条目 id。
+ * @param internals - 补全后的平台事实。
+ * @returns 解析出的条目；没有任何目录持有它时为 null。
  */
 export async function findDesktopEntry(
   desktopId: string, internals: ResolvedInternals,
@@ -410,16 +398,15 @@ export async function findDesktopEntry(
     try {
       return parseDesktopEntry(await readFile(path, 'utf8'))
     } catch {
-      // Swallows ENOENT/EACCES: try the next data directory.
+      // 吞掉 ENOENT/EACCES：继续尝试下一个数据目录。
     }
   }
   return null
 }
 
 /**
- * The executable one desktop entry proves: a `TryExec` when present,
- * otherwise `Exec`'s first token (quoted or bare); absolute paths verify on
- * disk and bare names resolve in-process through the subprocess capability.
+ * 一个 desktop entry 所证明的可执行文件：存在 `TryExec` 时用它，否则用 `Exec` 的第一个
+ * token（带引号或裸写）；绝对路径在磁盘上校验，裸名字则通过 subprocess 能力在进程内解析。
  */
 async function desktopLauncher(entry: DesktopEntry, internals: ResolvedInternals): Promise<string | null> {
   const candidate = entry.tryExec ?? execCommand(entry.exec)
@@ -429,9 +416,9 @@ async function desktopLauncher(entry: DesktopEntry, internals: ResolvedInternals
 }
 
 /**
- * First token of an `Exec=` value.
- * @param exec - the raw `Exec=` value, when the entry carries one.
- * @returns the quoted path or the run up to whitespace; null when absent or blank.
+ * `Exec=` 值的第一个 token。
+ * @param exec - 原始的 `Exec=` 值（当该条目带有此键时）。
+ * @returns 带引号的路径或直到空白之前的部分；缺失或为空白时返回 null。
  */
 export function execCommand(exec: string | undefined): string | null {
   if (exec === undefined) return null
@@ -442,10 +429,10 @@ export function execCommand(exec: string | undefined): string | null {
 }
 
 /**
- * The catalog entry's spec for one platform.
- * @param app - catalog entry.
- * @param platform - host platform.
- * @returns the declared spec; undefined off the declared three platforms.
+ * 某个平台下该目录条目的规格。
+ * @param app - 目录条目。
+ * @param platform - 宿主平台。
+ * @returns 已声明的规格；不在已声明的三个平台之内时为 undefined。
  */
 export function specFor(app: OpenInAppApp, platform: NodeJS.Platform): OpenInAppPlatformSpec | undefined {
   return platform === 'darwin' || platform === 'win32' || platform === 'linux'
@@ -453,12 +440,12 @@ export function specFor(app: OpenInAppApp, platform: NodeJS.Platform): OpenInApp
     : undefined
 }
 
-/** Icon source for a resolved executable: Windows extracts from the binary itself. */
+/** 已解析可执行文件的图标来源：Windows 从二进制自身提取。 */
 function executableIcon(path: string, internals: ResolvedInternals): OpenInAppIconSource | undefined {
   return internals.platform === 'win32' ? { kind: 'executable', path } : undefined
 }
 
-/** Resolve one locator to a verified launch, or null when it proves nothing. */
+/** 把一个定位器解析为经过校验的启动方式；未证明任何东西时为 null。 */
 async function locate(
   locator: OpenInAppLocator,
   probeTimeoutMs: number,
@@ -467,9 +454,9 @@ async function locate(
 ): Promise<OpenInAppResolvedLaunch | null> {
   switch (locator.kind) {
     case 'fixed': {
-      // A fixed entry ships with its OS, so the icon path is trusted rather
-      // than probed (a somehow-missing file surfaces as a 404 at extraction);
-      // only an unset variable (`${SystemRoot}`) drops the icon claim.
+      // 一个 fixed 条目随其操作系统一起提供，因此图标路径是被信任的而非探测出来的
+      // （万一文件缺失，会在提取阶段表现为 404）；只有未设置的变量（`${SystemRoot}`）
+      // 才会丢弃图标声明。
       const iconPath = expandCandidate(locator.iconPath, internals)
       const icon = iconPath === null
         ? undefined
@@ -529,11 +516,11 @@ async function locate(
       try {
         entries = await readdir(root)
       } catch {
-        // Swallows a missing/unreadable root: no install directory to scan.
+        // 吞掉缺失/不可读的根目录：没有可扫描的安装目录。
         return null
       }
-      // Version-suffixed directory names compare numeric-aware, newest first
-      // ('2024.1.10' outranks '2024.1.9', which plain lexicographic misses).
+      // 带版本后缀的目录名按数值感知比较，最新的在前（'2024.1.10' 高于 '2024.1.9'，
+      // 而纯字典序会漏掉这一点）。
       const versions = entries.filter(entry => entry.startsWith(locator.namePrefix))
         .sort((a, b) => b.localeCompare(a, 'en', { numeric: true }))
       for (const version of versions) {
@@ -568,7 +555,7 @@ async function locate(
           .filter(entry => entry.startsWith('app-'))
           .sort((a, b) => b.localeCompare(a, 'en', { numeric: true }))
       } catch {
-        // Swallows a missing/unreadable install root: GitHub Desktop is absent.
+        // 吞掉缺失/不可读的安装根目录：GitHub Desktop 不存在。
         return null
       }
       for (const version of versions) {
@@ -596,18 +583,17 @@ async function locate(
       const launcher = await desktopLauncher(entry, internals)
       return launcher === null ? null : { launch: { kind: 'argv', command: launcher, args: locator.args } }
     }
-    /* v8 ignore next -- closed locator union */
+    /* v8 ignore next -- 封闭的定位器联合类型 */
     default: return assertNever(locator)
   }
 }
 
 /**
- * Resolve one catalog entry on this host: this platform's locators are tried
- * in order and the first verified launcher wins.
- * @param app - catalog entry.
- * @param probeTimeoutMs - per-command deadline for resolution host commands.
- * @param internals - platform and runner hooks for deterministic tests.
- * @returns the verified launch, or null during SSH launches or when the entry is not installed here.
+ * 在本宿主机上解析一个目录条目：按序尝试该平台的定位器，第一个经过校验的启动器胜出。
+ * @param app - 目录条目。
+ * @param probeTimeoutMs - 解析用宿主命令的单条命令时限。
+ * @param internals - 供确定性测试注入的平台与运行器钩子。
+ * @returns 经过校验的启动方式；在 SSH 启动期间或该条目未安装在本机时为 null。
  */
 export async function resolveLaunch(
   app: OpenInAppApp, probeTimeoutMs: number, internals: OpenInAppInternals = {},
@@ -617,7 +603,7 @@ export async function resolveLaunch(
   return resolveWithRegistry(app, probeTimeoutMs, new RegistryViewOnce(probeTimeoutMs, resolved), resolved)
 }
 
-/** Resolve one entry against a pass-shared registry view. */
+/** 针对本轮共享的注册表视图解析一个条目。 */
 async function resolveWithRegistry(
   app: OpenInAppApp,
   probeTimeoutMs: number,
@@ -634,15 +620,13 @@ async function resolveWithRegistry(
 }
 
 /**
- * Resolve the whole catalog once: every entry's verified launcher on this
- * host, in menu order. The Windows registry is read at most once per pass.
- * The returned map is the mutable authority the caller owns — the routes
- * serve its keys and launch from its values, and a stale entry is replaced
- * or removed in place after an `ENOENT` launch.
- * An SSH launch returns an empty map without probing.
- * @param probeTimeoutMs - per-command deadline for resolution host commands.
- * @param internals - platform and runner hooks for deterministic tests.
- * @returns catalog id to verified launch, in catalog order.
+ * 一次性解析整个目录：本宿主机上每个条目经过校验的启动器，按菜单顺序排列。Windows 注册表
+ * 每轮最多读取一次。返回的映射是调用方所拥有的可变权威——路由提供其键并从其值启动，而某
+ * 个过期条目会在一次 `ENOENT` 启动之后就地被替换或移除。
+ * SSH 启动将返回一个空映射，不做任何探测。
+ * @param probeTimeoutMs - 解析用宿主命令的单条命令时限。
+ * @param internals - 供确定性测试注入的平台与运行器钩子。
+ * @returns 目录 id 到经过校验的启动方式的映射，按目录顺序。
  */
 export async function resolveOpenInAppApps(
   probeTimeoutMs: number, internals: OpenInAppInternals = {},
@@ -662,8 +646,7 @@ export async function resolveOpenInAppApps(
 }
 
 /**
- * Substitute the directory token into one launch argv, appending the
- * directory when no arg carries one.
+ * 把目录 token 代入一条启动 argv，当没有任何参数携带它时则把目录追加到末尾。
  */
 function launchArgs(args: readonly string[], path: string): readonly string[] {
   return args.some(arg => arg.includes(PATH_TOKEN))
@@ -671,17 +654,15 @@ function launchArgs(args: readonly string[], path: string): readonly string[] {
     : [...args, path]
 }
 
-/** Whether a launch rejection names a missing executable (a stale resolution). */
+/** 一次启动拒绝是否指向缺失的可执行文件（解析已过期）。 */
 function isMissingExecutable(error: unknown): boolean {
   return typeof error === 'object' && error !== null && 'code' in error && error.code === 'ENOENT'
 }
 
 /**
- * Open one directory through the OS shell's open verb under the launch watch
- * window: the opener command completing inside the window decides the
- * outcome, and an opener still running when it closes counts as launched and
- * keeps running (a cold shell opener can outlive the window; its late
- * settlement is swallowed because the request already answered).
+ * 通过操作系统 shell 的 open 动作在启动观察窗口内打开一个目录：打开命令是否在窗口内完成
+ * 决定结果，而窗口关闭时仍在运行的打开器计为已启动并继续运行（冷启动的 shell 打开器可能
+ * 比窗口活得更久；其迟到的结算会被吞掉，因为请求已经应答）。
  */
 function runShellOpen(
   path: string, watchMs: number, internals: ResolvedInternals,
@@ -692,7 +673,7 @@ function runShellOpen(
   return new Promise((resolve) => {
     const watch = setTimeout(() => {
       opening.catch(() => {
-        // Late failure of an opener the window already counted as launched.
+        // 窗口已经计为已启动的打开器发生了迟到失败。
       })
       resolve('launched')
     }, watchMs)
@@ -709,7 +690,7 @@ function runShellOpen(
   })
 }
 
-/** Run one launcher and classify how the attempt ended. */
+/** 运行一个启动器并判定该次尝试的结束方式。 */
 async function runLaunch(
   launch: OpenInAppLaunch, path: string, watchMs: number, internals: ResolvedInternals,
 ): Promise<OpenInAppLaunchOutcome> {
@@ -725,27 +706,25 @@ async function runLaunch(
         })
         return 'launched'
       } catch (error: unknown) {
-        // A missing executable marks the resolution stale (the caller
-        // re-resolves once); every other spawn or early-exit failure has one
-        // meaning — the launcher never opened anything — and the caller may
-        // still try a fallback.
+        // 可执行文件缺失意味着解析已过期（调用方会重新解析一次）；其他任何派生或早期退出
+        // 失败都只有一种含义——启动器什么都没打开——而调用方仍可尝试回退。
         return isMissingExecutable(error) ? 'missing' : 'failed'
       }
-    /* v8 ignore next -- closed launch union */
+    /* v8 ignore next -- 封闭的启动联合类型 */
     default: return assertNever(launch)
   }
 }
 
 /**
- * Launch one resolved application on a directory: the primary launcher, then
- * the fallback when the primary fails inside the watch window.
- * @param resolved - the entry's verified launchers.
- * @param path - absolute workspace directory (already validated by the route).
- * @param watchMs - early-failure watch window per launcher (a child still
- * running when it closes counts as launched and keeps running).
- * @param internals - launcher hook for deterministic tests.
- * @returns how the attempt ended; `missing` when a tried launcher's
- *   executable is gone, which tells the caller to re-resolve once.
+ * 在一个目录上启动一个已解析的应用程序：先主启动器，当主启动器在观察窗口内失败时再使用
+ * 回退。
+ * @param resolved - 该条目经过校验的启动器。
+ * @param path - 绝对的工作区目录（已由路由校验）。
+ * @param watchMs - 每个启动器的早期失败观察窗口（窗口关闭时仍在运行的子进程计为已启动
+ * 并继续运行）。
+ * @param internals - 供确定性测试注入的启动器钩子。
+ * @returns 该次尝试的结束方式；当某个被尝试的启动器的可执行文件已消失时为 `missing`，
+ *   这告诉调用方要重新解析一次。
  */
 export async function launchResolved(
   resolved: OpenInAppResolvedLaunch, path: string, watchMs: number, internals: OpenInAppInternals = {},
@@ -755,6 +734,6 @@ export async function launchResolved(
   if (primary === 'launched' || resolved.fallbackLaunch === undefined) return primary
   const fallback = await runLaunch(resolved.fallbackLaunch, path, watchMs, completed)
   if (fallback === 'launched') return 'launched'
-  // Either tried launcher having vanished is grounds to refresh the resolution.
+  // 任一被尝试的启动器消失，都是刷新解析结果的理由。
   return primary === 'missing' || fallback === 'missing' ? 'missing' : 'failed'
 }

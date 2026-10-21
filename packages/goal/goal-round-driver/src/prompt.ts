@@ -1,13 +1,13 @@
-/** Model-visible continuation prompt for one same-session goal round. */
+/** 一个同会话 goal 轮次所用的、模型可见的续跑提示。 */
 
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import type { GoalView } from '@deepseek-ai/dsh-goal'
 
 /**
- * Render the complete goal-round instruction retained in session history.
- * @param goal - exact active goal revision being admitted.
- * @param round - next positive round number.
- * @returns a fresh one-block prompt for `Agent.followup()`.
+ * 渲染保留在会话历史中的完整 goal 轮次指令。
+ * @param goal - 正被准入的精确 active 目标修订。
+ * @param round - 下一个正轮次号。
+ * @returns 供 `Agent.followup()` 使用的全新单块提示。
  */
 export function renderGoalRoundPrompt(goal: GoalView, round: number): ContentBlock[] {
   return [{

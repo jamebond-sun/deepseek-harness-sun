@@ -1,13 +1,12 @@
 /**
- * Generic stdio language-server backend for `ctx.lsp`. One plugin instance configures a named table
- * of server commands and registers one isolated provider for each entry. Every provider lazily
- * single-flights one server process per canonical workspace target, serves transient-open queries
- * through it, and replaces a selected transport that fails before or during the next read-only
- * query. Providers read sources through `ctx.fs` and launch servers through
- * `ctx.subprocess`, so both local and remote implementations share one host.
+ * `ctx.lsp` 的通用 stdio 语言服务后端。一个插件实例配置一张具名的服务命令表，
+ * 并为其中每一条目注册一个相互隔离的 provider。每个 provider 为每个规范工作区目标
+ * 惰性单飞地启动一个服务端进程，通过它处理临时打开的查询，并在下一次只读查询之前或期间
+ * 替换掉已失败的被选中传输。provider 通过 `ctx.fs` 读取源码、通过 `ctx.subprocess` 启动
+ * 服务，因此本地与远程实现共享同一套宿主。
  *
- * Namespace plugin (named exports, no default export). Lifecycle is effect-scoped: disposal
- * unregisters from `ctx.lsp` and tears down every live server.
+ * 命名空间插件（具名导出，无默认导出）。生命周期由 effect 界定：
+ * 销毁时会从 `ctx.lsp` 注销并拆除每一个存活的服务端。
  * @module @deepseek-ai/dsh-lsp-stdio
  */
 
@@ -40,10 +39,10 @@ export {
 export { LspInstance } from './instance.ts'
 export { LspConnection } from './connection.ts'
 
-/** Cordis plugin name for loader diagnostics. */
+/** 供加载器诊断使用的 Cordis 插件名。 */
 export const name = 'lsp-stdio'
 
-/** Services required by this plugin. */
+/** 本插件所需的服务。 */
 export const inject = ['fs', 'lsp', 'subprocess']
 
 const DEFAULT_MAX_MESSAGE_BYTES = 16_000_000
@@ -52,39 +51,39 @@ const DEFAULT_MAX_DOCUMENT_BYTES = 4_000_000
 const DEFAULT_SHUTDOWN_TIMEOUT_MS = 5_000
 const DEFAULT_KILL_GRACE_MS = 2_000
 
-/** One configured local language server and its host bounds. */
+/** 一个已配置的本地语言服务及其宿主边界。 */
 export interface LspLocalServerConfig {
-  /** Executable to spawn (absolute, or resolved on PATH at load). */
+  /** 要启动的可执行文件（绝对路径，或在加载时按 PATH 解析）。 */
   command: string
-  /** Lowercase leading-dot extension → LSP language id (e.g. `{ '.ts': 'typescript' }`). */
+  /** 小写的带前导点扩展名 → LSP 语言 id（例如 `{ '.ts': 'typescript' }`）。 */
   extensionToLanguage: Record<string, string>
-  /** Arguments passed to the executable (no shell). Default `[]`. */
+  /** 传给可执行文件的参数（不经 shell）。默认 `[]`。 */
   args?: string[]
-  /** Extra env vars merged on top of the scrubbed ambient env. Default `{}`. */
+  /** 叠加在已清理的环境之上的额外环境变量。默认 `{}`。 */
   env?: Record<string, string>
-  /** Static `initialize` options forwarded to the server. Default `null`. */
+  /** 转发给服务端的静态 `initialize` 选项。默认 `null`。 */
   initializationOptions?: unknown
-  /** Static answer to every `workspace/configuration` item. Default `null`. */
+  /** 对每一个 `workspace/configuration` 条目的静态应答。默认 `null`。 */
   configuration?: unknown
-  /** Largest single framed message accepted from the server (bytes). Default 16000000. */
+  /** 从服务端接受的单条分帧消息上限（字节）。默认 16000000。 */
   maxMessageBytes?: number
-  /** Largest stderr tail retained for diagnostics (bytes). Default 1000000. */
+  /** 为诊断保留的 stderr 尾部上限（字节）。默认 1000000。 */
   maxStderrBytes?: number
-  /** Largest source file this host will open (bytes). Default 4000000. */
+  /** 本宿主会打开的源码文件上限（字节）。默认 4000000。 */
   maxDocumentBytes?: number
-  /** Graceful `shutdown`/`exit` budget before escalation (ms). Default 5000. */
+  /** 升级前的优雅 `shutdown`/`exit` 预算（毫秒）。默认 5000。 */
   shutdownTimeoutMs?: number
-  /** Request-cancel and SIGTERM→SIGKILL grace (ms). Default 2000. */
+  /** 请求取消与 SIGTERM→SIGKILL 的宽限期（毫秒）。默认 2000。 */
   killGraceMs?: number
 }
 
-/** Plugin configuration: provider id → local language-server configuration. */
+/** 插件配置：provider id → 本地语言服务配置。 */
 export interface Config {
-  /** Non-empty table of stable provider ids to independent local server configurations. */
+  /** 非空的“稳定 provider id → 各自独立的本地服务配置”表。 */
   servers: Record<string, LspLocalServerConfig>
 }
 
-/** One server config after schemastery fills every default. */
+/** schemastery 填充完所有默认值之后的一份服务配置。 */
 type ResolvedServerConfig = Required<LspLocalServerConfig>
 type WorkspaceKey = HostWorkspace['target']['targetKey']
 
@@ -106,7 +105,7 @@ export const Config: z<Config> = z.object({
   servers: z.dict(LspLocalServerConfig).required(),
 })
 
-/** Propagate teardown failures only after every sibling has settled. */
+/** 仅在每个兄弟项都落定之后才传播拆除失败。 */
 function throwTeardownFailures(results: readonly PromiseSettledResult<void>[], message: string): void {
   const failures: unknown[] = []
   for (const result of results) {
@@ -117,11 +116,10 @@ function throwTeardownFailures(results: readonly PromiseSettledResult<void>[], m
 }
 
 /**
- * Register the configured stdio LSP providers. Resolves every executable at load (after credential
- * scrubbing) before publishing any provider; each process launches lazily on its first matching
- * query.
- * @param ctx - the plugin context carrying `fs`, `lsp`, and `subprocess`.
- * @param config - the resolved plugin configuration (schemastery has filled every default).
+ * 注册已配置的 stdio LSP provider。在发布任何 provider 之前，于加载时（凭据清理之后）
+ * 解析每一个可执行文件；每个进程在其第一个匹配的查询上惰性启动。
+ * @param ctx - 携带 `fs`、`lsp` 与 `subprocess` 的插件上下文。
+ * @param config - 已解析的插件配置（schemastery 已填充全部默认值）。
  */
 export async function apply(ctx: Context, config: Config): Promise<void> {
   const entries = Object.entries(config.servers)
@@ -129,15 +127,15 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
 
   const setupAbort = new AbortController()
   const stopSetupCancellation = ctx.on('internal/plugin', (fiber) => {
-    // An async plugin callback must observe its own disposal before Cordis can
-    // run effect cleanup, because unload otherwise waits for this callback.
+    // 异步插件回调必须在 Cordis 能够运行 effect 清理之前观察到自身的销毁，
+    // 否则 unload 会一直等待这个回调。
     if (fiber === ctx.fiber && fiber.uid === null) {
       setupAbort.abort(new Error('lsp-stdio setup disposed'))
     }
   })
 
-  // Resolve every server-local setting before registration so a bad later command or bound cannot
-  // publish an earlier provider. Registry-level mapping conflicts are rolled back below.
+  // 在注册之前解析每一条服务本地设置，使后面出错的命令或边界无法让前面的 provider 被发布。
+  // 注册表层面的映射冲突在下面回滚。
   const providers = await (async () => {
     const lookups = entries.map(async ([providerId, rawConfig]) => {
       if (providerId.trim() === '') throw new Error('lsp-stdio: server ids must be non-empty strings')
@@ -177,7 +175,7 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
       throw error
     }
     return async () => {
-      // Remove every route before process teardown so no new query can enter a draining provider.
+      // 在进程拆除之前移除每一条路由，使新的查询无法进入一个正在排空的 provider。
       for (const dispose of disposers.reverse()) dispose()
       const results = await Promise.allSettled(providers.map(provider => provider.disposeAll()))
       throwTeardownFailures(results, 'lsp-stdio provider teardown failed')
@@ -185,43 +183,43 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
   }, 'lsp-stdio.registerProviders')
 }
 
-/** Validate one resolved server entry before any provider in the table is registered. */
+/** 在表中任何 provider 被注册之前校验一条已解析的服务条目。 */
 function validateServerConfig(providerId: string, resolved: ResolvedServerConfig): void {
-  // Teardown budgets feed `deadline()`, whose `<= 0` is the internal no-timeout sentinel; a
-  // nonpositive value would let a server that ignores shutdown hang disposal forever. Fail at load.
+  // 拆除预算会喂给 `deadline()`，其 `<= 0` 是内部的“无超时”哨兵；一个非正值
+  // 会让一个忽略 shutdown 的服务端把销毁永久挂住。在加载时就失败。
   assertTimer(providerId, 'shutdownTimeoutMs', resolved.shutdownTimeoutMs)
   assertTimer(providerId, 'killGraceMs', resolved.killGraceMs)
-  // Byte caps must be positive: a nonpositive stderr cap defeats the retained-tail bound
-  // (`slice(-0)` keeps everything), `maxMessageBytes: 0` makes every response fatal, and a bad
-  // document cap fails later in the read path instead of at load.
+  // 字节上限必须为正：非正的 stderr 上限会破坏保留尾部的约束
+  // （`slice(-0)` 会保留全部内容），`maxMessageBytes: 0` 会让每个响应都变成致命错误，
+  // 而一个错误的文档上限会推迟到读取路径才失败，而不是在加载时失败。
   assertPositiveInteger(providerId, 'maxStderrBytes', resolved.maxStderrBytes)
   assertPositiveInteger(providerId, 'maxMessageBytes', resolved.maxMessageBytes)
   assertPositiveInteger(providerId, 'maxDocumentBytes', resolved.maxDocumentBytes)
 }
 
-/** Reject a timer value Node would clamp instead of scheduling as configured. */
+/** 拒绝 Node 会被钳制而非按配置调度的定时器取值。 */
 function assertTimer(providerId: string, name: string, value: number): void {
   if (!Number.isInteger(value) || value < 1 || value > MAX_TIMER_DELAY_MS) {
     throw new Error(`lsp-stdio: servers.${providerId}.${name} must be a positive integer no greater than ${MAX_TIMER_DELAY_MS}`)
   }
 }
 
-/** Reject a nonpositive or non-integer config value at load, so misconfiguration fails loud. */
+/** 在加载时拒绝非正或非整数的配置值，使错误配置失败即报。 */
 function assertPositiveInteger(providerId: string, name: string, value: number): void {
   if (!Number.isInteger(value) || value < 1) {
     throw new Error(`lsp-stdio: servers.${providerId}.${name} must be a positive integer`)
   }
 }
 
-/** A pooled generic provider: one server process per canonical workspace, created on demand. */
+/** 一个池化的通用 provider：每个规范工作区一个服务端进程，按需创建。 */
 class LocalLspProvider implements LspProvider {
   readonly id: LspProviderId
   readonly extensionToLanguage: Readonly<Record<string, string>>
-  /** One live instance per stable canonical workspace identity. */
+  /** 每个稳定的规范工作区身份对应一个存活实例。 */
   private readonly instances = new Map<WorkspaceKey, LspInstance>()
-  /** One complete source-read→open→query→close serialization tail per canonical workspace. */
+  /** 每个规范工作区一条完整的“读取源码→打开→查询→关闭”串行化尾部。 */
   private readonly queues = new Map<WorkspaceKey, Promise<void>>()
-  /** Workspace canonicalizations that have not entered a provider-owned queue yet. */
+  /** 尚未进入 provider 自有队列的工作区规范化操作。 */
   private readonly workspaceLookups = new Set<Promise<void>>()
   private readonly lifetime = new AbortController()
   private disposed = false
@@ -237,20 +235,19 @@ class LocalLspProvider implements LspProvider {
     this.extensionToLanguage = config.extensionToLanguage
   }
 
-  /** Read the disposed flag through a method so a `query()` await cannot narrow it to a literal. */
+  /** 通过一个方法读取销毁标志，使 `query()` 的 await 不会把它收窄为字面量。 */
   private isDisposed(): boolean {
     return this.disposed
   }
 
-  /** Reject work that cannot publish or use a provider-owned instance. */
+  /** 拒绝那些无法发布或使用 provider 自有实例的工作。 */
   private assertActive(signal?: AbortSignal): void {
-    /* v8 ignore next -- the seam unregisters this provider before disposal; direct in-flight calls
-       exercise the post-await check instead. */
+    /* v8 ignore next -- 接缝会在销毁之前注销本 provider；直接的在途调用走的是 await 之后的检查。 */
     if (this.isDisposed()) throw new LspError('lsp-stdio provider is disposed', 'LSP_DISPOSED')
     if (signal?.aborted) throw abortError(signal)
   }
 
-  /** Fuse caller cancellation with provider disposal for every filesystem and protocol await. */
+  /** 为每一次文件系统与协议 await 融合调用方取消与 provider 销毁。 */
   private querySignal(signal?: AbortSignal): AbortSignal {
     return signal === undefined
       ? this.lifetime.signal
@@ -258,7 +255,7 @@ class LocalLspProvider implements LspProvider {
   }
 
   async query(request: LspProviderQuery, signal?: AbortSignal): Promise<LspQueryResult> {
-    // Honor an already-aborted signal before provider I/O so a canceled request never starts a server.
+    // 在任何 provider I/O 之前先尊重一个已中止的 signal，使被取消的请求永远不会启动服务端。
     this.assertActive(signal)
     const querySignal = this.querySignal(signal)
     const workspaceResult = canonicalizeWorkspace(this.fs, request.workspaceRoot, querySignal)
@@ -274,11 +271,11 @@ class LocalLspProvider implements LspProvider {
     const workspaceKey = workspace.target.targetKey
     return this.enqueue(workspaceKey, querySignal, async () => {
       this.assertActive(querySignal)
-      // Read inside the workspace queue but before spawning: a queued query sees current bytes when
-      // its turn starts, while an invalid source still cannot leave an idle process pooled.
+      // 在读取源码时位于工作区队列之内、但在启动进程之前：排队的查询在自己的回合开始时
+      // 看到当前字节，而非法的源码仍然不会让一个空闲进程留在池里。
       const source = await readHostSource(this.fs, request.filePath, workspace, this.config.maxDocumentBytes, querySignal)
-      // Disposal may have snapshotted the instance map while host I/O was pending. Re-check before a
-      // synchronous get-or-create so every spawned process remains owned by teardown.
+      // 宿主 I/O 挂起期间，销毁可能已经快照了实例表。在同步的 get-or-create 之前重新检查，
+      // 使每一个被启动的进程始终归属于拆除流程。
       this.assertActive(querySignal)
       let instance = this.instanceFor(workspaceKey, workspace)
       let canRetryTransport = true
@@ -289,7 +286,7 @@ class LocalLspProvider implements LspProvider {
         let teardownOutcome: PromiseSettledResult<void> | undefined
         if (instance.dead) {
           ;[teardownOutcome] = await Promise.allSettled([instance.dispose()])
-          // A dead instance is never reusable, even when its final quiescence observation fails.
+          // 一个已死亡的实例绝不可复用，即使它最后的静止观察失败了。
           this.evictIfCurrent(workspaceKey, instance)
         }
         if (teardownOutcome?.status === 'rejected') {
@@ -302,8 +299,8 @@ class LocalLspProvider implements LspProvider {
           throw teardownOutcome.reason
         }
         if (queryOutcome.status === 'fulfilled') return queryOutcome.value
-        // A selected child can have died while idle or fail during the next write. Queries are
-        // read-only, so replace that transport once and retry transparently after clean disposal.
+        // 一个被选中的子进程可能在空闲期间死亡，或在下一次写入时失败。查询是只读的，
+        // 因此在干净地销毁之后替换该传输一次并透明重试。
         if (!canRetryTransport || !instance.isTransportFailure(queryOutcome.reason)) {
           throw queryOutcome.reason
         }
@@ -314,12 +311,12 @@ class LocalLspProvider implements LspProvider {
     })
   }
 
-  /** Serialize one complete query lifecycle for a canonical workspace. */
+  /** 为一个规范工作区串行化一个完整的查询生命周期。 */
   private enqueue<T>(workspace: WorkspaceKey, signal: AbortSignal | undefined, run: () => Promise<T>): Promise<T> {
     const previous = this.queues.get(workspace) ?? Promise.resolve()
     const result = abortable(previous, signal).then(run)
-    // The tail follows the actual prior work even when this caller aborts its wait. It never rejects,
-    // so later callers serialize without inheriting an earlier query's outcome.
+    // 即使本次调用方放弃等待，尾部也跟随真实的先前工作。它永不拒绝，
+    // 因此后续调用方可以串行化，而不继承先前查询的结果。
     const tail = previous.then(() => result).then(() => undefined, () => undefined)
     this.queues.set(workspace, tail)
     void tail.then(() => {
@@ -328,7 +325,7 @@ class LocalLspProvider implements LspProvider {
     return result
   }
 
-  /** Return or synchronously publish the one instance for a canonical workspace. */
+  /** 返回或同步发布某个规范工作区唯一的那个实例。 */
   private instanceFor(workspaceKey: WorkspaceKey, workspace: HostWorkspace): LspInstance {
     this.assertActive()
     const existing = this.instances.get(workspaceKey)
@@ -338,9 +335,9 @@ class LocalLspProvider implements LspProvider {
     return created
   }
 
-  /** Drop the slot iff it still contains this instance. */
+  /** 当且仅当该槽位仍装着这个实例时才丢弃它。 */
   private evictIfCurrent(workspace: WorkspaceKey, instance: LspInstance): void {
-    /* v8 ignore next -- mismatch requires another query to replace the slot before this finally runs. */
+    /* v8 ignore next -- 出现不匹配需要另一次查询在这个 finally 运行之前替换掉该槽位。 */
     if (this.instances.get(workspace) === instance) this.instances.delete(workspace)
   }
 
@@ -361,7 +358,7 @@ class LocalLspProvider implements LspProvider {
     return new LspInstance(spec, this.spawner)
   }
 
-  /** Dispose every live instance and block further queries. */
+  /** 销毁每一个存活实例并阻止后续查询。 */
   async disposeAll(): Promise<void> {
     this.disposed = true
     this.lifetime.abort(new LspError('lsp-stdio provider is disposed', 'LSP_DISPOSED'))

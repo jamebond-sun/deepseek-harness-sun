@@ -1,4 +1,4 @@
-/** Frame-wide dynamic Plugin inventory, approvals, versions, and lifecycle actions. */
+/** 全框架动态 Plugin 清单、审批、版本与生命周期操作。 */
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
@@ -20,7 +20,7 @@ import type {
 import { cordisVisibleStatus, packageOf, type CordisVisibleStatus } from './status.ts'
 import css from './CordisPanel.module.css'
 
-/** Full panel props composed by the sidebar footer-action slot. */
+/** 由 sidebar footer-action 槽位组合而成的完整面板 props。 */
 export type CordisPanelProps =
   PropsRuntime<'sidebar.footer.action'> & InjectFace<CordisPanelFace> & PropsLocale<'cordis'>
 
@@ -114,7 +114,7 @@ function DoubleCheckIcon() {
   )
 }
 
-/** Render the inventory panel and its unified footer action. */
+/** 渲染清单面板及其统一的页脚操作。 */
 export function CordisPanel({
   wide,
   useSessions, useInventory, useActiveRuns, useRunErrors, useLoaded, useRenderFailures,
@@ -135,8 +135,8 @@ export function CordisPanel({
   const rootRef = useRef<HTMLDivElement>(null)
   const [anchor, setAnchor] = useState<{ left: number; bottom: number }>()
 
-  // The panel is position: fixed (the sidebar clips overflow), so it hugs the
-  // trigger through a measured offset instead of document flow.
+  // 面板为 position: fixed（sidebar 会裁剪溢出），因此它经由
+  // 测量得到的偏移贴合触发器，而非文档流。
   useLayoutEffect(() => {
     if (!open) return
     const place = (): void => {

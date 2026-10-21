@@ -1,6 +1,6 @@
 import type { Volatile } from '@deepseek-ai/cordis'
-/** Public preset roster and selection configuration. */
-/** One declared preset and its current activation failure, if any. */
+/** 公开的预设名册与选择配置。 */
+/** 一个已声明的预设及其当前的激活失败（若有）。 */
 export interface AgentPreset {
   readonly id: string
   readonly name?: string
@@ -9,10 +9,10 @@ export interface AgentPreset {
   readonly broken?: string
 }
 
-/** Registry selection policy. */
+/** 注册表的选择策略。 */
 export interface Config {
-  /** Deployment default when the caller omits a preset. */
+  /** 调用方省略预设时的部署默认值。 */
   default: string
-  /** User-selected default; edited through Settings. */
+  /** 用户选择的默认值；通过设置编辑。 */
   selectedDefault: Volatile<string | undefined>
 }

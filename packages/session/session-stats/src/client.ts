@@ -1,8 +1,7 @@
 /**
- * Client-namespace projection of the session-stats domain: a pure re-export
- * of the package's types outlet. Client code imports ONLY the client
- * namespace (repo discipline), so `./client` projects the same single-source
- * content `./types` serves to host consumers — zero duplication.
+ * session-stats 领域的客户端命名空间投影：对本包类型出口的纯重新导出。
+ * 客户端代码只导入客户端命名空间（仓库纪律），因此 `./client` 投影出的、
+ * `./types` 提供给主机消费方的，是同一个单一来源内容——零重复。
  *
  * @module @deepseek-ai/dsh-session-stats/client
  */

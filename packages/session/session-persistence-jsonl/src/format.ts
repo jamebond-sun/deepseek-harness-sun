@@ -1,9 +1,8 @@
 /**
- * On-disk format helpers for the JSONL session-persistence backend: path
- * sanitization (a {@link SessionId} is an unvalidated branded string, so it
- * MUST be encoded before use in a path — no traversal, no collision), the
- * per-project/session directory layout, header-line (de)serialization, and the
- * truncation-repair offset computation.
+ * JSONL session-persistence 后端的磁盘格式辅助函数：路径净化
+ * （{@link SessionId} 是未经校验的带品牌字符串，因此在用于路径之前
+ * 必须编码——既不能目录穿越，也不能冲突）、按项目/会话划分的目录布局、
+ * 头部行的（反）序列化，以及截断修复偏移的计算。
  *
  * @module dsh-session-persistence-jsonl/format
  */
@@ -31,13 +30,13 @@ import {
   type SessionStorageMetadata,
 } from '@deepseek-ai/dsh-session-persistence'
 
-/** Physical encoding selected for JSONL session artifacts. */
+/** 为 JSONL 会话制品选定的物理编码方式。 */
 export type JsonlCompression = 'zstd' | 'none'
 
 /**
- * Return the artifact suffix for one physical encoding.
- * @param compression - configured JSONL artifact encoding.
- * @returns `.jsonl.zstd` for Zstandard or `.jsonl` for plaintext.
+ * 返回某种物理编码对应的制品后缀。
+ * @param compression - 已配置的 JSONL 制品编码方式。
+ * @returns Zstandard 为 `.jsonl.zstd`，明文为 `.jsonl`。
  */
 export function logSuffix(compression: JsonlCompression): '.jsonl.zstd' | '.jsonl' {
   return `.jsonl${compressionSuffix(compression)}`
@@ -48,24 +47,22 @@ function compressionSuffix(compression: JsonlCompression): '.zstd' | '' {
 }
 
 /**
- * Return the canonical filename for one immutable Session format generation.
- * Version zero retains the original suffix-only name; every later generation
- * carries a lowercase numeric `vN` component.
- * @param version - non-negative safe Session format version.
- * @param compression - configured JSONL artifact encoding.
- * @returns the generation filename inside one Session directory.
+ * 返回某个不可变 Session 格式代际的规范文件名。版本零沿用最初只有后缀的
+ * 名字；之后的每个代际都带有小写的数字 `vN` 部分。
+ * @param version - 非负且安全的 Session 格式版本。
+ * @param compression - 已配置的 JSONL 制品编码方式。
+ * @returns 某个 Session 目录内的代际文件名。
  */
 export function generationLogFilename(version: number, compression: JsonlCompression): string {
   return `${sessionFormatLogFilename(version)}${compressionSuffix(compression)}`
 }
 
 /**
- * Parse one canonical generation filename for the selected physical encoding.
- * Noncanonical, temporary, uppercase, leading-zero, and version-zero-tagged names do
- * not identify committed generations.
- * @param filename - one entry from a Session directory.
- * @param compression - configured JSONL artifact encoding.
- * @returns its format version, or `undefined` when the name is not canonical.
+ * 针对选定的物理编码解析一个规范的代际文件名。不规范的名字、临时名字、
+ * 大写形式、带前导零以及带版本零标记的名字都不能标识已提交的代际。
+ * @param filename - 来自 Session 目录的一个条目。
+ * @param compression - 已配置的 JSONL 制品编码方式。
+ * @returns 其格式版本；名字不规范时为 `undefined`。
  */
 export function parseGenerationLogFilename(
   filename: string,
@@ -77,8 +74,8 @@ export function parseGenerationLogFilename(
 }
 
 /**
- * The current physical header stored as the first JSONL record. The exact
- * inherited cut lives on the last tagged `session/end-seed` event.
+ * 作为首条 JSONL 记录存储的当前物理头部。精确的继承切点位于最后一个
+ * 带标记的 `session/end-seed` 事件上。
  */
 interface HeaderLine {
   type: 'session'
@@ -98,9 +95,9 @@ const HEADER_OPTIONAL_KEYS = ['cwd', 'parentSession', 'origin', 'agentPreset'] a
 const HEADER_KEYS = new Set<string>([...HEADER_REQUIRED_KEYS, ...HEADER_OPTIONAL_KEYS])
 
 /**
- * Refuse policy fields that never belong to a released Session header.
- * @param value - parsed physical header candidate.
- * @returns nothing after successful validation.
+ * 拒绝那些从不属于已发布 Session 头部的策略字段。
+ * @param value - 已解析的物理头部候选值。
+ * @returns 校验成功时不返回内容。
  */
 export function assertNoRetiredHeaderFields(value: unknown): void {
   if (typeof value !== 'object' || value === null) return
@@ -110,11 +107,11 @@ export function assertNoRetiredHeaderFields(value: unknown): void {
 }
 
 /**
- * Build the header line object from a {@link SessionHeader}.
- * @param header - the immutable session metadata to serialize.
- * @param inheritedEventCount - exact inherited prefix length; required for a
- * seeded header and omitted only for an unseeded header.
- * @returns the `type: 'session'`-tagged line object, absent optional fields omitted (never null).
+ * 从 {@link SessionHeader} 构造头部行对象。
+ * @param header - 要序列化的不可变会话元数据。
+ * @param inheritedEventCount - 精确的继承前缀长度；对已播种的头部是必需的，
+ * 只有未播种的头部才可以省略。
+ * @returns 带 `type: 'session'` 标记的行对象，缺失的可选字段被省略（绝不为 null）。
  */
 export function toHeaderLine(
   header: SessionHeader,
@@ -134,9 +131,9 @@ export function toHeaderLine(
 }
 
 /**
- * Translate one current physical header into logical metadata and its cut.
- * @param line - the shape-checked first line of a log (see the `isHeaderLine` guard).
- * @returns logical Session metadata paired with the exact inherited prefix length.
+ * 将一个当前物理头部翻译为逻辑元数据及其切点。
+ * @param line - 日志中已通过形状检查的首行（参见 `isHeaderLine` 守卫）。
+ * @returns 与精确继承前缀长度配对的逻辑 Session 元数据。
  */
 function fromHeaderLine(line: HeaderLine): SessionStorageMetadata {
   return {
@@ -155,7 +152,7 @@ function fromHeaderLine(line: HeaderLine): SessionStorageMetadata {
   }
 }
 
-/** Type guard: a parsed first line is a well-formed session header. */
+/** 类型守卫：已解析的首行是一个格式良好的会话头部。 */
 function isHeaderLine(value: unknown): value is HeaderLine {
   return (
     typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -186,15 +183,15 @@ function isHeaderLine(value: unknown): value is HeaderLine {
 }
 
 /**
- * Encode an arbitrary string as a single safe path segment, injectively over ALL JS (UTF-16)
- * strings — including lone surrogates. A {@link SessionId} is an unvalidated branded string,
- * so this neutralizes `../`, absolute paths, NUL, and separators before any filesystem use.
- * Safe code units remain literal; every other unit, including `~`, becomes
- * `~XXXX`. Operating on code units preserves lone surrogates, while special-
- * casing `.` and `..` prevents traversal by an otherwise safe whole segment.
+ * 将任意字符串编码为单个安全的路径段，对全部 JS（UTF-16）字符串——包括
+ * 孤立代理项——都是单射的。{@link SessionId} 是未经校验的带品牌字符串，
+ * 因此该编码会在任何文件系统使用之前中和 `../`、绝对路径、NUL 与分隔符。
+ * 安全的码元保持字面形式；其它所有码元，包括 `~`，都变成 `~XXXX`。
+ * 以码元为单位操作可以保留孤立代理项，而对 `.` 和 `..` 做特殊处理则可防止
+ * 一个整体安全却仍会造成穿越的路径段。
  *
- * @param raw - the string to encode; must be non-empty (throws on `''`).
- * @returns the escaped single path segment, decodable back to `raw`.
+ * @param raw - 待编码的字符串；必须非空（传入 `''` 会抛出）。
+ * @returns 转义后的单个路径段，可解码回 `raw`。
  */
 export function encodeSegment(raw: string): string {
   if (raw.length === 0) throw new Error('cannot encode an empty path segment')
@@ -214,13 +211,12 @@ export function encodeSegment(raw: string): string {
 }
 
 /**
- * Build the readable directory key for a project path.
- * Filesystem separators and drive separators become `-`; unsafe code units use
- * the same `~XXXX` escape as session ids. The key is bounded for filesystem
- * component limits. Separator replacement and truncation are intentionally
- * lossy, following the common human-navigable project-directory convention.
- * @param cwd - the session's project directory.
- * @returns a single filesystem-safe project directory name.
+ * 为一个项目路径构造可读的目录键。文件系统分隔符与驱动器分隔符变成 `-`；
+ * 不安全的码元使用与会话 id 相同的 `~XXXX` 转义。该键受文件系统组件长度
+ * 限制而有界。分隔符替换与截断是有意有损的，遵循常见的人类可导航
+ * 项目目录约定。
+ * @param cwd - 会话的项目目录。
+ * @returns 单个对文件系统安全的项目目录名。
  */
 export function projectKey(cwd: string): string {
   if (cwd.length === 0) throw new Error('cannot encode an empty project path')
@@ -245,11 +241,11 @@ export function projectKey(cwd: string): string {
 }
 
 /**
- * The configured root's human-navigable project directory. A configured root
- * may be local or shared; this grouping does not prescribe its deployment.
- * @param root - the backend's session root directory.
- * @param cwd - the session's project directory; `undefined` selects `_no-cwd`.
- * @returns the project directory path under `root`.
+ * 已配置根目录下人类可导航的项目目录。已配置的根目录可以是本地的，
+ * 也可以是共享的；这种分组方式并不规定其部署形态。
+ * @param root - 后端的会话根目录。
+ * @param cwd - 会话的项目目录；`undefined` 会选择 `_no-cwd`。
+ * @returns 位于 `root` 之下的项目目录路径。
  */
 export function projectDir(root: string, cwd: string | undefined): string {
   if (cwd === undefined) return join(root, '_no-cwd')
@@ -257,25 +253,24 @@ export function projectDir(root: string, cwd: string | undefined): string {
 }
 
 /**
- * The directory owned by one session and available for future session-local
- * artifacts.
- * @param root - the backend's session root directory.
- * @param cwd - the session's project directory.
- * @param id - the session id, encoded to one safe path segment.
- * @returns the session directory beneath its project directory.
+ * 由某个会话拥有的目录，可供未来的会话局部制品使用。
+ * @param root - 后端的会话根目录。
+ * @param cwd - 会话的项目目录。
+ * @param id - 会话 id，被编码为单个安全路径段。
+ * @returns 位于其项目目录之下的会话目录。
  */
 export function sessionDir(root: string, cwd: string | undefined, id: SessionId): string {
   return join(projectDir(root, cwd), encodeSegment(id))
 }
 
 /**
- * Build one immutable Session format generation path.
- * @param root - the backend's session root directory.
- * @param cwd - the session's project directory (`undefined` → `_no-cwd`).
- * @param id - the session id, path-encoded via {@link encodeSegment} before filesystem use.
- * @param version - physical Session format generation.
- * @param compression - physical artifact encoding and filename suffix.
- * @returns the selected generation's configured JSONL artifact path.
+ * 构造一个不可变 Session 格式代际的路径。
+ * @param root - 后端的会话根目录。
+ * @param cwd - 会话的项目目录（`undefined` → `_no-cwd`）。
+ * @param id - 会话 id，在用于文件系统之前经 {@link encodeSegment} 做路径编码。
+ * @param version - 物理 Session 格式代际。
+ * @param compression - 物理制品编码方式及文件名后缀。
+ * @returns 所选代际已配置的 JSONL 制品路径。
  */
 export function generationLogPath(
   root: string,
@@ -288,12 +283,12 @@ export function generationLogPath(
 }
 
 /**
- * Build the current generation's append target path for a Session.
- * @param root - the backend's session root directory.
- * @param cwd - the session's project directory (`undefined` → `_no-cwd`).
- * @param id - the session id, path-encoded via {@link encodeSegment} before filesystem use.
- * @param compression - physical artifact encoding and filename suffix.
- * @returns the current Session format generation path.
+ * 构造某个 Session 当前代际的追加目标路径。
+ * @param root - 后端的会话根目录。
+ * @param cwd - 会话的项目目录（`undefined` → `_no-cwd`）。
+ * @param id - 会话 id，在用于文件系统之前经 {@link encodeSegment} 做路径编码。
+ * @param compression - 物理制品编码方式及文件名后缀。
+ * @returns 当前 Session 格式代际的路径。
  */
 export function logPath(
   root: string,
@@ -305,19 +300,19 @@ export function logPath(
 }
 
 /**
- * Serialize a current event batch as JSONL lines (no trailing newline). Compact
- * Assistant streams are nested event data; every event occupies one row.
- * @param events - the batch to serialize, in log order.
- * @returns the batch's JSONL text; the writer adds the final newline.
+ * 将一批当前事件序列化为 JSONL 行（不含结尾换行）。紧凑的 Assistant 流是
+ * 嵌套的事件数据；每个事件占一行。
+ * @param events - 要序列化的批次，按日志顺序。
+ * @returns 该批次的 JSONL 文本；写入者负责添加最后的换行。
  */
 export function eventLines(events: readonly SessionEvent[]): string {
   return events.map(eventLine).join('\n')
 }
 
 /**
- * Serialize one current event as one JSONL record without its trailing newline.
- * @param event - current event to encode.
- * @returns one physical JSON record.
+ * 将一个当前事件序列化为一条不含结尾换行的 JSONL 记录。
+ * @param event - 要编码的当前事件。
+ * @returns 一条物理 JSON 记录。
  */
 export function eventLine(event: SessionEvent): string {
   return JSON.stringify(sessionFormatCatalog.encodeCurrentEvent(event as unknown as SessionFormatEvent))
@@ -331,11 +326,10 @@ interface SessionLogScan {
 }
 
 /**
- * Refuse a header carrying a format version this build does not read BEFORE
- * validating the current header shape or decoding any event row: a future
- * format need not satisfy this build's structural checks at all, and its user
- * must see "upgrade the harness", never "corrupt session log".
- * @param parsed - the JSON-parsed first line of a session artifact.
+ * 在校验当前头部形状或解码任何事件行之前，就拒绝带有本构建不读取的格式版本
+ * 的头部：未来的格式根本不必满足本构建的结构性检查，而其用户必须看到
+ * “升级 harness”，而绝不是“会话日志已损坏”。
+ * @param parsed - 会话制品首行的 JSON 解析结果。
  */
 function refuseForeignFormatVersion(parsed: object): void {
   const { version, id } = parsed as { version?: unknown; id?: unknown }
@@ -345,7 +339,7 @@ function refuseForeignFormatVersion(parsed: object): void {
   )
 }
 
-/** Parse one complete header record supplied independently from event rows. */
+/** 解析一条与事件行分开独立提供的完整头部记录。 */
 function parseHeaderRecord(record: Buffer): { readonly meta: SessionHeader; readonly restore: SessionFormatRestore } {
   if (record.length === 0 || record.at(-1) !== 0x0A || record.indexOf(0x0A) !== record.length - 1) {
     throw new Error('empty or header-less session log')
@@ -371,17 +365,16 @@ function parseHeaderRecord(record: Buffer): { readonly meta: SessionHeader; read
       validation: 'transformed',
     })
   } catch {
-    /* v8 ignore next -- isHeaderLine matches the current codec; this preserves classification if it tightens. */
+    /* v8 ignore next -- isHeaderLine 与当前编解码器一致；若其收紧，这里仍保留原有分类。 */
     throw new Error('corrupt session log: first line is not a session header')
   }
   return { meta: fromHeaderLine(parsed).meta, restore }
 }
 
 /**
- * Incrementally scan complete JSONL event records after an independently
- * supplied header record. Newline search and byte offsets stay on raw buffers;
- * only complete records are decoded to UTF-8. A fragment crossing writes is
- * copied because a decoder may reuse its output buffer after `write()` returns.
+ * 在一条独立提供的头部记录之后，增量扫描完整的 JSONL 事件记录。换行查找与
+ * 字节偏移都停留在原始缓冲区上；只有完整的记录才被解码为 UTF-8。跨越多次
+ * 写入的片段会被复制，因为解码器可能在 `write()` 返回之后复用其输出缓冲区。
  */
 export class SessionLogScanner {
   private readonly meta: SessionHeader
@@ -396,8 +389,8 @@ export class SessionLogScanner {
   private finished = false
 
   /**
-   * Create an event scanner from exactly one newline-terminated header record.
-   * @param headerRecord - the complete first JSONL record, including its newline.
+   * 从恰好一条以换行结尾的头部记录创建事件扫描器。
+   * @param headerRecord - 完整的首条 JSONL 记录，含其换行符。
    */
   constructor(
     headerRecord: Buffer,
@@ -411,8 +404,8 @@ export class SessionLogScanner {
   }
 
   /**
-   * Consume the next raw plaintext chunk, retaining only an incomplete final record.
-   * @param chunk - bytes immediately following all previously supplied bytes.
+   * 消费下一段原始明文字节，只保留一条不完整的末尾记录。
+   * @param chunk - 紧接此前已提供的全部字节之后的字节。
    */
   write(chunk: Buffer): void {
     if (this.finished) throw new Error('cannot write to a finished session log scanner')
@@ -443,8 +436,8 @@ export class SessionLogScanner {
   }
 
   /**
-   * Snapshot progress before appending a recoverable torn-frame prefix.
-   * @returns byte, committed-prefix, and expanded-event cursors.
+   * 在追加一个可恢复的撕裂帧前缀之前快照进度。
+   * @returns 字节、已提交前缀与已展开事件的游标。
    */
   checkpoint(): {
     inputBytes: number
@@ -459,8 +452,8 @@ export class SessionLogScanner {
   }
 
   /**
-   * Finish scanning, ignoring a final record without a newline as a torn tail.
-   * @returns the header, contiguous event prefix, and safe truncation offset.
+   * 结束扫描，把末尾没有换行的记录当作撕裂尾部而忽略。
+   * @returns 头部、连续的事件前缀，以及安全的截断偏移。
    */
   finish(): SessionLogScan {
     this.finished = true
@@ -474,7 +467,7 @@ export class SessionLogScanner {
     }
   }
 
-  /** Decode one complete event row and update the contiguous prefix. */
+  /** 解码一条完整事件行并更新连续前缀。 */
   private consumeEventLine(line: Buffer, endByte: number): void {
     this.eventLine += 1
     let decoded: unknown
@@ -487,8 +480,8 @@ export class SessionLogScanner {
       return
     }
 
-    // This scanner accepts only current-generation files. Owned structural refusal must
-    // precede its recoverable-tail suppression, independently of the strict decoder state.
+    // 本扫描器只接受当前代际的文件。自有结构性拒绝必须先于其可恢复尾部的
+    // 抑制，且不依赖于严格解码器的状态。
     try {
       assertV4RowAdmission(decoded, KNOWN_SESSION_EVENT_TYPES)
     } catch (error: unknown) {
@@ -504,8 +497,8 @@ export class SessionLogScanner {
     try {
       this.restore.decodeRow(decoded)
     } catch (error: unknown) {
-      // Unsupported current-format rows have already been refused before recovery.
-      /* v8 ignore next -- every production Session format decoder rejects with Error. */
+      // 不受支持的当前格式行已在恢复之前被拒绝。
+      /* v8 ignore next -- 每个生产环境的 Session 格式解码器都以 Error 拒绝。 */
       const detail = error instanceof Error ? error.message : String(error)
       const issue = new Error(`corrupt session log: invalid committed event at line ${this.eventLine}: ${detail}`, {
         cause: error,
@@ -522,12 +515,11 @@ export class SessionLogScanner {
 }
 
 /**
- * Parse a complete or torn JSONL buffer into its preserved event prefix. This
- * compatibility wrapper supplies the first record separately, then delegates
- * event rows to {@link SessionLogScanner}.
+ * 将完整或撕裂的 JSONL 缓冲区解析为其中被保留的事件前缀。这个兼容性包装
+ * 会单独提供首条记录，然后把事件行委托给 {@link SessionLogScanner}。
  *
- * @param buffer - the raw bytes of the log file (header line first).
- * @returns the header, preserved event prefix, and byte offset safe to append at.
+ * @param buffer - 日志文件的原始字节（头部行在最前）。
+ * @returns 头部、被保留的事件前缀，以及可安全追加的字节偏移。
  */
 export function scanLog(buffer: Buffer): SessionLogScan {
   const headerEnd = buffer.indexOf(0x0A)

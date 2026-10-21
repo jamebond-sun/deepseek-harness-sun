@@ -1,15 +1,13 @@
 /**
- * Positional pricing for measurement: each retained node keeps its identity,
- * heuristic price, and the attachment details route pricing replaces. The
- * occupancy and context-breakdown projections use the scalar shadow-price
- * protocol instead.
+ * 供度量使用的按位置定价：每个保留下来的节点都保存自己的身份、启发式价格，
+ * 以及路由定价会替换掉的附件细节。占用量与上下文分解投影则改用
+ * 标量的影子价格协议。
  *
- * The fold is a plan/commit pair: {@link planSurfaceTokens} runs every
- * fallible step read-only and {@link commitSurfaceTokens} mutates in place,
- * so a throw leaves the caller's state untouched and the same malformed
- * event fails identically on every retry.
- * Nodes also carry durable attachment occurrences and their structural prices,
- * so `measure()` can price the request representation sent to the model.
+ * 该折叠是一对 plan/commit：{@link planSurfaceTokens} 以只读方式执行每个
+ * 可能失败的步骤，而 {@link commitSurfaceTokens} 原地修改，因此一次抛出
+ * 不会触及调用方的状态，而同一个格式错误的事件在每次重试时都会同样失败。
+ * 各个节点还携带持久化的附件出现及其结构性价格，因此 `measure()`
+ * 可以对发送给模型的请求表示定价。
  *
  * @module @deepseek-ai/dsh-token-meter/surface-fold
  */
@@ -21,35 +19,35 @@ import { estimateMessage, estimateStructuralBlock } from './estimate.ts'
 
 type FileAttachmentRef = Extract<ContentBlock, { type: 'file' }>['attachment']
 
-/** One priced surface node with the image occurrences route pricing replaces. */
+/** 一个已计价的表面节点，以及路由定价会替换掉的图像出现。 */
 export interface MeterSurfaceNode {
-  /** Durable sequence number of the surface event. */
+  /** 该表面事件的持久化序号。 */
   readonly seq: SessionSeq
-  /** Fixed-heuristic price of the node's exact message. */
+  /** 该节点那条精确消息的固定启发式价格。 */
   readonly heuristicTokens: number
-  /** Structural JSON price replaced when the routed request projects images. */
+  /** 当被路由的请求投影图像时被替换掉的结构性 JSON 价格。 */
   readonly imageStructuralTokens: number
-  /** Structural JSON price replaced when request assembly projects files to text. */
+  /** 当请求装配把文件投影为文本时被替换掉的结构性 JSON 价格。 */
   readonly fileStructuralTokens: number
-  /** Durable image blocks in message order, `offloaded` marks included; empty for image-free nodes. */
+  /** 按消息顺序排列的持久化图像块，包含 `offloaded` 标记；无图像节点为空。 */
   readonly images: readonly ImageBlock[]
-  /** Durable file occurrences in message order; empty for file-free nodes. */
+  /** 按消息顺序排列的持久化文件出现；无文件节点为空。 */
   readonly files: readonly FileAttachmentRef[]
 }
 
-/** One validated surface transition that has not mutated the priced surface yet. */
+/** 一个已校验、但尚未修改已计价表面的表面迁移。 */
 export interface SurfaceTokenPlan<Node = MeterSurfaceNode> {
-  /** Heuristic price of the event's own message; 0 when it derives none. */
+  /** 该事件自身消息的启发式价格；当它没有派生出消息时为 0。 */
   readonly tokens: number
-  /** Signed change in the surface total: `tokens` minus anything shadowed. */
+  /** 表面总量的带符号变化：`tokens` 减去被遮蔽的部分。 */
   readonly deltaTokens: number
-  /** The priced node the commit inserts for this event. */
+  /** 提交时为该事件插入的已计价节点。 */
   readonly node: Node
-  /** Commit position: `append`, or the inclusive replaced index range. */
+  /** 提交位置：`append`，或被替换的闭区间索引范围。 */
   readonly target: 'append' | { readonly startIdx: number; readonly endIdx: number }
 }
 
-/** Collect projected attachment occurrences and their structural prices. */
+/** 收集被投影的附件出现及其结构性价格。 */
 function collectProjectedAttachments(
   blocks: readonly ContentBlock[],
   images: ImageBlock[],
@@ -69,7 +67,7 @@ function collectProjectedAttachments(
   return { imageTokens, fileTokens }
 }
 
-/** Build one priced node from a surface event's derived message. */
+/** 从一个表面事件派生出的消息构建一个已计价节点。 */
 function analyzeNode(seq: SessionSeq, message: Message | null): MeterSurfaceNode {
   if (message === null) {
     return {
@@ -96,13 +94,13 @@ function analyzeNode(seq: SessionSeq, message: Message | null): MeterSurfaceNode
 }
 
 /**
- * Validate and price one surface event without mutating the surface.
- * @param nodes - the priced surface preceding this event, in model-visible order.
- * @param event - the surface event to place.
- * @returns the plan for {@link commitSurfaceTokens}.
- * @throws when a replacement names a range absent from `nodes` — committed
- *   logs are surface-validated at append time, so an unresolvable range is log
- *   corruption and must fail loud rather than skip the event.
+ * 校验并计价一个表面事件，且不修改表面。
+ * @param nodes - 该事件之前的已计价表面，按模型可见顺序排列。
+ * @param event - 要放置的表面事件。
+ * @returns 供 {@link commitSurfaceTokens} 使用的计划。
+ * @throws 当一次替换指名了 `nodes` 中不存在的区间时——已提交的日志
+ *   在追加时就做过表面校验，因此无法解析的区间就是日志损坏，
+ *   必须立即失败而不是跳过该事件。
  */
 export function planSurfaceTokens(
   nodes: readonly Pick<MeterSurfaceNode, 'seq' | 'heuristicTokens'>[],
@@ -128,10 +126,10 @@ export function planSurfaceTokens(
 }
 
 /**
- * Apply one validated plan to the priced surface in place; infallible, so it
- * cannot leave a half-applied surface behind.
- * @param nodes - the exact priced surface the plan was built against.
- * @param plan - the transition returned by {@link planSurfaceTokens}.
+ * 把一个已校验的计划原地应用到已计价表面；不会失败，因此不会留下
+ * 应用了一半的表面。
+ * @param nodes - 该计划所针对的、精确的已计价表面。
+ * @param plan - 由 {@link planSurfaceTokens} 返回的迁移。
  */
 export function commitSurfaceTokens<Node>(nodes: Node[], plan: SurfaceTokenPlan<Node>): void {
   if (plan.target === 'append') {

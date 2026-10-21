@@ -1,5 +1,5 @@
 /**
- * Single replay-aware token-meter service for request and surface pressure.
+ * 供请求与表面压力使用的、单一且可感知回放的 token-meter 服务。
  *
  * @module @deepseek-ai/dsh-token-meter
  */
@@ -23,7 +23,7 @@ import {
   SessionLogOffset,
   SessionSeq,
 } from '@deepseek-ai/dsh-session'
-// Type-only: activates the `ctx.sessionProjections` Context declaration.
+// 仅类型：激活 `ctx.sessionProjections` 的 Context 声明。
 import type {} from '@deepseek-ai/dsh-session-projection'
 import type {
   TokenMeasurement,
@@ -38,24 +38,22 @@ import type { MeterSurfaceNode } from './surface-fold.ts'
 import { priceSurface } from './route-pricing.ts'
 
 export type * from './types.ts'
-// Module-edge re-export: forces the emitted index.d.ts to import the
-// projection-unit modules, so their SessionProjectionStateMap augmentations load
-// in aggregate programs that only import the package root.
+// 模块边缘的再导出：强制让发出的 index.d.ts 导入那些投影单元模块，
+// 因此它们的 SessionProjectionStateMap 增强会在只导入包根的聚合程序中加载。
 export type * from './usage-projection.ts'
 export type * from './breakdown-projection.ts'
 
 /**
- * Raw anchor facts captured at the latest successful call; the baseline is
- * derived per measurement so the anchored surface reprices under the same
- * route pricing as the current surface it is compared with.
+ * 在最近一次成功调用处捕获的原始锚点事实；基线按每次度量派生，
+ * 因此被锚定的表面会在与它所比较的当前表面相同的路由定价下重新计价。
  */
 interface MeasurementAnchor {
   readonly header: EpochHeader | undefined
-  /** Priced surface immediately before the anchored assistant message commits. */
+  /** 紧邻被锚定的助手消息提交之前的已计价表面。 */
   readonly nodes: readonly MeterSurfaceNode[]
-  /** Fixed-heuristic price of the call's provider output. */
+  /** 该调用提供方输出的固定启发式价格。 */
   readonly assistantTokens: number
-  /** Provider usage of the call, when it reported one under a known header. */
+  /** 该调用的提供方用量，当它在一个已知信封之下报告了用量时。 */
   readonly usage: TokenUsage | undefined
 }
 
@@ -67,7 +65,7 @@ interface ReplayState {
   anchor: MeasurementAnchor | undefined
 }
 
-/** Sum disjoint provider usage buckets without double-counting reasoning output. */
+/** 把互不相交的提供方用量的各分桶相加，且不重复计入推理输出。 */
 function usageTokens(usage: TokenUsage): number {
   return usage.inputTokens
     + (usage.cacheReadTokens ?? 0)
@@ -75,7 +73,7 @@ function usageTokens(usage: TokenUsage): number {
     + usage.outputTokens
 }
 
-/** Compare optional envelopes so a headerless estimate can track later surface deltas. */
+/** 比较可选信封，使一次无信封的估计能够跟踪之后的表面增量。 */
 function optionalHeaderEquals(
   left: EpochHeader | undefined,
   right: EpochHeader | undefined,
@@ -84,7 +82,7 @@ function optionalHeaderEquals(
   return headerEquals(left, right)
 }
 
-/** Reject stale or misspelled keys before defaults can hide them. */
+/** 在默认值能够掩盖陈旧或拼错的键之前拒绝它们。 */
 function validateConfigKeys(config: TokenMeterConfig): void {
   for (const key of Object.keys(config)) {
     throw new Error(`TokenMeterConfig: unknown key "${key}" (no settings are supported)`)
@@ -97,10 +95,10 @@ declare module '@deepseek-ai/cordis' {
   }
 }
 
-/** Replay owner for one service-wide estimator and isolated per-session folds. */
+/** 一个服务级估计器与彼此隔离的按会话折叠的回放持有者。 */
 export class TokenMeter extends Service {
-  // Schemastery preserves untrusted loader keys on an empty object schema;
-  // the public type excludes settings while validateConfigKeys rejects them.
+  // Schemastery 会在一个空对象 schema 上保留不可信的 loader 键；
+  // 公开类型排除设置项，而 validateConfigKeys 则拒绝它们。
   static Config: z<TokenMeterConfig> = z.object({}) as unknown as z<TokenMeterConfig>
 
   static inject = ['sessionProjections']
@@ -115,33 +113,31 @@ export class TokenMeter extends Service {
     ctx.sessionProjections.register(contextPressureProjectionDefinition)
     ctx.sessionProjections.register(contextBreakdownProjectionDefinition)
 
-    // Readers catch up independently, while eager observation bounds ordinary
-    // read latency without creating state for sessions no consumer has read.
+    // 各个读取者独立地追赶，而主动观察为普通的读取延迟设定上界，
+    // 同时又不会为没有任何消费者读取过的会话创建状态。
     ctx.on('session/event', (session) => {
       if (this.states.has(session)) this._sync(session)
     })
   }
 
   /**
-   * Measure current request pressure and surface through the durable tail.
+   * 通过持久化的尾部度量当前的请求压力与表面。
    *
-   * The effective envelope's routed provider/model selects the request-image
-   * pricing every node is priced under: a route whose adapter declares image
-   * pricing charges each retained image its visual tokens plus its
-   * model-visible text, while other routes keep the fixed heuristic. Provider
-   * usage is reused only when the latest successful call's canonical request
-   * envelope matches `requestHeader` and its total is no lower than that
-   * call's full route-priced anchor; otherwise the complete envelope and
-   * surface are repriced. The anchor includes all surface nodes immediately
-   * before the assistant message, including inputs admitted after step/start.
+   * 生效信封所路由到的提供方/模型，会选择每个节点所依据的请求图像定价：
+   * 一个其适配器宣告了图像定价的路由，会按每张被保留图像的视觉令牌加上
+   * 它模型可见的文本计价；其他路由则保留固定启发式。只有当最近一次成功
+   * 调用的规范请求信封与 `requestHeader` 匹配、且它的总计不低于该调用的
+   * 完整按路由计价锚点时，提供方用量才会被复用；否则完整的信封与表面
+   * 都会被重新计价。该锚点包含紧邻助手消息之前的全部表面节点，
+   * 包括 step/start 之后被接纳的输入。
    *
-   * `requestHeader` replaces the latest logged envelope for pressure and node
-   * pricing; the node set always describes the current session surface. Every
-   * call clones those positional nodes, so measurement is O(surface).
+   * `requestHeader` 会为压力与节点定价替换最新已记录的信封；
+   * 节点集合始终描述当前的会话表面。每次调用都会克隆那些位置节点，
+   * 因此度量是 O(表面) 的。
    *
-   * @param session - session to replay through its current durable tail.
-   * @param requestHeader - optional effective request envelope replacing the latest logged header.
-   * @returns a detached deeply immutable pressure and surface measurement.
+   * @param session - 要通过其当前持久化尾部回放的会话。
+   * @param requestHeader - 可选的有效请求信封，替换最新已记录的信封。
+   * @returns 一份已分离的、深度不可变的压力与表面度量。
    */
   measure(session: Session, requestHeader?: EpochHeader): TokenMeasurement {
     const state = this._sync(session)
@@ -156,15 +152,14 @@ export class TokenMeter extends Service {
     let baseline: TokenMeasurementBaseline
     let surfaceDeltaTokens: number
     if (anchor !== undefined && optionalHeaderEquals(anchor.header, header)) {
-      // Matching headers share one route, so the anchored snapshot reprices
-      // under the same pricing as the current surface and the signed delta
-      // compares like with like.
+      // 匹配的信封共享同一条路由，因此被锚定的快照会在与当前表面
+      // 相同的定价下重新计价，而带符号的增量是对同类事物的比较。
       const anchorSurfaceTokens = priceSurface(anchor.nodes, pricing, fileText).surfaceTokens
         + anchor.assistantTokens
       const estimatedAnchorTokens = estimateToolsTokens(header) + anchorSurfaceTokens
       const usage = anchor.usage
-      // Signed heuristic deltas remain conservative only from an anchor
-      // that is at least as large as the matching full heuristic price.
+      // 只有从一个至少与匹配的完整启发式价格一样大的锚点出发，
+      // 带符号的启发式增量才是保守的。
       baseline = usage !== undefined && usageTokens(usage) >= estimatedAnchorTokens
         ? { kind: 'usage', tokens: usageTokens(usage), usage }
         : { kind: 'estimated', tokens: estimatedAnchorTokens }
@@ -190,14 +185,14 @@ export class TokenMeter extends Service {
     }))
   }
 
-  /** Resolve the routed model's image pricing, when the llm service and route declare one. */
+  /** 当 llm 服务与该路由宣告了图像定价时，解析被路由模型的图像定价。 */
   private _routeImagePricing(header: EpochHeader | undefined): LlmImageRequestPricing | undefined {
     const config = header?.config
     if (config === undefined) return undefined
     return this.ctx.get('llm')?.imageRequestPricing(config.provider, config.model)
   }
 
-  /** Resolve request-time file projection when an LLM service is mounted. */
+  /** 当挂载了 LLM 服务时，解析请求时的文件投影。 */
   private _fileRequestText(): (
     (ref: Parameters<LlmRuntime['fileRequestText']>[0]) => string
   ) | undefined {
@@ -206,16 +201,16 @@ export class TokenMeter extends Service {
   }
 
   /**
-   * Heuristically price one model-visible message (instance face of the pure
-   * `estimateMessage` export from `estimate.ts`).
-   * @param message - message to price without mutation.
-   * @returns content and role-framing tokens under the fixed service heuristic.
+   * 用启发式为一条模型可见的消息计价（`estimate.ts` 中纯函数
+   * `estimateMessage` 导出的实例侧门面）。
+   * @param message - 要在不改动的前提下计价的消息。
+   * @returns 固定服务启发式之下的内容与角色框架令牌数。
    */
   estimateMessage(message: Message): number {
     return estimateMessage(message)
   }
 
-  /** Catch one session's fold up to the current durable tail. */
+  /** 让一个会话的折叠追赶到当前的持久化尾部。 */
   private _sync(session: Session): ReplayState {
     let state = this.states.get(session)
     if (state === undefined) {
@@ -230,7 +225,7 @@ export class TokenMeter extends Service {
     }
 
     while (state.consumedEvents < session.seq) {
-      // Contiguous session seqs index the durable log; existing Session history read, migration deferred.
+      // 连续的会话 seq 索引持久化日志；沿用现有的 Session 历史读取，迁移延后。
       // oxlint-disable-next-line typescript/no-non-null-assertion, typescript/no-deprecated
       const event = session.eventAt(SessionSeq(state.consumedEvents))!
       this._foldEvent(state, event)
@@ -240,9 +235,8 @@ export class TokenMeter extends Service {
   }
 
   /**
-   * Run every fallible step — surface plan and anchor validation — before
-   * mutating replay state, so a malformed event remains unread on every
-   * retry instead of half-applying.
+   * 在修改回放状态之前先执行每个可能失败的步骤——表面计划与锚点校验——
+   * 因此一个格式错误的事件在每次重试时都保持未读，而不是被应用一半。
    */
   private _foldEvent(state: ReplayState, event: SessionEvent): void {
     let nextHeader = state.header
@@ -297,12 +291,12 @@ export class TokenMeter extends Service {
         throw new Error(`token meter: assistant/message at seq ${event.seq} has no matching step/start event`)
       }
 
-      // assistant/message is surface-mandatory at every append/seed boundary.
+      // assistant/message 在每个追加/播种边界上都是表面必需的。
       // oxlint-disable-next-line typescript/no-non-null-assertion
       const eventTokens = plan!.tokens
-      // The loop admits prompts and user messages after step/start; retries may
-      // replace them before succeeding. Only the pre-assistant surface is priced
-      // by this call. Provider output stays separate from durable output rewrites.
+      // 循环会在 step/start 之后接纳提示与用户消息；重试可能在成功之前
+      // 替换它们。只有助手之前的表面会被本次调用计价。
+      // 提供方输出与持久化的输出重写保持分离。
       if (event.data.usage !== undefined && nextHeader !== undefined) {
         nextAnchor = {
           header: nextHeader,
@@ -329,7 +323,7 @@ export class TokenMeter extends Service {
   }
 
   /**
-   * Reassemble provider output from the message's exact embedded stream.
+   * 从该消息精确嵌入的流中重新装配提供方输出。
    */
   private _estimateProviderAssistant(
     event: SessionEvent<'assistant/message'>,

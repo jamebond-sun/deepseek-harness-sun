@@ -1,4 +1,4 @@
-/** Deterministic Messages image preparation for Files references and bounded inline fallback. */
+/** 确定性的 Messages 图像准备：Files 引用与有界的内联回退。 */
 
 import type { AttachmentStore, ImageAttachmentRef, RequestImageAttachment } from '@deepseek-ai/dsh-attachment'
 import { contentHasImage, IMAGE_OFFLOAD_REQUIRED_CODE, LlmError, offloadedImageText, projectOffloadedImages, requiredImageOffload } from '@deepseek-ai/dsh-llm'
@@ -26,14 +26,14 @@ function* imageRefs(blocks: readonly ContentBlock[]): Generator<ImageAttachmentR
   }
 }
 
-/** Normalize retained image references before converting Messages content.
- * @param history - durable history; never mutated.
- * @param connection - request-local image budgets.
- * @param modelId - target model id.
- * @param attachments - mounted attachment store, required only for image requests.
- * @param access - current execution-world path resolver.
- * @param signal - request cancellation.
- * @returns projected history and prepared image bytes keyed by attachment id.
+/** 在转换 Messages 内容之前，规范化被保留下来的图像引用。
+ * @param history - 持久化历史；从不被改动。
+ * @param connection - 请求级的图像预算。
+ * @param modelId - 目标模型 id。
+ * @param attachments - 已挂载的附件存储；仅图像请求需要它。
+ * @param access - 当前执行世界的路径解析器。
+ * @param signal - 请求取消信号。
+ * @returns 投影后的历史，以及按附件 id 组织的、已准备好的图像字节。
  */
 export async function prepareImages(
   history: readonly RequestMessage[], connection: Connection, modelId: string,
@@ -60,11 +60,11 @@ export async function prepareImages(
   return { messages, versions }
 }
 
-/** Require logged offload before retrying images that exceed the inline budget.
- * @param messages - history already within the Files budget.
- * @param versions - normalized versions prepared for retained references.
- * @param connection - resolved inline bounds.
- * @returns unchanged history within both byte and image-count limits.
+/** 在重试超出内联预算的图像之前，要求先有已记录的卸载。
+ * @param messages - 已处于 Files 预算之内的历史。
+ * @param versions - 为被保留的引用准备好的、规范化后的版本。
+ * @param connection - 已解析的内联边界。
+ * @returns 同时满足字节与图像数量限制、且未被改动的历史。
  */
 export function inlineImages(
   messages: readonly RequestMessage[], versions: ReadonlyMap<ImageAttachmentRef['attachmentId'], RequestImageAttachment>,
@@ -74,7 +74,7 @@ export function inlineImages(
   return messages
 }
 
-/** Count additional oldest occurrences requiring durable offload at their exact represented bytes. */
+/** 统计按其精确表示字节数、需要持久卸载的、额外的更早出现次数。 */
 function assertImagesFit(
   messages: readonly RequestMessage[], versions: ReadonlyMap<ImageAttachmentRef['attachmentId'], RequestImageAttachment>,
   connection: Connection, representation: 'raw' | 'base64',
@@ -90,11 +90,11 @@ function assertImagesFit(
   }
 }
 
-/** Resolve retained images to Files ids, recording every occurrence for failure diagnostics.
- * @param messages - history within the Files byte/count budget.
- * @param versions - normalized versions for every retained reference.
- * @param files - request-owned Files resolution and recovery.
- * @returns ids keyed by durable attachment identity.
+/** 把被保留的图像解析为 Files id，并记录每次出现以便失败诊断。
+ * @param messages - 处于 Files 字节/数量预算之内的历史。
+ * @param versions - 每个被保留引用的规范化版本。
+ * @param files - 由请求持有的 Files 解析与恢复机制。
+ * @returns 以持久化附件身份为键的 id。
  */
 export async function prepareFileIds(
   messages: readonly RequestMessage[], versions: ReadonlyMap<ImageAttachmentRef['attachmentId'], RequestImageAttachment>, files: RequestFiles,

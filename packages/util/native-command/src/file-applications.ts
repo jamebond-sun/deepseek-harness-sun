@@ -1,4 +1,4 @@
-/** Native file associations queried from the desktop that owns the path. */
+/** 从拥有该路径的桌面查询的原生文件关联。 */
 import { runNativeCommand } from './runner.ts'
 import { linuxFileApplications } from './file-applications-linux.ts'
 import { windowsFileApplications } from './file-applications-windows.ts'
@@ -6,7 +6,7 @@ import { nativeFileManager } from './path-opener.ts'
 import type { PathOpenerInternals } from './path-opener.ts'
 import { parseNativeFileApplications, type NativeFileApplication } from './types.ts'
 
-/** AppKit runs inside the system JXA host; paths arrive as argv, never executable source. */
+/** AppKit 运行于系统 JXA 宿主内部；路径以 argv 形式到达，绝不为可执行源码。 */
 const MAC_APPLICATIONS = `
 ObjC.import('AppKit');
 function run(argv) {
@@ -46,12 +46,12 @@ function run(argv) {
 }`
 
 /**
- * List registered handlers in OS preference order, including the current default and application icons.
- * @param path - verified absolute local file path.
- * @param signal - caller lifetime, propagated to the OS query.
- * @param internals - platform and command adapter for deterministic tests.
- * @returns current file handlers; on macOS, copies sharing a bundle identifier and display name collapse
- * to one entry; an empty list when the platform has no association query.
+ * 按 OS 偏好顺序列出已注册的处理程序，含当前默认项与应用图标。
+ * @param path - 已校验的绝对本地文件路径。
+ * @param signal - 调用方生命周期，传播给 OS 查询。
+ * @param internals - 用于确定性测试的、平台与命令适配器。
+ * @returns 当前文件处理程序；在 macOS 上，共享同一 bundle 标识符与显示名的副本
+ *   折叠为一项；当平台没有关联查询时为空列表。
  */
 export async function nativeFileApplications(
   path: string, signal: AbortSignal, internals: PathOpenerInternals = {},
@@ -60,8 +60,8 @@ export async function nativeFileApplications(
 }
 
 /**
- * Query handler metadata; display queries render macOS icons and collapse duplicate copies,
- * launch validation keeps every registered copy.
+ * 查询处理程序元数据；显示查询渲染 macOS 图标并折叠重复副本，启动校验则保留每个
+ * 已注册副本。
  */
 async function queryFileApplications(
   path: string, signal: AbortSignal, internals: PathOpenerInternals, display: boolean,
@@ -80,17 +80,17 @@ async function queryFileApplications(
   return parseNativeFileApplications(JSON.parse(stdout))
 }
 
-/** One validated macOS handler with the grouping metadata the display query strips. */
+/** 一个已校验的 macOS 处理程序，含显示查询会剥离的分组元数据。 */
 interface MacApplication extends NativeFileApplication {
   readonly bundle: string | null
   readonly version: string | null
 }
 
 /**
- * Validate every entry of the decoded macOS query output, base fields and grouping metadata alike.
- * @param value - decoded application list from the macOS query.
- * @returns validated handlers in OS preference order.
- * @throws Error when any entry is malformed, matching the other platform parsers.
+ * 校验已解码 macOS 查询输出的每个条目，基础字段与分组元数据皆然。
+ * @param value - 来自 macOS 查询的已解码应用列表。
+ * @returns 按 OS 偏好顺序的已校验处理程序。
+ * @throws 当任一条目畸形时抛出 Error，与其他平台解析器一致。
  */
 function parseMacApplications(value: unknown): readonly MacApplication[] {
   if (!Array.isArray(value)) throw new Error('Invalid native application list')
@@ -100,12 +100,12 @@ function parseMacApplications(value: unknown): readonly MacApplication[] {
     const bundle = macField('bundle' in entry ? entry.bundle : null)
     const version = macField('version' in entry ? entry.version : null)
     const [base] = parseNativeFileApplications([entry])
-    // oxlint-disable-next-line typescript/no-non-null-assertion -- a one-entry input parses to one entry
+    // oxlint-disable-next-line typescript/no-non-null-assertion -- 单条目输入解析为单条目
     return { ...base!, bundle, version }
   })
 }
 
-/** Validate one optional string field value of a macOS entry; missing fields, null, and empty strings read as null. */
+/** 校验 macOS 条目的一个可选字符串字段；缺失字段、null 与空字符串读作 null。 */
 function macField(field: unknown): string | null {
   if (field === null) return null
   if (typeof field !== 'string') throw new Error('Invalid native application entry')
@@ -113,16 +113,14 @@ function macField(field: unknown): string | null {
 }
 
 /**
- * Collapse duplicate registrations of the same application for display. Self-updating
- * apps leave extra copies on disk (an update staged under Application Support,
- * per-version installs) and LaunchServices registers every one, so the raw handler
- * list repeats the app. Finder shows one entry per app and splits only deliberate
- * side-by-side installs, which carry distinct display names; matching that, copies
- * sharing a bundle identifier and display name collapse to the system default, else
- * the highest version, at the group's first position. Launch validation bypasses
- * this collapse, so every registered copy stays openable.
- * @param applications - validated handlers in OS preference order.
- * @returns application metadata with one entry per application and no grouping metadata.
+ * 为显示折叠同一应用的重复注册。自更新应用会在磁盘上留下额外副本（在 Application
+ * Support 下暂存更新、按版本安装），而 LaunchServices 会注册每一个，因此原始处理
+ * 程序列表会重复该应用。Finder 每个应用显示一个条目，并仅对刻意并排安装、携带不同
+ * 显示名的副本拆分；与此一致，共享一个 bundle 标识符与显示名的副本折叠为系统默认
+ * 项，否则为该组最高版本、位于该组首位。启动校验绕过此折叠，因而每个已注册副本
+ * 仍可打开。
+ * @param applications - 按 OS 偏好顺序的已校验处理程序。
+ * @returns 每个应用一个条目、无分组元数据的应用元数据。
  */
 function dedupeMacApplications(applications: readonly MacApplication[]): readonly NativeFileApplication[] {
   const order: MacApplication[] = []
@@ -139,7 +137,7 @@ function dedupeMacApplications(applications: readonly MacApplication[]): readonl
       order.push(app)
       continue
     }
-    // oxlint-disable-next-line typescript/no-non-null-assertion -- group indices point at pushed entries
+    // oxlint-disable-next-line typescript/no-non-null-assertion -- 组索引指向已推送的条目
     const held = order[index]!
     if (held.default) continue
     if (app.default || compareVersions(app.version, held.version) > 0) order[index] = app
@@ -147,7 +145,7 @@ function dedupeMacApplications(applications: readonly MacApplication[]): readonl
   return order.map(({ id, name, default: preferred, icon }) => ({ id, name, default: preferred, icon }))
 }
 
-/** Order two dotted version strings numerically; non-numeric segments count as 0, and a missing version sorts lowest. */
+/** 以数值顺序比较两个点分版本字符串；非数字段计为 0，缺失版本排最低。 */
 function compareVersions(left: string | null, right: string | null): number {
   if (left === null || right === null) return left === right ? 0 : left === null ? -1 : 1
   const a = left.split('.')
@@ -160,13 +158,13 @@ function compareVersions(left: string | null, right: string | null): number {
 }
 
 /**
- * Open a file in a currently registered handler; stale or arbitrary application identifiers are rejected.
- * Validation checks the complete registered list, so macOS copies collapsed out of the display list stay openable.
- * @param path - verified absolute local file path.
- * @param application - identifier returned by the file association query.
- * @param signal - caller lifetime, propagated to query and launch.
- * @param internals - platform and command adapter for deterministic tests.
- * @returns after the system launcher accepts the file.
+ * 在目前已注册的处理程序中打开一个文件；陈旧的或任意的应用标识符会被拒绝。
+ * 校验检查完整的已注册列表，因此从显示列表中折叠出去的 macOS 副本仍可打开。
+ * @param path - 已校验的绝对本地文件路径。
+ * @param application - 文件关联查询返回的标识符。
+ * @param signal - 调用方生命周期，传播给查询与启动。
+ * @param internals - 用于确定性测试的、平台与命令适配器。
+ * @returns 在系统启动器接受该文件之后。
  */
 export async function openNativeFileApplication(
   path: string, application: string, signal: AbortSignal, internals: PathOpenerInternals = {},
@@ -183,7 +181,7 @@ export async function openNativeFileApplication(
   else await run('open', ['-a', application, path], signal, 'hidden')
 }
 
-/** Resolve the desktop that owns the file, including Windows applications reached from WSL. */
+/** 解析拥有该文件的桌面，包括从 WSL 可达的 Windows 应用。 */
 async function desktopTarget(
   path: string, signal: AbortSignal, internals: PathOpenerInternals,
 ): Promise<{ platform: NodeJS.Platform; path: string }> {

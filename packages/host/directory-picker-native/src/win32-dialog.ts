@@ -1,67 +1,66 @@
 /**
- * Main-thread driver for the Win32 folder dialog: spawns the dialog child
- * process (which blocks inside the modal `Show`), maps its message protocol
- * onto a promise, and services aborts by posting `WM_CLOSE` to the dialog
- * thread's windows until the child reports back. The real process/window
- * surface is injectable so every driver path is testable on any platform.
+ * Win32 文件夹对话框的主线程驱动：派生对话框子进程（它阻塞在模态 `Show` 内部），把其
+ * 消息协议映射为一个 promise，并通过向对话框线程的窗口投递 `WM_CLOSE` 来响应中止，
+ * 直到子进程回报结果。真实的进程/窗口接口可注入，因此驱动的各条路径都能在任意平台上
+ * 测试。
  */
 
 import { closeThreadWindows as hostCloseThreadWindows, spawnDialogWorker } from './win32-dialog-host.ts'
 import type { Win32DialogWorkerData, Win32DialogWorkerMessage } from './win32-dialog-worker.ts'
 
-/** The child-process surface the driver drives (satisfied by `node:child_process`). */
+/** 驱动所操控的子进程接口（由 `node:child_process` 满足）。 */
 export interface Win32DialogWorkerLike {
   /**
-   * Subscribe to a child-process event.
-   * @param event - `message`, `error`, or `exit`.
-   * @param listener - the event consumer.
+   * 订阅子进程事件。
+   * @param event - `message`、`error` 或 `exit`。
+   * @param listener - 事件消费方。
    */
   on(event: 'message', listener: (message: Win32DialogWorkerMessage) => void): unknown
   on(event: 'error', listener: (error: Error) => void): unknown
   on(event: 'exit', listener: (code: number) => void): unknown
   /**
-   * Force-stop the child; the abort path's last resort when `WM_CLOSE`
-   * never lands (e.g. the dialog window was never created).
-   * @returns whether a kill signal was delivered.
+   * 强制停止子进程；当 `WM_CLOSE` 始终没有送达时（例如对话框窗口从未创建），这是 abort
+   * 路径的最后手段。
+   * @returns 是否投递了终止信号。
    */
   kill(): boolean
   /**
-   * Release the event-loop reference. Called once the pick settles so a
-   * child stuck in the native modal call never blocks process exit.
+   * 释放事件循环引用。选择结束后调用一次，使卡在原生模态调用中的子进程永远不会阻塞
+   * 进程退出。
    */
   unref?(): void
 }
 
-/** Injectable process surface for deterministic driver tests. */
+/** 为确定性驱动测试注入的进程接口。 */
 export interface Win32DialogInternals {
-  /** Replaces the real child spawn (`win32-dialog-host.ts`). */
+  /** 替换真实的子进程派生（`win32-dialog-host.ts`）。 */
   spawnWorker?: (data: Win32DialogWorkerData) => Win32DialogWorkerLike
-  /** Replaces the real `WM_CLOSE` poster (`win32-dialog-host.ts`). */
+  /** 替换真实的 `WM_CLOSE` 投递器（`win32-dialog-host.ts`）。 */
   closeThreadWindows?: (threadId: number) => Promise<void>
-  /** Abort-service cadence override so tests never wait wall-clock time. */
+  /** 中止服务节奏的覆盖开关，使测试无需等待真实时钟时间。 */
   closeRetryMs?: number
 }
 
-/** The dialog title every host shows. */
+/** 每个宿主都显示的对话框标题。 */
 export const DIALOG_TITLE = 'Select Workspace Directory'
 
-/** `WM_CLOSE` re-post cadence while an abort waits for the worker to unwind. */
+/** 中止等待 worker 退出期间重新投递 `WM_CLOSE` 的节奏。 */
 const CLOSE_RETRY_MS = 150
-/** Abort-service attempts before force-terminating the worker. */
+/** 强制终止 worker 之前的中止服务尝试次数。 */
 const CLOSE_MAX_ATTEMPTS = 20
 
-/** Fail loudly if the closed worker-to-driver union gains an unhandled member. */
-/* v8 ignore start -- closed-union backstop; unreachable without a TypeScript contract violation */
+/** 若已封闭的 worker→driver 联合类型新增了未处理的成员，则大声失败。 */
+/* v8 ignore start -- 封闭联合类型的兜底；在不违反 TypeScript 契约的前提下不可达 */
 function assertNever(value: never): never {
   throw new TypeError(`unknown win32 dialog worker message kind: ${String(value)}`)
 }
 /* v8 ignore stop */
 
 /**
- * Open the modern Win32 folder picker off the event loop.
- * @param signal - caller lifetime; abort closes the dialog and rejects.
- * @param internals - Worker/window hooks for deterministic tests.
- * @returns the selected path, or null when the user cancels.
+ * 在事件循环之外打开现代 Win32 文件夹选择器。
+ * @param signal - 调用方生命周期；中止会关闭对话框并拒绝。
+ * @param internals - 供确定性测试注入的 worker/窗口钩子。
+ * @returns 所选路径；用户取消时为 null。
  */
 export async function pickWin32Directory(
   signal: AbortSignal,
@@ -88,21 +87,19 @@ export async function pickWin32Directory(
     }
 
     const postClose = (): void => {
-      // Before `showing` there is no window to close; the budget below still
-      // runs so a child that never reports cannot dangle the pick. A
-      // rejected close attempt (EnumThreadWindows/PostMessageW refusing) is
-      // discarded: the interval retries it and kill is the backstop.
+      // 在 `showing` 之前没有可关闭的窗口；下面的预算照常运行，这样从不回报的子进程
+      // 也无法让本次选择悬空。被拒绝的关闭尝试（EnumThreadWindows/PostMessageW 失败）
+      // 直接丢弃：定时器会重试，kill 是兜底手段。
       if (dialogThreadId !== undefined) void closeWindows(dialogThreadId).catch(() => undefined)
     }
 
-    // Sole caller: the once-registered abort listener, so no re-entry guard.
+    // 唯一调用方：只注册一次的 abort 监听器，因此无需重入保护。
     const serviceAbort = (): void => {
       let attempts = 0
-      // The `showing` notice precedes the blocking `Show`, so the very first
-      // WM_CLOSE can race the window's creation; re-post until the child
-      // reports back, then force-kill as a last resort. The budget is
-      // unconditional — an abort before `showing` (child hung in koffi or
-      // COM init) still ends in kill instead of a dangling promise.
+      // `showing` 通知先于阻塞的 `Show`，因此第一次 WM_CLOSE 可能与窗口创建竞争；持续
+      // 重新投递直到子进程回报，最后再强制 kill。预算是无条件的——在 `showing` 之前的
+      // 中止（子进程卡在 koffi 或 COM 初始化中）同样以 kill 收场，而不是留下一个悬空的
+      // promise。
       closeTimer = setInterval(() => {
         attempts += 1
         if (attempts > CLOSE_MAX_ATTEMPTS) {
@@ -126,7 +123,7 @@ export async function pickWin32Directory(
       switch (message.kind) {
         case 'showing':
           dialogThreadId = message.threadId
-          // An abort that raced ahead of this notice now has a window to hit.
+          // 早于该通知发生的中止现在有了可以命中的窗口。
           if (signal.aborted) postClose()
           return
         case 'done':
@@ -140,7 +137,7 @@ export async function pickWin32Directory(
             reject(new Error(`win32 folder dialog failed: ${message.message}`))
           })
           return
-        /* v8 ignore next 2 -- closed worker-owned union; a fourth kind becomes a compile error */
+        /* v8 ignore next 2 -- worker 自有的封闭联合类型；出现第四种 kind 会导致编译错误 */
         default:
           assertNever(message)
       }

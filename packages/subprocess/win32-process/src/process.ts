@@ -1,4 +1,4 @@
-/** Typed Win32 process operations over the shared binding table. */
+/** 建立在共享绑定表之上的、带类型的 Win32 进程操作。 */
 
 import * as abi from './abi.ts'
 import { inheritedControlStdio } from './control-stdio.ts'
@@ -19,9 +19,9 @@ import type { CurrentTokenProcessBindings, NativePtr, Win32ProcessBindings } fro
 import { requireKoffi } from './koffi.ts'
 
 /**
- * Quote one argument according to CommandLineToArgvW parsing.
- * @param argument - one argv entry.
- * @returns bare or quoted command-line segment.
+ * 依据 CommandLineToArgvW 的解析规则引用一个参数。
+ * @param argument - 一个 argv 条目。
+ * @returns 裸写或带引号的命令行片段。
  */
 export function quoteArg(argument: string): string {
   if (argument === '') return '""'
@@ -45,10 +45,10 @@ export function quoteArg(argument: string): string {
 }
 
 /**
- * Build the mutable command line accepted by CreateProcessAsUserW.
- * @param program - executable argv entry.
- * @param args - remaining argv entries.
- * @returns joined Win32 command line.
+ * 构建 CreateProcessAsUserW 所接受的、可变的命令行。
+ * @param program - 可执行文件的 argv 条目。
+ * @param args - 其余 argv 条目。
+ * @returns 拼接后的 Win32 命令行。
  */
 export function buildCommandLine(program: string, args: readonly string[]): string {
   return [program, ...args].map(quoteArg).join(' ')
@@ -70,60 +70,60 @@ function encodeWindowsEnvironment(env: Readonly<Record<string, string>>): Buffer
 }
 
 interface ProcessSpawnOptions {
-  /** Executable argv entry passed through CreateProcess. */
+  /** 经由 CreateProcess 传入的可执行文件 argv 条目。 */
   command: string
-  /** Arguments excluding the executable. */
+  /** 不含可执行文件在内的参数。 */
   args: readonly string[]
-  /** Existing child working directory. */
+  /** 既有的子进程工作目录。 */
   cwd: string
 }
 
-/** Ordinary process creation inputs used by the local Win32 runner. */
+/** 由本地 Win32 runner 使用的普通进程创建输入。 */
 export interface CurrentTokenProcessSpawnOptions extends ProcessSpawnOptions {
-  /** Resolved executable path passed separately from the preserved argv entry. */
+  /** 与保留的 argv 条目分开传入的、已解析的可执行文件路径。 */
   applicationName: string
-  /** Complete target environment passed without mutating the runner. */
+  /** 在不改动 runner 的前提下传入的完整目标环境。 */
   env: Readonly<Record<string, string>>
-  /** Runner CRT descriptors carrying target stdin, stdout, and stderr. */
+  /** 携带目标 stdin、stdout 与 stderr 的 runner CRT 描述符。 */
   stdio: CurrentTokenStdioFileDescriptors
 }
 
-/** Runner CRT descriptors whose OS handles become the target standard handles. */
+/** 其 OS 句柄会成为目标标准句柄的 runner CRT 描述符。 */
 export interface CurrentTokenStdioFileDescriptors {
   stdin: number
   stdout: number
   stderr: number
-  /** Optional carrier and target descriptor for the inherited control pipe. */
+  /** 针对被继承控制管道的可选载体与目标描述符。 */
   control?: 7
 }
 
-/** Restricted-token process creation inputs owned by the Windows ACL sandbox. */
+/** 由 Windows ACL 沙箱拥有的、受限令牌的进程创建输入。 */
 export interface RestrictedProcessSpawnOptions extends ProcessSpawnOptions {
-  /** Restricted primary token supplied by sandbox policy. */
+  /** 由沙箱策略提供的受限主令牌。 */
   token: NativePtr
-  /** Optional control pipe inherited at the same descriptor in the payload. */
+  /** 在载荷中以相同描述符被继承的可选控制管道。 */
   controlFileDescriptor?: 7
 }
 
-/** Piped child resources whose process and read handles remain caller-owned. */
+/** 其进程与读取句柄仍由调用方拥有的、管道化的子进程资源。 */
 export interface SpawnedPipedProcess {
-  /** Direct child process id. */
+  /** 直接子进程 id。 */
   pid: number
-  /** Process handle closed by waitForProcessExit. */
+  /** 由 waitForProcessExit 关闭的进程句柄。 */
   process: NativePtr
-  /** Stdout pipe read end closed by drainPipe. */
+  /** 由 drainPipe 关闭的 stdout 管道读取端。 */
   stdoutRead: NativePtr
-  /** Stderr pipe read end closed by drainPipe. */
+  /** 由 drainPipe 关闭的 stderr 管道读取端。 */
   stderrRead: NativePtr
 }
 
-/** Suspended child assigned to one caller-owned kill-on-close Job before resume. */
+/** 在恢复之前被指派给一个调用方拥有的 kill-on-close Job 的暂停子进程。 */
 export interface SpawnedJobProcess {
-  /** Direct child process id. */
+  /** 直接子进程 id。 */
   pid: number
-  /** Process handle closed by waitForProcessExit. */
+  /** 由 waitForProcessExit 关闭的进程句柄。 */
   process: NativePtr
-  /** Job handle closed by the lifecycle owner. */
+  /** 由生命周期所有者关闭的 Job 句柄。 */
   job: NativePtr
 }
 
@@ -163,7 +163,7 @@ function createPipe(api: Win32ProcessBindings, owned: Set<NativePtr>): PipePair 
 }
 
 function closeOwned(api: Win32ProcessBindings, owned: Set<NativePtr>, handle: NativePtr): void {
-  /* v8 ignore next -- each successfully decoded pipe end is uniquely owned. */
+  /* v8 ignore next -- 每一个被成功解码的管道端都是唯一拥有的。 */
   if (!owned.delete(handle)) return
   api.closeHandle(handle)
 }
@@ -181,9 +181,8 @@ function createRestrictedProcess(
   startupInfo: NativePtr,
   processInfo: NativePtr,
 ): number {
-  // The sandbox mutates its process environment before this call. Passing an
-  // explicit block through Koffi makes CreateProcessAsUserW reject the request
-  // with ERROR_INVALID_PARAMETER, so lpEnvironment remains NULL.
+  // 沙箱在这次调用之前会改变其进程环境。经由 Koffi 传入一个显式环境块会让
+  // CreateProcessAsUserW 以 ERROR_INVALID_PARAMETER 拒绝该请求，因此 lpEnvironment 保持 NULL。
   return api.createProcessAsUserW(
     options.token,
     null,
@@ -200,11 +199,11 @@ function createRestrictedProcess(
 }
 
 /**
- * Spawn a process with anonymous-pipe stdout/stderr and immediate stdin EOF.
- * New console windows start hidden without changing console inheritance.
- * @param api - active binding table.
- * @param options - command, cwd, args, and restricted primary token.
- * @returns caller-owned process and pipe read handles.
+ * 以匿名管道 stdout/stderr 与立即的 stdin EOF 启动一个进程。
+ * 新的控制台窗口以隐藏方式启动，且不改变控制台继承关系。
+ * @param api - 当前活动的绑定表。
+ * @param options - 命令、cwd、参数，以及受限主令牌。
+ * @returns 由调用方拥有的进程与管道读取句柄。
  */
 export function spawnPipedProcess(
   api: Win32ProcessBindings,
@@ -278,11 +277,11 @@ export function spawnPipedProcess(
 }
 
 /**
- * Drain one anonymous pipe until the writer closes it.
- * @param api - active binding table.
- * @param handle - caller-owned pipe read end.
- * @returns complete bytes read before EOF; the handle is always closed.
- * @throws when a Win32 pipe operation fails.
+ * 排空一个匿名管道，直到写入端将其关闭。
+ * @param api - 当前活动的绑定表。
+ * @param handle - 由调用方拥有的管道读取端。
+ * @returns 在 EOF 之前读取到的完整字节；该句柄总是会被关闭。
+ * @throws 当某个 Win32 管道操作失败时。
  */
 export async function drainPipe(
   api: Win32ProcessBindings,
@@ -317,10 +316,10 @@ export async function drainPipe(
 }
 
 /**
- * Wait for a process and always close its handle.
- * @param api - active binding table.
- * @param process - caller-owned process handle.
- * @returns direct process exit code.
+ * 等待一个进程，并始终关闭其句柄。
+ * @param api - 当前活动的绑定表。
+ * @param process - 由调用方拥有的进程句柄。
+ * @returns 直接进程退出码。
  */
 export function waitForProcessExit(api: Win32ProcessBindings, process: NativePtr): number {
   let exitCodeSlot: NativePtr | undefined
@@ -365,7 +364,7 @@ interface ProcessStandardHandles {
   control?: { fileDescriptor: 7; handle: NativePtr }
 }
 
-// Koffi exposes PVOID as an unsigned 64-bit bigint on supported Windows hosts.
+// 在受支持的 Windows 主机上，Koffi 把 PVOID 暴露为一个无符号 64 位 bigint。
 const UV_INVALID_OS_FILE_HANDLE = 0xffff_ffff_ffff_ffffn
 const UV_INVALID_FILE_DESCRIPTOR = 0xffff_ffff_ffff_fffen
 
@@ -411,7 +410,7 @@ function targetCarrierHandles(
   }
 }
 
-/** Shared suspended-create, Job-assignment, and resume lifecycle. */
+/** 共享的“暂停创建、Job 指派、恢复”生命周期。 */
 function spawnJobProcess(
   api: Win32ProcessBindings,
   options: ProcessSpawnOptions,
@@ -473,7 +472,7 @@ function spawnJobProcess(
     freeNative(startupInfo)
     freeNative(controlDescriptorBlock?.pointer)
     for (const handle of enabled) {
-      // The runner spawns nothing else; cleanup failure must not mask the child.
+      // 该 runner 不会生成其他东西；清理失败绝不能掩盖子进程。
       api.setHandleInformation(handle, abi.HANDLE_FLAG_INHERIT, 0)
     }
   }
@@ -520,14 +519,13 @@ function spawnJobProcess(
 }
 
 /**
- * Spawn a restricted-token process suspended with hidden initial windows, assign its Job, then resume it.
- * @param api - active binding table.
- * @param options - command, cwd, args, and restricted primary token.
- * @returns caller-owned process and Job handles after successful resume.
- * @remarks Node clears stdio handle inheritability at startup through
- * uv_disable_stdio_inheritance. This operation temporarily restores the bits
- * required by STARTF_USESTDHANDLES. Restoring them afterward is best-effort:
- * failure must not replace the already-created child's outcome.
+ * 以一个受限令牌启动一个暂停的进程（初始窗口隐藏），指派其 Job，然后恢复它。
+ * @param api - 当前活动的绑定表。
+ * @param options - 命令、cwd、参数，以及受限主令牌。
+ * @returns 恢复成功后由调用方拥有的进程与 Job 句柄。
+ * @remarks Node 在启动时会通过 uv_disable_stdio_inheritance 清除 stdio 句柄的
+ * 可继承性。本操作临时恢复 STARTF_USESTDHANDLES 所需的位。事后再恢复它们是尽力而为的：
+ * 失败绝不能取代已经创建的子进程的结果。
  */
 export function spawnInheritedJobProcess(
   api: Win32ProcessBindings,
@@ -546,10 +544,10 @@ export function spawnInheritedJobProcess(
 }
 
 /**
- * Spawn an ordinary process suspended with hidden initial windows, assign its Job, then resume it.
- * @param api - active binding table.
- * @param options - command, cwd, argv, and target carrier descriptors.
- * @returns caller-owned process and Job handles after successful resume.
+ * 以一个普通进程启动一个暂停的进程（初始窗口隐藏），指派其 Job，然后恢复它。
+ * @param api - 当前活动的绑定表。
+ * @param options - 命令、cwd、argv，以及目标载体描述符。
+ * @returns 恢复成功后由调用方拥有的进程与 Job 句柄。
  */
 export function spawnCurrentTokenJobProcess(
   api: CurrentTokenProcessBindings,
@@ -573,8 +571,8 @@ export function spawnCurrentTokenJobProcess(
 }
 
 /**
- * Verify that an unnamed kill-on-close Job can be created and released now.
- * @param api - active binding table.
+ * 验证一个无名的 kill-on-close Job 现在可以被创建并释放。
+ * @param api - 当前活动的绑定表。
  */
 export function probeCurrentTokenJobSupport(api: CurrentTokenProcessBindings): void {
   const job = createKillOnCloseJob(api)
@@ -582,10 +580,10 @@ export function probeCurrentTokenJobSupport(api: CurrentTokenProcessBindings): v
 }
 
 /**
- * Poll one process handle without blocking the runner event loop.
- * @param api - active binding table.
- * @param process - caller-owned process handle.
- * @returns the direct exit code when signalled, or undefined while running.
+ * 在不阻塞 runner 事件循环的前提下轮询一个进程句柄。
+ * @param api - 当前活动的绑定表。
+ * @param process - 由调用方拥有的进程句柄。
+ * @returns 被触发时的直接退出码；仍在运行时为 undefined。
  */
 export function pollProcessExit(api: Win32ProcessBindings, process: NativePtr): number | undefined {
   const waitResult = api.waitForSingleObject(process, 0)
@@ -601,10 +599,10 @@ export function pollProcessExit(api: Win32ProcessBindings, process: NativePtr): 
 }
 
 /**
- * Return whether a Job has no active processes.
- * @param api - active binding table.
- * @param job - caller-owned Job handle.
- * @returns true once the Job reports zero active processes.
+ * 返回一个 Job 是否没有活动进程。
+ * @param api - 当前活动的绑定表。
+ * @param job - 由调用方拥有的 Job 句柄。
+ * @returns 当 Job 报告零个活动进程时为 true。
  */
 export function isJobEmpty(api: Win32ProcessBindings, job: NativePtr): boolean {
   const information = Buffer.alloc(abi.JOBOBJECT_BASIC_ACCOUNTING_SIZE)
@@ -621,20 +619,20 @@ export function isJobEmpty(api: Win32ProcessBindings, job: NativePtr): boolean {
 }
 
 /**
- * Terminate every process in a Job.
- * @param api - active binding table.
- * @param job - caller-owned Job handle.
- * @param exitCode - direct Windows exit code assigned to members.
+ * 终止一个 Job 中的每一个进程。
+ * @param api - 当前活动的绑定表。
+ * @param job - 由调用方拥有的 Job 句柄。
+ * @param exitCode - 指派给成员的、直接的 Windows 退出码。
  */
 export function terminateJob(api: Win32ProcessBindings, job: NativePtr, exitCode: number): void {
   if (api.terminateJobObject(job, exitCode) === 0) throwLastError(api, 'TerminateJobObject')
 }
 
 /**
- * Close a caller-owned handle and report a labelled Win32 failure.
- * @param api - active binding table.
- * @param handle - handle to close.
- * @param detail - lifecycle label for diagnostics.
+ * 关闭一个由调用方拥有的句柄，并报告一个带标签的 Win32 失败。
+ * @param api - 当前活动的绑定表。
+ * @param handle - 要关闭的句柄。
+ * @param detail - 用于诊断的生命周期标签。
  */
 export function closeHandleChecked(api: Win32ProcessBindings, handle: NativePtr, detail: string): void {
   if (api.closeHandle(handle) === 0) throwLastError(api, 'CloseHandle', detail)

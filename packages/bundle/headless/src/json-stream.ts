@@ -1,9 +1,7 @@
 /**
- * `--json` run projection: a bounded, ordered event stream derived from one
- * Agent's durable Session events. Every projected event is a commit point:
- * text and reasoning come from committed `assistant/message` content, never
- * from a live attempt that may still be retried or discarded, so the stream
- * never carries content the durable log does not contain.
+ * `--json` 运行投影：由一个 Agent 的持久化 Session 事件派生出的有界、有序事件流。
+ * 每个被投影的事件都是一个提交点：文本与思考来自已提交的 `assistant/message` 内容，
+ * 而绝不来自仍可能被重试或丢弃的实时尝试，因此该流永远不会携带持久化日志之外的内容。
  * @module @deepseek-ai/dsh-headless/json-stream
  */
 
@@ -12,60 +10,60 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 import { lastAssistantStreamChunk } from '@deepseek-ai/dsh-llm/assistant-stream'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
 
-/** Default per-string and per-key cap applied to every bounded projected payload. */
+/** 应用于每个有界投影负载的默认单字符串与单键上限。 */
 export const MAX_STRING_BYTES = 8 * 1024
 
-/** Default cap on one projected event's serialized bytes, newline included; the terminal `final` is exempt. */
+/** 单个投影事件序列化字节数的默认上限，含换行符；终止性的 `final` 事件不受此限。 */
 export const MAX_EVENT_BYTES = 32 * 1024
 
-/** Bytes every newline-delimited writer appends after one serialized event. */
+/** 每个换行分隔写入器在一条序列化事件之后追加的字节数。 */
 const LINE_TERMINATOR_BYTES = 1
 
-/** The stdout sink a projection writes newline-delimited events to. */
+/** 投影写入换行分隔事件所用的 stdout 目标。 */
 export interface JsonSink {
-  /** Write one chunk of the event stream. */
+  /** 写入事件流的一个分片。 */
   write(chunk: string): unknown
 }
 
-/** Tunables for {@link projectJsonRun}; every field defaults. */
+/** {@link projectJsonRun} 的可调项；每个字段都有默认值。 */
 export interface JsonProjectionOptions {
-  /** Working directory reported by the opening `session` event. */
+  /** 开头的 `session` 事件所上报的工作目录。 */
   cwd?: string
-  /** Per-string and per-key byte cap; longer values are truncated and flagged. */
+  /** 单字符串与单键的字节上限；更长的值会被截断并打上标记。 */
   maxStringBytes?: number
 }
 
-/** The live handle of one `--json` projection. */
+/** 一次 `--json` 投影的实时句柄。 */
 export interface JsonProjection {
-  /** Write the terminal `final` event carrying the run's answer text. */
+  /** 写入携带本次运行答复文本的终止事件 `final`。 */
   finish(text: string): void
-  /** Stop observing the Session. */
+  /** 停止观察该 Session。 */
   dispose(): void
 }
 
-/** Mutable truncation state threaded through one payload bound. */
+/** 贯穿一次负载裁剪过程的可变截断状态。 */
 interface BoundState {
   truncated: boolean
 }
 
-/** Truncate one UTF-8 string to `maxBytes`, dropping a split trailing character. */
+/** 把一个 UTF-8 字符串截断到 `maxBytes`，丢弃被切开的尾部字符。 */
 function truncateUtf8(text: string, maxBytes: number): string {
   const buffer = Buffer.from(text, 'utf8').subarray(0, maxBytes)
   const decoded = buffer.toString('utf8')
   return decoded.endsWith('\uFFFD') ? decoded.slice(0, -1) : decoded
 }
 
-/** Cap one object key, flagging the payload when it was cut. */
+/** 限制单个对象键的长度，并在它被截断时给负载打上标记。 */
 function boundKey(key: string, maxBytes: number, state: BoundState): string {
   if (Buffer.byteLength(key, 'utf8') <= maxBytes) return key
   state.truncated = true
   return truncateUtf8(key, maxBytes)
 }
 
-/** Maximum container depth one projected payload keeps before the tail is cut. */
+/** 一个投影负载在尾部被切断之前保留的最大容器深度。 */
 const MAX_DEPTH = 64
 
-/** Recursively cap every string in one JSON-serializable value, keys included. */
+/** 递归限制一个可 JSON 序列化值中的每个字符串，键名同样受限。 */
 function boundValue(value: unknown, maxBytes: number, state: BoundState, depth = 0): unknown {
   if (typeof value === 'string') {
     if (Buffer.byteLength(value, 'utf8') <= maxBytes) return value
@@ -73,9 +71,8 @@ function boundValue(value: unknown, maxBytes: number, state: BoundState, depth =
     return truncateUtf8(value, maxBytes)
   }
   if (Array.isArray(value)) {
-    // A legal but pathologically deep argument would otherwise recurse until
-    // the stack overflows, and the isolated listener would silently drop the
-    // event; cut the tail at a depth no real tool schema reaches.
+    // 否则一个合法但异常深的参数会一直递归到栈溢出，而这个被隔离的监听器会静默
+    // 丢弃该事件；因此在一个真实工具 schema 都达不到的深度处切断尾部。
     if (depth >= MAX_DEPTH) {
       state.truncated = true
       return '[truncated: depth]'
@@ -87,10 +84,9 @@ function boundValue(value: unknown, maxBytes: number, state: BoundState, depth =
       state.truncated = true
       return '[truncated: depth]'
     }
-    // A null prototype keeps a literal `__proto__` key as data instead of
-    // invoking the inherited setter, which would silently drop it. Two keys
-    // that share a truncated prefix collide last-wins; only a payload naming
-    // two multi-kilobyte keys can reach that.
+    // 空原型让字面量 `__proto__` 键保持为数据，而不是触发继承来的 setter——后者
+    // 会静默丢弃它。共用同一截断前缀的两个键按最后写入者胜出发生碰撞；只有同时
+    // 包含两个数 KB 长键的负载才会达到这种情况。
     const bounded = Object.create(null) as Record<string, unknown>
     for (const [key, item] of Object.entries(value)) {
       bounded[boundKey(key, maxBytes, state)] = boundValue(item, maxBytes, state, depth + 1)
@@ -101,11 +97,11 @@ function boundValue(value: unknown, maxBytes: number, state: BoundState, depth =
 }
 
 /**
- * Bound every string and key in one projected payload, adding `truncated: true`
- * when any was cut. {@link boundJsonLine} composes this with the whole-line cap.
- * @param event - the event payload to bound.
- * @param maxStringBytes - per-string and per-key byte cap.
- * @returns a copy with every over-long string and key truncated.
+ * 限制一个投影负载中每个字符串与键的长度，当有任一项被截断时加上 `truncated: true`。
+ * {@link boundJsonLine} 在此基础上再与整行上限组合。
+ * @param event - 待裁剪的事件负载。
+ * @param maxStringBytes - 单字符串与单键的字节上限。
+ * @returns 一个副本，其中所有过长的字符串与键都被截断。
  */
 function boundJsonEvent(
   event: Record<string, unknown>,
@@ -118,16 +114,14 @@ function boundJsonEvent(
 }
 
 /**
- * Serialize one projected payload under both limits: every string and key is
- * capped at `maxStringBytes`, and the serialized line at `maxEventBytes`. The
- * line cap reserves the newline the writer appends, so the complete record
- * stays within it. When the line is still too long, scalar fields survive and
- * structured fields are dropped; when even those are too long, only `type` and
- * `truncated` remain.
- * @param event - the event payload to serialize.
- * @param maxStringBytes - per-string and per-key byte cap.
- * @param maxEventBytes - cap on the serialized line plus its trailing newline.
- * @returns the bounded JSON line, without a trailing newline.
+ * 在两重限制下序列化一个投影负载：每个字符串与键不超过 `maxStringBytes`，
+ * 序列化后的行不超过 `maxEventBytes`。行上限为写入器追加的换行符预留了空间，
+ * 因此完整记录仍落在限制之内。当行依旧过长时，标量字段保留而结构化字段被丢弃；
+ * 当连这些字段都过长时，只剩下 `type` 与 `truncated`。
+ * @param event - 待序列化的事件负载。
+ * @param maxStringBytes - 单字符串与单键的字节上限。
+ * @param maxEventBytes - 序列化行及其尾随换行符的上限。
+ * @returns 有界的 JSON 行，不含尾随换行符。
  */
 export function boundJsonLine(
   event: Record<string, unknown>,
@@ -149,16 +143,16 @@ export function boundJsonLine(
 }
 
 /**
- * Parse raw tool-call arguments as the executor does: empty input is `{}`,
- * invalid or non-round-trippable JSON (a non-finite number) stays text.
+ * 像执行器那样解析原始的工具调用参数：空输入是 `{}`，非法或无法往返的 JSON
+ * （非有限数值）保持为文本。
  */
 function parseArguments(raw: string): unknown {
   if (raw === '') return {}
   const seen = { nonFinite: false }
   try {
     const parsed: unknown = JSON.parse(raw, (_key, value: unknown) => {
-      // `1e400` is valid JSON but parses to Infinity, which JSON.stringify
-      // reports as null; keep the raw text rather than misdescribe the call.
+      // `1e400` 是合法 JSON，但会解析为 Infinity，而 JSON.stringify 会把它报成
+      // null；保留原始文本，以免错误描述这次调用。
       if (typeof value === 'number' && !Number.isFinite(value)) seen.nonFinite = true
       return value
     })
@@ -168,7 +162,7 @@ function parseArguments(raw: string): unknown {
   }
 }
 
-/** Join the text blocks of a tool result's model-facing content. */
+/** 拼接工具结果的模型可见内容中的文本块。 */
 function resultText(blocks: readonly { type: string; text?: string }[]): string {
   return blocks
     .filter((block): block is { type: string; text: string } =>
@@ -177,31 +171,29 @@ function resultText(blocks: readonly { type: string; text?: string }[]): string 
     .join('')
 }
 
-/** Provider token accounting for one step, as carried by `assistant/message`. */
+/** 一步之内 provider 上报的 token 计量，由 `assistant/message` 携带。 */
 type StepUsage = NonNullable<SessionEvent<'assistant/message'>['data']['usage']>
 
-/** Accumulated usage for one step plus whether every attempt reported a sample. */
+/** 一步累计的用量，以及是否每次尝试都上报了采样。 */
 interface StepUsageState {
   usage: StepUsage | undefined
-  /** False once any attempt in the step omitted a usage sample. */
+  /** 一旦该步骤中有任一尝试缺少用量采样即为 false。 */
   complete: boolean
 }
 
-/** The usage a provider reported in one attempt's stream, if any. */
+/** 一次尝试的流中 provider 上报的用量（若有）。 */
 function streamUsage(stream: SessionEvent<'assistant/message'>['data']['stream']): StepUsage | undefined {
   return lastAssistantStreamChunk(stream, 'usage')?.usage
 }
 
 /**
- * Accumulate one step's usage across its attempts. A retried attempt keeps its
- * usage only in its `assistant/attempt` stream, so the committed message alone
- * would under-report billed tokens. An attempt that reports no sample makes the
- * step total unknowable, so the step omits usage entirely rather than publish a
- * partial sum as if it were complete; an optional bucket is summed only when
- * every contribution reports it.
- * @param state - usage accumulated so far and whether it is still complete.
- * @param next - usage reported by the next attempt.
- * @returns the updated state.
+ * 在一次步骤的多次尝试之间累计用量。被重试的尝试只在自己的 `assistant/attempt`
+ * 流中保留用量，因此仅看已提交的消息会少报计费 token。某次尝试若未上报采样，
+ * 该步骤的总量便不可知，因此整个步骤省略用量，而不是把一个部分和当作完整总量发布；
+ * 可选字段只有在每次贡献都上报它时才累加。
+ * @param state - 累计至今的用量，以及它是否仍然完整。
+ * @param next - 下一次尝试上报的用量。
+ * @returns 更新后的状态。
  */
 function addUsage(state: StepUsageState, next: StepUsage | undefined): StepUsageState {
   if (next === undefined) return { usage: state.usage, complete: false }
@@ -227,18 +219,16 @@ function addUsage(state: StepUsageState, next: StepUsage | undefined): StepUsage
 }
 
 /**
- * Project one Agent's run as newline-delimited JSON on `sink`.
+ * 把一个 Agent 的运行投影为 `sink` 上换行分隔的 JSON。
  *
- * The opening `session` event is written before the subscription starts, so a
- * caller must invoke this before submitting the task. Text and reasoning are
- * emitted only when the step's `assistant/message` commits them, and the
- * terminal `final` event carries the same lossless answer the default mode
- * prints (it is deliberately not bounded).
- * @param ctx - plugin context carrying the live Session feed.
- * @param agent - the exact Agent whose events belong to this invocation.
- * @param sink - stdout sink receiving one JSON object per line.
- * @param options - projection tunables.
- * @returns the projection handle that finishes or disposes the stream.
+ * 开头的 `session` 事件在订阅开始之前写入，因此调用方必须在提交任务之前调用本函数。
+ * 只有当步骤的 `assistant/message` 提交之后，文本与思考才会被输出；终止性的 `final`
+ * 事件携带与默认模式打印内容相同的无损答复（它被刻意不做裁剪）。
+ * @param ctx - 承载实时 Session 事件推送的插件上下文。
+ * @param agent - 其事件属于本次调用的确切 Agent。
+ * @param sink - 接收每行一个 JSON 对象的 stdout 目标。
+ * @param options - 投影的可调项。
+ * @returns 用于结束或停止该流的投影句柄。
  */
 export function projectJsonRun(
   ctx: Context,
@@ -264,8 +254,8 @@ export function projectJsonRun(
         write({ type: 'status', phase: 'step_start', turn: event.data.turn, step: event.data.step })
         return
       case 'assistant/attempt':
-        // A retried attempt has no committed message; its billed tokens live
-        // only in the stream, so accumulate them into the step's total.
+        // 被重试的尝试没有已提交的消息；它的计费 token 只存在于流中，因此把它
+        // 们累加进该步骤的总量。
         stepUsage = addUsage(stepUsage, streamUsage(event.data.stream))
         return
       case 'assistant/message':
@@ -280,8 +270,8 @@ export function projectJsonRun(
         stepUsage = { usage: undefined, complete: true }
         write({
           type: 'status', phase: 'step_end', turn: event.data.turn, step: event.data.step,
-          // A partial sum would read as an exact total, so omit it entirely
-          // when any attempt in the step failed to report usage.
+          // 部分和会被读作精确总量，因此当该步骤中有任一尝试未上报用量时，
+          // 就完全省略它。
           ...complete && usage !== undefined ? { usage } : {},
         })
         return
@@ -298,8 +288,8 @@ export function projectJsonRun(
         })
         return
       case 'tool/result': {
-        // Compaction replaces older results in the surface; those are history,
-        // not this run's output, and would otherwise duplicate a callId.
+        // 压缩会替换界面中更早的结果；那些属于历史而非本次运行的输出，否则会
+        // 重复同一个 callId。
         if (event.surfaceOp !== 'append') return
         const message = event.data.message
         write({
@@ -320,7 +310,7 @@ export function projectJsonRun(
 
   return {
     finish(text: string): void {
-      // The answer is the lossless terminal contract, so it is not truncated.
+      // 答复是无损的终态契约，因此不做截断。
       if (disposed) return
       sink.write(`${JSON.stringify({ type: 'final', text })}\n`)
     },

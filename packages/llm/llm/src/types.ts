@@ -1,7 +1,7 @@
 /**
- * Canonical provider-neutral message and streaming vocabulary for the loop,
- * session log, and plugins. Adapters alone translate provider wire messages;
- * mapped interfaces make the content, source, and finish unions extensible.
+ * 供循环、会话日志与插件使用的、规范的且与提供方无关的消息与流式词汇。
+ * 只有适配器负责转换提供方的线格式消息；映射式接口使内容、来源
+ * 与结束原因的各个联合类型保持可扩展。
  */
 
 import type { Branded } from '@deepseek-ai/dsh-brand'
@@ -12,12 +12,11 @@ import type { Message, UserMessage } from './message.ts'
 declare module '@deepseek-ai/cordis' {
   interface Events {
     /**
-     * The provider topology changed: an adapter registered or unregistered
-     * routes, or the configurable-provider directory gained or lost entries.
-     * This payload-free registry notification fires at each commit point
-     * (including registration disposal); consumers re-read `listProviders()`,
-     * `listModels()`, or `listConfigurableProviders()` for the new state.
-     * Observer failures are contained and cannot veto the registry mutation.
+     * 提供方拓扑发生了变化：某个适配器注册或注销了路由，
+     * 或者可配置提供方目录增减了条目。这个无载荷的注册表通知
+     * 在每个提交点触发（包括注册被释放时）；消费者重新读取
+     * `listProviders()`、`listModels()` 或 `listConfigurableProviders()`
+     * 以获取新状态。观察者失败会被隔离，无法否决这次注册表变更。
      * @mode emit
      */
     'llm/adapters-updated'(): void
@@ -37,102 +36,99 @@ export type {
   UserMessage,
 } from './message.ts'
 
-/** Serializable provider or transport failure facts; policy decides whether they are retryable. */
+/** 可序列化的提供方或传输失败事实；由策略决定是否可重试。 */
 export interface LlmFailure {
-  /** Human-readable provider or transport failure. */
+  /** 面向人类的提供方或传输失败信息。 */
   readonly message: string
-  /** Stable provider-neutral machine-routing code. */
+  /** 稳定的、与提供方无关的机器路由错误码。 */
   readonly code: string
-  /** HTTP status returned by the provider, when available. */
+  /** 提供方返回的 HTTP 状态码，若可得。 */
   readonly status?: number
-  /** Provider-requested delay in milliseconds, when valid and available. */
+  /** 提供方要求的延迟，以毫秒计，当有效且可得时。 */
   readonly providerRetryAfterMs?: number
-  /** Opaque provider-issued request identifier for diagnostics. */
+  /** 供诊断使用的、不透明的、由提供方签发的请求标识。 */
   readonly requestId?: ProviderRequestId
   /**
-   * With code `IMAGE_OFFLOAD_REQUIRED`: how many more of the oldest retained
-   * image occurrences the route needs offloaded before the same request fits
-   * its exact byte accounting. `dsh-compaction-image-offload` records the
-   * selected occurrences in an `image/offload` event and retries the step.
+   * 配合错误码 `IMAGE_OFFLOAD_REQUIRED`：在该路由精确的字节核算之下，
+   * 同一次请求要放得下，还需要额外卸载多少个最早的被保留图像出现。
+   * `dsh-compaction-image-offload` 会在一个 `image/offload` 事件中
+   * 记录被选中的出现，并重试该步骤。
    */
   readonly offloadImages?: number
 }
 
-/** Plain text visible to the end user. */
+/** 对最终用户可见的纯文本。 */
 export interface TextBlock {
   type: 'text'
   text: string
 }
 
-/** Reasoning / thinking content, distinct from visible text. */
+/** 推理/思考内容，区别于可见文本。 */
 export interface ReasoningBlock {
   type: 'reasoning'
   text: string
 }
 
 /**
- * A durable raster image reference, valid in user or assistant content. The
- * block is deliberately role-neutral; assistant-side rendering is forward
- * compatibility — the current production adapters declare text-only output,
- * so only user messages may carry images.
+ * 一个持久化的光栅图像引用，在用户或助手内容中都有效。
+ * 该块刻意是角色中立的；助手侧的渲染属于前向兼容性——
+ * 当前的生产适配器只声明纯文本输出，因此只有用户消息可以携带图像。
  */
 export interface ImageBlock {
   type: 'image'
-  /** Immutable bytes and intrinsic display metadata owned by the attachment service. */
+  /** 由附件服务持有的、不可变的字节与内在展示元数据。 */
   attachment: ImageAttachmentRef
   /**
-   * Derived from a durable image-offload decision or preserved by a message
-   * rewrite. Every route sends placeholder text naming the image and its
-   * available read-only path instead of image bytes.
+   * 派生自一次持久化的图像卸载决策，或由一次消息重写保留下来。
+   * 每条路由都发送指名该图像及其可用只读路径的占位文本，而不是图像字节。
    */
   offloaded?: true
 }
 
 /**
- * A durable verbatim file reference, valid in user content. Files never reach
- * a provider natively: request assembly projects every occurrence to
- * deterministic handle text (name, byte size, and the read-only saved path),
- * so adapters and providers see text in its place while the durable log keeps
- * the structured reference for presentation and authorization.
+ * 一个持久化的逐字文件引用，在用户内容中有效。文件永远不会原生地
+ * 到达某个提供方：请求装配把每次出现都投影为确定性的句柄文本
+ * （名称、字节大小与只读的保存路径），因此适配器与提供方在它原本的
+ * 位置上看到的是文本，而持久化日志为呈现与授权保留结构化引用。
  */
 export interface FileBlock {
   type: 'file'
-  /** Immutable verbatim bytes and display metadata owned by the attachment service. */
+  /** 由附件服务持有的、不可变的逐字字节与展示元数据。 */
   attachment: FileAttachmentRef
 }
 
-/** A tool invocation requested by the model. */
+/** 一次由模型请求的工具调用。 */
 export interface ToolCallBlock {
   type: 'tool-call'
-  /** Provider-issued call id; correlates with the matching tool result. */
+  /** 由提供方签发的调用 id；与匹配的工具结果相关联。 */
   id: ToolCallId
   name: string
-  /** Raw JSON string as produced by the model. */
+  /** 模型产出的原始 JSON 字符串。 */
   arguments: string
 }
 
-/** Activates a tool definition from the developer event's referenced request header. */
+/** 从 developer 事件所引用的请求头中启用一个工具定义。 */
 export interface ToolAdditionBlock {
   type: 'tool-addition'
-  /** Name of exactly one tool in the referenced historical header. */
+  /** 所引用的历史请求头中恰好一个工具的名称。 */
   toolName: string
   /**
-   * Reserved against inline definitions; the historical request header owns the schema.
+   * 为内联定义保留；schema 由历史请求头持有。
    * @persistenceReserved
    */
   tool?: never
 }
 
-/** Records the dynamic removal of a tool identified by its session-local name. */
+/** 记录一次按其会话局部名称标识的工具的动态移除。 */
 export interface ToolRemovalBlock {
   type: 'tool-removal'
   toolName: string
 }
 
 /**
- * Merge-extensible content blocks keyed by `type`. New core blocks must land
- * with adapter, UI, and compaction support. Tool-change blocks belong to
- * developer messages; `projectToolUpdates` selects what each route receives.
+ * 以 `type` 为键的、可合并扩展的内容块。新的核心块必须连同
+ * 适配器、UI 与压缩支持一起落地。工具变更块属于 developer 消息；
+ * 由 `projectToolUpdates` 选择每条路由收到什么。
  */
 export interface ContentBlockMap {
   'text': TextBlock
@@ -144,14 +140,14 @@ export interface ContentBlockMap {
   'tool-removal': ToolRemovalBlock
 }
 
-/** The block `type` tag vocabulary; widens as plugins add entries to {@link ContentBlockMap}. */
+/** 块 `type` 标签的词汇表；随插件向 {@link ContentBlockMap} 添加条目而扩张。 */
 export type ContentBlockType = keyof ContentBlockMap
-/** Any known content block, derived from {@link ContentBlockMap}; switch on `type` and fall through unknowns (merge-extensible). */
+/** 任意已知的内容块，由 {@link ContentBlockMap} 派生；按 `type` 分支，并对未知值放过（可合并扩展）。 */
 export type ContentBlock = ContentBlockMap[ContentBlockType]
 
 /**
- * Why a model response stopped.
- * Merge-extensible so adapters can surface provider-specific reasons.
+ * 一次模型响应为何停止。
+ * 可合并扩展，因此适配器可以暴露提供方特有的原因。
  */
 export interface FinishReasonMap {
   'stop': { kind: 'stop' }
@@ -161,26 +157,25 @@ export interface FinishReasonMap {
   'error': { kind: 'error'; failure: LlmFailure }
 }
 
-/** Any known finish reason, derived from {@link FinishReasonMap}; switch on `kind` and fall through unknowns (merge-extensible). */
+/** 任意已知的结束原因，由 {@link FinishReasonMap} 派生；按 `kind` 分支，并对未知值放过（可合并扩展）。 */
 export type FinishReason = FinishReasonMap[keyof FinishReasonMap]
 
 /**
- * Token accounting for one model call (cache fields are optional).
+ * 一次模型调用的令牌账目（缓存字段是可选的）。
  *
- * Counts are DISJOINT: `inputTokens` is uncached input only; cached input is
- * reported separately as `cacheReadTokens`/`cacheWriteTokens` (billed input =
- * sum of the three). Adapters whose providers fold cache hits into a total
- * prompt count (DeepSeek's `prompt_tokens`) subtract them out.
+ * 各个计数是互不相交的：`inputTokens` 只是未缓存的输入；
+ * 缓存输入分别报告为 `cacheReadTokens`/`cacheWriteTokens`
+ * （计费输入 = 三者之和）。那些提供方把缓存命中折进一个提示总量的
+ * 适配器（DeepSeek 的 `prompt_tokens`）会把它们减掉。
  */
 export interface TokenUsage {
   inputTokens: number
   outputTokens: number
   /**
-   * Exact full-call total including aggregate prompt and output tokens.
+   * 精确的完整调用总计，包含聚合的提示与输出令牌。
    *
-   * Adapters preserve a provider total or derive it from authoritative
-   * aggregate prompt/output counters; they omit it when unavailable or
-   * inconsistent.
+   * 适配器会保留一个提供方总计，或从权威的聚合提示/输出计数器派生它；
+   * 当它不可用或不一致时则省略。
    */
   totalTokens?: number
   cacheReadTokens?: number
@@ -189,136 +184,130 @@ export interface TokenUsage {
 }
 
 /**
- * Request price of one ordered image occurrence under one exact model route's
- * request projection. Every occurrence resolves to the pair the wire actually
- * carries: provider visual tokens for a retained image, plus the model-visible
- * text sent with or instead of it (request-preview handle, offload placeholder,
- * or text-only substitution). The caller prices `text` with its own text
- * estimator so provider pricing never fixes a text tokenization.
+ * 在一条精确模型路由的请求投影之下，一次有序图像出现的请求价格。
+ * 每次出现都解析成线路上实际承载的那一对：一张被保留图像的
+ * 提供方视觉令牌，加上随之发送或取而代之的模型可见文本
+ * （请求预览句柄、卸载占位符，或纯文本替换）。调用方用
+ * 自己的文本估计器给 `text` 计价，因此提供方定价永远不会固定一种文本分词。
  */
 export interface LlmImageRequestPrice {
-  /** Provider visual tokens for the retained request image; 0 when only text represents this occurrence. */
+  /** 被保留的请求图像的提供方视觉令牌；当只有文本表示这次出现时为 0。 */
   visualTokens: number
-  /** Model-visible text sent for this occurrence, to be priced by the caller's text estimator. */
+  /** 为这次出现发送的、模型可见的文本，由调用方的文本估计器计价。 */
   text: string
 }
 
 /**
- * Provider-side request-image pricing for one exact model route. Implemented
- * by adapters whose provider charges visual tokens; consumers (the token
- * meter) resolve it synchronously per measurement, so implementations must not
- * perform I/O.
+ * 一条精确模型路由的提供方侧请求图像定价。由那些提供方会收取视觉
+ * 令牌的适配器实现；消费者（token meter）按每次度量同步解析它，
+ * 因此实现不得执行 I/O。
  */
 export interface LlmImageRequestPricing {
   /**
-   * Price every image occurrence of one request projection.
-   * @param images - surface image blocks in request order, one entry per occurrence; an `offloaded` block
-   *   is priced as its placeholder text.
-   * @returns one price per occurrence, aligned by index with `images`.
+   * 为一次请求投影中的每次图像出现计价。
+   * @param images - 按请求顺序排列的表面图像块，每次出现一个条目；
+   *   一个 `offloaded` 块按它的占位文本计价。
+   * @returns 每次出现一个价格，按索引与 `images` 对齐。
    */
   priceImages(images: readonly ImageBlock[]): readonly LlmImageRequestPrice[]
 }
 
-/** Display metadata for one registered provider route. */
+/** 一条已注册提供方路由的展示元数据。 */
 export interface LlmProviderInfo {
-  /** Provider route key used by {@link GenerateOptions.provider}. */
+  /** 由 {@link GenerateOptions.provider} 使用的提供方路由键。 */
   id: string
-  /** Human-readable provider name for selectors and diagnostics. */
+  /** 供选择器与诊断使用的、人类可读的提供方名称。 */
   name: string
 }
 
-/** Merge-extensible provider model modality vocabulary. */
+/** 可合并扩展的提供方模型模态词汇表。 */
 export interface ModelModalityMap {
   text: 'text'
   image: 'image'
 }
 
-/** Any declared provider model modality. */
+/** 任意已声明的提供方模型模态。 */
 export type ModelModality = ModelModalityMap[keyof ModelModalityMap]
 
 /**
- * One provider route an adapter plugin can activate through configuration,
- * whether or not the route is currently registered. Configuration surfaces
- * merge this directory with `listProviders()` to offer every configurable
- * provider alongside its live/dormant state.
+ * 适配器插件可以通过配置激活的一条提供方路由，无论该路由当前是否已注册。
+ * 各个配置界面把这个目录与 `listProviders()` 合并，从而在展示每个
+ * 可配置提供方的同时给出它的活跃/休眠状态。
  */
 export interface LlmConfigurableProvider {
-  /** Provider route key this entry activates when configured. */
+  /** 本条目在被配置时所激活的提供方路由键。 */
   provider: string
-  /** Human-readable provider name for configuration surfaces. */
+  /** 供配置界面使用的、人类可读的提供方名称。 */
   displayName: string
-  /** User-settings namespace whose section configures this provider. */
+  /** 其中某个小节配置本提供方的用户设置命名空间。 */
   settingsNs: string
   /**
-   * Path from that namespace's section root to this provider's profile
-   * object; empty when the whole section is the profile.
+   * 从该命名空间的那个小节根到本提供方 profile 对象的路径；
+   * 当整个小节就是该 profile 时为空。
    */
   settingsPath: readonly string[]
   /**
-   * Whether the owning adapter knows this route only because configuration
-   * declared it — a gateway or self-hosted server it ships nothing about.
-   * Absent means the adapter draws no such distinction; false means it does
-   * and this route is one of its own. Only the adapter can answer: a stored
-   * profile is how a user-added route AND a corrected shipped one both look
-   * from outside.
+   * 持有它的适配器是否仅仅因为配置声明才知道这条路由——
+   * 即一个它对之一无所知的网关或自托管服务器。
+   * 缺失意味着该适配器不做这种区分；false 意味着它做，而这条路由
+   * 属于它自己的路由之一。只有适配器能回答：从外部看，
+   * 一个用户新增的路由与一个被修正过的内置路由是一样的。
    */
   declared?: boolean
   /**
-   * Route endpoint the adapter uses when the profile sets no `baseURL`; the
-   * adapter may still send an individual model to that model's own endpoint.
-   * Absent when the route has no fixed endpoint.
+   * 当 profile 没有设置 `baseURL` 时适配器使用的路由端点；
+   * 适配器仍然可能把某个单独模型发往该模型自己的端点。
+   * 当该路由没有固定端点时缺失。
    */
   defaultBaseURL?: string
-  /** Environment variables used to construct a provider endpoint; absent when none are reported. */
+  /** 用于构造提供方端点的环境变量；当没有可报告的变量时缺失。 */
   baseURLEnv?: readonly string[]
-  /** Authentication the adapter performs when the profile names no credential reference; absent when it reports none. */
+  /** 当 profile 没有指名凭据引用时适配器所执行的认证；当它没有报告任何认证时缺失。 */
   nativeAuth?: LlmNativeAuth
-  /** Configuration diagnostic for repair; unaffected models may remain serviceable. */
+  /** 供修复使用的配置诊断信息；未受影响的模型可能仍然可用。 */
   error?: string
 }
 
-/** Authentication a provider route performs without a credential reference in its profile. */
+/** 一条提供方路由在其 profile 中没有凭据引用时执行的认证。 */
 export interface LlmNativeAuth {
-  /** Environment variables the route's authentication reads, in lookup order; empty when it reads none. */
+  /** 该路由的认证所读取的环境变量，按查找顺序排列；当它不读取任何变量时为空。 */
   env: readonly string[]
-  /** Whether a stored OAuth sign-in can authenticate the route. */
+  /** 一次已存储的 OAuth 登录是否能够认证该路由。 */
   oauth: boolean
 }
 
 /**
- * One interrogation of a provider endpoint that configuration has not stored
- * yet. Configuration surfaces send the draft a user is still editing, so the
- * request carries the endpoint and credential directly instead of naming a
- * route: a provider being added has no route to name.
+ * 对某个尚未被配置存储的提供方端点的一次探查。配置界面发送用户
+ * 仍在编辑的草稿，因此该请求直接携带端点与凭据，而不是指名一条路由：
+ * 一个正在被添加的提供方还没有可以指名的路由。
  */
 export interface LlmModelDiscoveryRequest {
   /**
-   * Route the draft is editing, when it edits an existing one. A route whose
-   * adapter already knows its models answers from that knowledge instead of
-   * asking the endpoint — the adapter's own registry is the better answer, and
-   * it costs no network call.
+   * 草稿正在编辑的路由，当它编辑的是一条已存在的路由时。
+   * 一个其适配器已经知道其模型的路由会用那份知识作答，而不是去询问端点——
+   * 适配器自己的注册表是更好的答案，而且它不产生任何网络调用。
    */
   provider?: string
   /**
-   * Endpoint to interrogate. Optional because a route the adapter already
-   * describes needs none; a route it does not must supply one.
+   * 要探查的端点。之所以可选，是因为一个适配器已经描述过的路由
+   * 不需要端点；而一个它没有描述过的路由必须提供一个。
    */
   baseURL?: string
-  /** Wire protocol the endpoint speaks, when the draft names one. */
+  /** 该端点所说的线格式协议，当草稿指名了一个时。 */
   api?: string
-  /** Credential for this interrogation alone; the harness never stores it. */
+  /** 仅用于本次探查的凭据；harness 从不存储它。 */
   apiKey?: string
 }
 
-/** Provider-side discovery request with operation-local cancellation attached. */
+/** 附带操作级取消信号的提供方侧发现请求。 */
 export interface LlmModelDiscoveryOperation extends LlmModelDiscoveryRequest {
-  /** Caller cancellation; implementations must settle promptly after it aborts. */
+  /** 调用方的取消信号；实现必须在它中止之后迅速落定。 */
   signal?: AbortSignal
 }
 
 declare module '@deepseek-ai/dsh-typert-protocol' {
   interface RemoteErrorDetailsMap {
-    /** A draft provider interrogation refused or failed. */
+    /** 一次草稿提供方探查被拒绝或失败。 */
     'llm/model-discovery-rejected': {
       readonly settingsNs: string
       readonly baseURL?: string
@@ -327,145 +316,143 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
 }
 
 /**
- * One model an endpoint reports about itself. Every field but the id is
- * optional because most provider listings disclose an id and nothing else;
- * a surface adopting one of these still owes the capacities its adapter needs.
+ * 端点关于自身所报告的一个模型。除 id 之外每个字段都是可选的，
+ * 因为大多数提供方列表只披露一个 id，别的都没有；
+ * 一个采纳了其中某个条目的界面仍然需要提供其适配器所需的那些容量。
  */
 export interface LlmDiscoveredModel {
-  /** Model id the endpoint accepts. */
+  /** 该端点接受的模型 id。 */
   id: string
-  /** Human-readable name when the endpoint supplies one. */
+  /** 当端点提供了名称时的人类可读名称。 */
   name?: string
-  /** Maximum combined request and response context, when disclosed. */
+  /** 请求与响应的合计上下文上限，当被披露时。 */
   contextWindow?: number
-  /** Maximum output tokens, when disclosed. */
+  /** 输出令牌上限，当被披露时。 */
   maxTokens?: number
-  /** Accepted input types when disclosed by the catalog or endpoint; absent means unknown. */
+  /** 当目录或端点披露了可接受的输入类型时；缺失意味着未知。 */
   inputModalities?: readonly ModelModality[]
 }
 
-/** One adapter-discovered model; catalog membership is advisory, not request validation. */
+/** 一个由适配器发现的模型；目录成员身份只是参考性的，不构成请求校验。 */
 export interface LlmModelInfo {
-  /** Provider route that owns this model entry. */
+  /** 持有该模型条目的提供方路由。 */
   provider: string
-  /** Model id passed to {@link GenerateOptions.model}. */
+  /** 传给 {@link GenerateOptions.model} 的模型 id。 */
   id: string
-  /** Human-readable model name for selectors. */
+  /** 供选择器使用的、人类可读的模型名称。 */
   name: string
-  /** Optional user-facing distinction from otherwise similar models. */
+  /** 可选的、面向用户的与相近模型之间的区分说明。 */
   description?: string
-  /** Accepted request modalities; absent means unknown, while an explicit omission is negative capability. */
+  /** 可接受的请求模态；缺失意味着未知，而显式的遗漏表示否定能力。 */
   inputModalities?: readonly ModelModality[]
 }
 
-/** Provider-owned context capacity for one exact provider/model route. */
+/** 一条精确提供方/模型路由的、由提供方持有的上下文容量。 */
 export interface LlmModelContext {
-  /** Maximum combined request and response context in tokens. */
+  /** 请求与响应的合计上下文上限，以令牌计。 */
   contextWindow: number
 }
 
 /**
- * Request-image budget one exact image-capable route enforces over the
- * retained occurrences' exact request-version bytes; for the `base64`
- * representation each byte count expands to its encoded length. A route whose
- * retained occurrences exceed the budget fails the request with
- * `IMAGE_OFFLOAD_REQUIRED` naming the additional occurrences to offload.
+ * 一条精确且具备图像能力的路由在那些被保留出现的、精确的请求版本
+ * 字节之上强制执行的请求图像预算；对于 `base64` 表示形式，
+ * 每个字节数会展开为它的编码后长度。当一条路由的被保留出现超出预算时，
+ * 该请求会以 `IMAGE_OFFLOAD_REQUIRED` 失败，并指名还需卸载的出现数量。
  */
 export interface LlmImageRequestBudget {
-  /** Whether the route accounts raw file bytes or inline base64 length. */
+  /** 该路由核算的是原始文件字节还是内联 base64 长度。 */
   representation: 'raw' | 'base64'
-  /** Accumulated represented image bytes the route accepts; absent leaves bytes unbounded. */
+  /** 该路由接受的、已表示的图像字节累计量；缺失使字节无上界。 */
   maxBytes?: number
-  /** Image occurrences the route accepts; absent leaves the count unbounded. */
+  /** 该路由接受的图像出现次数；缺失使数量无上界。 */
   maxImages?: number
-  /** Represented bytes removed as one deterministic advance step; absent removes the minimum. */
+  /** 作为一次确定性前进步长而被移除的已表示字节；缺失时移除最小值。 */
   byteQuantum?: number
-  /** Occurrences removed as one deterministic advance step; absent removes the minimum. */
+  /** 作为一次确定性前进步长而被移除的出现次数；缺失时移除最小值。 */
   countQuantum?: number
 }
 
-/** Display metadata for one adapter-owned reasoning effort. */
+/** 一个由适配器持有的推理强度的展示元数据。 */
 export interface LlmReasoningEffortInfo {
-  /** Opaque stable value accepted by {@link GenerateOptions.reasoningEffort}. */
+  /** 由 {@link GenerateOptions.reasoningEffort} 接受的、不透明的稳定值。 */
   id: ReasoningEffortId
-  /** Human-readable effort name for selectors and diagnostics. */
+  /** 供选择器与诊断使用的、人类可读的强度名称。 */
   name: string
-  /** Optional user-facing distinction from otherwise similar efforts. */
+  /** 可选的、面向用户的与相近强度之间的区分说明。 */
   description?: string
 }
 
-/** Selectable reasoning efforts for one exact provider/model route. */
+/** 一条精确提供方/模型路由的可选推理强度。 */
 export interface LlmModelReasoningInfo {
-  /** Supported efforts from least to greatest selectable reasoning effort, not predicted token use or latency. */
+  /** 按可选推理强度由低到高排列，而不是按预测的令牌用量或延迟。 */
   efforts: readonly LlmReasoningEffortInfo[]
   /**
-   * Adapter-configured default materialized into requests when callers omit
-   * an effort. Absence preserves the provider's own default.
+   * 当调用方省略强度时被物化进请求的、由适配器配置的默认值。
+   * 缺失时保留提供方自己的默认值。
    */
   defaultEffort?: ReasoningEffortId
 }
 
 /**
- * How a model applies a system prompt that changes mid-conversation.
- * `'in-history'`: the model reads the latest `system` message at any position
- * of `messages` as the complete effective system prompt, so a changed prompt
- * can follow the cached history instead of rewriting message 0.
+ * 一个模型如何应用在对话中途发生变化的系统提示。
+ * `'in-history'`：该模型把 `messages` 中任意位置最新的 `system`
+ * 消息当作完整生效的系统提示，因此一次变更后的提示可以跟在
+ * 已缓存的历史之后，而不必重写第 0 条消息。
  */
 export type SystemPromptUpdate = 'in-history'
 
 /**
- * How a model accepts native tool declarations that change mid-conversation.
- * `'addition-only'`: the model reads a `tool-addition` block in a later
- * developer message as activating a tool declared with `deferLoading`, so an
- * added tool follows the cached history instead of rewriting the declaration
- * list. `'in-history'`: the model additionally reads `tool-removal` blocks,
- * so a removed tool keeps its declaration and the removal follows the history.
- * Absent means every request declares the complete current tool list.
+ * 一个模型如何接受在对话中途发生变化的原生工具声明。
+ * `'addition-only'`：该模型把较晚出现的 developer 消息中的一个
+ * `tool-addition` 块读作启用一个以 `deferLoading` 声明的工具，
+ * 因此一个被添加的工具可以跟在已缓存的历史之后，而不必重写声明列表。
+ * `'in-history'`：该模型还会读取 `tool-removal` 块，因此一个被移除的
+ * 工具保留它的声明，而移除动作跟随历史。缺失意味着每次请求都声明
+ * 完整的当前工具列表。
  */
 export type ToolUpdate = 'in-history' | 'addition-only'
 
-/** Exact-route model metadata resolved by its owning adapter. */
+/** 由其持有方适配器解析出的、精确路由的模型元数据。 */
 export interface LlmResolvedModelInfo extends LlmModelInfo {
-  /** Provider-owned context capacity when known. */
+  /** 由提供方持有的上下文容量，若已知。 */
   context?: LlmModelContext
-  /** Adapter-configured per-request output cap materialized when callers omit one. */
+  /** 当调用方省略输出上限时被物化的、由适配器配置的按请求输出上限。 */
   defaultMaxTokens?: number
-  /** Adapter-owned selectable reasoning levels when exposed. */
+  /** 当被暴露时，由适配器持有的可选推理等级。 */
   reasoning?: LlmModelReasoningInfo
-  /** Declared mid-conversation system prompt handling; absent means only a leading system message is read. */
+  /** 已声明的对话中途系统提示处理方式；缺失意味着只读取开头的系统消息。 */
   systemPromptUpdate?: SystemPromptUpdate
-  /** Declared mid-conversation tool declaration handling; absent means every request declares the complete tool list. */
+  /** 已声明的对话中途工具声明处理方式；缺失意味着每次请求都声明完整的工具列表。 */
   toolUpdate?: ToolUpdate
 }
 
 /**
- * Adapter-private lossless-JSON state for replaying a successful response,
- * carried by a terminal `finish` chunk and stored on the assembled assistant
- * message's model source. Both halves stay opaque to the harness; only the
- * split is shared vocabulary, so assembly can keep stored metadata aligned
- * with stored content without reading either half.
+ * 供回放一次成功响应使用的、适配器私有的无损 JSON 状态，
+ * 由一个终止性 `finish` 块携带，并存储在已装配助手消息的模型来源上。
+ * 两半对 harness 都是不透明的；只有这个切分是共享词汇，
+ * 因此装配可以在不读取任一半的前提下，让已存储的元数据与
+ * 已存储的内容保持对齐。
  */
 export interface ReplayEnvelope {
-  /** Response-level adapter-private metadata (ids, native stop reason). */
+  /** 响应级的、适配器私有的元数据（id、原生停止原因）。 */
   response: unknown
   /**
-   * Per-block adapter-private metadata, one entry per emitted block in
-   * first-seen stream order. When assembly drops a block it drops the entry at
-   * the same position; entries whose length does not match the emitted block
-   * count discard the whole envelope. An adapter whose metadata is independent
-   * of block structure omits this field and the envelope passes through
-   * assembly unchanged.
+   * 按块的、适配器私有的元数据，按首次出现的流顺序为每个已发出的块
+   * 提供一个条目。当装配丢弃一个块时，它丢弃同一位置上的条目；
+   * 长度与已发出块数量不匹配的条目会丢弃整个信封。
+   * 一个其元数据与块结构无关的适配器省略该字段，
+   * 于是信封会原样穿过装配。
    */
   blocks?: readonly unknown[]
 }
 
 /**
- * Raw streaming protocol emitted by adapters.
- * Block indexes correlate interleaved deltas, and `block-end` carries the
- * assembled block. Adapters emit usage before the terminal finish and nothing
- * afterward; tool arguments remain raw JSON strings. An adapter implementation
- * may throw, but `LlmRuntime.stream()` normalizes that failure to a terminal
- * `error` or `aborted` finish before exposing it to consumers.
+ * 适配器发出的原始流式协议。
+ * 块索引把交错的增量关联起来，而 `block-end` 携带已装配的块。
+ * 适配器在终止性 finish 之前发出用量，之后不再发出任何东西；
+ * 工具参数保持为原始 JSON 字符串。一个适配器实现可以抛出，
+ * 但 `LlmRuntime.stream()` 会在把该失败暴露给消费者之前，
+ * 把它规范化为一个终止性的 `error` 或 `aborted` 结束。
  */
 export type StreamChunk =
   | { type: 'block-start'; index: number; blockType: ContentBlockType }
@@ -477,31 +464,31 @@ export type StreamChunk =
   | {
     type: 'finish'
     reason: FinishReason
-    /** Replay metadata for a successful response; see {@link ReplayEnvelope}. */
+    /** 一次成功响应的回放元数据；见 {@link ReplayEnvelope}。 */
     replayState?: ReplayEnvelope
   }
 
 /**
- * JSON-schema description of a tool, as sent to the model.
+ * 一个工具的 JSON schema 描述，按发送给模型的形式。
  *
- * Declared here (not in dsh-tools) because it is part of {@link GenerateOptions};
- * dsh-tools' ToolDefinition and dsh-system-prompt's PromptAssembly both import
- * it from this package.
+ * 之所以声明在这里（而不在 dsh-tools），是因为它是 {@link GenerateOptions}
+ * 的一部分；dsh-tools 的 ToolDefinition 与 dsh-system-prompt 的
+ * PromptAssembly 都从本包导入它。
  */
 export interface ToolSchema {
   /**
-   * Requests deferred loading of the tool definition into model context,
-   * independently of whether a tool-addition block records the tool.
-   * Uses Anthropic's defer_loading terminology.
+   * 请求把工具定义延迟加载到模型上下文中，
+   * 这与是否有一个 tool-addition 块记录该工具无关。
+   * 使用 Anthropic 的 defer_loading 术语。
    */
   deferLoading?: true
   name: string
   description: string
-  /** JSON Schema object for the arguments. */
+  /** 供参数使用的 JSON Schema 对象。 */
   parameters: Record<string, unknown>
 }
 
-/** User input for one LLM request; it has no durable Session identity or source. */
+/** 一次 LLM 请求的用户输入；它没有持久化的 Session 身份或来源。 */
 export interface RequestUserInput {
   readonly role: 'user'
   readonly content: UserMessage['content']
@@ -509,63 +496,61 @@ export interface RequestUserInput {
   readonly source?: never
 }
 
-/** A durable conversation message or a user input used only for one request. */
+/** 一条持久化的对话消息，或仅用于一次请求的用户输入。 */
 export type RequestMessage = Message | RequestUserInput
 
-/** Logged tool declarations and update identities since the last declaration reset. */
+/** 自上次声明重置以来、已记录的工具声明与更新身份。 */
 export interface ToolHistory {
-  /** Complete active declarations at the start of this history. */
+  /** 本段历史开始时完整的活跃声明。 */
   readonly tools: readonly ToolSchema[]
-  /** Ordered developer messages, with additions resolved from their historical headers. */
+  /** 按顺序排列的 developer 消息，其新增项已从各自的历史请求头解析出来。 */
   readonly updates: readonly {
-    /** Identity used to locate this update in the derived request history. */
+    /** 用于在派生请求历史中定位本次更新的身份。 */
     readonly messageId: MessageId
-    /** Added definitions resolved from the event's referenced request header. */
+    /** 从该事件所引用的请求头解析出来的新增定义。 */
     readonly additions: readonly ToolSchema[]
   }[]
 }
 
-/** A single model request, fully assembled. */
+/** 一次完整装配好的模型请求。 */
 export interface GenerateOptions {
-  /** Registered provider route selecting the adapter instance. */
+  /** 选择适配器实例的已注册提供方路由。 */
   provider: string
   model: string
-  /** Adapter-owned reasoning effort selected for this exact model. */
+  /** 为该精确模型选择的、由适配器持有的推理强度。 */
   reasoningEffort?: ReasoningEffortId
   /**
-   * Ordered conversation messages, exactly as the provider sees them. A
-   * loop-built request passes the derived history (dsh-agent-loop), whose
-   * leading system-role message carries the system prompt; a hand-built
-   * one-shot may include identity-free user inputs.
+   * 按提供方所见顺序排列的对话消息。一个由循环构建的请求传入
+   * 派生出来的历史（dsh-agent-loop），其中开头的 system 角色消息
+   * 携带系统提示；一个手工构建的单次调用可以包含无身份的用户输入。
    */
   messages: RequestMessage[]
   /**
-   * System prompt text for one-shot callers; adapters map it to the provider's
-   * system slot ahead of `messages`. Loop-built requests leave it undefined.
+   * 供单次调用方使用的系统提示文本；适配器把它映射到提供方
+   * 位于 `messages` 之前的 system 槽位。由循环构建的请求让它保持未定义。
    */
   system?: string
-  /** Tool schemas (adapters map to the provider's `tools` field). */
+  /** 工具 schema（适配器映射到提供方的 `tools` 字段）。 */
   tools?: ToolSchema[]
-  /** Session-folded tool history used for route projection; omission sends complete declarations without tool updates. */
+  /** 供路由投影使用的、按会话折叠的工具历史；省略时发送完整声明而不带工具更新。 */
   toolHistory?: ToolHistory
   temperature?: number
   maxTokens?: number
   /**
-   * Stop sequences: generation halts as soon as the model produces any one of
-   * these strings (adapters map to the provider's stop field, e.g. OpenAI
-   * `stop`). The stop string itself is not included in the output.
+   * 停止序列：一旦模型产出其中任意一个字符串，生成就停止
+   * （适配器映射到提供方的 stop 字段，例如 OpenAI 的 `stop`）。
+   * 停止字符串本身不包含在输出中。
    */
   stop?: string[]
   signal?: AbortSignal
   /**
-   * Session identity stamped by the loop for request routing. Replay uses it
-   * to separate cursors; adapters may map it to model-hidden transport metadata.
+   * 由循环为请求路由而加盖的会话身份。回放用它来分隔游标；
+   * 适配器可以把它映射为对模型隐藏的传输元数据。
    */
   sessionId?: Branded<'SessionId'>
   /**
-   * Provider-neutral classification for an auxiliary model call. Adapters may
-   * map the purpose to model-hidden transport metadata. Ordinary conversation
-   * requests leave it unset.
+   * 一次辅助模型调用的、与提供方无关的分类。适配器可以把该用途
+   * 映射为对模型隐藏的传输元数据。普通对话请求不设置它。
    */
   purpose?: 'compaction' | 'session-title'
 }

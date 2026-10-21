@@ -1,5 +1,5 @@
 /**
- * Model-facing persistent `bash` tool over the owner-scoped PTY seam.
+ * 基于按归属者隔离的 PTY 能力缝、面向模型的持久化 `bash` 工具。
  * @module @deepseek-ai/dsh-tool-bash-persistent
  */
 
@@ -13,16 +13,16 @@ import type { TerminalReadResult, TerminalSessionId } from '@deepseek-ai/dsh-ter
 import { deadline, timeoutOf } from '@deepseek-ai/dsh-timeout'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 
-// TODO: Replace the file-search advice; arbitrary command output need not come from a searchable file.
+// TODO：替换掉这段文件搜索建议；任意命令的输出并不必然来自某个可搜索的文件。
 const TRUNCATED_MESSAGE = '<response clipped><NOTE>To save on context only part of this file has been shown to you. You should retry this tool after you have searched inside the file with `grep -n` in order to find the line numbers of what you are looking for.</NOTE>'
 const LOST_PREFIX_MESSAGE = '<response clipped><NOTE>The beginning of this command output was dropped by the terminal scrollback limit. The following text is the earliest retained output.</NOTE>\n'
 const SHELL_RESET_MESSAGE = 'The persistent bash shell was reset; the next bash call starts from the workspace with a fresh current directory and environment.'
-// Status trailer for a command that never reported an exit code; settled
-// commands append `[Command finished with exit code N]` instead (see renderCaptured).
+// 从未上报退出码的命令所用状态尾标；已落定的命令则改为追加
+// `[Command finished with exit code N]`（参见 renderCaptured）。
 const TIMEOUT_STATUS_MARKER = '[Command timed out or OOM]'
 const TIMEOUT_CODE = 'PERSISTENT_BASH_TIMEOUT'
-// One page is enough to find a just-emitted completion marker; the full
-// scrollback is assembled only when a command settles or needs partial output.
+// 一页足以找到刚发出的完成标记；只有在命令落定或需要部分输出时，
+// 才会组装完整的回滚缓冲。
 const SCROLLBACK_PAGE_LINES = 1_000
 const POLL_INTERVAL_MS = 25
 
@@ -80,9 +80,8 @@ function quoteForBash(value: string): string {
 }
 
 function wrapCommand(command: string, marker: CommandMarkers): string {
-  // Keep the wrapper on one physical line. An interactive bash prints PS2 for
-  // embedded newlines before executing the buffer, which would leak terminal
-  // prompts and marker source text into the model-facing result.
+  // 让包装器保持在一个物理行上。交互式 bash 在执行缓冲区之前会为内嵌的
+  // 换行打印 PS2，这会把终端提示符与标记源文本泄漏到面向模型的结果中。
   return `printf '%s\\n' ${quoteForBash(marker.start)}; eval -- ${quoteForBash(command)}; __dsh_persistent_bash_status=$?; printf '%s%s\\n' ${quoteForBash(marker.end)} "$__dsh_persistent_bash_status"`
 }
 
@@ -192,11 +191,11 @@ function renderShellExitStatus(
 }
 
 /**
- * Render the exited-session result, reset the owner's shell, and reset the
- * message that tells the model the next call starts fresh.
- * @param shells - the owner-scoped registry to reset.
- * @param status - the exited session status (exit code and signal).
- * @returns the complete model-facing result.
+ * 渲染已退出会话的结果，重置归属者的 shell，并给出告知模型下一次调用
+ * 将从干净状态开始的消息。
+ * @param shells - 待重置的按归属者隔离的注册表。
+ * @param status - 已退出会话的状态（退出码与信号）。
+ * @returns 完整的、面向模型的结果。
  */
 async function respondToSessionExit(
   ctx: Context,
@@ -267,8 +266,8 @@ function persistentShells(ctx: Context, config: ResolvedConfig): PersistentShell
             live.delete(owner)
           }, 'tool-bash-persistent owner cache cleanup')
         }
-        // Echo suppression only: the prompt stays the backend's own, so the
-        // backend's prompt-based readiness detection keeps working.
+        // 仅是关闭回显：提示符仍保持后端自身的，因此后端基于提示符的
+        // 就绪检测能继续工作。
         const setup = ctx.terminals.startSend(owner, spawned.sessionId, {
           text: 'stty -echo',
           submit: true,
@@ -308,7 +307,7 @@ async function executeCommand(
   try {
     id = await shells.get(owner, commandDeadline.signal)
   } catch (error: unknown) {
-    // Initialization owns rollback; only this caller's cancellation becomes ABORTED.
+    // 初始化负责回滚；只有本调用方的取消才会变为 ABORTED。
     if (upstream.aborted && error === upstream.reason) return ''
     throw error
   }
@@ -319,9 +318,9 @@ async function executeCommand(
   let fallbackTruncated = false
 
   while (true) {
-    // The shell may flip to exited between iterations (a fast `exit` can
-    // settle the previous send while its exit event is still in flight);
-    // re-observing status before the next send closes that gap.
+    // shell 可能在两次迭代之间翻转为已退出（一个快速的 `exit` 能让上一次
+    // 发送落定，而其退出事件仍在传播途中）；在下一次发送之前重新观察
+    // 状态可以补上这个缺口。
     const status = ctx.terminals.list(owner).find(session => session.sessionId === id)?.status
     if (status?.kind === 'exited') {
       return await respondToSessionExit(
@@ -355,7 +354,7 @@ async function executeCommand(
       )
       await shells.reset(owner, 'persistent bash command timed out')
       return [
-        // TODO: Report a timeout only; this signal does not establish an OOM.
+        // TODO：只上报超时；该信号并不能证明发生了 OOM。
         `Your command timed out after ${Math.round(timedOut.timeoutMs / 1000)} seconds or experienced an OOM error. Below is partial output:`,
         appendStatusMarker(partial, TIMEOUT_STATUS_MARKER),
         SHELL_RESET_MESSAGE,
@@ -363,7 +362,7 @@ async function executeCommand(
     }
     if (commandDeadline.signal.aborted) {
       await shells.reset(owner, 'persistent bash command aborted')
-      // ToolRuntime publishes ABORTED after this cancelled invocation settles.
+      // ToolRuntime 会在这次被取消的调用落定之后发布 ABORTED。
       return ''
     }
     if (latest.text.includes(marker.end)) {
@@ -375,10 +374,9 @@ async function executeCommand(
         ctx, shells, owner, id, result.sessionStatus, marker, fallback, fallbackTruncated, config,
       )
     }
-    // The shell reads stdin again (its prompt, or a foreground child's own
-    // read) without having printed the end marker — e.g. `exec`, an interrupt,
-    // or an interactive child. Return what was captured instead of spinning
-    // until the command deadline.
+    // shell 在没有打印结束标记的情况下又去读 stdin（它自己的提示符，或
+    // 前台子进程自身的读取）——例如 `exec`、一次中断，或一个交互式子进程。
+    // 此时返回已采集到的内容，而不是一直空转到命令期限为止。
     if (result.waitReason === 'stdin_read') {
       const snapshot = retainedScrollback(ctx, owner, id, latest)
       return renderCaptured(
@@ -391,9 +389,9 @@ async function executeCommand(
 }
 
 /**
- * Register the model-facing persistent `bash` tool.
- * @param ctx - plugin context carrying tools and the owner-scoped PTY service.
- * @param config - selected PTY backend and command deadline.
+ * 注册面向模型的持久化 `bash` 工具。
+ * @param ctx - 承载工具与按归属者隔离的 PTY 服务的插件 context。
+ * @param config - 所选的 PTY 后端与命令期限。
  */
 function registerPersistentBash(ctx: Context, config: ResolvedConfig): void {
   const shells = persistentShells(ctx, config)
@@ -430,7 +428,7 @@ function registerPersistentBash(ctx: Context, config: ResolvedConfig): void {
       const owner = exec.agent
       if (owner === undefined) throw new Error('bash requires an owning agent session')
       return serialized(owner, async () => {
-        if (exec.signal.aborted) return '' // ToolRuntime publishes ABORTED after settlement.
+        if (exec.signal.aborted) return '' // ToolRuntime 会在落定之后发布 ABORTED。
         return executeCommand(ctx, shells, owner, args.command, config, exec.signal)
       })
     },
@@ -441,19 +439,19 @@ function registerPersistentBash(ctx: Context, config: ResolvedConfig): void {
 export const name = 'tool-bash-persistent'
 export const inject = ['tools', 'terminals', 'workingDirectory']
 
-/** Configuration for the persistent Bash tool. */
+/** 持久化 Bash 工具的配置。 */
 export interface Config {
-  /** PTY backend used for each owner-isolated persistent shell (default `shell`). */
+  /** 每个按归属者隔离的持久化 shell 所用的 PTY 后端（默认 `shell`）。 */
   backendType?: string
-  /** Wall-clock limit for one command (default 300000). */
+  /** 单条命令的挂钟时间上限（默认 300000）。 */
   timeoutMs?: number
-  /** Maximum returned command-output characters before clipping (default 16000). */
+  /** 截断之前返回的命令输出最大字符数（默认 16000）。 */
   maxOutputChars?: number
-  /** Model-facing tool description; deployments may describe their environment. */
+  /** 面向模型的工具描述；各部署可以描述自己的环境。 */
   description?: string
 }
 
-/** Runtime configuration schema for the persistent Bash tool. */
+/** 持久化 Bash 工具的运行时配置 schema。 */
 export const Config: z<Config> = z.object({
   backendType: z.string().default('shell'),
   timeoutMs: z.number().default(300_000),
@@ -461,7 +459,7 @@ export const Config: z<Config> = z.object({
   description: z.string().default(DEFAULT_DESCRIPTION),
 })
 
-/** Register one owner-scoped persistent `bash` tool. */
+/** 注册一个按归属者隔离的持久化 `bash` 工具。 */
 export function apply(ctx: Context, config: Config): void {
   const resolved: ResolvedConfig = {
     backendType: config.backendType ?? 'shell',

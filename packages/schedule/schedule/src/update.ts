@@ -1,4 +1,4 @@
-/** Optimistic name, instruction, and timing updates of retained Host tasks, without Session mutations. */
+/** 对保留的 Host 任务做乐观的名称、指令与定时更新，而不改动 Session。 */
 import { isDeepStrictEqual } from 'node:util'
 import {
   canonicalizeCronExpression, canonicalizeTimeZone, createAtScheduleRecord, createCronScheduleRecord,
@@ -8,7 +8,7 @@ import {
 } from './domain.ts'
 import type { ScheduleRecord, ScheduleTimingChange, ScheduleUpdateContent, ScheduleUpdateResult } from './types.ts'
 
-/** Name the exact selector property each timing kind must carry, or undefined for an unknown discriminant. */
+/** 给出每种定时类型必须携带的精确选择器属性名；未知判别式返回 undefined。 */
 function timingSelector(kind: string): string | undefined {
   switch (kind) {
     case 'at': return 'at'
@@ -21,9 +21,9 @@ function timingSelector(kind: string): string | undefined {
 }
 
 /**
- * Validate the exact timing selector keys received over RPC.
- * @param value - Untrusted timing change; the wire can carry a null, array, or foreign discriminant.
- * @returns The same value narrowed to the closed timing-change union.
+ * 校验通过 RPC 收到的精确定时选择器键。
+ * @param value - 不可信的定时变更；线上可能携带 null、数组或外来判别式。
+ * @returns 同一值，窄化到封闭的定时变更联合类型。
  */
 function validateChange(value: unknown): ScheduleTimingChange {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
@@ -39,9 +39,9 @@ function validateChange(value: unknown): ScheduleTimingChange {
 }
 
 /**
- * Validate a replacement instruction received over RPC.
- * @param prompt - Untrusted instruction value; the wire can carry a non-string.
- * @returns The trimmed instruction; an invalid instruction throws ScheduleInputError.
+ * 校验通过 RPC 收到的替换指令。
+ * @param prompt - 不可信的指令值；线上可能携带非字符串。
+ * @returns 修剪后的指令；非法指令抛出 ScheduleInputError。
  */
 function schedulePrompt(prompt: string): string {
   if (typeof prompt !== 'string' || prompt.trim().length === 0) {
@@ -51,23 +51,23 @@ function schedulePrompt(prompt: string): string {
 }
 
 /**
- * Title one update must either keep or replace.
+ * 一次更新必须保留或替换的名称。
  *
- * A decoded record always carries a stored title. A record value without a
- * valid one is refused with the durable decode error instead of deriving a name.
- * @param record - Current active Host record.
- * @returns The stored title; a missing, blank, untrimmed, or over-long title throws ScheduleLogError.
+ * 已解码的记录总是携带一个已存储的名称。没有合法名称的记录值会以
+ * 持久化解码错误被拒绝，而不是推导出一个名称。
+ * @param record - 当前的 Host 活动记录。
+ * @returns 已存储的名称；缺失、空白、未修剪或过长的名称抛出 ScheduleLogError。
  */
 export function retainedTitle(record: ScheduleRecord): string {
   return decodeStoredTitle(record.title)
 }
 
 /**
- * Apply a replacement name and instruction to a stored record without touching its rule.
- * @param current - Current active record holding the committed target.
- * @param title - Validated replacement or retained name.
- * @param prompt - Validated replacement or retained instruction.
- * @returns The same record when both are unchanged, otherwise a frozen copy with the new content.
+ * 把一个替换后的名称与指令应用到已存储的记录上，而不触碰其规则。
+ * @param current - 持有已提交目标的当前活动记录。
+ * @param title - 已校验的替换名称或保留的名称。
+ * @param prompt - 已校验的替换指令或保留的指令。
+ * @returns 两者都未变时返回同一记录，否则返回带新内容的冻结副本。
  */
 function withContent(current: ScheduleRecord, title: string, prompt: string): ScheduleRecord {
   return title === current.title && prompt === current.prompt
@@ -76,12 +76,11 @@ function withContent(current: ScheduleRecord, title: string, prompt: string): Sc
 }
 
 /**
- * Resolve the requested rule against the current record after the complete expected record has matched.
+ * 在完整的期望记录匹配之后，针对当前记录解析所请求的规则。
  *
- * The change kind may differ from the current record's kind; a change whose normalized
- * timing equals the current rule keeps the committed target and only applies the supplied
- * name and instruction, while any other change recomputes the target exactly as creation
- * computes it from the same now.
+ * 变更类型可能与当前记录的类型不同；若某次变更归一化后的定时等于当前规则，
+ * 则保留已提交的目标，只应用所提供的名称与指令；其他任何变更都会完全
+ * 按创建时的算法，依据同一个 now 重算目标。
  */
 function changedRecord(
   current: ScheduleRecord,
@@ -127,7 +126,7 @@ function changedRecord(
       }
       return createCronScheduleRecord(current.id, prompt, change.cron, now, title)
     }
-    /* v8 ignore next 4 -- validateChange rejects unknown discriminants before this closed union switch. */
+    /* v8 ignore next 4 -- validateChange 在这个封闭联合类型 switch 之前就会拒绝未知判别式。 */
     default: {
       const unreachable: never = change
       throw new Error(`Unknown validated timing change: ${String(unreachable)}`)
@@ -136,18 +135,16 @@ function changedRecord(
 }
 
 /**
- * Compare the complete observed record and resolve one name, instruction, and timing update
- * using a single queue-time sample.
+ * 使用单次入队时刻的采样，比较完整的观测记录，并解析一次名称、指令与定时更新。
  *
- * An omitted change, name, or instruction keeps the stored value. A supplied name or
- * instruction never re-anchors the schedule on its own; an equivalent normalized timing
- * change keeps the committed target too.
- * @param current - Current active Host record.
- * @param expected - Untrusted complete record observed by the caller.
- * @param change - Strict timing selector, whose kind may differ from the current record's kind, or undefined to keep timing.
- * @param now - Single wall-clock sample from the accepted FIFO slot.
- * @param content - Untrusted replacement name and instruction; each omitted field keeps its stored value.
- * @returns Current/new record or a bounded input/conflict result; unrelated failures throw.
+ * 省略的变更、名称或指令保留其已存储的值。单独提供名称或指令绝不会重新
+ * 锚定该 schedule；等价的归一化定时变更同样保留已提交的目标。
+ * @param current - 当前的 Host 活动记录。
+ * @param expected - 调用方观测到的、不可信的完整记录。
+ * @param change - 严格的定时选择器，其类型可能与当前记录的类型不同；undefined 表示保留定时。
+ * @param now - 来自已接受的 FIFO 槽位的单次墙上时钟采样。
+ * @param content - 不可信的替换名称与指令；每个省略的字段保留其已存储的值。
+ * @returns 当前/新记录，或有界的输入/冲突结果；无关的失败会抛出。
  */
 export function resolveScheduleUpdate(
   current: ScheduleRecord,

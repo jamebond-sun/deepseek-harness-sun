@@ -1,4 +1,4 @@
-/** Per-Session turn recorder: snapshots, captures around file-tool edits, the turn-end diff, and the records kept until disposal. */
+/** 每个 Session 的回合记录器：快照、文件工具编辑周围的捕获、回合结束差异，以及保留至释放的记录。 */
 import { mkdtemp, readFile, realpath, rm } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join, relative, resolve } from 'node:path'
@@ -11,75 +11,75 @@ import {
 import { canonicalPath, compareDisplay, displayPathOf, durablePathOf, isInside, isTemporaryPath, temporaryRoots, toPosix } from './paths.ts'
 import type { WorkspaceChangedFile, WorkspaceChangesSummary, WorkspaceFileDiff } from './types.ts'
 
-/** Facts shared by every recorder of one plugin instance. */
+/** 一个插件实例的所有记录器所共享的事实。 */
 export interface RecorderEnvironment {
-  /** Resolves to the runner, or null when git is unavailable and no snapshot is taken. */
+  /** 解析为运行器；当 git 不可用、且不拍摄快照时为 null。 */
   git: Promise<GitRunner | null>
-  /** Directory that receives each Session's temporary directory. */
+  /** 接收每个 Session 临时目录的目录。 */
   tempRoot: string
-  /** Maximum files carried by one summary. */
+  /** 一个摘要所携带的最大文件数。 */
   maxFiles: number
-  /** Inclusive byte cap on a captured copy and on a snapshot blob read for a comparison. */
+  /** 已捕获副本与为比较而读取的快照 blob 的、含上限的字节数。 */
   maxFileBytes: number
-  /** Milliseconds a line comparison may run before it degrades to whole-file replacement. */
+  /** 行比较在退化为整文件替换之前可运行的毫秒数。 */
   diffTimeoutMs: number
-  /** Failure reporter; a failed turn records nothing and the next turn retries. */
+  /** 失败报告器；失败的回合不记录任何内容，下一个回合重试。 */
   warn: (message: string) => void
 }
 
-/** Canonical paths every comparison and display uses, resolved once per Session. */
+/** 每次比较与显示所使用的规范路径，每个 Session 解析一次。 */
 interface Paths {
-  /** Canonical original project directory for repository discovery and display paths. */
+  /** 用于仓库发现与显示路径的、规范的原始项目目录。 */
   cwd: string
-  /** Canonical home directory abbreviated as `~` in display paths. */
+  /** 在显示路径中被缩写为 `~` 的规范 home 目录。 */
   home: string
-  /** Temporary roots whose files outside the workspace never enter a summary. */
+  /** 其位于工作区之外的文件永不进入摘要的临时根。 */
   temporaryRoots: readonly string[]
 }
 
-/** The repository enclosing the working directory and the runner that snapshots it. */
+/** 包围工作目录的仓库，以及为其拍摄快照的运行器。 */
 interface Repository {
   git: GitRunner
   workspace: GitWorkspace
 }
 
-/** The turn-start snapshot of a located repository. */
+/** 一个已定位仓库的回合开始快照。 */
 interface Baseline extends Repository { tree: string }
 
-/** Where one readable side of a listed file's content lives. */
+/** 一个被列出文件内容的、可读一侧所在之处。 */
 type ContentSource =
-  /** A path in a snapshot tree; absence, size, and text are read from git when asked for. */
+  /** 快照树中的一条路径；缺失、大小与文本在需要时才从 git 读取。 */
   | { kind: 'snapshot'; repository: Repository; tree: string; path: string }
   | Exclude<Capture, { kind: 'oversized' }>
 
 /**
- * What a listed file's comparison is served from: a refusal decided when the
- * turn was recorded, or the two sides to read and compare when asked for.
+ * 一个被列出文件的比较由何提供：在回合被记录时决定的拒绝，
+ * 或在需要时才读取并比较的两侧。
  */
 type FileSources =
   | { refusal: 'binary' | 'oversized' }
   | { refusal?: undefined; before: ContentSource; after: ContentSource }
 
-/** A served summary with the content sources of its listed files, index-aligned with `summary.files`. */
+/** 一份已提供的摘要，带有其被列出文件的内容来源，与 `summary.files` 索引对齐。 */
 interface TurnRecord {
   summary: WorkspaceChangesSummary
   sources: FileSources[]
 }
 
-/** Everything one turn accumulates; a new turn gets a new object so queued work for an older turn keeps its own. */
+/** 一个回合所累积的一切；新回合获得新对象，从而为较早回合排队的任务保留其自身。 */
 interface TurnState {
   readonly turn: number
   /**
-   * The turn-start snapshot once it exists. `null` means no repository or no git, so the turn summarizes file-tool
-   * captures only; `'failed'` means the repository exists but its snapshot failed, so the turn records nothing.
+   * 一旦存在的回合开始快照。`null` 表示没有仓库或没有 git，因此该回合仅汇总文件工具
+   * 捕获；`'failed'` 表示仓库存在但其快照失败，因此该回合不记录任何内容。
    */
   baseline: Baseline | null | 'failed'
-  /** Content of each file-tool-mutated path before the turn's first mutation of it, by canonical absolute path. */
+  /** 每个被文件工具变更的路径、在回合首次变更它之前的内容，按规范绝对路径索引。 */
   readonly captures: Map<string, Capture>
   lastToolResultSeq: number
-  /** Log length when the latest record attempt started; `end()` skips a turn already attempted after its last tool result. */
+  /** 最近一次记录尝试开始时的日志长度；`end()` 会跳过在最后一次工具结果之后已尝试过的回合。 */
   attemptedAfterSeq: number
-  /** Sequence of the latest appended event, or -1. */
+  /** 最近一次追加事件的序列号，或 -1。 */
   recordedAfterSeq: number
 }
 
@@ -87,34 +87,31 @@ function freshState(turn: number): TurnState {
   return { turn, baseline: null, captures: new Map(), lastToolResultSeq: -1, attemptedAfterSeq: -1, recordedAfterSeq: -1 }
 }
 
-/** A listed file with the sources of its two sides. */
+/** 一个带有其两侧来源的、被列出的文件。 */
 interface Listed { file: WorkspaceChangedFile; sources: FileSources }
 
-/** A snapshot side larger than the byte cap. */
+/** 大于字节上限的快照侧。 */
 const OVERSIZED = Symbol('oversized')
 
 /**
- * Serializes one Session's recording work: the turn-start snapshot, the
- * whole-file capture before each file-tool mutation, the turn-end snapshot
- * with its diff, and the appended `workspace/changes` event whose summary and
- * comparisons this recorder keeps. Snapshot objects and captured copies live in
- * a temporary directory owned by the recorder; disposal removes it together
- * with the summaries. Tool execution waits for pending work so a snapshot or
- * capture never races a mutation. A working directory outside any repository,
- * or a Host without git, gets no snapshot; its summary lists the files the file
- * tools changed.
+ * 序列化一个 Session 的记录工作：回合开始快照、每次文件工具
+ * 变更之前的整文件捕获、带差异的回合结束快照，以及本记录器所保留其
+ * 摘要与比较的、被追加的 `workspace/changes` 事件。快照对象与捕获副本
+ * 存于记录器拥有的临时目录中；释放会将该目录连同摘要一并移除。工具执行
+ * 等待待处理工作，从而快照或捕获永远不会与变更竞争。位于任何仓库之外的工作目录，
+ * 或没有 git 的 Host，不会获得快照；其摘要列出文件工具所更改的文件。
  */
 export class TurnRecorder {
   private chain: Promise<void> = Promise.resolve()
-  /** The open turn; before the first `turn/start` it is an empty placeholder no event can match. */
+  /** 开放的回合；在第一次 `turn/start` 之前，它是一个没有任何事件能匹配的空占位符。 */
   private state = freshState(0)
-  /** Canonical paths, resolved by the first turn. */
+  /** 由第一个回合解析出的规范路径。 */
   private paths: Paths | undefined
-  /** The located repository, reused across turns once found; null keeps retrying each turn. */
+  /** 已定位的仓库，一旦找到便跨回合复用；null 表示每个回合持续重试。 */
   private repository: Repository | null = null
-  /** Temporary directory holding this Session's snapshot objects, scratch indexes, and captured copies. */
+  /** 持有本 Session 的快照对象、临时索引与捕获副本的临时目录。 */
   private scratch: Promise<string> | undefined
-  /** Records by the sequence of the event that announced them. */
+  /** 按宣布它们的事件的序列号索引的记录。 */
   private readonly records = new Map<number, TurnRecord>()
   private readonly lifetime = new AbortController()
 
@@ -125,8 +122,8 @@ export class TurnRecorder {
   ) {}
 
   /**
-   * Open a turn with fresh per-turn state and queue its baseline snapshot.
-   * @param turn - the turn number from `turn/start`.
+   * 以全新的每回合状态开启一个回合，并将其基线快照排入队列。
+   * @param turn - 来自 `turn/start` 的回合号。
    */
   start(turn: number): void {
     const state = freshState(turn)
@@ -139,7 +136,7 @@ export class TurnRecorder {
         const tree = await snapshotTree(repository.git, repository.workspace, signal)
         state.baseline = { ...repository, tree }
       } catch (error: unknown) {
-        // A repository whose snapshot failed must not be summarized as if it had none.
+        // 快照失败的仓库绝不能被当作没有任何仓库那样去汇总。
         state.baseline = 'failed'
         throw error
       }
@@ -147,10 +144,10 @@ export class TurnRecorder {
   }
 
   /**
-   * Queue the capture of the path a file tool is about to mutate, before the
-   * tool runs; only the turn's first mutation of a path captures it. Await
-   * {@link settled} afterwards so the tool cannot overtake the capture.
-   * @param path - absolute process path of the filesystem provider's resolved mutation target.
+   * 在工具运行之前，将文件工具即将变更的路径的捕获排入队列；
+   * 只有回合首次变更某路径时才会捕获它。之后须等待
+   * {@link settled}，从而工具无法抢在捕获之前。
+   * @param path - 文件系统提供方已解析的变更目标的绝对进程路径。
    */
   capture(path: string): void {
     const state = this.state
@@ -165,8 +162,8 @@ export class TurnRecorder {
   }
 
   /**
-   * Remember a settled tool result, so a record after `turn/end` covers it.
-   * @param event - the appended `tool/result` event.
+   * 记住一个已落定的工具结果，从而 `turn/end` 之后的记录能覆盖它。
+   * @param event - 被追加的 `tool/result` 事件。
    */
   observe(event: SessionEvent<'tool/result'>): void {
     const state = this.state
@@ -174,9 +171,9 @@ export class TurnRecorder {
   }
 
   /**
-   * Record the turn's changes inside the turn, before `turn/end` commits.
-   * @param turn - the stopping turn.
-   * @returns after the event is appended or the attempt failed.
+   * 在回合内部、`turn/end` 提交之前记录该回合的变更。
+   * @param turn - 正在停止的回合。
+   * @returns 在事件被追加或尝试失败之后。
    */
   stopping(turn: number): Promise<void> {
     const state = this.state
@@ -185,8 +182,8 @@ export class TurnRecorder {
   }
 
   /**
-   * Record after `turn/end` unless a record was already attempted after the turn's last tool result.
-   * @param turn - the turn number from `turn/end`.
+   * 在 `turn/end` 之后记录，除非在回合最后一次工具结果之后已经尝试过记录。
+   * @param turn - 来自 `turn/end` 的回合号。
    */
   end(turn: number): void {
     const state = this.state
@@ -194,27 +191,27 @@ export class TurnRecorder {
     void this.enqueue(signal => this.record(state, signal))
   }
 
-  /** Resolves once every queued snapshot, capture, and record has settled. */
+  /** 一旦每个排队的快照、捕获与记录都已落定即解析。 */
   settled(): Promise<void> {
     return this.chain
   }
 
   /**
-   * The summary announced by one `workspace/changes` event of this Session.
-   * @param seq - the event's sequence number.
-   * @returns the summary, or undefined for a sequence this recorder did not announce.
+   * 本 Session 的一次 `workspace/changes` 事件所宣布的摘要。
+   * @param seq - 该事件的序列号。
+   * @returns 摘要；对本记录器未宣布的序列号则为 undefined。
    */
   summary(seq: number): WorkspaceChangesSummary | undefined {
     return this.records.get(seq)?.summary
   }
 
   /**
-   * Compare one listed file's contents at turn start and turn end.
-   * @param seq - the announcing event's sequence number.
-   * @param index - the file's index in the summary's `files`.
-   * @param signal - cancels the reads.
-   * @returns the comparison, or undefined for an unknown sequence or index, or once disposed.
-   * @throws when a read fails while the recorder lives.
+   * 比较一个被列出文件在回合开始与回合结束时的内容。
+   * @param seq - 宣布事件的序列号。
+   * @param index - 该文件在摘要 `files` 中的索引。
+   * @param signal - 取消读取的信号。
+   * @returns 比较结果；对未知的序列号或索引，或在释放之后，则为 undefined。
+   * @throws 当记录器存活期间读取失败时抛出。
    */
   async diff(seq: number, index: number, signal: AbortSignal): Promise<WorkspaceFileDiff | undefined> {
     const record = this.records.get(seq)
@@ -230,15 +227,15 @@ export class TurnRecorder {
       const { hunks, coarse } = compareText(before, after, this.env.diffTimeoutMs)
       return { kind: 'text', path, display, before: before !== null, after: after !== null, hunks, coarse }
     } catch (error: unknown) {
-      // Disposal removes the temporary directory under a running read; the Session is gone either way.
+      // 释放会在一次正在进行的读取之下移除临时目录；无论如何 Session 都已不复存在。
       if (this.lifetime.signal.aborted) return undefined
       throw error
     }
   }
 
   /**
-   * Abort queued work, forget every record, and remove the temporary directory.
-   * @returns once the temporary directory is gone.
+   * 中止排队的工作，忘掉每条记录，并移除临时目录。
+   * @returns 一旦临时目录被移除。
    */
   async dispose(): Promise<void> {
     this.lifetime.abort()
@@ -260,18 +257,18 @@ export class TurnRecorder {
     return run
   }
 
-  /** A failure after disposal is expected cancellation and stays silent. */
+  /** 释放之后的失败属于预期的取消，保持沉默。 */
   private warnUnlessDisposed(error: unknown): void {
     if (!this.lifetime.signal.aborted) this.env.warn(`workspace-changes: ${String(error)}`)
   }
 
-  /** This Session's temporary directory, created on first use. */
+  /** 本 Session 的临时目录，首次使用时创建。 */
   private scratchDir(): Promise<string> {
     this.scratch ??= mkdtemp(join(this.env.tempRoot, 'dsh-workspace-changes-'))
     return this.scratch
   }
 
-  /** The repository enclosing the working directory, located once; null keeps retrying each turn. */
+  /** 包围工作目录的仓库，定位一次；null 表示每个回合持续重试。 */
   private async locate(cwd: string, signal: AbortSignal): Promise<Repository | null> {
     if (this.repository !== null) return this.repository
     const git = await this.env.git
@@ -282,7 +279,7 @@ export class TurnRecorder {
     return this.repository
   }
 
-  /** One side's text, null for an absent file, or {@link OVERSIZED} for a snapshot side beyond the byte cap. */
+  /** 一侧的文本；缺失的文件为 null，超过字节上限的快照侧为 {@link OVERSIZED}。 */
   private async readSide(source: ContentSource, signal: AbortSignal): Promise<string | null | typeof OVERSIZED> {
     switch (source.kind) {
       case 'absent': return null
@@ -302,7 +299,7 @@ export class TurnRecorder {
     const { baseline } = state
     if (paths === undefined || baseline === 'failed' || state.lastToolResultSeq < 0) return
     state.attemptedAfterSeq = state.lastToolResultSeq
-    // Without a snapshot the working directory itself bounds the workspace.
+    // 没有快照时，工作目录本身界定工作区。
     const root = baseline?.workspace.root ?? paths.cwd
     const listed = new Map<string, Listed>()
     let snapshot: WorkspaceChangesSummary['snapshot']
@@ -321,21 +318,21 @@ export class TurnRecorder {
         })
       }
     }
-    // Captured paths the snapshots do not cover are compared from their copies.
+    // 快照未覆盖的捕获路径，从它们的副本进行比较。
     const captured = [...state.captures.keys()].filter(absolute => !listed.has(absolute))
     const workTreePath = (absolute: string): string => toPosix(relative(root, absolute))
     let inWorkspace = captured.filter(absolute => isInside(root, absolute))
     if (baseline !== null && inWorkspace.length > 0) {
-      // Nested repositories and submodules are gitlinks: their contents never enter the summary.
+      // 嵌套仓库与子模块是 gitlink：其内容永不进入摘要。
       const gitlinks = await gitlinkPaths(baseline.git, baseline.workspace, signal)
       inWorkspace = inWorkspace.filter(absolute => ![...gitlinks].some(link => isInside(resolve(root, link), absolute)))
     }
-    // A snapshot covers every workspace file except the ignored ones; without one, every file-tool edit counts.
+    // 快照覆盖除被忽略者之外的每个工作区文件；没有快照时，每次文件工具编辑都计入。
     const uncoveredInWorkspace = baseline === null
       ? new Set(inWorkspace.map(workTreePath))
       : await ignoredPaths(baseline.git, baseline.workspace, inWorkspace.map(workTreePath), signal)
     for (const absolute of captured) {
-      // Outside the workspace, scratch files under a temporary root stay out.
+      // 在工作区之外，临时根之下的临时文件保持在外。
       const uncovered = isInside(root, absolute)
         ? uncoveredInWorkspace.has(workTreePath(absolute))
         : !isTemporaryPath(absolute, paths.temporaryRoots)
@@ -346,7 +343,7 @@ export class TurnRecorder {
       listed.set(absolute, await this.compared(paths, root, absolute, before, after))
     }
     const sorted = [...listed.values()].sort((a, b) => compareDisplay(a.file, b.file))
-    // An empty list after an earlier in-turn record supersedes that record.
+    // 在一次较早的回合内记录之后的空列表，会取代那条记录。
     if (sorted.length === 0 && state.recordedAfterSeq < 0) return
     const event = this.session.append('workspace/changes', { turn: state.turn })
     const kept = sorted.slice(0, this.env.maxFiles)
@@ -366,9 +363,8 @@ export class TurnRecorder {
   }
 
   /**
-   * The listing of a captured pair: an oversized side lists the file without
-   * counts and refuses its comparison, a binary side likewise, and two text
-   * sides carry the counts of their line comparison.
+   * 一个捕获对的列出：超大的那一侧列文件而无计数、并拒绝其比较，
+   * 二进制侧同理，而两个文本侧携带它们行比较的计数。
    */
   private async compared(paths: Paths, root: string, absolute: string, before: Capture, after: Capture): Promise<Listed> {
     const list = (counts: Counts, sources: FileSources): Listed => ({ file: changedFile(paths, root, absolute, counts), sources })
@@ -382,7 +378,7 @@ export class TurnRecorder {
   }
 }
 
-/** Whether a captured side holds binary content. */
+/** 一个被捕获的侧是否持有二进制内容。 */
 function isBinary(capture: Capture): boolean {
   return capture.kind === 'file' && capture.binary
 }

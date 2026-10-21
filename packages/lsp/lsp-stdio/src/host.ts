@@ -1,33 +1,33 @@
-/** Filesystem-seam source access for the generic stdio LSP provider. */
+/** 通过文件系统接缝为通用 stdio LSP provider 提供的源码访问。 */
 
 import { Buffer } from 'node:buffer'
 import type { FileSystem, FsTarget } from '@deepseek-ai/dsh-fs'
 import { throwIfAborted } from './abort.ts'
 
-/** A canonical workspace in the filesystem/subprocess execution world. */
+/** 文件系统/子进程执行世界中的一个规范工作区。 */
 export interface HostWorkspace {
-  /** Stable filesystem identity used for provider pooling. */
+  /** 用于 provider 池化的稳定文件系统身份。 */
   readonly target: FsTarget
-  /** Canonical absolute path accepted as a subprocess cwd. */
+  /** 可作为子进程 cwd 的规范绝对路径。 */
   readonly canonicalPath: string
-  /** Canonical file URI sent during LSP initialization. */
+  /** LSP 初始化期间发送的规范 file URI。 */
   readonly fileUrl: string
 }
 
-/** A validated source and the exact URI sent to the language server. */
+/** 一个已校验的源码，以及发送给语言服务的确切 URI。 */
 export interface HostSource {
-  /** Canonical file URI in the execution world's platform syntax. */
+  /** 执行世界平台语法下的规范 file URI。 */
   readonly fileUrl: string
-  /** Current complete UTF-8 text. */
+  /** 当前完整的 UTF-8 文本。 */
   readonly text: string
 }
 
 /**
- * Resolve and validate one workspace through `ctx.fs`.
- * @param fs - filesystem provider sharing the language server's execution world.
- * @param workspaceRoot - caller-supplied workspace path.
- * @param signal - optional cancellation around provider operations.
- * @returns stable identity plus process path and file URI.
+ * 通过 `ctx.fs` 解析并校验一个工作区。
+ * @param fs - 与语言服务共享执行世界的文件系统 provider。
+ * @param workspaceRoot - 调用方提供的工作区路径。
+ * @param signal - 围绕 provider 操作的可选取消信号。
+ * @returns 稳定身份，外加进程路径与 file URI。
  */
 export async function canonicalizeWorkspace(
   fs: FileSystem,
@@ -59,15 +59,15 @@ export async function canonicalizeWorkspace(
 }
 
 /**
- * Resolve, contain, and read one byte-bounded query source through `ctx.fs`.
- * This layer owns the LSP-specific complete-document cap while the filesystem
- * provider owns streaming, regular-file checks, and UTF-8 validation.
- * @param fs - filesystem provider sharing the server's execution world.
- * @param filePath - absolute source path or path relative to `workspace`.
- * @param workspace - already-canonical workspace.
- * @param maxDocumentBytes - largest complete source accepted by this host.
- * @param signal - optional cancellation.
- * @returns canonical file URI and current text.
+ * 通过 `ctx.fs` 解析、约束并读取一个受字节上限约束的查询源码。
+ * 本层负责 LSP 特有的“完整文档”上限，而文件系统 provider 负责流式读取、
+ * 常规文件检查与 UTF-8 校验。
+ * @param fs - 与服务端共享执行世界的文件系统 provider。
+ * @param filePath - 绝对源码路径，或相对于 `workspace` 的路径。
+ * @param workspace - 已规范化的工作区。
+ * @param maxDocumentBytes - 本宿主接受的完整源码上限。
+ * @param signal - 可选的取消信号。
+ * @returns 规范的 file URI 与当前文本。
  */
 export async function readHostSource(
   fs: FileSystem,
@@ -94,8 +94,8 @@ export async function readHostSource(
   const chunks: string[] = []
   let bytes = 0
   try {
-    // XXX(lsp-source-replacement): Revisit stable-handle identity only if a real query observes
-    // replacement between canonical containment and the provider opening this stream.
+    // XXX(lsp-source-replacement)：仅当真实查询观察到在规范包含性检查与本 provider 打开该流
+    // 之间发生了替换时，才需要重新审视稳定句柄的身份问题。
     const stream = await fs.streamText(target, signal)
     for await (const chunk of stream) {
       throwIfAborted(signal)

@@ -1,15 +1,15 @@
-/** Caller-relative lazy loading for CommonJS-compatible Host dependencies. */
+/** 面向 CommonJS 兼容 Host 依赖、相对调用方的惰性加载。 */
 
 import { createRequire } from 'node:module'
 
 /**
- * Create a successful-result cache around Node's caller-relative `require`.
- * A failed load is not cached, so a corrected installation can be retried.
- * @param specifier - Literal dependency specifier declared by the caller package.
- * @param parentURL - Caller's `import.meta.url`, which owns package resolution.
- * @returns a zero-argument loader that resolves the dependency on first use.
+ * 围绕 Node 相对调用方的 `require` 创建一个成功结果缓存。
+ * 失败的加载不会被缓存，因此修正后的安装可被重试。
+ * @param specifier - 由调用方包声明的字面依赖说明符。
+ * @param parentURL - 调用方的 `import.meta.url`，包解析由其负责。
+ * @returns 首次使用时解析该依赖的零参加载器。
  */
-// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters -- preserves caller-supplied module types
+// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters -- 保留调用方提供的模块类型
 export function createLazyRequire<T>(specifier: string, parentURL: string | URL): () => T {
   const require = createRequire(parentURL)
   let loaded = false

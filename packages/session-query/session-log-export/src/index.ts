@@ -1,4 +1,4 @@
-/** Session-log download command and Host-owned streaming route. */
+/** 会话日志下载命令与 Host 持有的流式路由。 */
 
 import type { Context } from '@deepseek-ai/cordis'
 import type { CommandDefinitionId } from '@deepseek-ai/dsh-commands/brand'
@@ -42,13 +42,13 @@ export const inject = ['commands', 'connection']
 
 export { SESSION_LOG_EXPORT_PATH } from './routes.ts'
 
-/** Session-log archive policy. */
+/** 会话日志归档策略。 */
 export interface Config {
-  /** DEFLATE level for each ZIP entry. @default 6 */
+  /** 每个 ZIP 条目的 DEFLATE 级别。@default 6 */
   readonly compressionLevel?: SessionLogCompressionLevel
 }
 
-/** Validate Session-log archive configuration. */
+/** 校验会话日志归档配置。 */
 export const Config: Schema<Config> = Schema.object({
   compressionLevel: Schema.number().step(1).min(0).max(9)
     .default(DEFAULT_SESSION_LOG_COMPRESSION_LEVEL) as Schema<SessionLogCompressionLevel>,
@@ -71,9 +71,9 @@ const REQUESTED: CommandResult = {
 }
 
 /**
- * Register the Web-only `/export` command and authenticated ZIP download route.
- * @param ctx - Host context carrying the human-command registry.
- * @param config - resolved compression policy.
+ * 注册仅 Web 可用的 `/export` 命令与经过鉴权的 ZIP 下载路由。
+ * @param ctx - 承载人类命令注册表的 Host 上下文。
+ * @param config - 已解析的压缩策略。
  */
 export function apply(ctx: Context, config: Config = {}): void {
   ctx.effect(() => ctx.commands.register({
@@ -141,9 +141,8 @@ async function sessionLogExportResponse(
     request.signal.throwIfAborted()
   } catch {
     request.signal.throwIfAborted()
-    // Root preparation failure (flush, open, or read): answer 500 without
-    // echoing the error, which may carry absolute host paths into the
-    // browser error bar.
+    // 根日志准备失败（flush、open 或 read）：返回 500，但不回显错误，
+    // 因为错误可能把宿主机的绝对路径带进浏览器的错误栏。
     return new Response('session log export failed to read the stored log', { status: 500 })
   }
   if (rootContent === undefined) {

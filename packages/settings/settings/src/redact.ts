@@ -1,49 +1,46 @@
 /**
- * Structural secret redaction for settings values. `role('secret')` fields are
- * removed from a value before it crosses a wire boundary; a sidecar records
- * each schema-declared secret position and whether it currently holds a value,
- * so a configuration surface can render a write-only input without ever
- * receiving the secret itself.
+ * 设置值的结构化密文脱敏。`role('secret')` 字段在跨越线上边界之前即被从值中移除；
+ * 附带记录会记下每个 schema 声明的密文位置及其当前是否持有值，使配置界面能够
+ * 渲染只写输入框，而始终不接收密文本身。
  * @module @deepseek-ai/dsh-settings/redact
  */
 
 import type z from '@deepseek-ai/schemastery'
 
 /**
- * Minimal structural view of a live schemastery node. Only the relations the
- * redactor walks are named; everything else on the instance is ignored.
+ * 活动 schemastery 节点的最小结构化视图。只命名脱敏器会遍历的关系，
+ * 实例上的其余内容一概忽略。
  */
 interface SchemaNode {
   type?: string
   meta?: { role?: unknown }
-  /** `object` properties, keyed by property name. */
+  /** `object` 的属性，按属性名索引。 */
   dict?: Record<string, SchemaNode>
-  /** `dict`/`array` element schema. */
+  /** `dict`/`array` 的元素 schema。 */
   inner?: SchemaNode
   list?: SchemaNode[]
 }
 
-/** One schema-declared secret position inside a redacted value. */
+/** 已脱敏值中一个由 schema 声明的密文位置。 */
 export interface RedactedSecret {
-  /** Path from the section root to the removed field (concrete dict keys and array indexes included). */
+  /** 从配置节根到被移除字段的路径（包含具体的 dict 键与数组下标）。 */
   path: string[]
-  /** Whether the field held a value before redaction. */
+  /** 该字段在脱敏之前是否持有值。 */
   set: boolean
 }
 
-/** A value with every `role('secret')` field removed, plus the removal record. */
+/** 已移除所有 `role('secret')` 字段的值，附带移除记录。 */
 export interface RedactedValue {
-  /** Detached copy of the input with secret fields absent. */
+  /** 输入的脱钩副本，其中密文字段缺失。 */
   value: unknown
   /**
-   * Every reachable secret position: object properties always (even unset, so
-   * a form knows the slot exists), dict entries and array items only where the
-   * value has them.
+   * 所有可达的密文位置：对象属性一律记录（即使未设置，以便表单知晓该槽位存在），
+   * dict 条目与数组项仅在值实际含有时才记录。
    */
   secrets: RedactedSecret[]
 }
 
-/** Whether a value is a plain data object the walker may recurse into. */
+/** 判断值是否为遍历器可递归进入的纯数据对象。 */
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
@@ -95,13 +92,12 @@ function walk(node: SchemaNode | undefined, value: unknown, path: string[], secr
 }
 
 /**
- * Remove every `role('secret')` field a schema declares from a value. The
- * walker visits every union branch, conservatively removing any field declared
- * secret by a branch. The input is never mutated.
- * @param schema - live schemastery schema describing the value.
- * @param value - the value to strip; `undefined` yields an empty record with
- *   object-property secret slots still enumerated.
- * @returns the stripped detached value and the ordered secret positions.
+ * 从值中移除 schema 声明的每一个 `role('secret')` 字段。遍历器会访问每一个 union
+ * 分支，保守地移除任一分支声明为密文的字段。输入永不被修改。
+ * @param schema - 描述该值的活动 schemastery schema。
+ * @param value - 待剥离的值；`undefined` 会产生一条空记录，
+ *   但对象属性上的密文槽位仍会被枚举。
+ * @returns 已剥离的脱钩值与有序的密文位置。
  */
 export function redactSecrets(schema: z<never>, value: unknown): RedactedValue {
   const secrets: RedactedSecret[] = []

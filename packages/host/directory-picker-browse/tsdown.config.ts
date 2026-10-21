@@ -1,6 +1,6 @@
 import { defineConfig } from 'tsdown'
 
-/** Node-only backend: listing and creation primitives over the host filesystem. */
+/** 仅 Node 的后端：宿主文件系统之上的列表与创建原语。 */
 export default defineConfig([
   {
     entry: ['lib/types/index.js'],

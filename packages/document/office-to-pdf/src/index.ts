@@ -1,4 +1,4 @@
-/** Host LibreOffice kit provider with reusable converters and private disk input/output. */
+/** 带可复用转换器与私有磁盘输入/输出的 Host LibreOffice kit 提供方。 */
 import { randomUUID } from 'node:crypto'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -22,54 +22,54 @@ export * from './types.ts'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
-    /** Shared Office conversion and authorized workspace-file rendering. */
+    /** 共享的 Office 转换与经授权的 workspace 文件渲染。 */
     officeToPdf: OfficeToPdf
   }
 }
 
-/** Provider concurrency and kit rendering/font configuration. */
+/** 提供方的并发与 kit 渲染/字体配置。 */
 export interface Config {
-  /** Maximum simultaneous conversions; queued callers remain cancellable. */
+  /** 最大同时转换数；已排队的调用方仍可取消。 */
   maxConcurrentConversions: number
-  /** Maximum metadata-only jobs awaiting source admission. */
+  /** 等待源接纳的最大仅元数据作业数。 */
   maxQueuedJobs: number
-  /** Maximum outstanding conversion readers. */
+  /** 最大未完成的转换读取器数。 */
   maxReaders: number
-  /** Maximum reserved bytes across admitted source reads and conversions. */
+  /** 已接纳的源读取与转换所预留的最大字节数。 */
   maxSourceBytes: number
-  /** Maximum concurrent background jobs; zero refuses speculative work. */
+  /** 最大并发后台作业数；为零则拒绝推测性工作。 */
   maxBackgroundConversions: number
-  /** Maximum retained content-addressed PDFs. */
+  /** 保留的最大内容寻址 PDF 数。 */
   maxCachedEntries: number
-  /** Maximum retained PDF bytes. */
+  /** 保留的最大 PDF 字节数。 */
   maxCachedBytes: number
-  /** Maximum retained source-version aliases to cached content. */
+  /** 保留到已缓存内容的最大源版本别名数。 */
   maxSourceEntries: number
-  /** Conversion deadline in milliseconds; excludes the DSH queue. */
+  /** 转换截止时间（毫秒）；不含 DSH 队列。 */
   timeoutMs: number
-  /** Maximum authorized source bytes. */
+  /** 最大授权的源字节数。 */
   maxInputBytes: number
-  /** Maximum complete PDF bytes. */
+  /** 最大完整 PDF 字节数。 */
   maxOutputBytes: number
-  /** Exported raster-image DPI. */
+  /** 导出的光栅图像 DPI。 */
   maxImageResolution: number
-  /** Maximum OOXML ZIP entries. */
+  /** 最大 OOXML ZIP 条目数。 */
   maxArchiveEntries: number
-  /** Maximum total declared uncompressed OOXML bytes. */
+  /** 最大的声明未压缩 OOXML 字节总数。 */
   maxUncompressedBytes: number
-  /** Absolute font roots; omission uses the kit's platform defaults. */
+  /** 绝对字体根目录；省略则使用 kit 的平台默认值。 */
   fontDirectories?: string[]
-  /** Ordered font-family preference groups; omission retains the kit defaults. */
+  /** 有序的字体系列偏好分组；省略则保留 kit 默认值。 */
   fontFallbacks?: string[][]
-  /** Maximum physical font files indexed by each converter. */
+  /** 每个转换器索引的最大物理字体文件数。 */
   maxFontFiles: number
-  /** Maximum individual font-file bytes. */
+  /** 单个字体文件的最大字节数。 */
   maxFontFileBytes: number
-  /** Maximum original font bytes loaded for a conversion. */
+  /** 一次转换所加载的原始字体最大字节数。 */
   maxLoadedFontBytes: number
 }
 
-/** Deployment defaults resolved before provider construction. */
+/** 在提供方构造之前解析的部署默认值。 */
 export const Config: z<Partial<Config>, Config> = z.object({
   maxConcurrentConversions: z.natural().min(1).max(Number.MAX_SAFE_INTEGER).default(2),
   maxQueuedJobs: z.natural().min(1).max(Number.MAX_SAFE_INTEGER).default(8),
@@ -97,10 +97,10 @@ interface Slot {
   converter?: Promise<Converter>
 }
 
-/** A provider lifetime owns all converters, queued calls, and temporary files. */
+/** 一个提供方生命周期拥有全部转换器、已排队调用与临时文件。 */
 export class OfficeToPdf extends TypertRemoteService {
   static Config = Config
-  /** Changes whenever engine, font, or conversion configuration is replaced. */
+  /** 每当引擎、字体或转换配置被替换时都会变化。 */
   readonly generation: OfficeToPdfGeneration = OfficeToPdfGeneration(randomUUID())
   private readonly remoteLifetime = new AbortController()
   private readonly remoteRequests = new Set<Promise<RenderedDocumentBytes>>()
@@ -109,8 +109,8 @@ export class OfficeToPdf extends TypertRemoteService {
   private readonly options: ConverterOptions
 
   /**
-   * @param ctx - owning Host context.
-   * @param config - resolved rendering, font, and concurrency limits.
+   * @param ctx - 拥有的 Host 上下文。
+   * @param config - 已解析的渲染、字体与并发上限。
    */
   constructor(ctx: Context, private readonly config: Config) {
     super(ctx, 'officeToPdf')
@@ -138,23 +138,23 @@ export class OfficeToPdf extends TypertRemoteService {
   }
 
   /**
-   * Convert Office bytes without modifying the source or writing Session events.
-   * @param request - authorized metadata and deferred bounded source read.
-   * @param signal - caller cancellation; provider disposal also stops active work.
-   * @returns caller-owned PDF bytes after conversion and scratch cleanup settle; canceled readers reject independently.
-   * @throws {OfficeToPdfError} Invalid input, unusable output, or engine failure; cancellation rejects with its reason.
+   * 转换 Office 字节，但不修改源，也不写入 Session 事件。
+   * @param request - 经授权的元数据与延迟的有界源读取。
+   * @param signal - 调用方取消；提供方释放也会停止活跃工作。
+   * @returns 转换与临时清理落定之后的、调用方拥有的 PDF 字节；被取消的读取器独立拒绝。
+   * @throws {OfficeToPdfError} 无效输入、不可用输出或引擎失败；取消以其原因拒绝。
    */
   convert(request: OfficeToPdfRequest, signal?: AbortSignal): Promise<OfficeToPdfResult> {
     return this.queue.read(request, signal)
   }
 
   /**
-   * Read and convert one Office file using the Session's ordinary filesystem authorization.
-   * @param workspaceFileScope - Session header lookup shared with workspaceFiles.
-   * @param path - absolute or workspace-relative Office path.
-   * @param priority - foreground preview or speculative background work.
-   * @param signal - Remote cancellation; disposal also cancels outstanding reads and conversions.
-   * @returns complete PDF bytes with original source identity and missing font families.
+   * 使用 Session 的普通文件系统授权读取并转换一个 Office 文件。
+   * @param workspaceFileScope - 与 workspaceFiles 共享的 Session 头部查询。
+   * @param path - 绝对或相对于 workspace 的 Office 路径。
+   * @param priority - 前台预览或推测性的后台工作。
+   * @param signal - 远程取消；释放也会取消未完成的读取与转换。
+   * @returns 带有原始源标识与缺失字体系列的完整 PDF 字节。
    */
   @Remote
   async render(
@@ -167,9 +167,9 @@ export class OfficeToPdf extends TypertRemoteService {
   }
 
   /**
-   * Read the current rendering generation before reusing a Client PDF.
-   * @param signal - Remote caller cancellation.
-   * @returns provider lifetime, replaced with rendering, font, or engine configuration.
+   * 在复用 Client PDF 之前读取当前的渲染生成。
+   * @param signal - 远程调用方取消。
+   * @returns 提供方生命周期，会在渲染、字体或引擎配置变更时被替换。
    */
   @Remote('generation')
   getGeneration(signal: AbortSignal): OfficeToPdfGeneration { signal.throwIfAborted(); return this.generation }

@@ -1,7 +1,6 @@
 /**
- * Cordis-free storage mechanics for the local spill backend: private
- * session-scoped directory selection, safe-name derivation, path-traversal
- * protection, and the exclusive owner-only write.
+ * 本地溢出后端与 Cordis 无关的存储机制：私有会话作用域目录的选择、
+ * 安全名称派生、路径穿越防护，以及独占的仅属主写入。
  *
  * @module @deepseek-ai/dsh-spill-local/store
  */
@@ -12,15 +11,15 @@ import { mkdir, open } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 
-/** Prefix shared by default-root creation and startup discovery. */
+/** 默认根目录的创建与启动发现共用的前缀。 */
 export const DEFAULT_ROOT_PREFIX = 'dsh-spill-'
 
 /**
- * Test a caught value for a Node system error code.
+ * 判断一个被捕获的值是否带有指定的 Node 系统错误码。
  *
- * @param error The caught value.
- * @param code The expected system error code.
- * @returns Whether the code matches.
+ * @param error 被捕获的值。
+ * @param code 期望的系统错误码。
+ * @returns 错误码是否匹配。
  */
 export function isErrno(error: unknown, code: string): boolean {
   return error instanceof Error && (error as NodeJS.ErrnoException).code === code
@@ -29,28 +28,27 @@ export function isErrno(error: unknown, code: string): boolean {
 let defaultRoot: string | undefined
 
 /**
- * Return the lazily-created private per-process spill root.
+ * 返回惰性创建的私有、每进程独有的溢出根目录。
  *
- * @returns The private root path.
+ * @returns 私有根目录路径。
  */
 export function privateRoot(): string {
   defaultRoot ??= mkdtempSync(join(tmpdir(), DEFAULT_ROOT_PREFIX))
   return defaultRoot
 }
 
-// Spill keeps its empty-name policy local so storage backends stay decoupled.
+// Spill 把空名称策略保留在本地，使存储后端保持解耦。
 /* jscpd:ignore-start */
 /**
- * Encode an arbitrary string as one safe path segment, injectively over ALL JS
- * (UTF-16) strings. A session id / suggested name is untrusted input, so this
- * neutralizes `../`, absolute paths, NUL, and separators before any filesystem
- * use. Each code unit is kept literal (`[A-Za-z0-9._-]`, minus `~`) or escaped
- * as `~XXXX`; `~` is itself escaped, so the mapping is reversible and distinct
- * inputs never collide. The whole-segment tokens `.`/`..` are escaped so they
- * can never traverse. An empty string encodes to `~` (never an empty segment).
+ * 把任意字符串编码为单个安全路径段，对全部 JS（UTF-16）字符串保持单射。
+ * 会话 id / 建议名称属于不可信输入，因此在触及文件系统之前就要中和掉
+ * `../`、绝对路径、NUL 与分隔符。每个码元要么保持字面量
+ * （`[A-Za-z0-9._-]`，去掉 `~`），要么转义成 `~XXXX`；`~` 自身也被转义，
+ * 因此该映射可逆，且不同输入绝不会碰撞。整段 token `.`/`..` 同样被转义，
+ * 因此绝不可能穿越。空字符串编码为 `~`（绝不会是空段）。
  *
- * @param raw Untrusted text.
- * @returns One injective filesystem-safe path segment.
+ * @param raw 不可信文本。
+ * @returns 单个单射的、文件系统安全的路径段。
  */
 export function encodeSegment(raw: string): string {
   if (raw.length === 0) return '~'
@@ -69,41 +67,41 @@ export function encodeSegment(raw: string): string {
 /* jscpd:ignore-end */
 
 /**
- * Derive the stable session-scoped directory under a spill root.
+ * 派生出溢出根目录下稳定的会话作用域目录。
  *
- * @param root The spill root.
- * @param sessionId The owning session id.
- * @returns The stable session-scoped directory.
+ * @param root 溢出根目录。
+ * @param sessionId 归属的会话 id。
+ * @returns 稳定的会话作用域目录。
  */
 export function sessionDir(root: string, sessionId: string): string {
   const hash = createHash('sha256').update(sessionId).digest('hex').slice(0, 12)
   return join(root, `session-${hash}`)
 }
 
-/** Inputs needed to save a local spill file. */
+/** 保存一个本地溢出文件所需的输入。 */
 export interface SaveTextOptions {
-  /** Spill root. */
+  /** 溢出根目录。 */
   root: string
-  /** Owning session id. */
+  /** 归属的会话 id。 */
   sessionId: string
-  /** Caller-suggested filename. */
+  /** 调用方建议的文件名。 */
   suggestedName: string
-  /** Full text to persist. */
+  /** 要持久化的完整文本。 */
   content: string
 }
 
-/** A written spill file. */
+/** 一个已写入的溢出文件。 */
 export interface SavedText {
-  /** Absolute saved path. */
+  /** 已保存的绝对路径。 */
   path: string
-  /** UTF-8 content length. */
+  /** UTF-8 内容长度。 */
   bytes: number
 }
 
 /**
- * Write text to a fresh 0600 file below its private session directory.
- * @param options The save request.
- * @returns The saved path and UTF-8 byte length.
+ * 把文本写入其私有会话目录下的一个全新 0600 文件。
+ * @param options 保存请求。
+ * @returns 已保存路径与 UTF-8 字节长度。
  */
 export async function saveTextFile(options: SaveTextOptions): Promise<SavedText> {
   const dir = sessionDir(options.root, options.sessionId)
@@ -115,8 +113,8 @@ export async function saveTextFile(options: SaveTextOptions): Promise<SavedText>
       handle = await open(path, 'wx', 0o600)
       break
     } catch (error: unknown) {
-      /* v8 ignore start -- requires another process to remove the directory
-         between mkdir and open, or an external permission/IO race. */
+      /* v8 ignore start -- 需要另一个进程在 mkdir 与 open 之间删除该目录，
+         或者出现外部的权限/IO 竞态。 */
       if (isErrno(error, 'ENOENT')) continue
       throw error
       /* v8 ignore stop */

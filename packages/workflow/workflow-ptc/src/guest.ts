@@ -1,4 +1,4 @@
-/** Executes one workflow VM inside the mounted PTC runtime's Node process. */
+/** 在被挂载的 PTC 运行时的 Node 进程内执行一个 workflow VM。 */
 
 import type { WorkflowResult } from '@deepseek-ai/dsh-workflow'
 import type { WorkflowGuestHost, WorkflowProgress } from './guest-types.ts'
@@ -8,10 +8,10 @@ import type { ExecutionObserver } from './runtime.ts'
 import type { ChildPort } from './types.ts'
 
 /**
- * Run a workflow with one progress batch in flight. Drain progress before child
- * disposal and the terminal result; PTC and the host own cancellation and cleanup.
- * @param host - JSON callbacks owned by this workflow run.
- * @returns The script result after progress delivery; initialization failures reject.
+ * 运行一个 workflow，同时只允许一批进度在途。在子项释放与终结结果之前
+ * 先排空进度；PTC 与宿主拥有取消与清理。
+ * @param host - 本 workflow 运行拥有的 JSON 回调。
+ * @returns 进度投递后的脚本结果；初始化失败会 reject。
  */
 export async function runWorkflowGuest(host: WorkflowGuestHost): Promise<WorkflowResult> {
   const init = await host.begin({})
@@ -34,7 +34,7 @@ export async function runWorkflowGuest(host: WorkflowGuestHost): Promise<Workflo
   const send = (event: WorkflowProgress): void => {
     if (progressError !== undefined) return
     queued.push(event)
-    // The first batch reaches the host before a synchronous script can seize its loop.
+    // 首批进度会在同步脚本抢占其循环之前到达宿主。
     flush()
   }
   const drain = async (): Promise<void> => {
@@ -50,13 +50,13 @@ export async function runWorkflowGuest(host: WorkflowGuestHost): Promise<Workflo
     async startAgent(request) {
       const { callId, childId } = await host.startChild(request)
       const result = host.childResult({ callId })
-      // A dropped agent() call must not turn a child failure into an unhandled rejection.
+      // 一个被丢弃的 agent() 调用不得将子项失败变成未处理拒绝。
       void result.catch(() => {})
       return {
         id: childId,
         result,
         async dispose() {
-          // Start observers must receive the child while its host registration is still live.
+          // 启动观察者在子项的宿主注册仍然存活时就必须收到它。
           await drain()
           await host.disposeChild({ callId })
         },

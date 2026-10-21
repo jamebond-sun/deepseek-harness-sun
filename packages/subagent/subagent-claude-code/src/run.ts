@@ -1,7 +1,7 @@
 /**
- * One-shot Claude Code lifecycle: invoke the official Agent SDK, place its
- * real CLI process under the shared subprocess owner, map only strict SDK
- * success to completion, and dispose to whole-range quiescence.
+ * 一次性 Claude Code 生命周期：调用官方 Agent SDK，把其真实 CLI 进程置于
+ * 共享的 subprocess 属主之下，只把严格的 SDK 成功映射为完成，并处置到
+ * 整体范围静默。
  *
  * @module @deepseek-ai/dsh-subagent-claude-code/run
  */
@@ -37,10 +37,10 @@ import {
   ManagedClaudeCodeProcess,
 } from './process.ts'
 
-/** Default POSIX grace between subprocess termination tiers. */
+/** 子进程终止各层之间的默认 POSIX 宽限。 */
 export const DEFAULT_DISPOSE_GRACE_MS = 3_000
 
-/** Claude Code permission modes that cannot wait for a human response. */
+/** 无法等待人类响应的 Claude Code 权限模式。 */
 export const CLAUDE_CODE_PERMISSION_MODES = [
   'dontAsk',
   'acceptEdits',
@@ -49,10 +49,10 @@ export const CLAUDE_CODE_PERMISSION_MODES = [
   'bypassPermissions',
 ] as const satisfies readonly NonNullable<Options['permissionMode']>[]
 
-/** Profile-selectable non-interactive Claude Code permission mode. */
+/** 可由 profile 选择的非交互 Claude Code 权限模式。 */
 export type ClaudeCodePermissionMode = typeof CLAUDE_CODE_PERMISSION_MODES[number]
 
-/** Safe default for unattended Claude Code runs. */
+/** 无人值守 Claude Code 运行的安全默认值。 */
 export const DEFAULT_CLAUDE_CODE_PERMISSION_MODE: ClaudeCodePermissionMode = 'dontAsk'
 
 const SUPPORTED_UNATTENDED_DIALOG_KINDS = [
@@ -124,9 +124,9 @@ function sdkFailureCategory(
 }
 
 /**
- * Hide an unpublished product startup failure behind fixed safe facts.
- * @param cause - original host-side failure retained only on the Error cause chain.
- * @returns a rejection safe to expose through the subagent start boundary.
+ * 把一个未发布的产品启动失败隐藏在固定的安全事实之后。
+ * @param cause - 只保留在 Error cause 链上的原始宿主机侧失败。
+ * @returns 一个可安全通过子代理启动边界暴露的拒绝。
  */
 export function claudeCodeStartupFailure(cause: unknown): Error {
   return new ClaudeCodeFailure({
@@ -144,32 +144,32 @@ function unattendedDiagnostic(
   return `Claude Code unattended decision (mode: ${mode}; request: ${request}; decision: ${decision}): ${reason}`
 }
 
-/* jscpd:ignore-start -- sibling providers intentionally keep product-private
- * run inputs and error normalization instead of adding a shared lifecycle owner. */
-/** Fully resolved inputs for one official Claude Agent SDK query. */
+/* jscpd:ignore-start -- 兄弟提供方有意保留产品私有的运行输入与错误规范化，
+ * 而不引入一个共享的生命周期属主。 */
+/** 一次官方 Claude Agent SDK 查询的、已完全解析的输入。 */
 export interface ClaudeCodeRunSpec {
-  /** Selected child working directory supplied to the SDK and real CLI. */
+  /** 提供给 SDK 与真实 CLI 的、已选定的子工作目录。 */
   readonly cwd: string
-  /** Profile-selected native model; omitted to preserve Claude settings. */
+  /** 由 profile 选择的原生模型；省略以保留 Claude 设置。 */
   readonly model?: string
-  /** Profile-selected native non-interactive permission mode. */
+  /** 由 profile 选择的原生非交互权限模式。 */
   readonly permissionMode: ClaudeCodePermissionMode
-  /** Explicit deployment/test environment layered after shared scrubbing. */
+  /** 在共享清洗之后叠加的显式部署/测试环境。 */
   readonly env: Record<string, string>
-  /** Subprocess termination grace passed to the shared managed-range owner. */
+  /** 传给共享受管范围属主的 subprocess 终止宽限。 */
   readonly disposeGraceMs: number
-  /** Shared subprocess service spawn operation. */
+  /** 共享 subprocess 服务的 spawn 操作。 */
   readonly spawn: (spec: SubprocessSpawnSpec) => SubprocessHandle
-  /** Host diagnostic sink for a product failure kept outside model-visible text. */
+  /** 用于把产品失败保持在模型可见文本之外的宿主机诊断汇。 */
   readonly onError?: (error: Error, stopReason: SubagentStopReason) => void
 }
 
 function thrown(value: unknown): Error {
-  /* v8 ignore next -- typed SDK and subprocess failures reject with Error. */
+  /* v8 ignore next -- 类型化的 SDK 与 subprocess 失败以 Error 拒绝。 */
   return value instanceof Error ? value : new Error(String(value))
 }
 
-/** Read live request cancellation across awaited startup cleanup. */
+/** 跨被 await 的启动清理读取实时请求取消状态。 */
 function isAborted(signal: AbortSignal): boolean {
   return signal.aborted
 }
@@ -177,9 +177,9 @@ function isAborted(signal: AbortSignal): boolean {
 /* jscpd:ignore-end */
 
 /**
- * Validate and preserve the one-shot task before crossing the SDK boundary.
- * @param prompt - task content accepted from the shared subagent service.
- * @returns the exact text sequence as one SDK prompt.
+ * 在跨越 SDK 边界之前校验并保留一次性任务。
+ * @param prompt - 从共享子代理 service 接受的任务内容。
+ * @returns 作为单个 SDK prompt 的精确文本序列。
  */
 export function textTask(prompt: readonly ContentBlock[]): string {
   if (prompt.length === 0) {
@@ -199,9 +199,9 @@ export function textTask(prompt: readonly ContentBlock[]): string {
 }
 
 /**
- * Strictly derive the only SDK result that can complete a shared run.
- * @param message - an official discriminated result union.
- * @returns exact final text for a successful, non-error result.
+ * 严格推导出唯一能让一次共享运行完成的 SDK 结果。
+ * @param message - 一个官方的可判别结果联合。
+ * @returns 对成功的、非错误结果的精确最终文本。
  */
 export function successfulResult(message: SDKResultMessage): string {
   if (message.subtype !== 'success') {
@@ -226,12 +226,11 @@ export function successfulResult(message: SDKResultMessage): string {
 }
 
 /**
- * Consume the complete SDK stream and require one strict success plus normal
- * iterator completion.
- * @param query - published official SDK query.
- * @param onPermissionDenied - records a safe fact when the SDK reports native denial.
- * @param onResult - records that the SDK supplied a terminal result message.
- * @returns the completed shared result.
+ * 消费完整的 SDK 流，并要求一次严格成功加上正常的迭代器完成。
+ * @param query - 已发布的官方 SDK 查询。
+ * @param onPermissionDenied - 当 SDK 报告原生拒绝时记录一条安全事实。
+ * @param onResult - 记录 SDK 提供了一条终止结果消息。
+ * @returns 已完成的共享结果。
  */
 export async function consumeClaudeQuery(
   query: AsyncIterable<SDKMessage>,
@@ -261,11 +260,10 @@ export async function consumeClaudeQuery(
 }
 
 /**
- * Close the official query, terminate the managed range, and wait for the
- * subprocess owner to prove it is quiescent.
- * @param query - official SDK query, when creation reached that point.
- * @param child - shared-service handle that owns the CLI managed range, including
- * a published handle whose direct result later rejects.
+ * 关闭官方查询、终止受管范围，并等待 subprocess 属主证明它已静默。
+ * @param query - 官方 SDK 查询，当创建到达那一步时。
+ * @param child - 拥有 CLI 受管范围的共享服务句柄，包括一个其直接结果
+ * 之后被拒绝的已发布句柄。
  */
 export async function disposeClaudeCodeChild(
   query: Pick<Query, 'close'> | undefined,
@@ -306,12 +304,12 @@ export async function disposeClaudeCodeChild(
 }
 
 /**
- * Build the fixed official SDK options for one one-shot provider run.
- * @param spec - Workspace, environment, process service, and disposal policy.
- * @param controller - per-run cancellation owner.
- * @param capture - receives the shared child and SDK-facing process synchronously.
- * @param captureDiagnostic - receives safe facts from unattended interaction callbacks.
- * @returns options that inherit native settings while disabling persistence and user questions.
+ * 为一次一次性提供方运行构建固定的官方 SDK 选项。
+ * @param spec - 工作区、环境、进程服务与处置策略。
+ * @param controller - 按运行的取消属主。
+ * @param capture - 同步接收共享子进程与面向 SDK 的进程。
+ * @param captureDiagnostic - 接收来自无人值守交互回调的安全事实。
+ * @returns 在禁用持久化与用户提问的同时继承原生设置的选项。
  */
 export function claudeQueryOptions(
   spec: ClaudeCodeRunSpec,
@@ -377,10 +375,10 @@ export function claudeQueryOptions(
 }
 
 /**
- * Start one official Claude Agent SDK query and publish its one-shot run.
- * @param request - resolved shared subagent request.
- * @param spec - Workspace, environment, process service, and diagnostic policy.
- * @returns the published run after both Query and the real CLI handle exist.
+ * 启动一次官方 Claude Agent SDK 查询并发布其一次性运行。
+ * @param request - 已解析的共享子代理请求。
+ * @param spec - 工作区、环境、进程服务与诊断策略。
+ * @returns 在 Query 与真实 CLI 句柄都存在之后发布的运行。
  */
 export async function startClaudeCodeRun(
   request: SubagentStartRequest,
@@ -403,7 +401,7 @@ export async function startClaudeCodeRun(
     try {
       spec.onError?.(error, 'error')
     } catch {
-      // Host diagnostic logging cannot replace the product failure.
+      // 宿主机诊断日志不能替换产品失败。
     }
   }
 
@@ -458,7 +456,7 @@ export async function startClaudeCodeRun(
   } catch (error: unknown) {
     request.signal.removeEventListener('abort', onAbort)
     const cancelledBeforeCleanup = controller.signal.aborted
-    // Let child.done publish a concurrently observed exit before classification.
+    // 让 child.done 在分类之前发布一个并发观测到的退出。
     await Promise.resolve()
     const startupOutcome = managedProcess?.outcome
     const startupFacts = {
@@ -554,7 +552,7 @@ export async function startClaudeCodeRun(
           }
         }
         prependFailureDiagnostic(facts)
-        // Keep the SDK category and cause; the diagnostic adds later process facts.
+        // 保留 SDK 的分类与 cause；诊断补充之后的进程事实。
         throw error instanceof ClaudeCodeFailure
           ? error
           : new ClaudeCodeFailure(facts, thrown(error))

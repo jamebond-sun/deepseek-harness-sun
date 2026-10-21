@@ -1,4 +1,4 @@
-/** Package metadata resolved through one runtime interception. */
+/** 通过一次运行时拦截解析出的包元数据。 */
 
 import { existsSync, readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
@@ -16,28 +16,28 @@ import { readPluginMeta } from '../package-meta.ts'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
-    /** Deterministic package lookup for configured plugin specifiers. */
+    /** 针对已配置插件指示符的确定性包查找。 */
     pluginPackages: PluginPackages
   }
 }
 
-/** The package that owns a resolved module. */
+/** 拥有一个已解析模块的包。 */
 export interface PluginPackage {
-  /** Manifest package name. */
+  /** 清单包名。 */
   name: string
-  /** Manifest version when declared. */
+  /** 宣告时的清单版本。 */
   version: string | undefined
-  /** Absolute package directory. */
+  /** 绝对包目录。 */
   dir: string
-  /** Absolute package.json path. */
+  /** 绝对 package.json 路径。 */
   manifestPath: string
-  /** Parsed manifest shared by metadata readers. */
+  /** 由元数据读取器共享的已解析清单。 */
   manifest: Record<string, unknown>
 }
 
-/** Optional runtime interception installed and owned by {@link PluginPackages}. */
+/** 由 {@link PluginPackages} 安装并拥有的可选运行时拦截。 */
 export interface PluginPackagesConfig {
-  /** Complete package table; omit it to expose native package lookup only. */
+  /** 完整的包表；省略它则只暴露原生包查找。 */
   resolution?: RuntimeResolution
 }
 
@@ -56,7 +56,7 @@ function readPackage(dir: string, fallbackName: string): PluginPackage | undefin
   }
 }
 
-/** Package lookup shared by metadata consumers in one profile process. */
+/** 在一个 profile 进程中由元数据消费者共享的包查找。 */
 export class PluginPackages extends Service {
   private packages = new Map<string, PluginPackage | undefined>()
   private readonly interception: RuntimeInterception | undefined
@@ -76,17 +76,17 @@ export class PluginPackages extends Service {
     }, 'profile package resolution')
   }
 
-  /** The published runtime resolution, or `undefined` when Node resolves packages alone. */
+  /** 已发布的运行时解析；当仅由 Node 解析包时为 `undefined`。 */
   get resolution(): RuntimeResolution | undefined {
     return this.current
   }
 
   /**
-   * Publish a complete successor generation for this process and subsequently created Workers.
-   * Profile mappings and local package names may be removed after their plugins stop; linked roots may also be removed.
-   * Retained profile mappings may change their declarer and version, but not their normalized directory or scope;
-   * installation mappings must remain unchanged. Publication does not unload modules or clear Node caches.
-   * @param successor - fully constructed generation accepted by {@link RuntimeInterception.replace}.
+   * 为本进程以及随后创建的 Worker 发布一个完整的后继代。
+   * profile 映射与本地包名可在其插件停止后被移除；链接的根也可被移除。保留的 profile 映射
+   * 可以改变其声明者与版本，但不能改变其归一化目录或作用域；安装映射必须保持不变。发布不会
+   * 卸载模块或清空 Node 缓存。
+   * @param successor - 完全构造好、被 {@link RuntimeInterception.replace} 接受的那一代。
    */
   replace(successor: RuntimeResolution): void {
     if (this.interception === undefined) throw new Error('plugin-packages: runtime resolution is not installed')
@@ -98,10 +98,9 @@ export class PluginPackages extends Service {
   }
 
   /**
-   * Publish the latest generation computed by the installed resolution through {@link replace}. Package contents
-   * and loaded modules are not reloaded.
-   * @throws when no resolution is installed, it is plain data rather than a {@link ProfileRuntimeResolution},
-   * reading the latest files fails, or the successor is rejected. A computed resolution without a profile can refresh.
+   * 发布由已安装解析通过 {@link replace} 计算出的最新代。包内容与已加载的模块不会被重新加载。
+   * @throws 当未安装任何解析、它是普通数据而非 {@link ProfileRuntimeResolution}、读取最新文件
+   * 失败，或后继代被拒绝时抛出。一个没有 profile 的计算结果解析也可以刷新。
    */
   async refresh(): Promise<void> {
     if (!(this.current instanceof ProfileRuntimeResolution)) {
@@ -111,10 +110,10 @@ export class PluginPackages extends Service {
   }
 
   /**
-   * Locate the package named by a specifier without requiring a package export.
-   * @param specifier - module specifier whose package owns the requested module.
-   * @param parentURL - URL whose Node lookup order applies.
-   * @returns the parsed package, or undefined when no package owns the request.
+   * 在不要求包导出的前提下，定位一个由指示符命名的包。
+   * @param specifier - 其包拥有所请求模块的模块指示符。
+   * @param parentURL - 适用其 Node 查找顺序的 URL。
+   * @returns 已解析的包；当没有任何包拥有该请求时为 undefined。
    */
   packageOf(specifier: string, parentURL: string): PluginPackage | undefined {
     const name = barePackageName(specifier)
@@ -129,10 +128,10 @@ export class PluginPackages extends Service {
   }
 
   /**
-   * Read display metadata without loading or activating the target plugin.
-   * @param specifier - configured package module, including package subpaths.
-   * @param parentURL - owning Loader tree's resolution base.
-   * @returns local display metadata or its diagnostic; undefined for non-package requests or absent metadata.
+   * 在不加载或激活目标插件的前提下，读取展示元数据。
+   * @param specifier - 已配置的包模块，包括包子路径。
+   * @param parentURL - 所属 Loader 树的解析基址。
+   * @returns 本地展示元数据或其诊断；对于非包请求或缺失的元数据为 undefined。
    */
   metaOf(specifier: string, parentURL: string): PluginLocalizedMeta | undefined {
     return readPluginMeta(specifier, parentURL)

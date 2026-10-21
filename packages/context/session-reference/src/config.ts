@@ -1,25 +1,25 @@
-/** Configuration and stable diagnostics for session references. */
+/** 会话引用的配置与稳定诊断信息。 */
 
-/** Hard maximum references accepted by one message. */
+/** 一条消息可接受的最大引用数硬性上限。 */
 export const MAX_REFERENCES = 3
-/** Default number of discovery candidates returned to a host. */
+/** 返回给宿主的、默认的发现候选数量。 */
 export const DEFAULT_CANDIDATE_LIMIT = 50
-/** Minimum automatic UTF-8 budget for one rendered reference JSON object. */
+/** 渲染单个引用 JSON 对象的、自动 UTF-8 预算下限。 */
 export const DEFAULT_MAX_REFERENCE_BYTES = 65_536
 
-/** Session-reference service configuration. */
+/** 会话引用服务配置。 */
 export interface Config {
-  /** Maximum distinct source sessions referenced by one message, from one to three. */
+  /** 一条消息所引用的最大不同源会话数，取值一到三。 */
   maxReferences?: number
-  /** Default host candidate-list limit. */
+  /** 宿主候选列表的默认上限。 */
   candidateLimit?: number
-  /** Explicit maximum rendered UTF-8 bytes per source; absent uses the model-relative budget with a 64 KiB floor. */
+  /** 每个源的、显式的最大渲染 UTF-8 字节数；省略则使用模型相对预算，并带有 64 KiB 下限。 */
   maxReferenceBytes?: number
-  /** Fraction of the model context window per source, estimated at four bytes per token; between zero and one. */
+  /** 每个源占模型上下文窗口的比例，按每 token 四字节估算；介于零与一之间。 */
   referenceContextFraction?: number
 }
 
-/** Stable failure codes exposed to host adapters. */
+/** 暴露给宿主适配器的稳定失败码。 */
 export type SessionReferenceErrorCode =
   | 'SESSION_REFERENCE_INVALID_CONFIG'
   | 'SESSION_REFERENCE_INVALID_REFERENCE'
@@ -29,9 +29,9 @@ export type SessionReferenceErrorCode =
   | 'SESSION_REFERENCE_BUDGET_EXCEEDED'
   | 'SESSION_REFERENCE_CANCELLED'
 
-/** Typed session-reference failure suitable for host protocol error mapping. */
+/** 适合用于宿主协议错误映射的类型化会话引用失败。 */
 export class SessionReferenceError extends Error {
-  /** @param message Human-readable diagnosis. @param code Stable routing code. @param options Optional cause. */
+  /** @param message 人类可读的诊断信息。 @param code 稳定的路由码。 @param options 可选的原因。 */
   constructor(
     message: string,
     readonly code: SessionReferenceErrorCode,

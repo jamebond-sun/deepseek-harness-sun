@@ -1,7 +1,7 @@
 /**
- * Cordis-free local filesystem mechanics. This provider layer returns validated UTF-8 text,
- * streams large files, and rejects binary data; line windows belong to `dsh-tool-fs`. Writes
- * stage an exclusive owner-only file in a private sibling directory and atomically publish it.
+ * 不依赖 Cordis 的本地文件系统机制。该提供者层返回已校验的 UTF-8 文本、流式读取大文件并
+ * 拒绝二进制数据；行窗口属于 `dsh-tool-fs` 的职责。写入时在一个私有的同级目录中暂存一个
+ * 排他的仅属主文件，再原子地发布它。
  * @module @deepseek-ai/dsh-fs-local/fsio
  */
 
@@ -16,7 +16,7 @@ import { copyFileDaclWin32, replaceFileWin32 } from './win32.ts'
 
 const BINARY_SAMPLE_BYTES = 8192
 const realpath = promisify(realpathCallback.native)
-// Bound one non-abortable FileHandle.read so cancellation is observed between chunks.
+// 为一次不可中断的 FileHandle.read 设界，使取消能在分块之间被观察到。
 const DIFF_BASIS_READ_CHUNK_BYTES = 64 * 1024
 
 function isENOENT(error: unknown): boolean {
@@ -28,10 +28,9 @@ function isEEXIST(error: unknown): boolean {
 }
 
 /**
- * A path component that is expected to be a directory is a regular file (e.g.
- * resolving `afile/child.txt` when `afile` is a file). Like `ENOENT`, the target
- * cannot exist — so the resolution/probe paths treat it as "absent" rather than
- * letting a raw Node error escape without the structured `FsError` taxonomy.
+ * 某个本应是目录的路径分量实际上是常规文件（例如当 `afile` 是文件时去解析
+ * `afile/child.txt`）。与 `ENOENT` 一样，目标不可能存在 —— 因此解析/探测路径把它当作
+ * "不存在"，而不是让一个原始的 Node 错误绕过结构化的 `FsError` 分类体系逃逸出去。
  */
 function isENOTDIR(error: unknown): boolean {
   return error instanceof Error && 'code' in error && error.code === 'ENOTDIR'
@@ -41,7 +40,7 @@ function isAbortError(error: unknown): boolean {
   return error instanceof Error && error.name === 'AbortError'
 }
 
-/* v8 ignore start -- composes secondary cleanup-failure messages, which require a filesystem/kernel fault after the primary failure. */
+/* v8 ignore start -- 用于组合二级清理失败消息，需要在主失败之后再发生一次文件系统/内核故障。 */
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
@@ -56,62 +55,61 @@ function throwIfAborted(signal: AbortSignal | undefined, verb: string): void {
 }
 
 /**
- * `readFile` with the supplied signal, translating a mid-read `AbortError` into
- * the seam's structured `FsError('FS_ABORTED')` (Node rejects an aborted
- * `readFile` with a bare `AbortError`, which would otherwise escape the seam's
- * error taxonomy — the streaming/write paths translate it the same way).
+ * 带 signal 的 `readFile`，把读取中途的 `AbortError` 翻译成该接缝结构化的
+ * `FsError('FS_ABORTED')`（Node 会以裸 `AbortError` reject 被中断的 `readFile`，
+ * 否则就会逃出接缝的错误分类体系 —— 流式读取/写入路径也做同样的翻译）。
  */
 async function readFileAbortable(absolutePath: string, verb: 'read' | 'edit', signal?: AbortSignal): Promise<Buffer> {
   try {
     return await readFile(absolutePath, signal ? { signal } : {})
   } catch (error: unknown) {
-    /* v8 ignore next 2 -- a non-abort readFile rejection needs a permission/IO fault racing an open file. */
+    /* v8 ignore next 2 -- 非中断导致的 readFile 失败需要一个与已打开文件竞态的权限/IO 故障。 */
     if (!isAbortError(error)) throw error
     throw new FsError(`${verb} aborted`, 'FS_ABORTED')
   }
 }
 
-/** Opaque version token from high-resolution identity and freshness metadata. */
+/** 由高分辨率的同一性与新鲜度元数据派生出的不透明版本令牌。 */
 function versionOf(info: BigIntStats): FsVersion {
   return FsVersion(`${info.dev}:${info.ino}:${info.size}:${info.mtimeNs}:${info.ctimeNs}`)
 }
 
 /**
- * Test hook: lets specs pin the atomic-write temp names (to prove exclusive-open behavior without
- * a name race), override native boundaries, and observe the staged temp file before publication.
+ * 测试钩子：让测试钉住原子写入的临时名称（以便在无命名竞态的情况下证明排他打开行为）、
+ * 覆写原生边界，并在发布之前观察已暂存的临时文件。
  */
 export interface FsIoInternals {
-  /** Override the host platform for native-publication unit coverage. */
+  /** 覆写宿主平台，用于原生发布路径的单元测试覆盖。 */
   platform?: NodeJS.Platform
-  /** Override the generated private staging-dir name (relative to the target dir). */
+  /** 覆写生成的私有暂存目录名（相对目标目录）。 */
   tempDirName?: (writePath: string) => string
-  /** Override the generated temp-file name (relative to the private staging dir). */
+  /** 覆写生成的临时文件名（相对私有暂存目录）。 */
   tempName?: (writePath: string) => string
-  /** Override the Win32 DACL copy boundary. */
+  /** 覆写 Win32 DACL 复制边界。 */
   copyFileDacl?: (source: string, destination: string) => Promise<void>
-  /** Override the Win32 security-preserving replacement boundary. */
+  /** 覆写保留安全描述符的 Win32 替换边界。 */
   replaceFile?: (replaced: string, replacement: string) => Promise<void>
-  /** Override the hard-link no-replace publication boundary. */
+  /** 覆写硬链接的不可替换发布边界。 */
   linkFile?: (existingPath: string, newPath: string) => Promise<void>
-  /** Override target inspection after guarded publication fails. */
+  /** 覆写受守卫发布失败之后的目标检查。 */
   inspectPublicationTarget?: (path: string) => Promise<BigIntStats>
-  /** Override staging-directory removal for commit-point failure coverage. */
+  /** 覆写暂存目录的移除，用于提交点失败的覆盖。 */
   removeStagingDir?: (stagingDir: string) => Promise<void>
-  /** Test hook after the temp file is written/synced but before final chmod+publication. */
+  /** 临时文件写入/同步之后、最终 chmod 与发布之前的测试钩子。 */
   inspectTemp?: (paths: { stagingDir: string; tempPath: string }) => void | Promise<void>
-  /** Test hook after raw-read stat preflight and before bounded content I/O. */
+  /** 原始读取的 stat 预检之后、受限内容 IO 之前的测试钩子。 */
   inspectReadBytesAfterStat?: (target: LocalTarget) => void | Promise<void>
 }
 
-/** A resolved local path: the absolute path shown to callers and its realpath identity. */
+/** 已解析的本地路径：展示给调用方的绝对路径及其 realpath 同一性标识。 */
 export interface LocalTarget {
-  /** Absolute path (symlinks not resolved) — used for display. */
+  /** 绝对路径（未解析符号链接）—— 用于展示。 */
   displayPath: string
-  /** Realpath identity — used as the stable target key and the I/O path. */
+  /** Realpath 同一性 —— 用作稳定的目标键与 IO 路径。 */
   targetKey: FsTargetKey
 }
 
-/** Result of probing a path: null when it does not exist. */
+/** 路径探测的结果：路径不存在时为 null。 */
 export interface PathInfo {
   version: FsVersion
   mode: number
@@ -119,7 +117,7 @@ export interface PathInfo {
   size: number
 }
 
-/** Result of probing a path without following the final symlink component. */
+/** 不跟随最后一个符号链接分量的路径探测结果。 */
 export interface PathLinkInfo {
   version: FsVersion
   mode: number
@@ -127,7 +125,7 @@ export interface PathLinkInfo {
   size: number
 }
 
-/** One local directory child with a resolved target and cheap metadata. */
+/** 一个本地目录子项，带有已解析的目标与廉价的元数据。 */
 export interface LocalDirEntry {
   name: string
   type: 'file' | 'directory' | 'other'
@@ -137,57 +135,54 @@ export interface LocalDirEntry {
 }
 
 /**
- * Anchor a path using native drive semantics and POSIX physical parent traversal.
- * @param cwd - provider base directory for relative paths.
- * @param path - non-empty requested path.
- * @returns absolute display spelling shared by target resolution and no-follow metadata.
+ * 依据原生驱动器语义与 POSIX 物理父目录遍历来锚定一个路径。
+ * @param cwd - 相对路径所用的提供者基准目录。
+ * @param path - 非空的请求路径。
+ * @returns 目标解析与不跟随元数据共用的绝对展示拼写。
  */
 export function localDisplayPath(cwd: string, path: string): string {
   const absoluteCwd = isAbsolute(cwd) ? cwd : `${process.cwd()}${sep}${cwd}`
   const raw = isAbsolute(path) ? path : `${absoluteCwd}${sep}${path}`
   const physicalSpelling = /(?:^|[\\/])\.\.(?:[\\/]|$)/u.test(raw) ? raw : resolve(cwd, path)
-  /* v8 ignore next -- Native Windows tests cover DOS drive-relative resolution; POSIX preserves physical traversal. */
+  /* v8 ignore next -- 原生 Windows 测试覆盖 DOS 驱动器相对路径解析；POSIX 保留物理遍历。 */
   return process.platform === 'win32' ? resolve(cwd, path) : physicalSpelling
 }
 
 /**
- * Resolve a path to its absolute display path and realpath identity. For a missing target,
- * realpath the nearest existing ancestor and append the missing suffix, preserving identity
- * across symlinked ancestors before and after creation.
- * @param cwd - base directory a relative `path` resolves against.
- * @param path - absolute or relative path; empty/whitespace-only throws `FS_NOT_FOUND`.
- * @returns the absolute display path plus the realpath-derived stable target key.
+ * 把一个路径解析为它的绝对展示路径与 realpath 同一性。对于缺失的目标，先对最近的已存在
+ * 祖先做 realpath，再拼接缺失的后缀，从而在符号链接祖先中保持创建前后的同一性。
+ * @param cwd - 相对 `path` 解析所依据的基准目录。
+ * @param path - 绝对路径或相对路径；空串/纯空白会抛出 `FS_NOT_FOUND`。
+ * @returns 绝对展示路径加上由 realpath 派生的稳定目标键。
  */
 export async function resolveLocalTarget(cwd: string, path: string): Promise<LocalTarget> {
   if (path.trim().length === 0) throw new FsError('file_path must be a non-empty string', 'FS_NOT_FOUND')
   const displayPath = localDisplayPath(cwd, path)
   try {
-    // Prefer the file's own realpath (resolves a symlinked file to its target).
+    // 优先使用文件自身的 realpath（把符号链接文件解析到它指向的目标）。
     return { displayPath, targetKey: FsTargetKey(await realpath(displayPath)) }
   } catch (error: unknown) {
-    // A path component is a file, not a directory (e.g. "afile/child.txt" where
-    // "afile" is a regular file): the target can neither exist nor be created,
-    // so surface the structured taxonomy instead of a raw Node ENOTDIR.
-    /* v8 ignore next -- Windows reports this case as ENOENT and repairs it in the ancestor walk below. */
+    // 某个路径分量是文件而不是目录（例如 "afile/child.txt" 中 "afile" 是常规文件）：
+    // 目标既不可能存在也无法被创建，因此上报结构化分类体系，而不是原始的 Node ENOTDIR。
+    /* v8 ignore next -- Windows 把这种情况报成 ENOENT，并在下面的祖先回溯中修复。 */
     if (isENOTDIR(error)) throw new FsError(`cannot resolve "${displayPath}": a parent path segment is not a directory`, 'FS_NOT_FOUND')
-    /* v8 ignore next -- non-ENOENT realpath failure needs a permission/IO fault; ENOENT falls through to ancestor resolution. */
+    /* v8 ignore next -- 非 ENOENT 的 realpath 失败需要权限/IO 故障；ENOENT 会走到祖先解析逻辑。 */
     if (!isENOENT(error)) throw error
   }
-  // File absent: realpath the nearest existing ancestor and re-append the
-  // missing suffix (the file basename plus any not-yet-created intermediate
-  // dirs), so the key is stable across creation of those dirs.
+  // 文件不存在：对最近的已存在祖先做 realpath，再拼回缺失的后缀（文件基名加上任何
+  // 尚未创建的中间目录），使键在这些目录被创建之后仍保持稳定。
   const missing = [basename(displayPath)]
   let ancestor = dirname(displayPath)
   while (true) {
     try {
       const realAncestor = await realpath(ancestor)
-      /* v8 ignore next -- POSIX rejects this traversal; Windows normalizes parent segments before filesystem lookup. */
+      /* v8 ignore next -- POSIX 拒绝这种遍历；Windows 在文件系统查找之前会规范化父目录分量。 */
       if (missing.includes('..')) throw new FsError(`cannot resolve "${displayPath}": parent traversal crosses a missing directory`, 'FS_NOT_FOUND')
-      // On Windows, realpath of a regular file succeeds where POSIX returns
-      // ENOTDIR (the OS reports ENOENT for `regular-file/child`, not ENOTDIR).
-      // Stat the ancestor to restore the semantic distinction: a non-directory
-      // ancestor means the target passes through a file and can never be created.
-      /* v8 ignore start -- native Windows coverage exercises this repair; POSIX reports ENOTDIR before this point. */
+      // 在 Windows 上，对常规文件做 realpath 在 POSIX 返回 ENOTDIR 的场景下会成功
+      // （该操作系统对 `regular-file/child` 报的是 ENOENT 而不是 ENOTDIR）。
+      // 对祖先做一次 stat 以恢复语义区分：非目录的祖先意味着目标要穿过一个文件，
+      // 因而永远不可能被创建。
+      /* v8 ignore start -- 原生 Windows 覆盖会走到这段修复；POSIX 在此之前就报了 ENOTDIR。 */
       if (process.platform === 'win32') {
         const parentInfo = await stat(realAncestor)
         if (!parentInfo.isDirectory()) {
@@ -197,12 +192,12 @@ export async function resolveLocalTarget(cwd: string, path: string): Promise<Loc
       /* v8 ignore stop */
       return { displayPath, targetKey: FsTargetKey(join(realAncestor, ...missing)) }
     } catch (error: unknown) {
-      /* v8 ignore next -- native Windows coverage exercises the FsError raised by the repair above. */
+      /* v8 ignore next -- 原生 Windows 覆盖会走到上面修复逻辑抛出的 FsError。 */
       if (error instanceof FsError) throw error
-      /* v8 ignore next -- a non-ENOENT realpath failure needs a permission/IO fault. */
+      /* v8 ignore next -- 非 ENOENT 的 realpath 失败需要权限/IO 故障。 */
       if (!isENOENT(error)) throw error
       const parent = dirname(ancestor)
-      /* v8 ignore next -- the filesystem root always realpaths, so the walk terminates before parent === ancestor. */
+      /* v8 ignore next -- 文件系统根目录总能被 realpath，因此回溯会在 parent === ancestor 之前终止。 */
       if (parent === ancestor) return { displayPath, targetKey: FsTargetKey(displayPath) }
       missing.unshift(basename(ancestor))
       ancestor = parent
@@ -212,9 +207,9 @@ export async function resolveLocalTarget(cwd: string, path: string): Promise<Loc
 
 function pathType(info: Stats | BigIntStats): PathInfo['type'] {
   if (info.isFile()) return 'file'
-  /* v8 ignore else -- Windows has no special-entry fixture for the non-directory branch. */
+  /* v8 ignore else -- Windows 没有针对非目录分支的特殊条目测试夹具。 */
   if (info.isDirectory()) return 'directory'
-  /* v8 ignore next -- the corresponding special-entry return is covered on POSIX. */
+  /* v8 ignore next -- 对应的特殊条目返回值在 POSIX 上被测到。 */
   return 'other'
 }
 
@@ -230,19 +225,18 @@ async function probeStats<T extends Stats | BigIntStats>(
   try {
     return await readStats(absolutePath)
   } catch (error: unknown) {
-    // ENOENT (no such file) and ENOTDIR (a parent segment is a file) both mean
-    // the target is absent; any other metadata failure is a real permission/IO
-    // fault.
-    /* v8 ignore next -- a non-ENOENT/ENOTDIR metadata failure needs a permission/IO fault; surface it. */
+    // ENOENT（无此文件）与 ENOTDIR（某个父分量是文件）都意味着目标不存在；
+    // 任何其他元数据失败都是真实的权限/IO 故障。
+    /* v8 ignore next -- 非 ENOENT/ENOTDIR 的元数据失败需要权限/IO 故障；直接抛出去。 */
     if (!isENOENT(error) && !isENOTDIR(error)) throw error
     return null
   }
 }
 
 /**
- * Probe a path for its version, mode, type, and size. Null if absent.
- * @param absolutePath - the path to stat (typically a target key; symlinks are followed).
- * @returns the metadata, or null when the path — or a parent segment — does not exist.
+ * 探测路径的版本、模式、类型与大小。不存在时为 null。
+ * @param absolutePath - 待 stat 的路径（通常是目标键；符号链接会被跟随）。
+ * @returns 元数据；当该路径 —— 或某个父分量 —— 不存在时为 null。
  */
 export async function probe(absolutePath: string): Promise<PathInfo | null> {
   const info = await probeStats(absolutePath, path => stat(path, { bigint: true }))
@@ -256,9 +250,9 @@ export async function probe(absolutePath: string): Promise<PathInfo | null> {
 }
 
 /**
- * Probe a path without following the final symlink component.
- * @param absolutePath - the path entry to inspect with `lstat` semantics.
- * @returns path-entry metadata, or null when the entry is absent.
+ * 在不跟随最后一个符号链接分量的前提下探测路径。
+ * @param absolutePath - 以 `lstat` 语义检查的路径条目。
+ * @returns 路径条目的元数据；条目不存在时为 null。
  */
 export async function probeNoFollow(absolutePath: string): Promise<PathLinkInfo | null> {
   const info = await probeStats(absolutePath, path => lstat(path, { bigint: true }))
@@ -271,14 +265,14 @@ export async function probeNoFollow(absolutePath: string): Promise<PathLinkInfo 
   }
 }
 
-// --- Directory listing ---
+// --- 目录列举 ---
 
 function listingIoError(displayPath: string, error: unknown): FsError {
-  /* v8 ignore next -- defensive pass-through for races where a child resolver has already produced a structured FsError. */
+  /* v8 ignore next -- 防御性透传：子条目解析器已经产出结构化 FsError 时的竞态分支。 */
   if (error instanceof FsError) return error
-  /* v8 ignore next -- requires the listed target/parent to disappear between successful preflight and listing/child resolution. */
+  /* v8 ignore next -- 需要被列举的目标/父目录在成功的预检与列举/子条目解析之间消失。 */
   if (isENOENT(error) || isENOTDIR(error)) return new FsError(`cannot list "${displayPath}": not found`, 'FS_NOT_FOUND', { cause: error })
-  /* v8 ignore next -- Windows chmod does not deny directory listing; POSIX covers permission translation. */
+  /* v8 ignore next -- Windows 的 chmod 不会拒绝目录列举；POSIX 覆盖了权限翻译。 */
   if (isPermissionError(error)) return new FsError(`cannot list "${displayPath}": permission denied`, 'FS_PERMISSION_DENIED', { cause: error })
   return new FsError(`cannot list "${displayPath}": ${errorMessage(error)}`, 'FS_IO_ERROR', { cause: error })
 }
@@ -289,12 +283,11 @@ async function resolveListedChildTarget(parent: LocalTarget, name: string): Prom
 }
 
 /**
- * List direct children of a directory in stable name order. Each child includes
- * a resolved target plus stat metadata when still available; file contents are
- * never read.
- * @param target - the resolved directory to list; a missing or non-directory target throws.
- * @param signal - aborts the listing, checked between children (`FS_ABORTED`).
- * @returns one entry per direct child, sorted by name.
+ * 以稳定的名称顺序列出目录的直接子项。每个子项包含已解析的目标以及在仍然可用时的 stat
+ * 元数据；绝不读取文件内容。
+ * @param target - 待列举的已解析目录；目标缺失或不是目录时抛出错误。
+ * @param signal - 中断列举，在子项之间检查（`FS_ABORTED`）。
+ * @returns 每个直接子项一个条目，按名称排序。
  */
 export async function listDirectory(target: LocalTarget, signal?: AbortSignal): Promise<LocalDirEntry[]> {
   throwIfAborted(signal, 'list')
@@ -311,7 +304,7 @@ export async function listDirectory(target: LocalTarget, signal?: AbortSignal): 
   try {
     entries = await readdir(target.targetKey, { withFileTypes: true, encoding: 'utf8' })
   } catch (error: unknown) {
-    /* v8 ignore next -- requires permission/kernel failure from readdir after a successful directory stat. */
+    /* v8 ignore next -- 需要 readdir 在成功的目录 stat 之后发生权限/内核故障。 */
     throw listingIoError(target.displayPath, error)
   }
   throwIfAborted(signal, 'list')
@@ -337,7 +330,7 @@ export async function listDirectory(target: LocalTarget, signal?: AbortSignal): 
   return result
 }
 
-// --- Reading ---
+// --- 读取 ---
 
 function notTextError(verb: 'read' | 'edit', displayPath: string): FsError {
   return new FsError(`cannot ${verb} "${displayPath}": invalid UTF-8 text`, 'FS_NOT_TEXT')
@@ -347,7 +340,7 @@ function decodeUtf8(buffer: Uint8Array, verb: 'read' | 'edit', displayPath: stri
   try {
     return new TextDecoder('utf-8', { fatal: true }).decode(buffer)
   } catch (error: unknown) {
-    /* v8 ignore next 2 -- TextDecoder({fatal}) only throws TypeError on invalid bytes; any other throw is an unreachable runtime fault. */
+    /* v8 ignore next 2 -- TextDecoder({fatal}) 只在遇到非法字节时抛 TypeError；其他抛出都是不可达的运行时故障。 */
     if (!(error instanceof TypeError)) throw error
     throw notTextError(verb, displayPath)
   }
@@ -362,7 +355,7 @@ function decodeUtf8Stream(
   try {
     return chunk ? decoder.decode(chunk, { stream: true }) : decoder.decode()
   } catch (error: unknown) {
-    /* v8 ignore next 2 -- TextDecoder({fatal}) only throws TypeError on invalid bytes; any other throw is an unreachable runtime fault. */
+    /* v8 ignore next 2 -- TextDecoder({fatal}) 只在遇到非法字节时抛 TypeError；其他抛出都是不可达的运行时故障。 */
     if (!(error instanceof TypeError)) throw error
     throw notTextError(verb, displayPath)
   }
@@ -374,7 +367,7 @@ async function statRegularFile(target: LocalTarget, verb: 'read', signal?: Abort
   try {
     info = await stat(target.targetKey)
   } catch (error: unknown) {
-    /* v8 ignore next 2 -- a non-ENOENT stat failure needs a permission/IO fault; only the not-found path is reachable in tests. */
+    /* v8 ignore next 2 -- 非 ENOENT 的 stat 失败需要权限/IO 故障；测试中只能到达"未找到"这条路径。 */
     if (!isENOENT(error)) throw error
     throw new FsError(`cannot ${verb} "${target.displayPath}": not found`, 'FS_NOT_FOUND')
   }
@@ -383,11 +376,11 @@ async function statRegularFile(target: LocalTarget, verb: 'read', signal?: Abort
 }
 
 /**
- * Read a whole regular UTF-8 text file into a single decoded string. Rejects
- * non-regular files, invalid UTF-8, and NUL-byte binary samples.
- * @param target - the resolved file to read.
- * @param signal - aborts the read (`FS_ABORTED`).
- * @returns the full decoded text, byte-for-byte (no normalization).
+ * 把整个常规 UTF-8 文本文件读成一个已解码的字符串。拒绝非常规文件、非法 UTF-8
+ * 以及含 NUL 字节的二进制样本。
+ * @param target - 待读取的已解析文件。
+ * @param signal - 中断读取（`FS_ABORTED`）。
+ * @returns 完整解码后的文本，逐字节保持原样（不做规范化）。
  */
 export async function readWholeText(target: LocalTarget, signal?: AbortSignal): Promise<string> {
   await statRegularFile(target, 'read', signal)
@@ -400,15 +393,14 @@ export async function readWholeText(target: LocalTarget, signal?: AbortSignal): 
 }
 
 /**
- * Read a whole regular file as raw bytes with no decoding or binary rejection.
- * `maxBytes` bounds the complete content: the stat size short-circuits an
- * oversized file before any content I/O, and the stream reads at most one byte
- * beyond the cap so a file growing after stat cannot cause unbounded buffering.
- * @param target - the resolved file to read.
- * @param signal - aborts the read (`FS_ABORTED`).
- * @param maxBytes - inclusive byte cap on the complete content (`FS_TOO_LARGE`).
- * @param internals - test seam for a deterministic post-stat growth race.
- * @returns the full raw content, at most `maxBytes` long.
+ * 把整个常规文件读成原始字节，不做任何解码与二进制拒绝。`maxBytes` 限制的是完整内容：
+ * stat 出来的大小会在任何内容 IO 之前短路掉过大的文件，而流最多再读一个字节超过上限，
+ * 从而让 stat 之后增长的文件无法造成无界缓冲。
+ * @param target - 待读取的已解析文件。
+ * @param signal - 中断读取（`FS_ABORTED`）。
+ * @param maxBytes - 对完整内容的字节上限，含边界值（`FS_TOO_LARGE`）。
+ * @param internals - 用于确定性地制造 stat 之后增长竞态的测试接缝。
+ * @returns 完整的原始内容，长度至多为 `maxBytes`。
  */
 export async function readWholeBytes(
   target: LocalTarget,
@@ -436,7 +428,7 @@ export async function readWholeBytes(
       chunks.push(chunk)
     }
   } catch (error: unknown) {
-    /* v8 ignore next 2 -- a mid-stream abort needs cancellation racing an active read; pre-abort is deterministic. */
+    /* v8 ignore next 2 -- 流中途中断需要取消与活跃读取竞态；预先中断是确定性的。 */
     if (isAbortError(error)) throw new FsError('read aborted', 'FS_ABORTED')
     throw error
   }
@@ -444,14 +436,13 @@ export async function readWholeBytes(
 }
 
 /**
- * Read the bytes at `[offset, offset + length)` of a regular file with no
- * decoding or binary rejection. The window is the bound: the stream opens at
- * `offset` and closes after `length` bytes, so no more than the window is ever
- * buffered whatever the file's size; a window at or past the end is empty.
- * @param target - the resolved file to read.
- * @param range - `offset`, the 0-based first byte, and `length`, the largest byte count.
- * @param signal - aborts the read (`FS_ABORTED`).
- * @returns the window's bytes, at most `length` long.
+ * 读取常规文件 `[offset, offset + length)` 处的字节，不做任何解码与二进制拒绝。
+ * 界限就是窗口：流从 `offset` 打开并在读取 `length` 字节后关闭，因此无论文件多大，
+ * 缓冲的永远不超过窗口大小；窗口位于或超过文件末尾时结果为空。
+ * @param target - 待读取的已解析文件。
+ * @param range - `offset` 为 0 基的首字节位置，`length` 为最大字节数。
+ * @param signal - 中断读取（`FS_ABORTED`）。
+ * @returns 窗口内的字节，长度至多为 `length`。
  */
 export async function readByteWindow(
   target: LocalTarget,
@@ -473,21 +464,20 @@ export async function readByteWindow(
       bytes += chunk.length
     }
   } catch (error: unknown) {
-    /* v8 ignore next 2 -- a mid-stream abort needs cancellation racing an active read; pre-abort is deterministic. */
+    /* v8 ignore next 2 -- 流中途中断需要取消与活跃读取竞态；预先中断是确定性的。 */
     if (isAbortError(error)) throw new FsError('read aborted', 'FS_ABORTED')
-    /* v8 ignore next -- any other stream failure needs an I/O fault after a successful stat. */
+    /* v8 ignore next -- 任何其他流失败都需要一次成功 stat 之后的 IO 故障。 */
     throw error
   }
   return Buffer.concat(chunks, bytes)
 }
 
 /**
- * Stream a whole regular UTF-8 text file as decoded text chunks. Same text
- * semantics as {@link readWholeText} (regular-file check, binary/NUL rejection,
- * cross-chunk UTF-8 decoding), but never holds the whole file in memory.
- * @param target - the resolved file to stream.
- * @param signal - aborts the stream, including between chunks (`FS_ABORTED`).
- * @returns decoded text chunks in file order; chunk boundaries carry no meaning.
+ * 以已解码的文本分块流式读取整个常规 UTF-8 文本文件。文本语义与 {@link readWholeText}
+ * 相同（常规文件检查、二进制/NUL 拒绝、跨分块 UTF-8 解码），但从不把整个文件留在内存里。
+ * @param target - 待流式读取的已解析文件。
+ * @param signal - 中断流读取，包括分块之间的中断（`FS_ABORTED`）。
+ * @returns 按文件顺序的已解码文本分块；分块边界不携带任何含义。
  */
 export async function* streamWholeText(target: LocalTarget, signal?: AbortSignal): AsyncIterable<string> {
   await statRegularFile(target, 'read', signal)
@@ -511,13 +501,13 @@ export async function* streamWholeText(target: LocalTarget, signal?: AbortSignal
     }
     yield decodeUtf8Stream(decoder, undefined, 'read', target.displayPath)
   } catch (error: unknown) {
-    /* v8 ignore next 4 -- mid-stream errors need an abort/IO fault racing the loop; pre-abort is caught by throwIfAborted. */
+    /* v8 ignore next 4 -- 流中途的错误需要与循环竞态的中断/IO 故障；预先中断由 throwIfAborted 捕获。 */
     if (isAbortError(error)) throw new FsError('read aborted', 'FS_ABORTED')
     throw error
   }
 }
 
-// --- Writing ---
+// --- 写入 ---
 
 async function removeStagingDirOrThrow(
   stagingDir: string,
@@ -527,7 +517,7 @@ async function removeStagingDirOrThrow(
   try {
     await removeStagingDir(stagingDir)
   } catch (cleanupError: unknown) {
-    /* v8 ignore next 1 -- cleanup failure here needs a second filesystem fault after the primary write failure. */
+    /* v8 ignore next 1 -- 这里的清理失败需要在主写入失败之后再来一次文件系统故障。 */
     throw new FsError(`write failed (${errorMessage(originalError)}) and temp cleanup failed (${errorMessage(cleanupError)})`, 'FS_NOT_FOUND', { cause: originalError })
   }
   throw originalError
@@ -548,8 +538,8 @@ async function throwGuardedCreateFailure(
     }
   }
 
-  // Link errno values vary by platform and filesystem. Inspect the target entry
-  // after failure so a collision is not confused with missing hard-link support.
+  // 链接的 errno 取值随平台与文件系统而异。在失败之后检查目标条目，
+  // 以免把冲突误判成缺少硬链接支持。
   if (existing !== undefined) {
     if (!existing.isFile()) {
       throw new FsError(`cannot write "${displayPath}": not a regular file`, 'FS_NOT_REGULAR_FILE', { cause: error })
@@ -571,19 +561,17 @@ async function throwGuardedCreateFailure(
 }
 
 /**
- * Atomically replace a file through a private, synced staging file in the same directory.
- * POSIX protects the staging directory and file with `0o700` and `0o600`. A new Windows file
- * inherits the destination directory's DACL; a replacement copies the existing target's DACL
- * onto the empty temp before writing and preserves the target descriptor at publication.
- * @param absolutePath - destination; missing parent directories are created.
- * @param content - the full UTF-8 text to write.
- * @param mode - existing destination's POSIX mode to preserve, or `undefined` for a new file;
- * inert as a mode on Windows but identifies replacement security semantics.
- * @param signal - cancellation checked before final publication.
- * @param internals - Test hook for pinning temp names and observing the staged file.
- * @param createIfAbsent - when provided, publish with a hard-link no-replace
- * primitive; a concurrent creator's file is preserved and this write is
- * rejected with `FS_NOT_OBSERVED` using the supplied display path.
+ * 通过同一目录下私有的、已同步的暂存文件原子地替换一个文件。POSIX 用 `0o700` 与 `0o600`
+ * 保护暂存目录与暂存文件。Windows 上的新文件继承目标目录的 DACL；替换则会先在写入之前
+ * 把已有目标的 DACL 复制到空的临时文件上，并在发布时保留目标描述符。
+ * @param absolutePath - 目标路径；缺失的父目录会被创建。
+ * @param content - 待写入的完整 UTF-8 文本。
+ * @param mode - 已有目标的 POSIX 模式，用于保留；新文件为 `undefined`；在 Windows 上
+ * 作为模式不起作用，但标识了替换的安全语义。
+ * @param signal - 在最终发布之前检查的取消信号。
+ * @param internals - 用于钉住临时名称与观察暂存文件的测试钩子。
+ * @param createIfAbsent - 给定该参数时使用硬链接的不可替换原语发布；并发创建者的文件会被
+ * 保留，本次写入则用所提供的展示路径以 `FS_NOT_OBSERVED` 被拒绝。
  */
 export async function writeFileAtomic(
   absolutePath: string,
@@ -640,8 +628,8 @@ export async function writeFileAtomic(
       try {
         await replaceFile(absolutePath, tempPath)
       } catch (error: unknown) {
-        // If the observed target disappears during staging, the protected DACL
-        // already copied to the temp remains authoritative for recreation.
+        // 如果被观测到的目标在暂存期间消失，已经复制到临时文件上的受保护 DACL
+        // 在重建时依然是权威依据。
         if (!isENOENT(error)) throw error
         await rename(tempPath, absolutePath)
       }
@@ -651,12 +639,12 @@ export async function writeFileAtomic(
     try {
       await removeStagingDir(stagingDir)
     } catch (_committedStagingCleanupFailure) {
-      // The target is committed; owner-only staging residue cannot turn that write into a failure.
+      // 目标已提交；仅属主的暂存残留不能把这次写入变成失败。
     }
   } catch (error: unknown) {
-    /* v8 ignore next -- abort-mid-write needs a writeFile/signal race; the non-abort (rename/open) side is tested. */
+    /* v8 ignore next -- 写入中途中断需要 writeFile 与 signal 竞态；非中断（rename/open）一侧已被测到。 */
     let failure: unknown = isAbortError(error) ? new FsError('write aborted', 'FS_ABORTED') : error
-    /* v8 ignore next 8 -- reached only if writeFile/sync throws with the handle open (IO fault); close-failure is a double fault. */
+    /* v8 ignore next 8 -- 仅在 writeFile/sync 于句柄打开期间抛出时到达（IO 故障）；关闭失败属于双重故障。 */
     if (handle) {
       try {
         await handle.close()
@@ -669,16 +657,16 @@ export async function writeFileAtomic(
   }
 }
 
-// --- Editing ---
+// --- 编辑 ---
 
-/** Line ending style detected before LF normalization. */
+/** 在 LF 规范化之前检测到的行尾风格。 */
 export type LineEndings = 'LF' | 'CRLF'
 
 /**
- * Collapse CRLF to LF — the canonical in-memory form every edit/diff basis
- * uses. Lone `\r` bytes (not followed by `\n`) are left untouched.
- * @param content - decoded text in whatever line-ending style the file had.
- * @returns the text with every `\r\n` pair replaced by `\n`.
+ * 把 CRLF 折叠为 LF —— 每次编辑/diff 基线所用的规范内存形式。孤立的 `\r`
+ * （后面不跟 `\n`）保持原样。
+ * @param content - 以文件原有行尾风格解码出的文本。
+ * @returns 所有 `\r\n` 对都被替换为 `\n` 的文本。
  */
 function normalizeLineEndings(content: string): string {
   return content.replaceAll('\r\n', '\n')
@@ -692,12 +680,11 @@ function detectLineEndings(raw: string): LineEndings {
 }
 
 /**
- * Convert LF-normalized content back to the line-ending style detected at read
- * time, for write-back. `LF` returns the content unchanged; `CRLF` re-normalizes
- * first so an already-CRLF sequence is never doubled to `\r\r\n`.
- * @param content - the LF-normalized (edited) text.
- * @param lineEndings - the original file's style, as detected by {@link readForEdit}.
- * @returns the text in the original file's line-ending style.
+ * 把 LF 规范化的内容还原成读取时检测到的行尾风格，用于写回。`LF` 原样返回内容；
+ * `CRLF` 先再做一次规范化，以免已经是 CRLF 的序列被重复成 `\r\r\n`。
+ * @param content - LF 规范化（已编辑）的文本。
+ * @param lineEndings - 原文件的风格，由 {@link readForEdit} 检测得出。
+ * @returns 以原文件行尾风格表示的文本。
  */
 function restoreLineEndings(content: string, lineEndings: LineEndings): string {
   return lineEndings === 'LF' ? content : normalizeLineEndings(content).split('\n').join('\r\n')
@@ -715,12 +702,11 @@ function countOccurrences(content: string, needle: string): number {
 }
 
 /**
- * Read and decode a file for editing: rejects binaries, returns LF-normalized
- * content plus the original line-ending style for write-back.
- * @param absolutePath - the file to read (typically a target key).
- * @param displayPath - the caller-facing path used in error messages.
- * @param signal - aborts the read (`FS_ABORTED`).
- * @returns the LF-normalized content and the detected style to restore on write-back.
+ * 读取并解码待编辑的文件：拒绝二进制文件，返回 LF 规范化的内容以及用于写回的原有行尾风格。
+ * @param absolutePath - 待读取的文件（通常是目标键）。
+ * @param displayPath - 面向调用方、用于错误消息的路径。
+ * @param signal - 中断读取（`FS_ABORTED`）。
+ * @returns LF 规范化的内容以及检测到、待写回时还原的风格。
  */
 export async function readForEdit(
   absolutePath: string,
@@ -736,16 +722,15 @@ export async function readForEdit(
 }
 
 /**
- * Best-effort overwrite diff basis. Binary, invalid UTF-8, a file at/above the byte limit,
- * or a file deleted/made unreadable after the caller's preflight returns `null` so the write
- * still succeeds and presentation falls back to a whole-file diff. The bound is enforced on
- * the opened descriptor rather than a prior path stat, so concurrent external replacement or
- * size changes cannot make this helper buffer more than `maxBytes`.
- * @param absolutePath - the file to read (typically a target key).
- * @param maxBytes - exclusive upper bound for bytes held as the contextual-diff basis.
- * @param signal - aborts the read (`FS_ABORTED`); cancellation propagates, unlike I/O failure.
- * @returns the LF-normalized text, or null for a non-regular, at/above-limit, binary, non-UTF-8,
- * descriptor-size-changed, or unreadable file.
+ * 尽力而为的覆盖 diff 基线。当文件是二进制、非法 UTF-8、达到或超过字节上限，或者在调用方
+ * 预检之后被删除/变得不可读时返回 `null`，这样写入仍能成功，展示层则回退到整文件 diff。
+ * 该限制是在已打开的描述符上强制执行的，而不是依赖此前的路径 stat，因此并发的外部替换或
+ * 大小变化都无法让这个辅助函数缓冲超过 `maxBytes` 的内容。
+ * @param absolutePath - 待读取的文件（通常是目标键）。
+ * @param maxBytes - 作为上下文 diff 基线所持有字节数的排他上界。
+ * @param signal - 中断读取（`FS_ABORTED`）；与 IO 失败不同，取消会向上传播。
+ * @returns LF 规范化的文本；对非常规文件、达到/超过上限的文件、二进制、非 UTF-8、
+ * 描述符大小发生变化或不可读的文件返回 null。
  */
 export async function readTextForDiff(
   absolutePath: string,
@@ -765,7 +750,7 @@ export async function readTextForDiff(
       if (!info.isFile()) return null
       if (info.size >= maxBytes) return null
       openedSize = info.size
-      // One extra byte detects growth after stat without retaining per-read backing buffers.
+      // 多分配一个字节即可检测到 stat 之后的增长，而不必保留每次读取的后备缓冲区。
       buffer = Buffer.allocUnsafe(openedSize + 1)
       while (total < buffer.length) {
         throwIfAborted(signal, 'read')
@@ -784,32 +769,30 @@ export async function readTextForDiff(
     try {
       return normalizeLineEndings(new TextDecoder('utf-8', { fatal: true }).decode(basis))
     } catch (error: unknown) {
-      /* v8 ignore next 2 -- TextDecoder({fatal}) only throws TypeError on invalid bytes;
-       * any other throw is an unreachable runtime fault. */
+      /* v8 ignore next 2 -- TextDecoder({fatal}) 只在遇到非法字节时抛 TypeError；
+       * 其他抛出都是不可达的运行时故障。 */
       if (!(error instanceof TypeError)) throw error
       return null
     }
   } catch (error: unknown) {
-    // Cancellation is the caller's intent and still propagates.
+    // 取消是调用方的意图，仍然向上传播。
     if (error instanceof FsError) throw error
-    // A descriptor-phase errno — deleted or made unreadable after the caller's
-    // preflight, or a faulted read — costs only the optional basis: a committed
-    // write must not fail for a presentation-only pre-read.
+    // 描述符阶段的 errno —— 在调用方预检之后被删除或变得不可读，或者读取发生故障 ——
+    // 只会损失这份可选的基线：一次已提交的写入不应因为仅用于展示的预读而失败。
     if (error instanceof Error && 'code' in error) return null
     throw error
   }
 }
 
 /**
- * Apply a literal replacement to LF-normalized content. Empty or missing search text throws
- * `FS_EDIT_NOT_FOUND`; multiple matches throw `FS_AMBIGUOUS_EDIT` unless `replaceAll` is true.
- * @param content - the current file content, already LF-normalized.
- * @param oldString - literal text to find; CRLF inside it is normalized to LF before
- *   matching.
- * @param newString - literal replacement text, normalized the same way.
- * @param replaceAll - replace every match instead of requiring exactly one.
- * @param displayPath - the caller-facing path used in error messages.
- * @returns the edited LF-normalized content plus how many occurrences were replaced.
+ * 对 LF 规范化的内容执行一次字面量替换。空的或搜不到的查找文本抛出 `FS_EDIT_NOT_FOUND`；
+ * 多处命中抛出 `FS_AMBIGUOUS_EDIT`，除非 `replaceAll` 为 true。
+ * @param content - 当前文件内容，已完成 LF 规范化。
+ * @param oldString - 待查找的字面量文本；其中包含的 CRLF 会在匹配之前被规范化为 LF。
+ * @param newString - 字面的替换文本，以相同方式规范化。
+ * @param replaceAll - 替换所有命中项，而不是要求恰好命中一处。
+ * @param displayPath - 面向调用方、用于错误消息的路径。
+ * @returns 编辑后的 LF 规范化内容以及被替换的处数。
  */
 export function applyLiteralEdit(
   content: string,

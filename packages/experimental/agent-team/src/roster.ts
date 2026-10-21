@@ -1,4 +1,4 @@
-/** Team membership, continuable-child provisioning, and roster-owned teardown. */
+/** Team 成员关系、可延续子级的置备，以及由花名册负责的拆解。 */
 
 import { randomUUID } from 'node:crypto'
 import type { Context } from '@deepseek-ai/cordis'
@@ -24,7 +24,7 @@ import { requiredText } from './validation.ts'
 
 const MEMBER_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u
 
-/** Caller identity inside one implicit Team. */
+/** 某个隐式 Team 内部的调用方身份。 */
 export interface TeamMembership {
   readonly root: Agent
   readonly id: TeamId
@@ -33,11 +33,11 @@ export interface TeamMembership {
 }
 
 /**
- * Resolve one active Team member by model-facing name, including the Lead pseudo-row.
- * @param root - exact live Team Lead.
- * @param state - current Team state.
- * @param rawName - candidate member name.
- * @returns resolved durable id and normalized name.
+ * 按面向模型的名称解析一名活跃的 Team 成员，包括 Lead 伪行。
+ * @param root - 精确的实时 Team Lead。
+ * @param state - 当前 Team 状态。
+ * @param rawName - 候选的成员名称。
+ * @returns 已解析的持久化 id 与归一化后的名称。
  */
 export function resolveActiveMember(
   root: Agent,
@@ -53,13 +53,13 @@ export function resolveActiveMember(
   return { id: member.id, name }
 }
 
-/** Owns Team identities and the lifecycle of rostered continuable children. */
+/** 持有 Team 身份，以及被编入花名册的可延续子级的生命周期。 */
 export class TeamRoster {
   /**
-   * @param ctx - Team service context with Agent, Session, persistence, and subagent services.
-   * @param journal - authoritative Lead-log transaction owner.
-   * @param lifecycle - shared Team runtime admission cutoff.
-   * @param maxMembers - maximum immutable roster entries per Team.
+   * @param ctx - 带有 Agent、Session、持久化与子代理服务的 Team 服务上下文。
+   * @param journal - 权威的 Lead 日志事务持有者。
+   * @param lifecycle - 共享的 Team 运行时准入截止。
+   * @param maxMembers - 每个 Team 保留的、不可变的花名册条目上限。
    */
   constructor(
     private readonly ctx: Context,
@@ -69,9 +69,9 @@ export class TeamRoster {
   ) {}
 
   /**
-   * Resolve one exact live Agent's Team role.
-   * @param agent - exact live Agent used as the authority credential.
-   * @returns its root, Team identity, role, and model-facing name.
+   * 解析某个精确的实时 Agent 的 Team 角色。
+   * @param agent - 用作权威凭证的、精确的实时 Agent。
+   * @returns 它的 root、Team 身份、角色与面向模型的名称。
    */
   membership(agent: Agent): TeamMembership {
     const membership = this.tryMembership(agent)
@@ -82,9 +82,9 @@ export class TeamRoster {
   }
 
   /**
-   * Resolve a caller without throwing for scoped installation and lifecycle observers.
-   * @param agent - candidate exact live Agent.
-   * @returns Team membership, or undefined for non-Team subagents and stale identities.
+   * 在不抛出的前提下解析调用方，供作用域化安装与生命周期观察者使用。
+   * @param agent - 候选的、精确的实时 Agent。
+   * @returns Team 成员关系；对于非 Team 的子代理与过期身份则为 undefined。
    */
   tryMembership(agent: Agent): TeamMembership | undefined {
     if (this.ctx.agents.get(agent.id) !== agent) return undefined
@@ -97,31 +97,29 @@ export class TeamRoster {
           if (member?.phase === 'active' || member?.phase === 'provisioning') {
             return { root, id: TeamId(root.id), role: 'teammate', name: member.name }
           }
-          // A direct child outside the durable roster is not a teammate. Ordinary
-          // host forks are independent roots; subagent descriptors distinguish
-          // provider-owned workers that must not receive a nested Team identity.
+          // 持久化花名册之外的一个直接子级并不是队友。普通的宿主 fork 是独立的
+          // 根；子代理描述符用于区分那些绝不能接收嵌套 Team 身份的、提供方拥有的工作进程。
           if (this.subagentDescriptor(agent)) return undefined
           return { root: agent, id: TeamId(agent.id), role: 'lead', name: 'lead' }
         }
       }
-      // A continuation can briefly outlive its parent during child-first teardown.
-      // Do not reinterpret that durable child as a new implicit root Team. A host-
-      // resumed ordinary fork has no descriptor in its own suffix and remains a
-      // valid new root whose inherited Team records stay outside its projected Team state.
+      // 在子级优先的拆解过程中，一次延续可能短暂地比其父级存活更久。不要将该
+      // 持久化子级重新解释为一个新的隐式根 Team。一个由宿主恢复的普通 fork 在其
+      // 自身的后缀中没有描述符，仍是有效的新的根，其继承的 Team 记录停留在它所投影的
+      // Team 状态之外。
       if (this.subagentDescriptor(agent)) return undefined
       return { root: agent, id: TeamId(agent.id), role: 'lead', name: 'lead' }
     } catch {
-      // This method is used by lifecycle observers and teardown discovery. A
-      // malformed durable stream is surfaced by authoritative Team operations;
-      // the non-throwing probe must not veto unrelated Agent lifecycle edges.
+      // 此方法由生命周期观察者与拆解发现所使用。一份格式错误的持久化流由权威的
+      // Team 操作暴露；这个不抛出的探针绝不能否决无关的 Agent 生命周期边。
       return undefined
     }
   }
 
   /**
-   * List the runtime-enriched roster visible to one Team member.
-   * @param membership - exact caller membership resolved by this roster.
-   * @returns Lead and teammate rows in creation order.
+   * 列出某个 Team 成员可见的、经运行时充实后的花名册。
+   * @param membership - 由该花名册解析出的、精确的调用方成员关系。
+   * @returns 按创建顺序排列的 Lead 与队友行。
    */
   list(membership: TeamMembership): TeamMemberView[] {
     const { root } = membership
@@ -157,10 +155,10 @@ export class TeamRoster {
   }
 
   /**
-   * Create one named, continuable direct child of the Team Lead.
-   * @param caller - exact live Lead Agent.
-   * @param request - immutable name, description, prompt, context mode, provider, and cancellation.
-   * @returns the active roster row.
+   * 创建 Team Lead 的一个具名、可延续的直接子级。
+   * @param caller - 精确的实时 Lead Agent。
+   * @param request - 不可变的名称、描述、提示、上下文模式、提供方，以及取消。
+   * @returns 活跃的花名册行。
    */
   async spawn(caller: Agent, request: SpawnTeammateRequest): Promise<SpawnTeammateResult> {
     if (this.lifecycle.disposed) throw new TeamError('Agent Teams service is disposing', 'TEAM_DISPOSED')
@@ -168,9 +166,9 @@ export class TeamRoster {
   }
 
   /**
-   * Reconcile provisioning state when one Team member Session starts.
-   * @param agent - newly started exact live Agent.
-   * @param signal - shared runtime cancellation.
+   * 在某个 Team 成员 Session 启动时，对账置备状态。
+   * @param agent - 新启动的、精确的实时 Agent。
+   * @param signal - 共享的运行时取消信号。
    */
   async recoverFor(agent: Agent, signal: AbortSignal): Promise<void> {
     signal.throwIfAborted()
@@ -225,7 +223,7 @@ export class TeamRoster {
     await this.lifecycle.withTimeout(this.ctx.subagents.drainChildren(root, childIds))
   }
 
-  /** Perform one creation admitted before the Team runtime disposal cutoff. */
+  /** 执行一次在 Team 运行时处置截止之前被准入的创建。 */
   private async spawnAdmitted(
     caller: Agent,
     request: SpawnTeammateRequest,
@@ -298,10 +296,9 @@ export class TeamRoster {
       ...member,
       phase: 'active' as const,
     } satisfies TeamMemberSnapshot
-    // Once the continuation accepted its first prompt, it is a real child. If
-    // this checkpoint fails, keep the in-memory active edge instead of inventing
-    // an impossible active -> failed transition; restart reconciliation covers
-    // the provisioning-only durable prefix.
+    // 一旦该延续接受了它的第一条提示，它就是一个真正的子级。如果这次检查点
+    // 失败，保留内存中的 active 边，而非虚构一个不可能的 active -> failed 迁移；
+    // 重启后的对账会覆盖仅置备的持久化前缀。
     const settledPhase = await this.settleProvisioning(root, active)
     if (settledPhase === 'failed') {
       const conflict = new TeamError(
@@ -319,7 +316,7 @@ export class TeamRoster {
     return { member: this.memberView(active) }
   }
 
-  /** Flush the accepted initial inbox item before the Lead can commit `active`. */
+  /** 在 Lead 能够提交 `active` 之前，刷新已接受的初始收件箱条目。 */
   private async checkpointInitialPrompt(
     childId: SessionId,
     messageId: MessageId,
@@ -339,8 +336,8 @@ export class TeamRoster {
       }
 
       const progress = Promise.withResolvers<void>()
-      // Abort can win while the durability flush is still pending; mark the
-      // later-awaited rejection handled without changing its eventual result.
+      // 在持久化刷新仍待处理时，取消可能抢先发生；将稍后等待的拒绝标记为已处理，
+      // 但不改变它最终的结果。
       void progress.promise.catch(() => undefined)
       const stopEvent = this.ctx.on('session/event', (candidate) => {
         if (candidate === session) progress.resolve()
@@ -358,7 +355,7 @@ export class TeamRoster {
       try {
         signal.throwIfAborted()
         await this.ctx.sessions.flush(session)
-        // oxlint-disable-next-line typescript/no-deprecated -- Existing Session history read; migration deferred.
+        // oxlint-disable-next-line typescript/no-deprecated -- 既有的 Session 历史读取；迁移已推迟。
         const suffix = session.snapshotEvents(session.inheritedEventCount)
         if (messageAccepted(suffix, message => message.id === messageId)) return
         if (this.ctx.sessions.get(childId) !== session) continue
@@ -371,13 +368,12 @@ export class TeamRoster {
     }
   }
 
-  /** Settle provisioning-only members from their independently durable child Sessions. */
+  /** 从各自独立持久的、子级 Session 出发，结算仅置备的成员。 */
   private async reconcileProvisioning(root: Agent, signal: AbortSignal): Promise<void> {
     const provisioning = this.journal.state(root).members.filter(member => member.phase === 'provisioning')
     for (const member of provisioning) {
       signal.throwIfAborted()
-      // A live child means creation is still completing in this process. Its
-      // creator owns the terminal member edge.
+      // 一个存活的子级意味着创建仍在本进程内完成中。它的创建者拥有终端的成员边。
       if (this.ctx.agents.get(member.id) !== undefined) continue
       let phase: 'active' | 'failed' = 'failed'
       let failure = 'provisioning did not leave a resumable child Session'
@@ -416,7 +412,7 @@ export class TeamRoster {
     }
   }
 
-  /** Build one runtime member row after successful creation. */
+  /** 在成功创建之后，构建一行运行时成员。 */
   private memberView(member: TeamMemberSnapshot & { readonly phase: 'active' }): TeamMemberView {
     const live = this.ctx.agents.get(member.id)
     return {
@@ -432,7 +428,7 @@ export class TeamRoster {
     }
   }
 
-  /** Validate a never-reused model-facing teammate name. */
+  /** 校验一个永不复用的、面向模型的队友名称。 */
   private memberName(value: string): string {
     if (!MEMBER_NAME.test(value) || value.length > 64 || value === 'lead') {
       throw new TeamError(
@@ -443,14 +439,14 @@ export class TeamRoster {
     return value
   }
 
-  /** Append one terminal provisioning edge unless recovery already settled it. */
+  /** 除非恢复已经结算，否则追加一条终端置备边。 */
   private async settleProvisioning(
     root: Agent,
     terminal: TeamMemberSnapshot,
   ): Promise<'active' | 'failed'> {
     return this.journal.transact(root.id, async () => {
       const current = this.journal.state(root).members.find(member => member.id === terminal.id)
-      /* v8 ignore next 3 -- the append-only provisioning event is committed by this operation before settlement. */
+      /* v8 ignore next 3 -- 仅追加的置备事件由本操作在结算之前提交。 */
       if (current === undefined) {
         throw new TeamError(`provisioned teammate "${terminal.id}" disappeared`, 'TEAM_PROVISIONING_CONFLICT')
       }
@@ -464,14 +460,14 @@ export class TeamRoster {
     })
   }
 
-  /** Whether a Session's own suffix identifies a provider-owned subagent child. */
+  /** 某个 Session 自身的后缀是否标识一个提供方拥有的子代理子级。 */
   private subagentDescriptor(agent: Agent): boolean {
-    // oxlint-disable-next-line typescript/no-deprecated -- Existing Session history read; migration deferred.
+    // oxlint-disable-next-line typescript/no-deprecated -- 既有的 Session 历史读取；迁移已推迟。
     return foldSubagentDescriptor(agent.session.snapshotEvents(agent.session.inheritedEventCount)) !== undefined
   }
 }
 
-/** Turn availability is independent of whether the Agent is loaded. */
+/** Turn 可用性独立于该 Agent 是否已加载。 */
 function availability(agent: Agent | undefined): 'running' | 'inactive' {
   return agent?.status === 'running' ? 'running' : 'inactive'
 }

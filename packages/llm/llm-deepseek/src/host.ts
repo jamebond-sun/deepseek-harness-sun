@@ -1,4 +1,4 @@
-/** Shared Host wiring for the DeepSeek protocol adapter. */
+/** DeepSeek 协议适配器的共享宿主装配。 */
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-settings'
 import type {} from '@deepseek-ai/cordis-plugin-loader'
@@ -10,17 +10,17 @@ import { DeepSeekAdapter } from './adapter.ts'
 import type { DeepSeekAdapterOptions, DeepSeekConnectionOptions } from './types.ts'
 
 /**
- * Register one provider with request-local transport services and live retry policy.
- * @param ctx - provider plugin lifetime with the LLM registry injected.
- * @param provider - exact route owned by this plugin.
- * @param dependencies - provider-owned discovery, credential, and configuration callbacks.
+ * 注册一个带有请求级传输服务与实时重试策略的提供方。
+ * @param ctx - 已注入 LLM 注册表的提供方插件生命周期。
+ * @param provider - 本插件持有的精确路由。
+ * @param dependencies - 由提供方持有的发现、凭据与配置回调。
  */
 export function registerDeepSeekProvider<C extends DeepSeekConnectionOptions>(
   ctx: Context, provider: string, dependencies: Pick<DeepSeekAdapterOptions<C>,
   'options' | 'resolveAuth' | 'providerName' | 'discoverModels' | 'connect' | 'admit'>): void {
   ctx.inject(['settings'], (child) => { child.effect(() => child.settings.configure({ auto: false }, ctx.fiber)) })
   let userId: AnonymousUserId | undefined
-  // These conditions repeat on every request of a route; log each first occurrence only.
+  // 这些状况会在某条路由的每次请求上重复出现；只记录各自首次出现的情况。
   const degradedReplays = new Set<string>()
   const omittedRoutes = new Set<string>()
   const unacceptedRoutes = new Set<string>()

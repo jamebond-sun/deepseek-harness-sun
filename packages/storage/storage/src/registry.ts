@@ -1,5 +1,5 @@
 /**
- * Named backend registry of the storage hub.
+ * 存储中枢的具名后端注册表。
  * @module @deepseek-ai/dsh-storage/src/registry
  */
 
@@ -7,20 +7,18 @@ import type { StorageBackend } from './backend.ts'
 import { StorageError } from './error.ts'
 
 /**
- * Mutable name → backend table. Multiple backends stay mounted side by side;
- * which backend serves which consumer is the consumer's configuration
- * (e.g. the domain layer's route table), never a hub-global choice.
+ * 可变的 名称 → 后端 表。多个后端并排保持挂载状态；哪个后端服务哪个消费者由消费者的配置决定
+ * （例如领域层的路由表），而绝非中枢的全局选择。
  */
 export class BackendRegistry {
   private readonly backends = new Map<string, StorageBackend>()
 
   /**
-   * Register a named backend. Registration is an effect: the returned
-   * disposer removes the name. Disposal does NOT close the backend — the
-   * owning plugin closes it after unregistering.
-   * @param name - Backend name, e.g. `json` or `sqlite`.
-   * @param backend - The backend instance.
-   * @returns the disposer that unregisters the name.
+   * 注册一个具名后端。注册是一种 effect：返回的 disposer 会移除该名称。disposal 并不关闭后端——
+   * 所属的插件会在注销后关闭它。
+   * @param name - 后端名称，例如 `json` 或 `sqlite`。
+   * @param backend - 后端实例。
+   * @returns 注销该名称的 disposer。
    */
   register(name: string, backend: StorageBackend): () => void {
     if (this.backends.has(name)) {
@@ -28,8 +26,7 @@ export class BackendRegistry {
     }
     this.backends.set(name, backend)
     return () => {
-      // Remove only this registration's contribution: after dispose + re-register,
-      // a stale disposer firing again must not remove the successor.
+      // 仅移除本次注册所贡献的部分：在 dispose + 重新注册之后，过期的 disposer 再次触发时不得移除后继者。
       if (this.backends.get(name) === backend) {
         this.backends.delete(name)
       }
@@ -37,9 +34,9 @@ export class BackendRegistry {
   }
 
   /**
-   * Resolve a backend by name.
-   * @param name - Registered backend name.
-   * @returns the backend.
+   * 按名称解析一个后端。
+   * @param name - 已注册的后端名称。
+   * @returns 后端。
    */
   get(name: string): StorageBackend {
     const backend = this.backends.get(name)
@@ -53,8 +50,8 @@ export class BackendRegistry {
   }
 
   /**
-   * Registered backend names, for diagnostics.
-   * @returns a snapshot array of names.
+   * 已注册的后端名称，用于诊断。
+   * @returns 名称的快照数组。
    */
   names(): string[] {
     return [...this.backends.keys()]

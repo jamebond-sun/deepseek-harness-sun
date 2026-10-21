@@ -1,4 +1,4 @@
-/** Authenticated, cancellation-aware Client access to the speech capability. */
+/** 经过鉴权、且能感知取消的、面向 Client 的语音能力访问。 */
 import { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { Remote, RemoteError, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
@@ -11,16 +11,16 @@ export type * from './types.ts'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
-    /** Experimental speech Remote controller. */
+    /** 实验性的语音 Remote 控制器。 */
     speechController: SpeechController
   }
 }
 
-/** Limits applied before decoding or calling a provider. */
+/** 在解码或调用提供方之前应用的限制。 */
 export interface Config {
-  /** Maximum decoded WAV bytes per request. */
+  /** 每个请求解码后 WAV 的最大字节数。 */
   maxAudioBytes: number
-  /** Maximum PCM recording duration in seconds. */
+  /** PCM 录音时长的最大秒数。 */
   maxDurationSeconds: number
 }
 
@@ -37,8 +37,8 @@ export default class SpeechController extends TypertRemoteService {
   }
 
   /**
-   * Read provider choices without preparing a recognizer.
-   * @returns available providers, resolved default, and recording limits.
+   * 在不准备识别器的前提下读取提供方选项。
+   * @returns 可用的提供方、已解析的默认值，以及录音限制。
    */
   @Remote
   catalog(): SpeechCatalog {
@@ -46,9 +46,9 @@ export default class SpeechController extends TypertRemoteService {
   }
 
   /**
-   * Follow provider readiness independently of Session and preparation lifetimes.
-   * @param signal - Client observation lifetime.
-   * @returns initial and subsequent complete readiness snapshots.
+   * 独立于 Session 与准备生命周期地跟踪提供方就绪状态。
+   * @param signal - Client 观察的生命周期。
+   * @returns 初始及后续完整的就绪快照。
    */
   @Remote({ mode: 'stream' })
   async *follow(signal: AbortSignal): AsyncIterable<SpeechCatalog> {
@@ -56,34 +56,34 @@ export default class SpeechController extends TypertRemoteService {
   }
 
   /**
-   * Persist the user's recognition preferences.
-   * @param patch - changed preference fields.
-   * @returns after preferences are saved.
+   * 持久化用户的识别偏好。
+   * @param patch - 已变更的偏好字段。
+   * @returns 在偏好被保存之后。
    */
   @Remote
   configure(patch: SpeechSelectionPatch): Promise<void> { return this.ctx.speechToText.configure(patch) }
 
   /**
-   * Start or join one Host-owned preparation task.
-   * @param providerId - selected recognizer.
-   * @param options - task-local source selection validated by the provider.
+   * 启动或加入一个由 Host 拥有的准备任务。
+   * @param providerId - 选定的识别器。
+   * @param options - 由提供方校验的、任务局部的源选择。
    */
   @Remote
   prepare(providerId: SpeechProviderId, options?: SpeechPreparationOptions): void { this.ctx.speechToText.prepare(providerId, options) }
 
   /**
-   * Explicitly cancel resource preparation.
-   * @param providerId - selected recognizer.
-   * @returns after the preparation task settles.
+   * 显式取消资源准备。
+   * @param providerId - 选定的识别器。
+   * @returns 在准备任务结算之后。
    */
   @Remote
   cancelPreparation(providerId: SpeechProviderId): Promise<void> { return this.ctx.speechToText.cancelPreparation(providerId) }
 
   /**
-   * Validate and transcribe one recording through the explicit provider selection.
-   * @param request - canonical WAV encoded as base64, provider id and language hint.
-   * @param signal - Client cancellation or Remote contribution disposal.
-   * @returns final transcript without adding a Session event.
+   * 通过显式的提供方选择，校验并转写一段录音。
+   * @param request - 以 base64 编码的规范 WAV、提供方 id 以及语言提示。
+   * @param signal - Client 取消信号，或 Remote 贡献的销毁信号。
+   * @returns 最终的转写结果，且不新增任何 Session 事件。
    */
   @Remote
   async transcribe(request: TranscriptionRequest, signal: AbortSignal): Promise<Transcript> {

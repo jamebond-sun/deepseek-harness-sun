@@ -1,6 +1,6 @@
 /**
- * Direct-child and recursive descendant discovery from parent-owned catalogs.
- * Each catalog read releases its Session observation before the next branch.
+ * 从父代理自有的目录中发现直接子代理与递归后代。
+ * 每次目录读取在进入下一分支之前释放其 Session 观测。
  * @module @deepseek-ai/dsh-subagent
  */
 
@@ -12,21 +12,21 @@ import type { SubagentCatalogEntry } from './projection-types.ts'
 
 export type { SubagentListEntry } from './control-types.ts'
 
-/** One catalog descendant with its direct parent and edge distance from the requested root. */
+/** 一个目录后代，及其直接父代理和距所请求根节点的边距离。 */
 export type SubagentDescendantListEntry = SubagentListEntry & {
-  /** Parent whose catalog contains this child. */
+  /** 其目录包含该子代理的父代理。 */
   readonly parentId: SessionId
-  /** Edge distance from the requested root; direct children are `1`. */
+  /** 距所请求根节点的边距离；直接子代理为 `1`。 */
   readonly depth: number
 }
 
 /**
- * Read one parent's durable catalog through a live-preferred Session observation.
- * @param ctx - context carrying the Session query service.
- * @param parentSessionId - parent whose direct children are requested.
- * @param signal - cancellation forwarded to the Session observation.
- * @returns direct-child rows in parent catalog event order.
- * @throws {@link SubagentError} when query or catalog projection is unavailable.
+ * 通过实时优先的 Session 观测读取一个父代理的持久化目录。
+ * @param ctx - 承载 Session 查询服务的上下文。
+ * @param parentSessionId - 请求其直接子代理的父代理。
+ * @param signal - 转发给 Session 观测的取消信号。
+ * @returns 按父目录事件顺序排列的直接子代理行。
+ * @throws {@link SubagentError} 当查询或目录投影不可用时。
  */
 export async function listChildren(
   ctx: Context,
@@ -54,12 +54,12 @@ export async function listChildren(
 }
 
 /**
- * Walk reachable parent catalogs in stable pre-order without loading Agents.
- * @see SubagentRuntime.listDescendants for failure and cancellation semantics.
- * @param ctx - context carrying the Session store and query service.
- * @param rootSessionId - parent whose catalog starts the traversal.
- * @param signal - cancellation checked around each catalog read.
- * @returns children and branch diagnostics with catalog parent and depth.
+ * 以稳定的前序遍历可达的父目录，而不加载 Agents。
+ * @see SubagentRuntime.listDescendants 了解失败与取消语义。
+ * @param ctx - 承载 Session store 与查询服务的上下文。
+ * @param rootSessionId - 以其目录开始遍历的父代理。
+ * @param signal - 在每次目录读取前后检查的取消信号。
+ * @returns 带有目录父代理与深度的子代理及分支诊断。
  */
 export async function listDescendants(
   ctx: Context,
@@ -117,7 +117,7 @@ export async function listDescendants(
         hasChildren: children.length > 0,
       })
     }
-    // Catalog event order defines siblings; the stack visits the first one next.
+    // 目录事件顺序定义兄弟次序；栈接下来访问第一个。
     for (const child of [...children].reverse()) {
       stack.push({ entry: child, parentId: entry.id, depth: depth + 1 })
     }
@@ -125,7 +125,7 @@ export async function listDescendants(
   return result
 }
 
-/** Stop the complete traversal when its caller cancels. */
+/** 当调用方取消时中止整个遍历。 */
 function assertListingNotCancelled(signal: AbortSignal | undefined): void {
   if (signal?.aborted) {
     throw new SubagentError('subagent listing was cancelled', 'CANCELLED')

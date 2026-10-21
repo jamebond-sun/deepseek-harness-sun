@@ -1,5 +1,5 @@
 /**
- * Three shared tools adapt model arguments to scoped resource operations.
+ * 三个共享工具把模型参数适配为作用域化的资源操作。
  *
  * @module @deepseek-ai/dsh-mcp-resources
  */
@@ -23,10 +23,10 @@ const output = {
 }
 
 /**
- * Register resource operations in the consumer's tool scope.
- * @param ctx - context owning the tool registrations.
- * @param request - caller-aware resource operation.
- * @returns the effect disposer that removes all three tools synchronously.
+ * 在消费者的工具作用域内注册资源操作。
+ * @param ctx - 持有这些工具注册的上下文。
+ * @param request - 感知调用方的资源操作。
+ * @returns 同步移除全部三个工具的 effect disposer。
  */
 export function registerResourceTools(ctx: Context, request: RequestResource): () => void {
   const dispose = ctx.effect(function* () {
@@ -59,6 +59,6 @@ export function registerResourceTools(ctx: Context, request: RequestResource): (
       execute: (args, exec) => request(args.server, { method: 'resources/read', uri: args.uri }, exec),
     }))
   }, 'mcpResources.resourceTools')
-  // oxlint-disable-next-line typescript/no-misused-promises -- all collected tool disposers are synchronous
+  // oxlint-disable-next-line typescript/no-misused-promises -- 收集到的工具 disposer 都是同步的
   return dispose
 }

@@ -1,10 +1,10 @@
-/** Normalize HTTP and in-band Messages errors into provider-neutral failures. */
+/** 把 HTTP 与带内 Messages 错误规范化为与提供方无关的失败。 */
 
 import { isContextWindowExceededError, isQuotaExceededError, LlmError, ProviderRequestId } from '@deepseek-ai/dsh-llm'
 
-/** Read only provider error fields used by bounded Files recovery.
- * @param raw - decoded HTTP error response.
- * @returns code, type, and message text, without unrelated response fields.
+/** 只读取有界 Files 恢复所使用的提供方错误字段。
+ * @param raw - 已解码的 HTTP 错误响应。
+ * @returns 代码、类型与消息文本，不含无关的响应字段。
  */
 export function providerErrorDetail(raw: unknown): string {
   const error = typeof raw === 'object' && raw !== null && 'error' in raw ? raw.error : undefined
@@ -13,11 +13,11 @@ export function providerErrorDetail(raw: unknown): string {
   return [fields.code, fields.type, fields.message].filter((value): value is string => typeof value === 'string').join(' ')
 }
 
-/** Classify a provider error without trusting arbitrary response fields.
- * @param raw - decoded response or in-band error event.
- * @param status - HTTP status when the error preceded streaming.
- * @param headers - response headers for retry delay and request identity.
- * @returns a stable error consumed by LlmRuntime and llm-retry.
+/** 在不信任任意响应字段的前提下对一个提供方错误分类。
+ * @param raw - 已解码的响应或带内错误事件。
+ * @param status - 当错误发生在流式传输之前时的 HTTP 状态码。
+ * @param headers - 用于重试延迟与请求身份的响应头。
+ * @returns 一个由 LlmRuntime 与 llm-retry 消费的稳定错误。
  */
 export function providerError(raw: unknown, status: number | undefined, headers?: Headers): LlmError {
   const envelope = typeof raw === 'object' && raw !== null ? raw as Record<string, unknown> : {}

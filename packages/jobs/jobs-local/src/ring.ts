@@ -1,13 +1,12 @@
 /**
- * The bounded output ring behind one job: chunks at absolute byte offsets,
- * head eviction that never moves an assigned offset, and non-consuming reads
- * from any offset.
+ * 一个任务背后的有界输出环形缓冲区：位于绝对字节偏移上的块、从不移动已分配偏移的
+ * 头部淘汰，以及从任意偏移开始的非消费型读取。
  * @module @deepseek-ai/dsh-jobs-local/ring
  */
 
 import type { JobAppendOptions, JobChannel, JobOutputRead } from '@deepseek-ai/dsh-jobs'
 
-/** One retained ring entry; `bytes` caches the chunk's UTF-8 length. */
+/** 一个保留下来的环形缓冲区条目；`bytes` 缓存该块的 UTF-8 长度。 */
 interface RingChunk {
   at: number
   text: string
@@ -17,40 +16,38 @@ interface RingChunk {
 }
 
 /**
- * The UTF-8-safe tail of `text` no longer than `maxBytes`: the byte cut
- * advances past continuation bytes so the surviving text never starts inside
- * a code point.
- * @param text - the oversized chunk text.
- * @param maxBytes - positive byte budget for the surviving tail.
- * @returns the surviving tail and its exact byte length.
+ * `text` 不超过 `maxBytes` 的 UTF-8 安全尾部：字节切点会跳过续字节，因此存活下来的
+ * 文本绝不会从某个码点中间开始。
+ * @param text - 超长的块文本。
+ * @param maxBytes - 存活尾部的正字节预算。
+ * @returns 存活下来的尾部及其精确字节长度。
  */
 function utf8Tail(text: string, maxBytes: number): { text: string; bytes: number } {
   const raw = Buffer.from(text, 'utf8')
   let start = raw.length - maxBytes
-  // The loop bound proves the index is in range; the assertion only
-  // discharges noUncheckedIndexedAccess.
+  // 循环边界已经证明下标在范围内；这里的断言只是为了满足 noUncheckedIndexedAccess。
   while (start < raw.length && ((raw[start] as number) & 0xC0) === 0x80) start += 1
   const tail = raw.subarray(start)
   return { text: tail.toString('utf8'), bytes: tail.length }
 }
 
-/** Offsets stay absolute across eviction: `earliest` only ever advances. */
+/** 偏移在淘汰过程中保持绝对：`earliest` 只会向前推进。 */
 export class OutputRing {
-  /** Retained chunks in offset order. */
+  /** 按偏移顺序保留的块。 */
   private readonly chunks: RingChunk[] = []
-  /** Sum of the retained chunks' byte lengths. */
+  /** 保留块字节长度之和。 */
   retainedBytes = 0
-  /** Total UTF-8 bytes ever appended — the offset the next chunk starts at. */
+  /** 曾经追加过的 UTF-8 总字节数——下一个块起始的偏移。 */
   total = 0
-  /** Offset of the oldest retained byte (equals {@link total} when nothing is retained). */
+  /** 最老的保留字节的偏移（什么都没保留时等于 {@link total}）。 */
   earliest = 0
 
   /**
-   * Append one chunk and trim the head to `cap`.
-   * @param text - the chunk text, exactly as produced.
-   * @param options - stream label and gap marker.
-   * @param cap - retention cap in UTF-8 bytes after this append.
-   * @returns false when the chunk was empty and nothing changed.
+   * 追加一个块，并把头部裁剪到 `cap`。
+   * @param text - 与产出完全一致的块文本。
+   * @param options - 流标签与断点标记。
+   * @param cap - 本次追加之后的保留上限，单位 UTF-8 字节。
+   * @returns 当块为空且什么都没改变时返回 false。
    */
   append(text: string, options: JobAppendOptions | undefined, cap: number): boolean {
     if (text.length === 0) return false
@@ -69,14 +66,14 @@ export class OutputRing {
   }
 
   /**
-   * Drop retained head chunks until the ring fits `cap`; a single oversized
-   * chunk keeps only its UTF-8-safe tail with a `gapBefore` marker.
-   * @param cap - retention cap in UTF-8 bytes.
+   * 丢弃保留的头部块，直到环形缓冲区装进 `cap`；单个超大的块只保留其 UTF-8 安全的
+   * 尾部，并带上 `gapBefore` 标记。
+   * @param cap - 保留上限，单位 UTF-8 字节。
    */
   trim(cap: number): void {
     while (this.retainedBytes > cap && this.chunks.length > 1) {
       const dropped = this.chunks.shift()
-      /* v8 ignore next -- the length guard proves shift() returns a chunk; the check only satisfies noUncheckedIndexedAccess. */
+      /* v8 ignore next -- 长度守卫已经证明 shift() 会返回一个块；这个检查只是为了满足 noUncheckedIndexedAccess。 */
       if (dropped === undefined) break
       this.retainedBytes -= dropped.bytes
     }
@@ -93,9 +90,9 @@ export class OutputRing {
   }
 
   /**
-   * Retained chunks overlapping `[from, total)` as fresh wire chunks.
-   * @param from - absolute byte offset to read from.
-   * @returns the chunks, the resume offset, and whether bytes before them were evicted.
+   * 与 `[from, total)` 相交的保留块，作为全新的传输块。
+   * @param from - 起始绝对字节偏移。
+   * @returns 这些块、续读偏移，以及它们之前是否有字节被淘汰。
    */
   readFrom(from: number): JobOutputRead {
     const chunks = []

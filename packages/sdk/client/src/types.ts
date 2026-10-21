@@ -1,6 +1,5 @@
 /**
- * Types for the TypeScript SDK client: launch options, notification shapes,
- * and owned activity results.
+ * TypeScript SDK 客户端的类型：启动选项、通知结构，以及受管活动结果。
  *
  * @module @deepseek-ai/dsh-sdk-client/types
  */
@@ -9,75 +8,74 @@ import type { ContentBlock, ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import type { SdkPromptContentBlock } from '@deepseek-ai/dsh-sdk-protocol'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
 
-/** One server-to-client notification as received off the wire. */
+/** 从线上收到的一条服务端到客户端通知。 */
 export interface HarnessNotification {
-  /** The JSON-RPC notification method name. */
+  /** JSON-RPC 通知方法名。 */
   method: string
-  /** The raw params object; see `HarnessSdkNotificationMap` for the shapes per method. */
+  /** 原始 params 对象；各方法对应的结构参见 `HarnessSdkNotificationMap`。 */
   params: Record<string, unknown>
 }
 
-/** Predicate deciding whether a subscription receives a notification. */
+/** 决定某个订阅是否接收某条通知的判定函数。 */
 export type NotificationFilter = (notification: HarnessNotification) => boolean
 
-/** Launch and timeout options for {@link HarnessClient}. */
+/** {@link HarnessClient} 的启动与超时选项。 */
 export interface HarnessClientOptions {
-  /** Absolute or caller-relative dsh CLI module; omitted resolves this package's same-version dependency. */
+  /** 绝对或相对调用方的 dsh CLI 模块；省略时解析本包的同版本依赖。 */
   dshBin?: string
-  /** Named profile serving the SDK protocol (default `sdk`). */
+  /** 提供 SDK 协议的具名 profile（默认 `sdk`）。 */
   profile?: string
-  /** Ordered per-launch profile patches; relative paths resolve before spawn. */
+  /** 每次启动应用的有序 profile 补丁；相对路径在 spawn 之前解析。 */
   patches?: string[]
-  /** Explicit Harness home for this child; relative paths resolve before spawn. */
+  /** 该子进程的显式 Harness home；相对路径在 spawn 之前解析。 */
   dshHome?: string
-  /** Working directory for the dsh process itself. */
+  /** dsh 进程自身的工作目录。 */
   processCwd?: string
   /**
-   * The complete child environment, read when {@link HarnessClient.start}
-   * spawns. `undefined` reads the parent env at that time; passing an object
-   * reads that object at spawn and replaces the parent environment entirely, so callers own
-   * credential policy (see `scrubbedParentEnv` in `@deepseek-ai/dsh-subprocess`
-   * for the shared scrub-then-merge base).
+   * 完整的子进程环境，在 {@link HarnessClient.start} 启动子进程时读取。
+   * `undefined` 表示届时读取父进程环境；传入对象则在 spawn 时读取该对象，
+   * 并完全替换父进程环境，因此凭据策略由调用方掌握
+   * （共享的「先清洗再合并」基座参见 `@deepseek-ai/dsh-subprocess` 中的 `scrubbedParentEnv`）。
    */
   env?: NodeJS.ProcessEnv
-  /** Bound (ms) on the initial profile handshake (default 10000). */
+  /** 初始 profile 握手的时限（毫秒，默认 10000）。 */
   initializeTimeoutMs?: number
-  /** Per-request timeout (ms); `undefined` waits indefinitely (a turn can legitimately run long). */
+  /** 单请求超时（毫秒）；`undefined` 表示无限等待（一轮本就可能合法地跑很久）。 */
   requestTimeoutMs?: number
-  /** Bound (ms) on the protocol `shutdown` exchange inside `close()` (default 1000). */
+  /** `close()` 内协议 `shutdown` 交互的时限（毫秒，默认 1000）。 */
   shutdownTimeoutMs?: number
-  /** Grace (ms) for the runtime's stdin-EOF quiesce during `close()` (default 6000). */
+  /** `close()` 期间运行时 stdin-EOF 静默的宽限期（毫秒，默认 6000）。 */
   disposeEofGraceMs?: number
-  /** Termination confirmation window (ms) after SIGTERM/SIGKILL during `close()` (default 3000). */
+  /** `close()` 期间 SIGTERM/SIGKILL 之后确认终止的窗口（毫秒，默认 3000）。 */
   disposeGraceMs?: number
 }
 
-/** Options for the high-level {@link DeepSeekHarness} wrapper. */
+/** 高层 {@link DeepSeekHarness} 封装的选项。 */
 export interface DeepSeekHarnessOptions extends HarnessClientOptions {
-  /** Workspace cwd recorded on every SDK-created session (default: the process cwd, else `process.cwd()`). */
+  /** 记录在每个 SDK 所创建 session 上的工作区 cwd（默认：进程 cwd，否则为 `process.cwd()`）。 */
   cwd?: string
-  /** Provider route for SDK-created agents (default `deepseek-official`). */
+  /** SDK 创建的 agent 所使用的 provider 路由（默认 `deepseek-official`）。 */
   provider?: string
-  /** Model for SDK-created agents (default `deepseek-v4-flash`). */
+  /** SDK 创建的 agent 所使用的模型（默认 `deepseek-v4-flash`）。 */
   model?: string
-  /** Adapter-owned reasoning effort for the selected provider/model route. */
+  /** 所选 provider/model 路由上由适配器拥有的推理强度。 */
   reasoningEffort?: ReasoningEffortId
-  /** Maximum output tokens for each conversation-model request. */
+  /** 每次会话模型请求的最大输出 token 数。 */
   maxTokens?: number
 }
 
-/** One owned session activity interval, from enqueue receipt through idle. */
+/** 一段受管的 session 活动区间，从入队回执一直到空闲。 */
 export interface RunResult {
-  /** The session the activity ran on. */
+  /** 活动所运行的 session。 */
   sessionId: string
-  /** Concatenated text of the interval's last assistant message (empty when none). */
+  /** 该区间最后一条助手消息的拼接文本（没有时为空）。 */
   finalResponse: string
-  /** Every `session.event` payload for the root session, in wire order. */
+  /** 根 session 的每一条 `session.event` 载荷，按线上顺序排列。 */
   events: SessionEvent[]
-  /** Every notification for the root session and discovered descendants, in wire order. */
+  /** 根 session 及已发现后代的每一条通知，按线上顺序排列。 */
   notifications: HarnessNotification[]
 }
 
-/** Re-exported content-block alias so SDK callers need no extra import. */
+/** 重新导出的内容块别名，使 SDK 调用方无需额外 import。 */
 export type { ContentBlock }
 export type { SdkPromptContentBlock }

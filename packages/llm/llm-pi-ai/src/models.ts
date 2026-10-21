@@ -1,4 +1,4 @@
-/** pi-ai model helpers assembled from public narrow entry points. */
+/** 由公开且窄的入口点组装出来的 pi-ai 模型辅助函数。 */
 
 import { builtinModels } from '@earendil-works/pi-ai/providers/all'
 import type {
@@ -14,7 +14,7 @@ import type {
 import type { LlmResolvedModelInfo } from '@deepseek-ai/dsh-llm'
 import { THINKING_LEVELS } from './catalog.ts'
 
-/** Input accepted by the static, single-protocol providers this package builds. */
+/** 本包所构建的那类静态、单协议提供方所接受的输入。 */
 interface StaticProviderOptions {
   id: string
   name: string
@@ -25,9 +25,9 @@ interface StaticProviderOptions {
 }
 
 /**
- * Create an empty pi-ai collection without importing its aggregate entry point.
- * @param options - credential storage and ambient authentication integrations.
- * @returns a mutable collection with no registered providers.
+ * 创建一个空的 pi-ai 集合，而不导入它的聚合入口点。
+ * @param options - 凭据存储与环境认证的集成。
+ * @returns 一个没有注册任何提供方的可变集合。
  */
 export function createModels(options?: CreateModelsOptions): MutableModels {
   const models = builtinModels(options)
@@ -36,9 +36,9 @@ export function createModels(options?: CreateModelsOptions): MutableModels {
 }
 
 /**
- * Create the static, single-protocol provider used by configured custom routes.
- * @param input - provider identity, models, authentication, and protocol implementation.
- * @returns a provider that delegates each operation to the supplied protocol.
+ * 创建被已配置的自定义路由所使用的那个静态、单协议提供方。
+ * @param input - 提供方身份、各个模型、认证方式，以及协议实现。
+ * @returns 一个把每个操作委派给所提供协议的提供方。
  */
 export function createProvider(input: StaticProviderOptions): Provider {
   return {
@@ -53,9 +53,9 @@ export function createProvider(input: StaticProviderOptions): Provider {
 }
 
 /**
- * Resolve selectable reasoning levels from pi-ai's public model metadata.
- * @param model - model descriptor carrying reasoning support and wire mappings.
- * @returns supported levels in pi-ai's escalation order.
+ * 从 pi-ai 公开的模型元数据解析可选的推理强度。
+ * @param model - 携带推理支持与线路映射的模型描述符。
+ * @returns 按 pi-ai 的递增顺序排列的、受支持的强度。
  */
 export function getSupportedThinkingLevels(model: Model<Api>): ModelThinkingLevel[] {
   if (!model.reasoning) return ['off']
@@ -68,9 +68,9 @@ export function getSupportedThinkingLevels(model: Model<Api>): ModelThinkingLeve
 }
 
 /**
- * Resolve transcript update modes from the exact model's protocol capabilities.
- * @param model - Materialized pi-ai model, including catalog compatibility flags.
- * @returns Update modes consumed by prompt admission and tool-history projection.
+ * 从该精确模型的协议能力解析对话更新模式。
+ * @param model - 已物化的 pi-ai 模型，包含目录兼容性标记。
+ * @returns 由提示准入与工具历史投影所消费的那些更新模式。
  */
 export function conversationUpdates(model: Model<Api>): Pick<LlmResolvedModelInfo, 'systemPromptUpdate' | 'toolUpdate'> {
   const compat = model.compat

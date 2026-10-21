@@ -1,6 +1,6 @@
 /**
- * Resolution options for filesystem calls in the Session's current directory.
- * Non-agent calls leave directory defaults to the filesystem provider.
+ * 在会话当前目录下执行文件系统调用所用的解析选项。
+ * 非 agent 调用把目录默认值留给文件系统提供者决定。
  * @module @deepseek-ai/dsh-tool-fs/session-cwd
  */
 
@@ -9,10 +9,10 @@ import type { ToolExecution } from '@deepseek-ai/dsh-tools'
 import type {} from '@deepseek-ai/dsh-working-directory'
 
 /**
- * Resolve the current directory and cancellation for a filesystem call.
- * @param ctx - context containing the working-directory service.
- * @param exec - tool execution supplying the agent and cancellation.
- * @returns filesystem resolution options for this call.
+ * 解析一次文件系统调用所用的当前目录与取消信号。
+ * @param ctx - 包含工作目录服务的上下文。
+ * @param exec - 提供 agent 与取消信号的工具执行。
+ * @returns 本次调用的文件系统解析选项。
  */
 export async function sessionResolveOptions(
   ctx: Context,

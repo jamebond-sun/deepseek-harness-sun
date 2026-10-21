@@ -1,17 +1,17 @@
-/** Exact top-level payload disposition frozen for every released-v0 event type. */
+/** 为每个 released-v0 事件类型冻结的精确顶层载荷处置方式。 */
 export interface ReleasedV0PayloadDisposition {
   readonly required: readonly string[]
   readonly optional: readonly string[]
-  /** JSON members whose nested representation is intentionally owner-opaque. */
+  /** 其嵌套表示有意保持为持有者不透明的 JSON 成员。 */
   readonly opaque: readonly string[]
 }
 
 /**
- * Freeze one exact released payload-member disposition for adjacent format validators.
- * @param required - members that must be present.
- * @param optional - additional admitted members.
- * @param opaque - members retained as lossless JSON without nested semantic inspection.
- * @returns the detached frozen disposition.
+ * 为相邻格式校验器冻结一份精确的 released 载荷成员处置方式。
+ * @param required - 必须存在的成员。
+ * @param optional - 额外被接纳的成员。
+ * @param opaque - 作为无损 JSON 保留、不做嵌套语义检查的成员。
+ * @returns 已分离的冻结处置方式。
  */
 export function defineReleasedPayloadDisposition(
   required: readonly string[],
@@ -28,11 +28,10 @@ export function defineReleasedPayloadDisposition(
 const disposition = defineReleasedPayloadDisposition
 
 /**
- * Frozen released-v0 event and payload-member inventory.
- * Every listed member is preserved by the identity edge. Members in `opaque`
- * remain lossless JSON without nested Session-sequence interpretation. Nested
- * merge-extensible discriminants validate known variants and preserve
- * unknown variants as owner-opaque JSON.
+ * 已冻结的 released-v0 事件与载荷成员清单。
+ * 恒等边会保留列出的每个成员。`opaque` 中的成员保持为无损 JSON，
+ * 不做嵌套的 Session 序列解释。嵌套的可合并扩展判别式校验已知变体，
+ * 并将未知变体作为持有者不透明的 JSON 保留。
  */
 export const RELEASED_V0_EVENT_DISPOSITIONS: Readonly<Record<string, ReleasedV0PayloadDisposition>> = Object.freeze({
   'agent-preset/selected': disposition(['agentPreset']),
@@ -125,7 +124,7 @@ export const RELEASED_V0_EVENT_DISPOSITIONS: Readonly<Record<string, ReleasedV0P
   'web/deepseek-search-llm-request': disposition(['endpoint', 'apiVersion', 'body']),
 })
 
-/** Stable sorted released-v0 event inventory. */
+/** 稳定排序的 released-v0 事件清单。 */
 export const RELEASED_V0_EVENT_TYPES: readonly string[] = Object.freeze(
   Object.keys(RELEASED_V0_EVENT_DISPOSITIONS).sort((left, right) => left.localeCompare(right, 'en')),
 )

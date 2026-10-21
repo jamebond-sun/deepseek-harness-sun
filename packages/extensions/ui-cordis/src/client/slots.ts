@@ -1,4 +1,4 @@
-/** Injected faces and the Package-owned `tool.view.cordis` slot declaration. */
+/** 注入的 faces 与 Package 自有的 `tool.view.cordis` 槽位声明。 */
 
 import type { SessionId } from '@deepseek-ai/dsh-api-remotes/client'
 import type { HostObservable } from '@deepseek-ai/dsh-client-ui-slots'
@@ -13,7 +13,7 @@ import type {
   ApprovalRequestId, CordisDynamicPackageId, CordisDynamicPluginId, CordisDynamicPluginRunId,
 } from './events.ts'
 
-/** Owner currency delivered to a dynamic Package's business view. */
+/** 交付给动态 Package 业务视图的拥有者信息。 */
 export interface CordisToolViewOwnerProps {
   readonly pluginId: CordisDynamicPluginId
   readonly packageId: CordisDynamicPackageId
@@ -23,10 +23,10 @@ export interface CordisToolViewOwnerProps {
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface SlotMap {
     /**
-     * Interactive Package-owned region rendered inside the latest eligible
-     * `cordis_run` card in the conversation flow. Use it for controls and other
-     * UI the user can interact with. Dynamic Client code registers with
-     * `key: 'self'`; the Guard binds that key to the current Plugin and Package.
+     * 在对话流中最新合格 `cordis_run` 卡片内渲染的、Package 自有的
+     * 交互区域。用它放置控件以及用户可交互的其它
+     * UI。动态 Client 代码以
+     * `key: 'self'` 注册；Guard 将该键绑定到当前的 Plugin 与 Package。
      */
     'tool.view.cordis': {
       kind: 'keyed'
@@ -36,7 +36,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
   }
 }
 
-/** Live facts used by the read-only Define card. */
+/** 只读 Define 卡片所使用的活动事实。 */
 export interface CordisCardFace {
   hooks: {
     inventory: CordisInventory
@@ -44,17 +44,17 @@ export interface CordisCardFace {
   }
 }
 
-/** Live facts used by the Run card and its business-view ownership index. */
+/** Run 卡片及其业务视图归属索引所使用的活动事实。 */
 export interface CordisRunCardFace extends CordisCardFace {
   hooks: CordisCardFace['hooks'] & {
     runCards: CordisRunCardStore
     activeRuns: HostObservable<ReadonlyMap<CordisDynamicPluginId, CordisRunActivity>>
   }
-  /** Publish this successful result into the session's latest-card index. */
+  /** 将本成功结果发布进会话的最新卡片索引。 */
   onObserveRunCard(pointer: CordisRunCardPointer): void
 }
 
-/** Frame-wide panel state and lifecycle verbs. */
+/** 全框架面板状态与生命周期动词。 */
 export interface CordisPanelFace {
   hooks: {
     inventory: CordisInventory

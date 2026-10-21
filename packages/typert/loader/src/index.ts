@@ -1,26 +1,20 @@
 /**
- * Typert Loader integration: automatic registration for mounted plugin packages.
+ * Typert Loader 集成：为已挂载的插件包提供自动注册。
  *
- * When a loader entry mounts, this plugin resolves the entry's package.json; a
- * package exporting `./typert` has its host face imported and its
- * `TYPERT` manifest registered into `ctx.typert`, and the registration is
- * withdrawn when the entry unmounts. Explicit `packages` cover plugins nested
- * behind another Loader entry, whose Cordis fibers carry no resolvable package
- * specifier. Packages without the export are skipped silently when discovered
- * from Loader entries; an explicit package or declared artifact that is broken
- * fails loud — aggregated into this plugin's activation throw for existing
- * entries, contained to a logged error per package in steady state.
+ * 当某个 Loader 入口挂载时，本插件解析该入口的 package.json；一个导出了
+ * `./typert` 的包会被导入其 host 端，并将其 `TYPERT` 清单注册进 `ctx.typert`，
+ * 并在入口卸载时撤回注册。显式的 `packages` 覆盖嵌套在另一个 Loader 入口之后
+ * 的插件——它们的 Cordis fiber 不携带可解析的包说明符。从 Loader 入口发现、
+ * 却没有该导出的包会被静默跳过；一个显式包或已声明产物若已损坏则会显式失败——
+ * 汇总进本插件对既有入口的激活抛出，稳态下则收敛为每个包一条已记录的错误。
  *
- * Scanning is incremental per entry name. Every cordis `internal/plugin`
- * emission marks the fiber's entry name dirty, and a microtask flush
- * reconciles each dirty name against the live
- * loader entries; the activation pass seeds the same dirty set with all
- * current entries. Package verdicts and imported manifests are cached per
- * package name and never expire — plugin-set changes take effect on restart.
+ * 扫描按入口名增量进行。每次 Cordis `internal/plugin` 事件都将对应 fiber 的
+ * 入口名标记为脏，一个微任务冲刷再将每个脏名与存活的 loader 入口对账；激活
+ * 阶段以当前所有入口为初始脏集合。包判定与已导入的清单按包名缓存且永不失效——
+ * 插件集合的变更需重启后生效。
  *
- * Manual `ctx.typert.register()` remains available for contributions
- * that do not use a `./typert` artifact (hand-written wire schemas,
- * tests, non-loader compositions).
+ * 手动 `ctx.typert.register()` 仍可用于不使用 `./typert` 产物的贡献
+ * （手写传输线 schema、测试、非 Loader 组合）。
  *
  * @module @deepseek-ai/dsh-typert-loader
  */
@@ -36,21 +30,21 @@ import type {} from '@deepseek-ai/dsh-app-boot'
 import type {} from '@deepseek-ai/dsh-typert-registry'
 import type { TypertContribution } from '@deepseek-ai/dsh-typert-registry/types'
 
-/** The package.json exports key naming a package's host-face typert artifact. */
+/** 命名一个包的 host 端 typert 产物的 package.json exports 键。 */
 export const TYPERT_HOST_EXPORT = './typert'
 
-/** Cordis plugin name. */
+/** Cordis 插件名。 */
 export const name = 'typert-loader'
 /** Services required before registration: the registry this plugin feeds and the Loader it observes. */
 export const inject = ['typert', 'loader']
 
-/** Additional package artifacts whose owning plugins are nested behind another Loader entry. */
+/** 其拥有插件嵌套在另一个 Loader 入口之后的、额外的包产物。 */
 export interface Config {
-  /** Exact npm package names that must resolve and export `./typert`. */
+  /** 必须解析并导出 `./typert` 的精确 npm 包名。 */
   packages?: string[]
 }
 
-/** Validate explicit package names and default to Loader-entry discovery only. */
+/** 校验显式包名，并默认仅做 Loader 入口发现。 */
 export const Config: z<Config> = z.object({
   packages: z.array(z.string().min(1)).default([]),
 })
@@ -64,7 +58,7 @@ interface TypertArtifact {
 
 const MEMBER_KINDS = new Set(['property', 'method', 'getter', 'setter', 'call', 'construct', 'index'])
 
-/** Resolve the `./typert` export to a relative path, accepting the string and one-level conditional forms. */
+/** 将 `./typert` 导出解析为相对路径，接受字符串与一层条件导出形式。 */
 function typertExportOf(pkgName: string, exportsField: unknown): string | undefined {
   if (typeof exportsField !== 'object' || exportsField === null) return undefined
   const target = (exportsField as Record<string, unknown>)[TYPERT_HOST_EXPORT]
@@ -295,7 +289,7 @@ function requireSchemaProjection(pkgName: string, value: Record<string, unknown>
   if (typeof value.create !== 'function') {
     throw new Error(`typert-loader: ${pkgName} ${subject} has no create() factory`)
   }
-  // Inspect supplied data without invoking the factory's cached projection getters.
+  // 检查提供的数据，但不调用工厂缓存的投影 getter。
   const fields = Object.getOwnPropertyDescriptors(value)
   for (const key of ['description', 'jsonSchemaError']) {
     const field: unknown = fields[key]?.value
@@ -322,16 +316,14 @@ function requireStrictCodec(pkgName: string, value: unknown, subject: string): v
 }
 
 /**
- * Scan current Loader entries during activation, then follow entry mounts and
- * unmounts for this plugin's lifetime.
- * @param ctx - plugin context carrying `typert` and `loader`.
- * @param config - explicit package artifacts in addition to Loader entries.
+ * 在激活期间扫描当前的 Loader 入口，随后在本插件生命周期内跟踪入口的
+ * 挂载与卸载。
+ * @param ctx - 携带 `typert` 与 `loader` 的插件上下文。
+ * @param config - 除 Loader 入口外的显式包产物。
  */
 export async function apply(ctx: Context, config: Config): Promise<void> {
-  // Resolution anchor: the config tree's baseUrl (the cordis.yml directory,
-  // whose package declares every composed plugin as a dependency). This
-  // package's own URL would miss sibling packages under pnpm's isolated
-  // node_modules.
+  // 解析锚点：配置树的 baseUrl（即 cordis.yml 目录，其 package 将每个组合的
+  // 插件声明为依赖）。本包自身的 URL 会错过 pnpm 隔离 node_modules 下的兄弟包。
   if (ctx.baseUrl === undefined) {
     throw new Error('typert-loader: ctx.baseUrl is unset — the loader needs the config-tree anchor to resolve plugin packages')
   }
@@ -339,15 +331,15 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
   const require = createRequire(baseUrl)
   const configured = new Set((config as ResolvedConfig).packages)
 
-  // Registered contributions by entry name; the disposer withdraws the entry's registration.
+  // 按入口名登记的贡献；释放器撤回该入口的注册。
   const registered = new Map<string, () => Promise<void>>()
-  // In-flight import/register tasks by entry name.
+  // 按入口名进行的、在途的导入/注册任务。
   const pending = new Map<string, Promise<void>>()
-  // Artifact paths by package name. Negative verdicts (unresolvable specifier —
-  // unconfigured loader builtins and subpath rows — or no typert export) are
-  // cached as null and never expire: plugin-set changes take effect on restart.
+  // 按包名的产物路径。否定判定（无法解析的说明符——
+  // 未配置的 loader 内置项与子路径行——或无 typert 导出）被缓存为 null 且
+  // 永不失效：插件集合的变更需重启后生效。
   const artifactPath = new Map<string, TypertArtifact | null>()
-  // Imported+validated manifests by package name (one import per package per process).
+  // 按包名缓存的、已导入并校验的清单（每个包每个进程仅导入一次）。
   const manifests = new Map<string, Promise<TypertContribution>>()
   const dirty = new Set<string>()
   let flushQueued = false
@@ -389,8 +381,8 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
           { cause },
         )
       }
-      // Not a resolvable package root: loader builtins (cordis:include) and
-      // subpath entries land here — permanently not a typert contributor.
+      // 不是可解析的包根：loader 内置项（cordis:include）与子路径入口落到这里——
+      // 永久不是 typert 贡献者。
       artifactPath.set(pkgName, null)
       return null
     }
@@ -443,12 +435,12 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
     const artifact = resolveArtifact(entryName)
     if (artifact === null) return undefined
     const task = loadManifest(artifact.packageName, artifact.path).then((manifest) => {
-      // The entry may have unmounted (or already re-registered) while the import was in flight.
+      // 入口可能在导入进行期间已卸载（或已重新注册）。
       if (!active || !qualifies(entryName) || registered.has(entryName)) return
       registered.set(entryName, ctx.typert.register(manifest))
     })
     pending.set(entryName, task)
-    // Two-armed settle: a bare .finally() would mint a second, unhandled rejection.
+    // 双臂式 settle：裸 .finally() 会制造第二个未被处理的拒绝。
     const settle = (): void => { pending.delete(entryName) }
     void task.then(settle, settle)
     return task
@@ -462,17 +454,16 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
         const task = processOne(entryName)
         if (task !== undefined) tasks.push(task.catch((error: unknown) => { onError(toError(error)) }))
       } catch (error) {
-        // Steady state: one broken package must not poison the others; the
-        // activation pass aggregates these into a loud throw instead.
+        // 稳态：一个损坏的包绝不能毒化其他包；激活阶段会将这些
+        // 汇总为一次显式抛出。
         onError(toError(error))
       }
     }
     return tasks
   }
 
-  // Subscribe before seeding so an entry arriving mid-activation lands in the
-  // same dirty set (Set idempotence makes the overlap harmless). An entry-less
-  // fiber is a child plugin or a manual mount — never a loader row; O(1) drop.
+  // 在播种前订阅，以便激活中途到达的入口落入同一脏集合（Set 的幂等性使重叠无害）。
+  // 无入口的 fiber 是子插件或手动挂载——绝不可能是 loader 行；O(1) 丢弃。
   ctx.on('internal/plugin', (fiber) => {
     const entryName = fiber.entry?.options.name
     if (entryName === undefined) return
@@ -486,9 +477,8 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
     })
   })
 
-  // Activation pass: the initial scan IS the incremental path over the current
-  // entries; a malformed typert contributor among the already-loaded entries
-  // aggregates into one loud throw (FAILED loader fiber; the boot sweep reports it).
+  // 激活阶段：初始扫描就是针对当前入口的增量路径；已加载入口中某个畸形的
+  // typert 贡献者会被汇总为一次显式抛出（导致 Loader fiber 失败；启动扫描会报告它）。
   for (const packageName of configured) dirty.add(packageName)
   for (const entry of ctx.loader.entries()) dirty.add(entry.options.name)
   const failures: Error[] = []
@@ -501,7 +491,7 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
   }
 }
 
-/** Normalize an arbitrary import or manifest failure to an Error. */
+/** 将任意导入或清单失败规整为一个 Error。 */
 function toError(error: unknown): Error {
   return error instanceof Error ? error : new Error(String(error))
 }

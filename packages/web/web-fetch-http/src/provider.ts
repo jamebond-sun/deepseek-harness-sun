@@ -1,8 +1,7 @@
 /**
- * Safe HTTP(S) retrieval for `ctx.web`: validates and pins public IP destinations, follows
- * only same-origin redirects, enforces time and size limits, classifies and decodes text,
- * and leaves presentation to `@deepseek-ai/dsh-tool-web`. Requests carry no browser cookies
- * or ambient credentials.
+ * 面向 `ctx.web` 的安全 HTTP(S) 检索：验证并钉死公共 IP 目标，仅跟随同源重定向，强制实施
+ * 时间与大小限制，分类并解码文本，并将呈现交给 `@deepseek-ai/dsh-tool-web`。请求不携带任何
+ * 浏览器 Cookie 或环境凭据。
  * @module @deepseek-ai/dsh-web-fetch-http/provider
  */
 
@@ -15,40 +14,40 @@ import { isNonPublicIpLiteral, publicHttpNetwork } from './network.ts'
 import type { PublicAddress } from './network.ts'
 import { classifyContentType, decoderForCharset, isSameOrigin, parseCharset, validateFetchUrl } from './policy.ts'
 
-/** Resolved provider limits (the plugin's schemastery Config supplies defaults). */
+/** 已解析的提供方限制（插件的 schemastery Config 提供默认值）。 */
 export interface HttpFetchLimits {
-  /** Maximum response body size in bytes (read is aborted past this). */
+  /** 响应正文的最大字节数（超限即中止读取）。 */
   maxResponseBytes: number
-  /** Maximum decoded body length in characters (truncated past this). */
+  /** 已解码正文的最大字符数（超限即截断）。 */
   maxBodyChars: number
-  /** Default fetch timeout in milliseconds. */
+  /** 默认抓取超时（毫秒）。 */
   timeoutMs: number
-  /** Maximum number of (same-origin) redirect hops to follow. */
+  /** 要跟随的（同源）重定向跳数上限。 */
   maxRedirects: number
-  /** `User-Agent` header sent on every request. */
+  /** 每次请求发送的 `User-Agent` 头。 */
   userAgent: string
 }
 
-/** Resolve one hostname to an already policy-validated address set. */
+/** 将一个主机名解析为一组已通过策略验证的地址。 */
 export type HttpFetchResolver = (hostname: string, signal: AbortSignal) => Promise<PublicAddress[]>
 
-/** Stable id this provider registers under. */
+/** 本提供方注册的固定 id。 */
 export const LOCAL_FETCH_PROVIDER_ID = 'http'
 
-/** The anonymous public HTTP(S) fetch provider. */
+/** 匿名公共 HTTP(S) 抓取提供方。 */
 export class HttpFetchProvider implements WebFetchProvider {
   readonly id = LOCAL_FETCH_PROVIDER_ID
 
   /**
-   * @param limits - resolved transport and response limits.
-   * @param resolveAddresses - resolver that rejects non-public destinations before returning.
+   * @param limits - 已解析的传输与响应限制。
+   * @param resolveAddresses - 在返回前拒绝非公共目标的解析器。
    */
   constructor(
     private readonly limits: HttpFetchLimits,
     private readonly resolveAddresses: HttpFetchResolver = publicHttpNetwork.resolve,
   ) {}
 
-  /** No credentials to check — an anonymous public fetcher is always usable. */
+  /** 没有需检查的凭据 —— 匿名公共抓取器始终可用。 */
   available(): boolean {
     return true
   }
@@ -56,13 +55,13 @@ export class HttpFetchProvider implements WebFetchProvider {
   async fetch(request: WebFetchRequest, signal?: AbortSignal): Promise<WebFetchResult> {
     if (signal?.aborted) throw new WebError('web fetch aborted', 'WEB_ABORTED')
 
-    // One signal stops both the request and body read. The deadline's TimeoutReason later
-    // distinguishes this provider's timeout from caller or outer-deadline cancellation.
+    // 同一个信号同时停止请求与正文读取。deadline 的 TimeoutReason 随后
+    // 区分本提供方的超时与调用方或外层 deadline 的取消。
     using d = deadline(signal, this.limits.timeoutMs, 'WEB_FETCH_TIMEOUT')
     return await this.followAndRead(request.url, d.signal)
   }
 
-  /** Follow same-origin redirects up to the hop cap, then read the final response. */
+  /** 跟随同源重定向直到跳数上限，然后读取最终响应。 */
   private async followAndRead(initialUrl: string, signal: AbortSignal): Promise<WebFetchResult> {
     let currentUrl = validateFetchUrl(initialUrl)
     let redirectsFollowed = 0
@@ -72,22 +71,21 @@ export class HttpFetchProvider implements WebFetchProvider {
       const { response } = request
       try {
         if (isRedirectStatus(response.status)) {
-          // Enforce the redirect budget before resolving or validating the next hop.
+          // 在解析或验证下一跳之前强制实施重定向预算。
           if (redirectsFollowed >= this.limits.maxRedirects) {
             await response.body?.cancel()
             throw new WebError(`exceeded the maximum of ${this.limits.maxRedirects} redirects`, 'WEB_REDIRECT_BLOCKED')
           }
           const location = response.headers.get('location')
           if (location === null) {
-            // A redirect status with no Location is not a usable resource. Cancel
-            // the (possibly streaming) body before throwing so no socket leaks.
+            // 一个没有 Location 的重定向状态不是可用资源。在抛出之前取消
+            // （可能正在流式传输的）正文，以免 socket 泄漏。
             await response.body?.cancel()
             throw new WebError(`redirect response (HTTP ${response.status}) without a Location header`, 'WEB_PROVIDER_ERROR')
           }
           const target = resolveRedirect(location, currentUrl)
-          // Re-validate the target against the same transport hygiene a direct request gets: a
-          // redirect must not be a back door to a credentialed, non-http(s), or over-long URL
-          // that validateFetchUrl would reject.
+          // 针对同一套直接请求所获得的传输卫生重新验证目标：重定向绝不能成为通往
+          // 带凭据、非 http(s) 或过长 URL 的后门，而 validateFetchUrl 本应拒绝它。
           let validatedTarget: URL
           try {
             validatedTarget = validateFetchUrl(target.toString())
@@ -120,17 +118,15 @@ export class HttpFetchProvider implements WebFetchProvider {
       'accept': 'text/html,application/xhtml+xml,text/*;q=0.9,application/json;q=0.8',
     }
     try {
-      // A proxied hop skips public-address resolution and pinning: the proxy performs the origin's
-      // DNS, so there is no local address to validate, and pinning one would connect directly and
-      // bypass the proxy. A hop the policy bypasses — every loopback and every `NO_PROXY` entry —
-      // still takes the resolved-and-pinned path unchanged.
+      // 一个经过代理的跳转跳过公共地址解析与钉死：代理执行源站的 DNS，因此没有
+      // 可供验证的本地地址，而钉死一个地址会直达连接并绕开代理。一个被策略绕过的
+      // 跳转 —— 每个回环地址和每个 `NO_PROXY` 条目 —— 仍走未改变的解析并钉死路径。
       //
-      // One route decides both the branch and the dispatcher, so a mount or disposal between two
-      // reads cannot return a direct, unpinned agent for a URL this branch cleared as proxied.
+      // 一条路由同时决定分支与分发器，因此两次读取之间的挂载或处置无法为这个分支已清为
+      // 已代理的 URL 返回直达的、未钉死的代理。
       //
-      // An IP literal the address checks would refuse never takes it. The proxy would resolve
-      // nothing — the address is already stated — so the shortcut would spend the checks for
-      // nothing and let a proxy on this machine reach the very service they keep out of reach.
+      // 地址检查会拒绝的 IP 字面量绝不会走该路径。代理解析不了任何东西 —— 地址已经给出 ——
+      // 因此这条捷径会为检查白忙一场，并让本机上的代理到达它本要将之挡在可达范围之外的服务。
       const route = proxyRouteFor(url)
       if (route.proxied && !isNonPublicIpLiteral(url.hostname)) {
         return await publicHttpNetwork.requestVia(route.dispatcher, url, headers, signal)
@@ -143,7 +139,7 @@ export class HttpFetchProvider implements WebFetchProvider {
     }
   }
 
-  /** Read, byte-cap, classify, and decode the final response body. */
+  /** 读取、按字节截断、分类并解码最终响应正文。 */
   private async readBody(response: Response, finalUrl: URL, signal: AbortSignal): Promise<WebFetchResult> {
     const contentType = response.headers.get('content-type')
     const kind = classifyContentType(contentType)
@@ -152,9 +148,8 @@ export class HttpFetchProvider implements WebFetchProvider {
       throw new WebError(`unsupported content type "${contentType ?? 'unknown'}"`, 'WEB_UNSUPPORTED_CONTENT_TYPE')
     }
 
-    // Resolve the decoder BEFORE reading the body so an unsupported charset
-    // fails without consuming the stream — but cancel the body on that failure
-    // so the socket does not leak (matching the unsupported-content-type path).
+    // 在读取正文之前解析解码器，使得不支持的 charset 在消费流之前就失败 —— 但在该失败时
+    // 取消正文，以免 socket 泄漏（与不支持内容类型的路径一致）。
     let decoder: TextDecoder
     try {
       decoder = decoderForCharset(parseCharset(contentType))
@@ -177,10 +172,9 @@ export class HttpFetchProvider implements WebFetchProvider {
   }
 
   /**
-   * Read the response stream up to `maxResponseBytes`. A `Content-Length` over
-   * the cap rejects immediately with `WEB_FETCH_TOO_LARGE`; a stream that grows
-   * past the cap is cut short (`truncatedByBytes`) rather than rejected, so a
-   * server that under-reports still yields a bounded usable body.
+   * 读取响应流直到 `maxResponseBytes`。声明长度超过上限会立即以 `WEB_FETCH_TOO_LARGE` 拒绝；
+   * 在超限后继续增长的流会被截断（`truncatedByBytes`）而非拒绝，因此一个少报长度的服务器仍能
+   * 产生一个有界的可用正文。
    */
   private async readCapped(response: Response, signal: AbortSignal): Promise<{ bytes: Uint8Array; truncatedByBytes: boolean }> {
     const declared = response.headers.get('content-length')
@@ -192,22 +186,21 @@ export class HttpFetchProvider implements WebFetchProvider {
       }
     }
 
-    /* v8 ignore next -- a 2xx Response from fetch always exposes a body stream; the null guard is defensive. */
+    /* v8 ignore next -- fetch 返回的 2xx 响应总是暴露一个正文流；null 守卫是防御性的。 */
     if (response.body === null) return { bytes: new Uint8Array(0), truncatedByBytes: false }
 
     const chunks: Uint8Array[] = []
     let total = 0
     let truncatedByBytes = false
-    // Undici exposes response chunks as `any`; Fetch guarantees body chunks are Uint8Array.
+    // Undici 将响应块暴露为 `any`；Fetch 保证正文块是 Uint8Array。
     const reader = response.body.getReader() as ReadableStreamDefaultReader<Uint8Array>
     try {
       for (;;) {
         const { done, value } = await reader.read()
         if (done) break
         const remaining = this.limits.maxResponseBytes - total
-        // Only DROPPED bytes count as truncation: a chunk that exactly fills the
-        // remaining capacity keeps all its bytes and we read on to observe EOF,
-        // so an exactly-at-cap body is not falsely flagged truncated.
+        // 只有被丢弃的字节才算作截断：一个恰好填满剩余容量的块保留其全部字节，
+        // 且我们会继续读取以观察 EOF，因此恰好达到上限的正文不会被误标为截断。
         if (value.byteLength > remaining) {
           chunks.push(value.subarray(0, remaining))
           total += remaining
@@ -218,13 +211,12 @@ export class HttpFetchProvider implements WebFetchProvider {
         total += value.byteLength
       }
     } catch (error: unknown) {
-      /* v8 ignore next -- mid-stream read fault needs a network drop after headers; translate path covered by request-phase tests. */
+      /* v8 ignore next -- 中途读取故障需要头部之后的网络中断；转换路径被请求阶段测试覆盖。 */
       throw translateAbortOrNetwork(error, signal)
     } finally {
-      /* v8 ignore next 4 -- cancel() after a completed/broken read settles without rejecting; unobserved best-effort cleanup. */
+      /* v8 ignore next 4 -- 完成/中断读取之后的 cancel() 会 settle 而不拒绝；未观察到的尽力清理。 */
       await reader.cancel().catch(() => {
-        // Cancel after a successful read (or after we broke past the cap) is
-        // best-effort cleanup; the bytes we need are already collected.
+        // 成功读取之后（或在我们越过上限之后）的取消是尽力清理；我们所需的字节已经收集。
       })
     }
 
@@ -238,30 +230,27 @@ export class HttpFetchProvider implements WebFetchProvider {
   }
 }
 
-/** HTTP redirect status codes that carry a `Location`. */
+/** 携带 `Location` 的 HTTP 重定向状态码。 */
 function isRedirectStatus(status: number): boolean {
   return status === 301 || status === 302 || status === 303 || status === 307 || status === 308
 }
 
-/** Resolve a (possibly relative) `Location` against the current URL. */
+/** 将（可能为相对的）`Location` 针对当前 URL 解析。 */
 function resolveRedirect(location: string, base: URL): URL {
   try {
     return new URL(location, base)
   } catch (error: unknown) {
-    /* v8 ignore next 2 -- URL resolution against a valid absolute base effectively never throws; defensive guard. */
+    /* v8 ignore next 2 -- 针对有效绝对 base 的 URL 解析实际上从不抛出；防御性守卫。 */
     throw new WebError(`invalid redirect Location "${location}"`, 'WEB_PROVIDER_ERROR', { cause: error })
   }
 }
 
 /**
- * Translate a thrown fetch/stream error into a `WebError`, classified by the
- * deadline signal rather than the thrown value (which differs by phase: the
- * request-phase `fetch` rejects with the abort reason, while the read-phase
- * reader surfaces a bare `AbortError`). `timeoutOf(signal, 'WEB_FETCH_TIMEOUT')`
- * recovering OUR reason means our timeout fired (`WEB_FETCH_TIMEOUT`); any other
- * abort — an upstream cancel, or a foreign/outer deadline's timeout under
- * nesting — is `WEB_ABORTED`; a throw with the signal NOT aborted is a
- * transport/network failure (`WEB_PROVIDER_ERROR`).
+ * 将一个抛出的 fetch/流错误转换为 `WebError`，按 deadline 信号而非抛出值分类（二者因阶段
+ * 而异：请求阶段的 `fetch` 以 abort 原因拒绝，而读取阶段的 reader 抛出一个裸 `AbortError`）。
+ * `timeoutOf(signal, 'WEB_FETCH_TIMEOUT')` 恢复出我们的原因意味着我们的超时触发了
+ * （`WEB_FETCH_TIMEOUT`）；任何其他中止 —— 上游取消，或嵌套下的外来/外层 deadline 超时 ——
+ * 都是 `WEB_ABORTED`；信号未中止时的抛出是传输/网络失败（`WEB_PROVIDER_ERROR`）。
  */
 function translateAbortOrNetwork(error: unknown, signal: AbortSignal): WebError {
   const timeout = timeoutOf(signal, 'WEB_FETCH_TIMEOUT')

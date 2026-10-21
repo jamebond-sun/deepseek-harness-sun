@@ -1,4 +1,4 @@
-/** Platform PKCE account provider; browser approval never bypasses local cancellation. */
+/** 平台的 PKCE 账户提供方；浏览器批准绝不会绕过本地取消。 */
 import { randomBytes, randomUUID, createHash, timingSafeEqual } from 'node:crypto'
 import type { ServerResponse } from 'node:http'
 import type {} from '@deepseek-ai/dsh-host-webserver'
@@ -19,36 +19,36 @@ const DEVICE = credentialKey('deepseek-account-platform', 'device')
 const grant = z.object({ version: z.literal(1), token: z.string().min(1), issuer: z.url() })
 const device = z.object({ id: z.uuid() })
 
-/** Deployment-specific platform and request deadlines. */
+/** 部署特定的平台与请求截止时间。 */
 export interface Config {
-  /** Platform origin serving auth-api and browser pages. */
+  /** 提供 auth-api 与浏览器页面的 Platform 源。 */
   platformOrigin?: string
-  /** Native desktop identity for Host API and embedded Platform requests; null identifies the client as web. */
+  /** 面向 Host API 与内嵌 Platform 请求的、原生桌面身份；为 null 时将客户端标识为 web。 */
   desktopPlatform?: 'darwin' | 'win32' | null
-  /** Optional frontend deployment selector for embedded Usage and Top-up pages. */
+  /** 针对内嵌 Usage 与 Top-up 页面的、可选的前端部署选择器。 */
   embeddedPageDist?: string
-  /** Exact HTTP(S) origin allowed to receive account tokens for inference and files. */
+  /** 被允许接收推理与文件用账户令牌的、精确的 HTTP(S) 源。 */
   inferenceOrigin?: string
-  /** Allow HTTP only on loopback for the development Mock. */
+  /** 仅允许在环回地址上、为开发 Mock 使用 HTTP。 */
   allowLoopbackHttp?: boolean
-  /** Map authorization and completion pages to platformOrigin for private development proxies. */
+  /** 将授权与完成页面映射到 platformOrigin，用于私有开发代理。 */
   rewriteBrowserOrigin?: boolean
-  /** Host-only headers sent exclusively to platformOrigin; account authorization cannot be overridden. */
+  /** 仅发送给 platformOrigin 的、仅宿主请求头；账户授权无法被覆盖。 */
   requestHeaders?: Record<string, string>
-  /** Overrides for profile, balance and embedded Platform requests; Cookie pairs merge by name. Logout retains requestHeaders. */
+  /** 针对档案、余额与内嵌 Platform 请求的覆盖项；Cookie 按名称合并。登出保留 requestHeaders。 */
   accountRequestHeaders?: Record<string, string>
-  /** Deadline for each platform HTTP request. */
+  /** 每次 Platform HTTP 请求的截止时间。 */
   requestTimeoutMs?: number
-  /** Deadline for recharge-wallet queries; timeout returns a failed balance outcome. */
+  /** 充值钱包查询的截止时间；超时返回一次失败的余额结果。 */
   balanceTimeoutMs?: number
-  /** Additional logout attempts after the first request fails, at most five. */
+  /** 首次请求失败之后的、额外的登出尝试，至多五次。 */
   logoutMaxRetries?: number
-  /** Delay before the first logout retry; each later delay doubles. */
+  /** 首次登出重试之前的延迟；之后每次延迟翻倍。 */
   logoutRetryDelayMs?: number
-  /** Upper bound for the entire local attempt, even if the server advertises a longer TTL. */
+  /** 整个本地尝试的上限，即便服务端通告了更长的 TTL。 */
   attemptTimeoutMs?: number
 }
-/** Validated deployment choices. */
+/** 经过验证的部署选项。 */
 export const Config = Schema.object({
   platformOrigin: Schema.string().default('https://platform.deepseek.com'),
   desktopPlatform: Schema.union([Schema.const('darwin'), Schema.const('win32'), Schema.const(null)]).default(null),
@@ -80,7 +80,7 @@ interface Attempt {
   completionUrl?: string
 }
 
-/** The platform implementation owns login state and its opaque stored grant. */
+/** 平台实现拥有登录状态及其不透明的已存储授权。 */
 export class PlatformAccount extends DeepSeekAccount {
   static inject = ['credentials', 'authorization']
   static Config = Config
@@ -108,7 +108,7 @@ export class PlatformAccount extends DeepSeekAccount {
   private closed = false
   private removing: Promise<AccountView> | undefined
 
-  /** @param ctx - Host with authorization and credentials services. @param config - deployment options. */
+  /** @param ctx - 带有授权与凭证服务的宿主。 @param config - 部署选项。 */
   constructor(ctx: Context, config: Config = {}) {
     super(ctx)
     installAccountTaskCancellation(ctx)
@@ -182,7 +182,7 @@ export class PlatformAccount extends DeepSeekAccount {
     const attempt = this.attempt?.view ?? null
     return {
       status: record === undefined ? 'signed-out' : 'credential-stored',
-      // Credential removal can notify watchers before sign-out finishes clearing the attempt.
+      // 凭证移除可能在登出完成清除尝试之前就通知了观察者。
       attempt: record === undefined && attempt?.phase === 'succeeded' ? null : attempt,
       links: { usageUrl: new URL('/usage', this.origin).href, topUpUrl: new URL('/top_up', this.origin).href },
     }
@@ -196,7 +196,7 @@ export class PlatformAccount extends DeepSeekAccount {
     if (this.detailsLifetime !== lifetime) return null
     if (result !== null) this.cacheProfile(stored.token, result)
     if (result?.status !== 'failed') return result
-    // Only this same grant's last ready read may stand in for a failed refresh.
+    // 只有同一份授权上一次就绪的读取，才能顶替一次失败的刷新。
     const cached = this.lastProfile?.token === stored.token ? this.lastProfile.profile : undefined
     return cached ?? result
   }
@@ -246,21 +246,21 @@ export class PlatformAccount extends DeepSeekAccount {
   }
 
   /**
-   * Resolve the profile identity bound to one captured grant, within that grant's credential lifetime.
-   * @param lifetime - credential lifetime the grant was captured under; a change discards the result.
-   * @param stored - captured grant; the identity query never re-reads a newer credential.
-   * @param headers - client identity headers of the calling operation.
-   * @returns the account identity, or null while signed out or after the credential changed.
+   * 在某一捕获授权的凭证生命周期之内，解析与其绑定的档案身份。
+   * @param lifetime - 该授权被捕获时所依据的凭证生命周期；发生变更会丢弃结果。
+   * @param stored - 捕获的授权；身份查询绝不会重新读取一条更新的凭证。
+   * @param headers - 调用方操作的客户端身份请求头。
+   * @returns 账户身份；当已登出或凭证变更之后为 null。
    */
   private async currentAccountId(lifetime: AbortController, stored: z.infer<typeof grant>,
     headers: Record<string, string>): Promise<AccountUserId | null> {
-    // A profile already read for this same captured grant names the account, so a bonus read or
-    // acknowledgement reuses it instead of issuing another current query.
+    // 针对同一份捕获授权、已经读取过的档案会命名该账户，因此一次赠金读取或
+    // 确认会复用它，而非再发起一次 current 查询。
     if (this.lastProfile?.token === stored.token) return this.identityOf(this.lastProfile.profile)
     const details = await this.getDetail('profile', headers, { lifetime, stored })
     if (details === null) return null
     if (details.status === 'failed') {
-      // The query named no identity, and the cache is empty or belongs to another grant.
+      // 该查询未命名任何身份，且缓存为空或属于另一份授权。
       throw new PlatformAuthError('network')
     }
     this.cacheProfile(stored.token, details)
@@ -268,24 +268,24 @@ export class PlatformAccount extends DeepSeekAccount {
   }
 
   /**
-   * Cache one ready profile against the grant token it was read with, so identity reuse cannot cross
-   * a credential change. A stable ID that first appears or changes notifies identity-enabled watch consumers, so
-   * identity consumers re-read getPlatformSession; repeated IDs stay silent.
-   * @param token - grant the profile was read with.
-   * @param profile - profile outcome to record when it carries account data.
+   * 将一份就绪的档案按其所读取时的授权令牌进行缓存，使得身份复用无法跨越
+   * 一次凭证变更。一个首次出现或发生变化的稳定 ID 会通知启用身份的 watch 消费者，
+   * 从而身份消费者重新读取 getPlatformSession；重复的 ID 保持静默。
+   * @param token - 该档案读取时所依据的授权。
+   * @param profile - 当携带账户数据时要记录的档案结果。
    */
   private cacheProfile(token: string, profile: AccountDetails['profile']): void {
     if (profile.status !== 'ready') return
-    // Identity publishers re-read the session snapshot; wake them only when the stable ID changes.
+    // 身份发布者会重新读取会话快照；仅当稳定 ID 变化时才唤醒它们。
     const previous = this.lastProfile?.profile.value.id || null
     this.lastProfile = { token, profile }
     if (previous !== (profile.value.id || null)) this.changed(true)
   }
 
   /**
-   * @param profile - ready profile projected for the UI.
-   * @returns the account identity it names.
-   * @throws PlatformAuthError when the profile carries no stable Platform id, which cannot isolate notices.
+   * @param profile - 为 UI 投影的就绪档案。
+   * @returns 它所命名的账户身份。
+   * @throws 当该档案不携带稳定的 Platform id 时抛出 PlatformAuthError，因为那样无法隔离通知。
    */
   private identityOf(profile: Extract<AccountDetails['profile'], { status: 'ready' }>): AccountUserId {
     if (profile.value.id === null) throw new PlatformAuthError('protocol')
@@ -307,13 +307,13 @@ export class PlatformAccount extends DeepSeekAccount {
         AbortSignal.any([lifetime.signal, AbortSignal.timeout(field === 'balance' ? this.balanceTimeout : this.requestTimeout)]), headers)
       return this.detailsLifetime !== lifetime ? null : details
     } catch (_unauthorized) {
-      // readAccountDetail exposes only authenticated credential rejection failures.
+      // readAccountDetail 只暴露已认证凭证被拒绝的失败。
       if (this.detailsLifetime === lifetime) await this.expireCredential(stored.token, lifetime)
       return null
     }
   }
 
-  /** Deployment account headers plus the client identity headers derived from one call's metadata. */
+  /** 部署账户请求头，外加由一次调用的元数据推导出的客户端身份请求头。 */
   private detailHeaders(client: AccountClientMetadata): Record<string, string> {
     return { ...this.accountRequestHeaders, ...platformClientHeaders(this.platform, client) }
   }
@@ -359,10 +359,10 @@ export class PlatformAccount extends DeepSeekAccount {
     const lifetime = this.detailsLifetime
     const stored = await this.readCurrentGrant(lifetime)
     if (stored === null || lifetime.signal.aborted) return null
-    // Deployment headers only; the consuming client adds the identity of its own UI.
+    // 仅部署请求头；消费方客户端会加上其自身 UI 的身份。
     const requestHeaders = { ...this.accountRequestHeaders }
-    // Identity comes from the profile read for this same grant; an unknown ID requires disposable
-    // browser storage. A replaced credential never publishes the account its predecessor named.
+    // 身份来自针对同一份授权所读取的档案；未知的 ID 需要一次性的浏览器存储。
+    // 一份被替换的凭证绝不会发布其前任所命名的账户。
     return { origin: this.origin, token: stored.token,
       userId: this.lastProfile?.token === stored.token ? this.lastProfile.profile.value.id || null : null,
       ...(this.embeddedPageDist ? { embeddedPageDist: this.embeddedPageDist } : {}),
@@ -376,7 +376,7 @@ export class PlatformAccount extends DeepSeekAccount {
     if (record.kind !== 'grant') throw new PlatformAuthError('storage')
     const parsed = grant.safeParse(record.payload)
     if (!parsed.success) throw new PlatformAuthError('storage')
-    // A private origin override must never forward a grant issued by another environment.
+    // 一次私有的源覆盖绝不可转发由另一个环境签发的授权。
     if (parsed.data.issuer !== this.origin) throw new PlatformAuthError('protocol')
     return parsed.data
   }
@@ -390,7 +390,7 @@ export class PlatformAccount extends DeepSeekAccount {
     if (record.kind !== 'grant') throw new PlatformAuthError('storage')
     const result = grant.safeParse(record.payload)
     if (!result.success) throw new PlatformAuthError('storage')
-    // Development grants cannot authenticate production model or file requests.
+    // 开发用授权无法为生产环境的模型或文件请求做认证。
     const issuer = new URL(result.data.issuer)
     if (result.data.token.startsWith('dsh_mock_')) return undefined
     if (this.inferenceOrigin === 'https://api.deepseek.com') {
@@ -409,7 +409,7 @@ export class PlatformAccount extends DeepSeekAccount {
     const previous = this.attempt
     if (previous !== undefined) {
       await previous.done
-      // Disposal can close the provider while the previous attempt settles.
+      // 处置可能在先前尝试结算期间关闭提供方。
       // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
       if (this.closed) throw new PlatformAuthError('protocol')
       if (this.attempt !== previous) return this.getState()
@@ -436,7 +436,7 @@ export class PlatformAccount extends DeepSeekAccount {
       this.update(attempt, { phase: code === 'expired' ? 'expired' : 'failed', errorCode: code })
       this.finishFailedCallback(attempt)
     }).then(async () => {
-      // begin() may report cancellation before the HTTP work observes its signal.
+      // begin() 可能在 HTTP 工作观察到其信号之前就报告取消。
       await attempt.running.catch(() => undefined)
       if (attempt.callback !== undefined) {
         await streamPromises.finished(attempt.callback, { cleanup: true }).catch(() => undefined)
@@ -527,7 +527,7 @@ export class PlatformAccount extends DeepSeekAccount {
     const challenge = createHash('sha256').update(verifier).digest('base64url')
     let authorizeId: string | undefined
     const code = Promise.withResolvers<string>()
-    // Callback requests may precede initialization settlement; the rejection is observed immediately.
+    // 回调请求可能先于初始化结算到达；拒绝会立即被观察到。
     void code.promise.catch(() => undefined)
     const deadline = new AbortController()
     let expiresAt = Date.now() + this.attemptTimeout
@@ -593,7 +593,7 @@ export class PlatformAccount extends DeepSeekAccount {
       if (result.data.user != null) {
         try { attempt.initialProfile = { token: result.data.token, value: { status: 'ready', value: profile(result.data.user) } } }
         catch {
-          // Invalid optional user data falls back to current without discarding a valid authorization.
+          // 无效的、可选的用户数据会回退到 current，而不丢弃一次有效的授权。
         }
       }
       this.update(attempt, { phase: 'committing' })
@@ -607,7 +607,7 @@ export class PlatformAccount extends DeepSeekAccount {
       if (signal.aborted && authorizeId !== undefined) this.cancelRequest(authorizeId, verifier, attempt.clientHeaders)
       clearTimeout(timer)
       signal.removeEventListener('abort', abort)
-      // begin() settles the browser response and removes only this attempt’s route.
+      // begin() 会结算浏览器响应，并只移除本次尝试的路由。
     }
   }
 
@@ -625,7 +625,7 @@ export class PlatformAccount extends DeepSeekAccount {
     if (this.closed) return
     const cancellation = this.request('auth_cancel', { authorize_id: authorizeId, code_verifier: verifier },
       this.logoutLifetime.signal, headers).then(() => undefined, () => {
-      // Remote cancellation failures never reverse local cancellation or expose verifier diagnostics.
+      // 远端取消的失败绝不会逆转本地取消，也不会暴露验证器的诊断信息。
     }).finally(() => { this.revocations.delete(cancellation) })
     this.revocations.add(cancellation)
   }
@@ -647,14 +647,14 @@ export class PlatformAccount extends DeepSeekAccount {
       }).end(`<!doctype html><html lang="${attempt.locale === 'zh_CN' ? 'zh-CN' : 'en'}"><meta charset="utf-8"><title>${message}</title>`
         + `<body><p>${message}</p><script nonce="${nonce}">window.close()</script></body></html>`)
     } else {
-      // Native account subscribers focus the login window; retain the browser’s Platform document.
+      // 原生的账户订阅者会聚焦登录窗口；保留浏览器的 Platform 文档。
       attempt.callback?.writeHead(204, { 'cache-control': 'no-store' }).end()
     }
   }
 }
 export default PlatformAccount
 
-/** OS identification shared by login and credential-free identity reads. */
+/** 由登录与无凭证的身份读取所共享的 OS 标识。 */
 function deviceOsVersion(): string {
   return `${platform()} ${release()}`
 }

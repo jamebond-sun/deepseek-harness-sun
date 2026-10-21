@@ -26,9 +26,9 @@ const RELEASED_V2_RELATIONSHIP_EXTENSIONS = {
 } as const
 
 /**
- * Validate the exact logical header written by released v2.
- * @param header - decoded released-v2 Session header.
- * @throws {SessionFormatError} when the header is not an exact released-v2 value.
+ * 校验已发布 v2 写入的精确逻辑头部。
+ * @param header - 已解码的 released-v2 Session 头部。
+ * @throws {SessionFormatError} 当该头部不是精确的 released-v2 值时抛出。
  */
 export function assertReleasedV2Header(header: SessionFormatHeader): void {
   const record = releasedV2Record(header, 'format v2 header')
@@ -103,10 +103,10 @@ function validateReleasedV2Artifact(
 }
 
 /**
- * Require one released-v2 value to be a JSON object.
- * @param value - value to narrow.
- * @param label - diagnostic subject.
- * @returns the narrowed object.
+ * 要求一个 released-v2 值是 JSON 对象。
+ * @param value - 待收窄的值。
+ * @param label - 诊断主体。
+ * @returns 收窄后的对象。
  */
 export function releasedV2Record(
   value: SessionFormatJsonValue | undefined,
@@ -119,11 +119,11 @@ export function releasedV2Record(
 }
 
 /**
- * Require one released-v2 object to contain exactly the admitted keys.
- * @param value - object to inspect.
- * @param required - keys that must be present.
- * @param optional - additional keys that may be present.
- * @param label - diagnostic subject.
+ * 要求一个 released-v2 对象恰好只包含被接纳的键。
+ * @param value - 待检查的对象。
+ * @param required - 必须存在的键。
+ * @param optional - 额外允许存在的键。
+ * @param label - 诊断主体。
  */
 export function assertReleasedV2Keys(
   value: SessionFormatJsonObject,
@@ -139,11 +139,11 @@ export function assertReleasedV2Keys(
 }
 
 /**
- * Restore and validate one decoded released-v2 artifact.
- * @param artifact - detached vocabulary-restored artifact.
- * @param knownEventTypes - event types understood by the installed current Session package.
- * @param relationshipHeaderVersion - logical generation whose version-sensitive relationships are checked.
- * @returns the same validated artifact.
+ * 恢复并校验一个已解码的 released-v2 制品。
+ * @param artifact - 已分离的、已完成词表恢复的制品。
+ * @param knownEventTypes - 已安装的当前 Session 包可理解的事件类型。
+ * @param relationshipHeaderVersion - 要检查其版本敏感关系的逻辑代际。
+ * @returns 同一个已校验的制品。
  */
 export function restoreReleasedV2Artifact(
   artifact: SessionFormatArtifact,
@@ -155,8 +155,8 @@ export function restoreReleasedV2Artifact(
 }
 
 /**
- * Validate the released-v2 physical envelope without interpreting event vocabulary.
- * @param artifact - released-v2 physical artifact.
+ * 校验 released-v2 的物理信封，不解释事件词表。
+ * @param artifact - released-v2 物理制品。
  */
 export function assertReleasedV2PhysicalArtifact(artifact: SessionFormatArtifact): void {
   validateReleasedV2Artifact(artifact, 'physical')

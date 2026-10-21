@@ -1,7 +1,7 @@
 /**
- * Newline-delimited JSON-RPC 2.0 over byte streams. Frames with `id` and
- * `method` are requests, `id` alone is a response, and `method` alone is a
- * notification. Malformed lines are ignored; handler failures become error frames.
+ * 基于字节流的换行分隔 JSON-RPC 2.0。同时带 `id` 与 `method` 的帧是请求，
+ * 只有 `id` 的是响应，只有 `method` 的是通知。格式错误的行被忽略；
+ * 处理器失败会变成错误帧。
  *
  * @module @deepseek-ai/dsh-sdk-protocol/transport
  */
@@ -14,12 +14,12 @@ type JsonRpcId = string | number
 type RequestHandler = (method: string, params: Record<string, unknown>) => Promise<unknown>
 type NotificationHandler = (method: string, params: Record<string, unknown>) => void
 
-/** A JSON-RPC error response, preserving the wire `code` and optional `data`. */
+/** 一条 JSON-RPC 错误响应，保留线上的 `code` 与可选的 `data`。 */
 export class JsonRpcResponseError extends Error {
   /**
-   * @param code - the wire error code, or `undefined` when the peer sent none.
-   * @param message - the wire error message.
-   * @param data - the optional structured error payload, verbatim.
+   * @param code - 线上的错误码；当对端未发送时为 `undefined`。
+   * @param message - 线上的错误消息。
+   * @param data - 可选的结构化错误载荷，原样保留。
    */
   constructor(readonly code: number | undefined, message: string, readonly data?: unknown) {
     super(message)
@@ -28,22 +28,21 @@ export class JsonRpcResponseError extends Error {
 }
 
 /**
- * Outbound request and notification surface used by the runtime server and
- * SDK clients.
+ * 运行时服务端与 SDK 客户端所使用的出站请求与通知接口。
  */
 export interface JsonRpcTransportPeer {
   /**
-   * Send a request and await its response.
-   * @param method - the JSON-RPC method name.
-   * @param params - the request parameters object.
-   * @returns the result; rejects with {@link JsonRpcResponseError} on an error
-   * response, and with a plain `Error` on a write failure or closure.
+   * 发送一个请求并等待其响应。
+   * @param method - JSON-RPC 方法名。
+   * @param params - 请求参数对象。
+   * @returns 结果；收到错误响应时以 {@link JsonRpcResponseError} reject，
+   *   写入失败或关闭时以普通 `Error` reject。
    */
   request(method: string, params: object): Promise<unknown>
   /**
-   * Send a notification; omitted params produce no `params` member.
-   * @param method - the JSON-RPC method name.
-   * @param params - the optional notification parameters object.
+   * 发送一条通知；省略 params 时不产生 `params` 成员。
+   * @param method - JSON-RPC 方法名。
+   * @param params - 可选的通知参数对象。
    */
   notify(method: string, params?: object): void
 }
@@ -54,10 +53,9 @@ interface PendingRequest {
 }
 
 /**
- * Line-delimited endpoint over caller-owned streams. {@link start} attaches
- * listeners; {@link close} detaches them and rejects pending requests without
- * destroying the streams. Missing request handlers return `-32601`; handler
- * failures return `-32603`. Notifications without a handler are dropped.
+ * 调用方自有流之上的按行分隔端点。{@link start} 挂载监听器；{@link close}
+ * 卸载它们并 reject 待定请求，而不销毁这些流。缺少请求处理器时返回 `-32601`；
+ * 处理器失败时返回 `-32603`。没有处理器的通知被丢弃。
  */
 export class JsonRpcLineTransport implements JsonRpcTransportPeer {
   private buffer = ''
@@ -72,7 +70,7 @@ export class JsonRpcLineTransport implements JsonRpcTransportPeer {
     private readonly output: Writable,
   ) {}
 
-  /** Attach the input listeners and begin reading frames. Idempotent. */
+  /** 挂载输入监听器并开始读取帧。幂等。 */
   start(): void {
     if (this.started) return
     this.started = true
@@ -82,7 +80,7 @@ export class JsonRpcLineTransport implements JsonRpcTransportPeer {
   }
 
   /**
-   * Detach listeners and reject pending requests. Safe before {@link start}.
+   * 卸载监听器并 reject 待定请求。在 {@link start} 之前调用也是安全的。
    */
   close(): void {
     this.input.off('data', this.onData)
@@ -92,31 +90,29 @@ export class JsonRpcLineTransport implements JsonRpcTransportPeer {
   }
 
   /**
-   * Install the request handler, replacing any prior handler.
-   * @param handler - resolves to the response `result`; a rejection becomes a
-   * `-32603` error response carrying the message.
+   * 安装请求处理器，替换先前的处理器。
+   * @param handler - 解析为响应的 `result`；reject 会变成携带该消息的
+   *   `-32603` 错误响应。
    */
   onRequest(handler: RequestHandler): void {
     this.requestHandler = handler
   }
 
   /**
-   * Install the notification handler, replacing any prior handler.
-   * @param handler - invoked per notification with the method and normalized
-   * params object.
+   * 安装通知处理器，替换先前的处理器。
+   * @param handler - 每条通知调用一次，传入方法名与归一化后的 params 对象。
    */
   onNotification(handler: NotificationHandler): void {
     this.notificationHandler = handler
   }
 
   /**
-   * Send a request and await its response.
-   * @param method - the JSON-RPC method name.
-   * @param params - the request parameters object.
-   * @param signal - optional abandonment signal: aborting removes the pending
-   * entry (no state is retained for a response that may never come) and
-   * rejects with the signal's reason.
-   * @returns the result; rejects per {@link JsonRpcTransportPeer.request}.
+   * 发送一个请求并等待其响应。
+   * @param method - JSON-RPC 方法名。
+   * @param params - 请求参数对象。
+   * @param signal - 可选的放弃信号：中止会移除待定条目（不会为一个可能
+   *   永不抵达的响应保留状态），并以该信号的 reason reject。
+   * @returns 结果；reject 行为同 {@link JsonRpcTransportPeer.request}。
    */
   request(method: string, params: object, signal?: AbortSignal): Promise<unknown> {
     const id = `req_${randomUUID().replaceAll('-', '')}`
@@ -160,8 +156,8 @@ export class JsonRpcLineTransport implements JsonRpcTransportPeer {
   }
 
   /**
-   * Wait for prior frame write callbacks. The empty barrier emits no bytes.
-   * @returns a promise that settles with the output write callback.
+   * 等待先前的帧写入回调。这个空屏障不发出任何字节。
+   * @returns 一个随输出写入回调 settle 的 promise。
    */
   flush(): Promise<void> {
     return new Promise<void>((resolve, reject) => {
@@ -203,7 +199,7 @@ export class JsonRpcLineTransport implements JsonRpcTransportPeer {
     try {
       message = JSON.parse(line)
     } catch {
-      // Only JSON syntax errors reach this catch; malformed peer lines are ignored.
+      // 只有 JSON 语法错误会进入此处；对端的畸形行被忽略。
       return
     }
     if (!message || typeof message !== 'object') return
@@ -268,12 +264,12 @@ export class JsonRpcLineTransport implements JsonRpcTransportPeer {
   }
 }
 
-/** Normalize JSON-RPC `params` to a plain object (arrays and scalars collapse to `{}`). */
+/** 将 JSON-RPC `params` 归一化为普通对象（数组与标量都收敛为 `{}`）。 */
 function objectParams(params: unknown): Record<string, unknown> {
   return params && typeof params === 'object' && !Array.isArray(params) ? params as Record<string, unknown> : {}
 }
 
-/** Normalize an abort reason into the rejection Error (a non-Error reason is stringified). */
+/** 将中止原因归一化为用于 reject 的 Error（非 Error 的原因会被字符串化）。 */
 function abortError(reason: unknown): Error {
   return reason instanceof Error ? reason : new Error(`JSON-RPC request aborted: ${String(reason)}`)
 }

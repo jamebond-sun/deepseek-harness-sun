@@ -1,12 +1,10 @@
 /**
- * Host icon extraction for resolved open-in-app applications, one strategy
- * per platform: macOS converts the resolved bundle's `.icns` to a 128px PNG
- * (`plutil` + `sips`); Windows extracts the resolved executable's associated
- * icon as a 32px PNG through a generated PowerShell script (the largest size
- * `ExtractAssociatedIcon` yields without a native addon); Linux follows the
- * spec's desktop entry `Icon=` key into the hicolor theme and pixmaps
- * directories (PNG or SVG, no subprocess). Every failure resolves null and
- * the icon route answers 404, which the browser renders as a generic glyph.
+ * 为已解析的 open-in-app 应用程序在宿主机上提取图标，每个平台一种策略：macOS 把已解析
+ * bundle 的 `.icns` 转换为 128px PNG（`plutil` + `sips`）；Windows 通过生成的 PowerShell
+ * 脚本把已解析可执行文件的关联图标提取为 32px PNG（这是不借助原生扩展时
+ * `ExtractAssociatedIcon` 能给出的最大尺寸）；Linux 则依据规范中 desktop entry 的 `Icon=`
+ * 键到 hicolor 主题与 pixmaps 目录中查找（PNG 或 SVG，不启子进程）。任何失败都解析为
+ * null，图标路由回答 404，浏览器将其渲染为一个通用字形。
  */
 
 import { mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
@@ -19,17 +17,16 @@ import {
   type OpenInAppInternals, type OpenInAppResolvedLaunch, type ResolvedInternals,
 } from './resolver.ts'
 
-/** One extracted icon: raw bytes plus the media type the route serves. */
+/** 一个已提取的图标：原始字节加上路由所服务的媒体类型。 */
 export interface OpenInAppIcon {
   readonly bytes: Buffer
   readonly contentType: 'image/png' | 'image/svg+xml'
 }
 
 /**
- * Extract one bundle's icon as a 128px PNG: read `CFBundleIconFile` from
- * Info.plist (`plutil` to JSON; the value may omit the .icns extension), fall
- * back to the first `Resources/*.icns`, then convert with `sips` through a
- * fresh temp file.
+ * 把一个 bundle 的图标提取为 128px PNG：从 Info.plist 读取 `CFBundleIconFile`（用 `plutil`
+ * 转 JSON；该值可能省略 .icns 扩展名），回退到第一个 `Resources/*.icns`，然后通过一个
+ * 全新的临时文件用 `sips` 转换。
  */
 async function extractBundleIconPng(
   bundlePath: string, timeoutMs: number, internals: ResolvedInternals,
@@ -45,14 +42,14 @@ async function extractBundleIconPng(
         iconFile = declared.endsWith('.icns') ? declared : `${declared}.icns`
       }
     } catch {
-      // Swallows malformed plutil JSON: the Resources scan below still applies.
+      // 吞掉格式错误的 plutil JSON：下面的 Resources 扫描仍然适用。
     }
   }
   if (iconFile === null) {
     try {
       iconFile = (await readdir(resources)).find(entry => entry.endsWith('.icns')) ?? null
     } catch {
-      // Swallows a missing Resources directory: such a bundle has no icon.
+      // 吞掉缺失的 Resources 目录：这样的 bundle 没有图标。
       return null
     }
   }
@@ -61,7 +58,7 @@ async function extractBundleIconPng(
   try {
     await stat(icns)
   } catch {
-    // Swallows ENOENT: Info.plist may declare an icon file that is not on disk.
+    // 吞掉 ENOENT：Info.plist 可能声明了一个并不在磁盘上的图标文件。
     return null
   }
   const workDir = await mkdtemp(join(tmpdir(), 'dsh-open-in-app-'))
@@ -73,7 +70,7 @@ async function extractBundleIconPng(
     try {
       return await readFile(outPng)
     } catch {
-      // Swallows a sips run that exited 0 without writing the output file.
+      // 吞掉以 0 退出却没有写出输出文件的 sips 运行。
       return null
     }
   } finally {
@@ -82,10 +79,9 @@ async function extractBundleIconPng(
 }
 
 /**
- * The associated-icon extraction script. `-File` with positional args keeps
- * paths out of the command line's parsing (no quoting/escaping surface);
- * `ExtractAssociatedIcon` yields 32px, the most the stock .NET surface gives
- * without a native addon (README Known Limitations).
+ * 关联图标提取脚本。用 `-File` 加位置参数，使路径不进入命令行的解析过程（没有引号/转义
+ * 面）；`ExtractAssociatedIcon` 产出 32px，这是不借助原生扩展时 .NET 自带接口能给出的
+ * 最大尺寸（README 已知限制）。
  */
 const EXTRACT_ICON_PS1 = [
   'param([string]$Source, [string]$Target)',
@@ -98,7 +94,7 @@ const EXTRACT_ICON_PS1 = [
   '',
 ].join('\n')
 
-/** Extract one Windows executable's associated icon as a 32px PNG. */
+/** 把一个 Windows 可执行文件的关联图标提取为 32px PNG。 */
 async function extractExecutableIconPng(
   executablePath: string, timeoutMs: number, internals: ResolvedInternals,
 ): Promise<Buffer | null> {
@@ -114,7 +110,7 @@ async function extractExecutableIconPng(
     try {
       return await readFile(outPng)
     } catch {
-      // Swallows a script run that exited 0 without writing the output file.
+      // 吞掉以 0 退出却没有写出输出文件的脚本运行。
       return null
     }
   } finally {
@@ -122,7 +118,7 @@ async function extractExecutableIconPng(
   }
 }
 
-/** One Linux application's icon from its desktop entry's `Icon=` key. */
+/** 从 desktop entry 的 `Icon=` 键取一个 Linux 应用程序的图标。 */
 async function extractLinuxIcon(
   desktopId: string, internals: ResolvedInternals,
 ): Promise<OpenInAppIcon | null> {
@@ -133,12 +129,12 @@ async function extractLinuxIcon(
 }
 
 /**
- * Extract one resolved application's icon on this host.
- * @param app - catalog entry (its Linux spec names the desktop entry).
- * @param resolved - the entry's verified launch (its icon source on macOS/Windows).
- * @param timeoutMs - per-command deadline for extraction host commands.
- * @param internals - platform and runner hooks for deterministic tests.
- * @returns the icon bytes and media type, or null when this host serves none.
+ * 在本宿主机上提取一个已解析应用程序的图标。
+ * @param app - 目录条目（其 Linux 规格命名了 desktop entry）。
+ * @param resolved - 该条目经过校验的启动方式（macOS/Windows 上的图标来源）。
+ * @param timeoutMs - 提取用宿主命令的单条命令时限。
+ * @param internals - 供确定性测试注入的平台与运行器钩子。
+ * @returns 图标字节与媒体类型；本宿主机无法提供时为 null。
  */
 export async function extractAppIcon(
   app: OpenInAppApp,

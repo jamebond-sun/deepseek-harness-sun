@@ -1,6 +1,6 @@
 /**
- * Event routing for the local registry: subscriptions file by filter, and
- * every commit dispatches once to each matching listener with containment.
+ * 本地注册表的事件路由：订阅按过滤器归档，每一次提交都以受控的方式向每个匹配的
+ * 监听器派发一次。
  * @module @deepseek-ai/dsh-jobs-local/events
  */
 
@@ -10,22 +10,21 @@ import { AnonymousEntries, ScopedLayers, scopeOf } from '@deepseek-ai/dsh-scope'
 import type { ScopeLayer } from '@deepseek-ai/dsh-scope'
 import type { JobEvent, JobEventFilter, JobEventListener } from '@deepseek-ai/dsh-jobs'
 
-/** One registered listener and the filter it declared. */
+/** 一个已注册的监听器及其声明的过滤器。 */
 interface Subscription {
   filter: JobEventFilter
   listener: JobEventListener
 }
 
 /**
- * One scope's contributions: the job controllers attached from it and the
- * `{ owners: 'scope' }` subscriptions registered there. Both tables are
- * anonymous because a contribution is identified by its own disposer, never
- * by a name a second registrant could shadow.
+ * 一个作用域的贡献：从它这里挂载的任务控制器，以及注册在这里的 `{ owners: 'scope' }`
+ * 订阅。两张表都是匿名的，因为一份贡献由它自己的 disposer 标识，而绝不由一个可能被
+ * 第二个注册者遮蔽的名字标识。
  */
 export class JobLayer implements ScopeLayer {
-  /** Tokens of the job controllers attached from this scope. */
+  /** 从该作用域挂载的任务控制器的令牌。 */
   readonly controllers = new AnonymousEntries<symbol>()
-  /** The `{ owners: 'scope' }` subscriptions registered from this scope. */
+  /** 从该作用域注册的 `{ owners: 'scope' }` 订阅。 */
   readonly scoped = new AnonymousEntries<Subscription>()
 
   isEmpty(): boolean {
@@ -34,18 +33,16 @@ export class JobLayer implements ScopeLayer {
 }
 
 /**
- * Routes events to subscriptions. `{ owner }` and `{ owners: 'all' }`
- * subscriptions are evaluated against every event regardless of where they
- * were registered; `{ owners: 'scope' }` subscriptions file into the
- * registering context's scope layer and receive the owners composed under it
- * — the global layer, reached from an unscoped context, receives every owner.
+ * 把事件路由到订阅。`{ owner }` 与 `{ owners: 'all' }` 订阅对每一个事件都参与判定，
+ * 无论它们注册在哪里；`{ owners: 'scope' }` 订阅归档到注册上下文的作用域层，并接收其下
+ * 组合出的那些所有者——从不限定作用域的上下文到达的全局层接收所有所有者。
  */
 export class JobEventHub {
   private readonly unscoped = new Set<Subscription>()
 
   /**
-   * @param layers - the scope-layer table shared with the controller handshake.
-   * @param warn - sink for a listener's contained failure.
+   * @param layers - 与控制器握手共用的作用域层表。
+   * @param warn - 监听器被隔离后的失败的下沉处。
    */
   constructor(
     private readonly layers: ScopedLayers<JobLayer>,
@@ -53,11 +50,11 @@ export class JobEventHub {
   ) {}
 
   /**
-   * Register one listener as an effect of `ctx`.
-   * @param ctx - the subscribing context; owns the effect and, for `'scope'`, names the scope.
-   * @param filter - which owners' events to deliver.
-   * @param listener - receives each matching event.
-   * @returns disposer that unregisters the listener.
+   * 把一个监听器注册为 `ctx` 的一个 effect。
+   * @param ctx - 订阅上下文；它拥有该 effect，并在 `'scope'` 情形下指明作用域。
+   * @param filter - 投递哪些所有者的事件。
+   * @param listener - 接收每个匹配的事件。
+   * @returns 注销该监听器的 disposer。
    */
   subscribe(ctx: Context, filter: JobEventFilter, listener: JobEventListener): () => void {
     const subscription: Subscription = { filter, listener }
@@ -68,15 +65,15 @@ export class JobEventHub {
       this.unscoped.add(subscription)
       return () => { this.unscoped.delete(subscription) }
     }, 'jobs.events.subscribe()')
-    // oxlint-disable-next-line typescript/no-misused-promises -- exact synchronous disposer preserves Cordis effect identity
+    // oxlint-disable-next-line typescript/no-misused-promises -- 精确的同步 disposer 保留 Cordis effect 的同一性
     return dispose
   }
 
   /**
-   * Deliver one event to every matching subscription, containing each
-   * listener so an observer cannot break the commit already made.
-   * @param event - the event to deliver.
-   * @param owner - the job's exact owner, or undefined for unowned work.
+   * 把一个事件投递给每个匹配的订阅，并对每个监听器做隔离，这样观察者无法破坏已经
+   * 完成的提交。
+   * @param event - 要投递的事件。
+   * @param owner - 该任务确切的所有者；无主工作为 undefined。
    */
   emit(event: JobEvent, owner: Agent | undefined): void {
     const ownerId = owner?.id

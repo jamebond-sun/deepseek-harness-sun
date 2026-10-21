@@ -1,4 +1,4 @@
-/** Restricted-token adapters over the shared Win32 process owner. */
+/** 构建在共享 Win32 进程所有者之上的受限令牌适配器。 */
 
 import {
   spawnInheritedJobProcess,
@@ -14,17 +14,17 @@ import type { Win32Bindings } from './ffi.ts'
 
 export { drainPipe } from '@deepseek-ai/dsh-win32-process'
 
-/** Restricted-token child with piped stdio resources. */
+/** 带有管道式 stdio 资源的受限令牌子进程。 */
 export interface SpawnedNative extends SpawnedPipedProcess {}
-/** Restricted-token child assigned to a kill-on-close Job. */
+/** 被分配到一个"关闭即终止"Job 中的受限令牌子进程。 */
 export interface SpawnedInherited extends SpawnedJobProcess {}
 
 /**
- * Spawn a restricted-token child with piped stdout/stderr.
- * @param api - ACL/token binding table.
- * @param token - restricted primary token.
- * @param options - command, args, and working directory.
- * @returns process and caller-owned pipe handles.
+ * 派生一个 stdout/stderr 走管道的受限令牌子进程。
+ * @param api - ACL/令牌绑定表。
+ * @param token - 受限主令牌。
+ * @param options - 命令、参数与工作目录。
+ * @returns 进程以及由调用方持有的管道句柄。
  */
 export function spawnSandboxed(
   api: Win32Bindings,
@@ -35,11 +35,11 @@ export function spawnSandboxed(
 }
 
 /**
- * Spawn a restricted-token child in a kill-on-close Job with inherited stdio.
- * @param api - ACL/token binding table.
- * @param token - restricted primary token.
- * @param options - command, args, and working directory.
- * @returns process and Job handles after assignment and resume.
+ * 在一个"关闭即终止"的 Job 中派生一个 stdio 继承的受限令牌子进程。
+ * @param api - ACL/令牌绑定表。
+ * @param token - 受限主令牌。
+ * @param options - 命令、参数与工作目录。
+ * @returns 完成分配与恢复之后的进程与 Job 句柄。
  */
 export function spawnSandboxedInherited(
   api: Win32Bindings,
@@ -50,10 +50,10 @@ export function spawnSandboxedInherited(
 }
 
 /**
- * Wait for a restricted child and close its process handle.
- * @param api - ACL/token binding table.
- * @param process - caller-owned process handle.
- * @returns direct process exit code.
+ * 等待一个受限子进程并关闭其进程句柄。
+ * @param api - ACL/令牌绑定表。
+ * @param process - 由调用方持有的进程句柄。
+ * @returns 进程的直接退出码。
  */
 export function waitForExit(api: Win32Bindings, process: NativePtr): number {
   return waitForProcessExit(api, process)

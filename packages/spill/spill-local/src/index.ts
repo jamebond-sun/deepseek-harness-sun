@@ -1,10 +1,9 @@
 /**
- * `LocalSpillStore`: the host-filesystem implementation of the
- * `@deepseek-ai/dsh-spill` storage seam. Persists oversized text to a
- * private, session-scoped file (see `./store.ts` for the traversal-safe naming
- * and exclusive owner-only write) and returns a path locator plus local
- * read/grep retrieval guidance. After activation it runs one best-effort
- * startup sweep that reclaims spill files older than `cleanupPeriodDays`.
+ * `LocalSpillStore`：`@deepseek-ai/dsh-spill` 存储接缝的宿主文件系统实现。
+ * 把超大文本持久化到一个私有的、会话作用域的文件（防穿越的命名与独占的
+ * 仅属主写入见 `./store.ts`），并返回一个路径定位信息加本地读取/grep 的
+ * 取回指引。激活之后它会执行一次尽力而为的启动清理，回收
+ * 超过 `cleanupPeriodDays` 的溢出文件。
  *
  * @module @deepseek-ai/dsh-spill-local
  */
@@ -24,43 +23,40 @@ export type { SweepOptions, SweepRoot, WarnFn } from './cleanup.ts'
 export { DEFAULT_ROOT_PREFIX, encodeSegment, isErrno, privateRoot, saveTextFile, sessionDir } from './store.ts'
 export type { SavedText, SaveTextOptions } from './store.ts'
 
-/** Milliseconds in one day — converts the `cleanupPeriodDays` config to the sweep cutoff. */
+/** 一天的毫秒数 —— 用于把 `cleanupPeriodDays` 配置换算成清理截止时间。 */
 const MS_PER_DAY = 24 * 60 * 60 * 1000
 
-/** Plugin config (all optional — `static Config` supplies the defaults). */
+/** 插件配置（全部可选 —— 默认值由 `static Config` 提供）。 */
 export interface Config {
   /**
-   * Root directory for spill files. Omitted uses a lazily-created private
-   * (0700) per-process directory under the OS temp dir — the safe default for
-   * a local deployment. Set it to keep spill files under a known location.
+   * 溢出文件的根目录。省略时使用一个惰性创建的、位于 OS 临时目录下的
+   * 私有（0700）每进程目录 —— 这对本地部署是安全的默认选择。
+   * 显式设置它可以把溢出文件放到已知位置。
    */
   root?: string
   /**
-   * Age in days after which a spill file is eligible for the one-shot startup
-   * cleanup sweep. Defaults to `30`; `0` disables cleanup entirely. Files whose
-   * `mtime` is strictly older than the cutoff are deleted and emptied
-   * directories are pruned; fresh files, symlinks, and unrelated entries are
-   * left untouched. On POSIX, cleanup skips roots and session directories that
-   * another local user could modify or replace. Retention is deliberate — a
-   * resumed or forked session may still reference an older locator until it
-   * ages out.
+   * 溢出文件在多少天后可被一次性启动清理回收。默认 `30`；`0` 表示
+   * 完全禁用清理。`mtime` 严格早于截止时间的文件会被删除，空目录会被
+   * 剪除；新文件、符号链接与无关条目保持不动。在 POSIX 上，清理会跳过
+   * 那些可能被其他本地用户修改或替换的根目录与会话目录。
+   * 保留是有意为之 —— 恢复或 fork 出来的会话在其过期之前可能仍在
+   * 引用一个较旧的定位信息。
    */
   cleanupPeriodDays?: number
 }
 
-/** The shape after schemastery applied the defaults. */
+/** schemastery 应用默认值之后的形状。 */
 type ResolvedConfig = Required<Omit<Config, 'root'>> & Pick<Config, 'root'>
 
 /**
- * Local-filesystem spill backend. Files land under `<root>/session-<hash>/…`
- * with unpredictable names, an exclusive owner-only (0600) write, and a private
- * (0700) root — a spilled tool result must not be readable by other local users
- * or redirectable via a planted symlink.
+ * 本地文件系统溢出后端。文件落在 `<root>/session-<hash>/…` 之下，
+ * 名称不可预测，写入是独占且仅属主可见（0600）的，根目录本身私有（0700）——
+ * 一个被溢出的工具结果既不能被其他本地用户读取，也不能被预置的符号链接
+ * 重定向。
  *
- * After activation it launches ONE best-effort cleanup sweep (see
- * {@link cleanupPeriodDays}) that reclaims expired spill files without delaying
- * service availability; the sweep is owned by the plugin fiber and awaited
- * during disposal, so a fiber unload never returns before it quiesces.
+ * 激活之后它启动一次尽力而为的清理（见 {@link cleanupPeriodDays}），回收
+ * 过期溢出文件而不延迟服务可用性；该清理归插件 fiber 所有，并在 dispose
+ * 时被 await，因此一次 fiber 卸载绝不会在它静默之前返回。
  */
 export class LocalSpillStore extends SpillStore {
   static Config: z<Config> = z.object({
@@ -68,30 +64,30 @@ export class LocalSpillStore extends SpillStore {
     cleanupPeriodDays: z.number().step(1).min(0).default(30),
   })
 
-  /** Resolved absolute spill root (config `root`, else the private default), fixed at construction. */
+  /** 已解析的绝对溢出根目录（配置 `root`，否则为私有默认目录），在构造时固定。 */
   readonly root: string
 
-  /** Validated config (schemastery applied the `cleanupPeriodDays` default before construction). */
+  /** 已校验的配置（构造前 schemastery 已应用 `cleanupPeriodDays` 默认值）。 */
   readonly config: ResolvedConfig
 
   /**
-   * The in-flight (or settled) startup cleanup sweep. Held so disposal can await
-   * it; `undefined` when cleanup is disabled (`cleanupPeriodDays === 0`).
+   * 进行中（或已完成）的启动清理。保留它以便 dispose 时 await；
+   * 当清理被禁用（`cleanupPeriodDays === 0`）时为 `undefined`。
    */
   private cleanup: Promise<void> | undefined
 
   constructor(ctx: Context, config: Config) {
     super(ctx)
-    // schemastery (static Config) has already filled `cleanupPeriodDays`; the
-    // cast records that runtime fact for exactOptionalPropertyTypes.
+    // schemastery（static Config）已经填好 `cleanupPeriodDays`；这里的
+    // 类型断言只是为 exactOptionalPropertyTypes 记录这一运行时事实。
     this.config = config as ResolvedConfig
     this.root = config.root !== undefined ? resolve(config.root) : privateRoot()
 
-    // One best-effort startup sweep, owned by the fiber. The generator body runs
-    // at activation but does NOT await the sweep — it launches it and yields an
-    // async disposer that awaits the SAME promise, so service availability is
-    // never delayed yet a fiber unload reaches quiescence (no sweep I/O outlives
-    // the fiber). Disabled (`cleanupPeriodDays === 0`) yields a no-op disposer.
+    // 一次尽力而为的启动清理，归 fiber 所有。生成器体在激活时运行，但并不
+    // await 这次清理 —— 它启动清理，然后 yield 一个 await 同一个 promise 的
+    // 异步 disposer，因此服务可用性绝不被延迟，同时一次 fiber 卸载又能达到
+    // 静默状态（不会有清理 I/O 活过该 fiber）。禁用时（`cleanupPeriodDays === 0`）
+    // 则 yield 一个空操作 disposer。
     ctx.effect(function* (this: LocalSpillStore) {
       if (this.config.cleanupPeriodDays > 0) {
         const warn: WarnFn = (message) => { this.ctx.logger.warn(message) }
@@ -102,13 +98,13 @@ export class LocalSpillStore extends SpillStore {
   }
 
   /**
-   * Run the one-shot cleanup: gather the roots to sweep (see {@link gatherRoots})
-   * and sweep all of them at the age cutoff. Best-effort —
-   * {@link sweepSpillRoots} contains every filesystem failure, so this never
-   * rejects and cannot fail activation or a concurrent spill write.
+   * 执行一次性清理：收集待清理的根目录（见 {@link gatherRoots}），
+   * 然后按时间截止点清理全部根目录。尽力而为 ——
+   * {@link sweepSpillRoots} 会消化所有文件系统故障，因此这里绝不会拒绝，
+   * 也不可能让激活或一次并发的溢出写入失败。
    *
-   * @param warn - sink for a contained filesystem failure.
-   * @returns Resolves when the sweep finishes (never rejects).
+   * @param warn - 已消化的文件系统故障的上报出口。
+   * @returns 清理完成时 resolve（绝不拒绝）。
    */
   private async runCleanup(warn: WarnFn): Promise<void> {
     const cutoffMs = Date.now() - this.config.cleanupPeriodDays * MS_PER_DAY
@@ -117,30 +113,29 @@ export class LocalSpillStore extends SpillStore {
   }
 
   /**
-   * The roots the startup sweep covers: each discovered prior-default
-   * `dsh-spill-*` temp root (see {@link discoverDefaultRoots}), pruned when
-   * emptied, plus the active/configured root, which is never itself pruned while
-   * the live process may write into it. Empty session directories are pruned in
-   * every root. Filesystem identity de-duplicates aliases before the active root
-   * overrides a discovered match as non-prunable. A test overrides this to
-   * inject an isolated root set — and, being the sweep's one async gather point,
-   * to hold the sweep open across a disposal for the quiescence check; it is a
-   * test seam, not a deployment knob.
+   * 启动清理覆盖的根目录：每一个被发现的既往默认 `dsh-spill-*` 临时根目录
+   * （见 {@link discoverDefaultRoots}），清空后会被剪除；再加上当前/配置的
+   * 根目录 —— 只要活着的进程仍可能往里写，它自身绝不会被剪除。
+   * 每个根目录下的空会话目录都会被剪除。文件系统身份会在当前根目录
+   * 覆盖掉匹配的已发现项、把它标记为不可剪除之前，先对别名去重。
+   * 测试会覆写它以注入一组隔离的根目录 —— 并且，作为清理唯一的异步
+   * 收集点，还能在 dispose 期间把清理挂起以检查静默性；它是测试接缝，
+   * 不是部署开关。
    *
-   * @param warn - sink for a contained discovery failure.
-   * @returns The roots to sweep, each flagged for prune-when-empty.
+   * @param warn - 已消化的发现故障的上报出口。
+   * @returns 待清理的根目录，每个都带有"清空后剪除"标记。
    */
   protected async gatherRoots(warn: WarnFn): Promise<SweepRoot[]> {
     return gatherSweepRoots(this.root, warn, this.defaultRootsBase())
   }
 
   /**
-   * The directory scanned for prior default `dsh-spill-*` roots — the OS tmpdir,
-   * where {@link privateRoot} creates them (accumulation only happens there). A
-   * test overrides this to point discovery at an isolated fixture instead of the
-   * real tmpdir; it is a test seam, not a deployment knob.
+   * 扫描既往默认 `dsh-spill-*` 根目录的目录 —— 即 OS 临时目录，
+   * {@link privateRoot} 在那里创建它们（累积只发生在那里）。
+   * 测试会覆写它，把发现指向一个隔离的 fixture 而不是真实的 tmpdir；
+   * 它是测试接缝，不是部署开关。
    *
-   * @returns The base directory to scan for default spill roots.
+   * @returns 扫描默认溢出根目录的基础目录。
    */
   protected defaultRootsBase(): string {
     return tmpdir()

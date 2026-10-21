@@ -1,5 +1,5 @@
 /**
- * Strict Schedule decoding, replay, time validation, and framing.
+ * 严格的 Schedule 解码、重放、时间校验与文本框架。
  * @module @deepseek-ai/dsh-schedule
  */
 
@@ -30,23 +30,22 @@ import type {
   ScheduleView,
 } from './types.ts'
 
-/** Durable Schedule protocol version implemented by this package. */
+/** 本包所实现的持久化 Schedule 协议版本。 */
 export const SCHEDULE_CHANGE_VERSION = 1 as const
 
-/** Fixed v1 lower bound for a fixed-rate reminder. */
+/** v1 中固定频率提醒的固定下限。 */
 export const MIN_EVERY_INTERVAL_SECONDS = 60
 
-/** Fixed v1 upper bound for a stored task title. */
+/** v1 中已存储任务名称的固定上限。 */
 export const MAX_TITLE_LENGTH = 120
 
 /**
- * Longest forward or backward walk of the cron date search, in years.
+ * cron 日期搜索的最长向前或向后遍历范围，以年为单位。
  *
- * The proleptic Gregorian leap-year and weekday alignment repeats every 400
- * years, so a rule that matches any local date has a match within this window;
- * walking further can only reach a rule that never matches. Bounding the walk
- * keeps a valid but unsatisfiable rule's creation and decision cost fixed
- * instead of enumerating candidate dates toward the four-digit-year ceiling.
+ * 格里高利历（proleptic）的闰年与星期对齐每 400 年重复一次，因此任何
+ * 能匹配到某个本地日期的规则，在这个窗口内必定有匹配；再往前走只可能
+ * 遇到一个永远不匹配的规则。给遍历加上边界，把一个有效但不可满足的规则
+ * 的创建与决策代价固定下来，而不是朝四位年份上限不断枚举候选日期。
  */
 export const CRON_SEARCH_HORIZON_YEARS = 400
 
@@ -64,14 +63,14 @@ const LOCAL_TIME = /^(?<hour>\d{2}):(?<minute>\d{2}):(?<second>\d{2})(?:\.(?<fra
 const LOCAL_CLOCK_TIME = /^(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,3})?$/
 const IANA_ZONE = /^[A-Za-z][A-Za-z0-9_+.-]*(?:\/[A-Za-z0-9_+.-]+)+$/
 
-/** Error from malformed or transition-invalid durable Schedule data. */
+/** 来自畸形的、或状态迁移非法的持久化 Schedule 数据的错误。 */
 export class ScheduleLogError extends Error {
-  /** Stable machine-readable error code. */
+  /** 稳定的机器可读错误码。 */
   readonly code = 'corrupt_schedule_log' as const
 
   /**
-   * Construct a durable-log failure.
-   * @param message - Package-specific violated invariant.
+   * 构造一次持久化日志失败。
+   * @param message - 被违反的包内不变量。
    */
   constructor(message: string) {
     super(message)
@@ -79,9 +78,9 @@ export class ScheduleLogError extends Error {
   }
 }
 
-/** Error from a model-supplied Schedule rule or target Session that cannot become a record. */
+/** 来自模型提供的、无法成为记录的 Schedule 规则或目标 Session 的错误。 */
 export class ScheduleInputError extends Error {
-  /** Stable public Schedule input code. */
+  /** 稳定的公开 Schedule 输入码。 */
   readonly code:
     | 'invalid_prompt'
     | 'invalid_selector'
@@ -93,10 +92,10 @@ export class ScheduleInputError extends Error {
     | 'subagent_session'
 
   /**
-   * Construct a stable input failure.
-   * @param code - Public Schedule error discriminator.
-   * @param message - Stable public diagnostic.
-   * @param options - Optional contained implementation cause.
+   * 构造一次稳定的输入失败。
+   * @param code - 公开的 Schedule 错误判别式。
+   * @param message - 稳定的公开诊断信息。
+   * @param options - 可选的、被包含的实现原因。
    */
   constructor(
     code:
@@ -117,43 +116,43 @@ export class ScheduleInputError extends Error {
   }
 }
 
-/** Pure replay result, retaining active create order and every used id. */
+/** 纯粹的重放结果，保留活动记录的创建顺序与每一个已使用过的 id。 */
 export interface FoldedSchedules {
-  /** Active records in their original create order. */
+  /** 按原始创建顺序排列的活动记录。 */
   readonly active: readonly LegacyScheduleRecord[]
-  /** Every id ever created in this session-local suffix. */
+  /** 该 session 局部后缀中曾经创建过的每一个 id。 */
   readonly seenIds: readonly ScheduleIdType[]
 }
 
-/** One latest-only recurring decision derived without enumerating a backlog. */
+/** 一次仅取最新的重复决策，无需枚举积压。 */
 export interface RecurringOccurrence {
-  /** Latest occurrence due at the decision time. */
+  /** 在决策时刻到期的最新 occurrence。 */
   readonly occurrenceAt: string
-  /** First eligible target after the decision, or exhaustion. */
+  /** 决策之后的第一个合规目标，或表示耗尽。 */
   readonly nextScheduledAt?: string
 }
 
 /**
- * Brand a raw session-local id without changing its runtime value.
- * @param value - Raw session-local id.
- * @returns The same string with the Schedule brand.
+ * 给一个原始的 session 局部 id 打上品牌标记，而不改变其运行时值。
+ * @param value - 原始的 session 局部 id。
+ * @returns 同一个字符串，带上 Schedule 品牌。
  */
 export function ScheduleId(value: string): ScheduleIdType {
   return value as ScheduleIdType
 }
 
-/** Whether an unknown value is a non-array object. */
+/** 判断一个未知值是否为非数组的对象。 */
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-/** Require exactly the named durable object keys. */
+/** 要求恰好具有所命名的持久化对象键。 */
 function hasExactKeys(value: Record<string, unknown>, expected: readonly string[]): boolean {
   const allowed = new Set(expected)
   return expected.every(key => key in value) && Object.keys(value).every(key => allowed.has(key))
 }
 
-/** Require the named durable keys while admitting further optional members. */
+/** 要求所命名的持久化键，同时允许额外的可选成员。 */
 function hasExactKeysWithOptional(
   value: Record<string, unknown>,
   required: readonly string[],
@@ -163,16 +162,16 @@ function hasExactKeysWithOptional(
   return required.every(key => key in value) && Object.keys(value).every(key => allowed.has(key))
 }
 
-/** Stable diagnostic for a title that is missing or empty after trimming. */
+/** 针对缺失的、或修剪后为空的名称的稳定诊断信息。 */
 export const REQUIRED_TITLE_MESSAGE = 'title is required and must be non-empty after trimming.'
 
 /**
- * Validate the title supplied at creation.
+ * 校验创建时提供的名称。
  *
- * Creation requires an explicit title: a missing, blank-after-trim, or over-long
- * value throws instead of deriving a name from the instruction.
- * @param title - Task name supplied at creation.
- * @returns The trimmed title; an invalid title throws ScheduleInputError.
+ * 创建要求一个显式的名称：缺失、修剪后为空或超长的值会抛出，
+ * 而不是从指令推导出一个名称。
+ * @param title - 创建时提供的任务名。
+ * @returns 修剪后的名称；非法名称抛出 ScheduleInputError。
  */
 export function scheduleTitle(title: string): string {
   if (typeof title !== 'string' || title.trim().length === 0) {
@@ -186,13 +185,12 @@ export function scheduleTitle(title: string): string {
 }
 
 /**
- * Validate one required stored title at the durable boundary.
+ * 在持久化边界校验一个必需的已存储名称。
  *
- * Only records written after titles became required are read: a missing,
- * blank-after-trim, untrimmed, or over-long stored title is invalid, and no name
- * is derived from the instruction.
- * @param value - Untrusted durable title field.
- * @returns The stored title; an invalid title throws ScheduleLogError.
+ * 只有在名称成为必需之后写入的记录才会被读取：缺失、修剪后为空、
+ * 未修剪或超长的已存储名称都是非法的，且不会从指令推导出名称。
+ * @param value - 不可信的持久化名称字段。
+ * @returns 已存储的名称；非法名称抛出 ScheduleLogError。
  */
 export function decodeStoredTitle(value: unknown): string {
   if (typeof value !== 'string' || value.trim().length === 0) {
@@ -208,14 +206,14 @@ export function decodeStoredTitle(value: unknown): string {
 }
 
 /**
- * Decode the required stored title of one durable Host record, then require its exact key set.
+ * 先解码一个持久化 Host 记录必需的已存储名称，再要求其精确的键集合。
  *
- * The title decodes first so that a record without the key reports the title
- * diagnostic rather than the record's required-key list.
- * @param value - Untrusted durable record already known to be an object.
- * @param expected - Exact keys the record must carry, including `title`.
- * @param message - Diagnostic naming the record's required keys.
- * @returns The stored title; an invalid title or key set throws ScheduleLogError.
+ * 名称先解码，这样一条缺少该键的记录会报告名称的诊断信息，
+ * 而不是该记录的必需键列表。
+ * @param value - 已知为对象的、不可信的持久化记录。
+ * @param expected - 该记录必须携带的精确键集合，包含 `title`。
+ * @param message - 指出该记录必需键的诊断信息。
+ * @returns 已存储的名称；非法的名称或键集合抛出 ScheduleLogError。
  */
 function decodeRecordTitle(value: Record<string, unknown>, expected: readonly string[], message: string): string {
   const title = decodeStoredTitle(value['title'])
@@ -224,15 +222,15 @@ function decodeRecordTitle(value: Record<string, unknown>, expected: readonly st
 }
 
 /**
- * Decode the stored title of one historical `schedule/change` create record.
+ * 解码一条历史 `schedule/change` 创建记录的已存储名称。
  *
- * A version-1 event written before names existed has no `title` member, so the
- * key set is required without it and the absent member decodes as undefined. A
- * present title stays subject to the canonical stored form.
- * @param value - Untrusted durable record already known to be an object.
- * @param expected - Exact keys the record may carry; `title` is optional within them.
- * @param message - Diagnostic naming the record's keys.
- * @returns The stored title, or undefined when the historical record predates it.
+ * 在名称存在之前写入的版本 1 事件没有 `title` 成员，因此键集合在没有
+ * 它的情况下被要求，而缺失的成员解码为 undefined。存在的名称
+ * 仍然受规范存储形式的约束。
+ * @param value - 已知为对象的、不可信的持久化记录。
+ * @param expected - 该记录可以携带的精确键集合；其中 `title` 是可选的。
+ * @param message - 指出该记录键集合的诊断信息。
+ * @returns 已存储的名称，或当该历史记录早于名称存在时返回 undefined。
  */
 function decodeHistoricalRecordTitle(
   value: Record<string, unknown>,
@@ -244,7 +242,7 @@ function decodeHistoricalRecordTitle(
   return value['title'] === undefined ? undefined : decodeStoredTitle(value['title'])
 }
 
-/** Validate one stable session-local id at the durable boundary. */
+/** 在持久化边界校验一个稳定的 session 局部 id。 */
 function decodeId(value: unknown): ScheduleIdType {
   if (typeof value !== 'string' || value.length === 0 || value.trim() !== value) {
     throw new ScheduleLogError('schedule id must be a non-empty string without surrounding whitespace')
@@ -252,7 +250,7 @@ function decodeId(value: unknown): ScheduleIdType {
   return ScheduleId(value)
 }
 
-/** Validate one canonical four-digit-year UTC instant. */
+/** 校验一个规范的四位年份 UTC 时刻。 */
 function decodeInstant(value: unknown): string {
   if (typeof value !== 'string' || !UTC_INSTANT.test(value)) {
     throw new ScheduleLogError('scheduledAt must be a canonical four-digit-year RFC 3339 UTC instant')
@@ -274,15 +272,15 @@ interface CalendarParts {
   readonly millisecond: number
 }
 
-/** Read one required named regular-expression group as a number. */
+/** 把一个必需的具名正则分组读成数字。 */
 function groupNumber(groups: Record<string, string | undefined>, name: string): number {
   const value = groups[name]
-  /* v8 ignore next -- successful fixed regexes always provide every requested group. */
+  /* v8 ignore next -- 成功的固定正则总是提供每一个被请求的分组。 */
   if (value === undefined) throw new ScheduleInputError('invalid_rule', 'The at value has an invalid shape.')
   return Number(value)
 }
 
-/** Convert exact calendar fields to a UTC-shaped epoch while rejecting normalization. */
+/** 把精确的日历字段转换为 UTC 形态的 epoch，同时拒绝归一化。 */
 function calendarEpoch(parts: CalendarParts): number {
   const value = new Date(0)
   value.setUTCHours(0, 0, 0, 0)
@@ -302,12 +300,12 @@ function calendarEpoch(parts: CalendarParts): number {
   return epoch
 }
 
-/** Normalize an optional one-to-three digit fractional second to milliseconds. */
+/** 把可选的一到三位小数秒归一化为毫秒。 */
 function milliseconds(value: string | undefined): number {
   return value === undefined ? 0 : Number(value.padEnd(3, '0'))
 }
 
-/** Require a safe, representable, strictly future UTC target. */
+/** 要求一个安全、可表示且严格处于未来的 UTC 目标。 */
 function futureInstant(epoch: number, now: number): string {
   if (!Number.isSafeInteger(now) || !Number.isSafeInteger(epoch)
     || epoch < MIN_FOUR_DIGIT_YEAR_MS || epoch > MAX_FOUR_DIGIT_YEAR_MS) {
@@ -320,7 +318,7 @@ function futureInstant(epoch: number, now: number): string {
     throw new ScheduleInputError('not_future', 'The scheduled time must be strictly in the future.')
   }
   const instant = new Date(epoch).toISOString()
-  /* v8 ignore next -- an in-range integral Date always formats as the canonical UTC profile. */
+  /* v8 ignore next -- 范围内的整数 Date 总是格式化为规范的 UTC 形态。 */
   if (!UTC_INSTANT.test(instant)) {
     throw new ScheduleInputError(
       'time_out_of_range',
@@ -330,7 +328,7 @@ function futureInstant(epoch: number, now: number): string {
   return instant
 }
 
-/** Parse a strict RFC 3339 instant whose numeric offset is part of the input. */
+/** 解析一个严格的 RFC 3339 时刻，其数字偏移是输入的一部分。 */
 function parseOffsetInstant(value: string): number {
   const match = OFFSET_INSTANT.exec(value)
   const groups = match?.groups
@@ -365,9 +363,9 @@ function parseOffsetInstant(value: string): number {
 }
 
 /**
- * Validate and canonicalize one raw IANA time-zone selector.
- * @param value - Candidate `UTC` or IANA Area/Location name.
- * @returns The runtime's canonical IANA name.
+ * 校验并规范化一个原始的 IANA 时区选择器。
+ * @param value - 候选的 `UTC` 或 IANA Area/Location 名称。
+ * @returns 运行时的规范 IANA 名称。
  */
 export function canonicalizeTimeZone(value: string): string {
   if (value.length === 0 || value.trim() !== value || (value !== 'UTC' && !IANA_ZONE.test(value))) {
@@ -383,14 +381,14 @@ export function canonicalizeTimeZone(value: string): string {
       { cause: error },
     )
   }
-  /* v8 ignore next -- Intl returns the requested canonical zone or an IANA canonical alias. */
+  /* v8 ignore next -- Intl 返回请求的规范时区，或一个 IANA 规范别名。 */
   if (canonical !== 'UTC' && !IANA_ZONE.test(canonical)) {
     throw new ScheduleInputError('invalid_time_zone', 'time_zone must resolve to UTC or an IANA Area/Location name.')
   }
   return canonical
 }
 
-/** Parse strict local calendar fields without consulting a process time zone. */
+/** 解析严格的本地日历字段，不查询进程时区。 */
 function parseLocalAt(value: LocalAtInput): CalendarParts {
   const dateMatch = LOCAL_DATE.exec(value.date)
   const timeMatch = LOCAL_TIME.exec(value.time)
@@ -418,13 +416,13 @@ function parseLocalAt(value: LocalAtInput): CalendarParts {
   return parts
 }
 
-/** Resolve only the earlier overlap instant; a gap fails the local-field round trip. */
+/** 只解析较早的重叠时刻；时间间隙会让本地字段往返失败。 */
 function localInstant(local: Temporal.PlainDateTime, timeZone: string): number | undefined {
   const zoned = local.toZonedDateTime(timeZone, { disambiguation: 'earlier' })
   return zoned.toPlainDateTime().equals(local) ? zoned.epochMilliseconds : undefined
 }
 
-/** Resolve a local one-shot, rejecting nonexistent wall-clock times. */
+/** 解析一个本地一次性目标，拒绝不存在的墙上时钟时间。 */
 function resolveLocalInstant(parts: CalendarParts, timeZone: string): number {
   const target = localInstant(Temporal.PlainDateTime.from(parts, { overflow: 'reject' }), timeZone)
   if (target === undefined) {
@@ -433,9 +431,9 @@ function resolveLocalInstant(parts: CalendarParts, timeZone: string): number {
   return target
 }
 
-/** Decode the exact v1 after record shape. */
+/** 解码精确的 v1 after 记录结构。 */
 function decodeAfterRecord(value: unknown): LegacyAfterScheduleRecord {
-  /* v8 ignore next -- decodeLegacyScheduleRecord rejects a non-object before it dispatches here. */
+  /* v8 ignore next -- decodeLegacyScheduleRecord 在分派到这里之前已拒绝非对象。 */
   if (!isRecord(value)) throw new ScheduleLogError('after schedule must be an object')
   const title = decodeHistoricalRecordTitle(
     value,
@@ -460,9 +458,9 @@ function decodeAfterRecord(value: unknown): LegacyAfterScheduleRecord {
   })
 }
 
-/** Decode the exact v1 absolute one-shot record shape. */
+/** 解码精确的 v1 绝对一次性记录结构。 */
 function decodeAtRecord(value: unknown): LegacyAtScheduleRecord {
-  /* v8 ignore next -- decodeLegacyScheduleRecord rejects a non-object before it dispatches here. */
+  /* v8 ignore next -- decodeLegacyScheduleRecord 在分派到这里之前已拒绝非对象。 */
   if (!isRecord(value)) throw new ScheduleLogError('at schedule must be an object')
   const title = decodeHistoricalRecordTitle(
     value,
@@ -482,9 +480,9 @@ function decodeAtRecord(value: unknown): LegacyAtScheduleRecord {
   })
 }
 
-/** Decode the exact v1 fixed-rate record shape. */
+/** 解码精确的 v1 固定频率记录结构。 */
 function decodeEveryRecord(value: unknown): LegacyEveryScheduleRecord {
-  /* v8 ignore next -- decodeLegacyScheduleRecord rejects a non-object before it dispatches here. */
+  /* v8 ignore next -- decodeLegacyScheduleRecord 在分派到这里之前已拒绝非对象。 */
   if (!isRecord(value)) throw new ScheduleLogError('every schedule must be an object')
   const title = decodeHistoricalRecordTitle(
     value,
@@ -513,10 +511,10 @@ function decodeEveryRecord(value: unknown): LegacyEveryScheduleRecord {
 }
 
 /**
- * Parse one strict local clock time shared by the wall-clock selectors.
- * @param value - Candidate `HH:mm:ss` time with optional one-to-three fractional digits.
- * @param selector - Public selector name used in the diagnostic.
- * @returns The parsed plain time; malformed input throws ScheduleInputError.
+ * 解析各墙上时钟选择器共享的一个严格本地时钟时间。
+ * @param value - 候选的 `HH:mm:ss` 时间，可带一到三位小数。
+ * @param selector - 诊断信息中使用的公开选择器名称。
+ * @returns 解析出的 plain time；畸形输入抛出 ScheduleInputError。
  */
 function localClockTime(value: string, selector: string): Temporal.PlainTime {
   if (!LOCAL_CLOCK_TIME.test(value)) {
@@ -528,28 +526,28 @@ function localClockTime(value: string, selector: string): Temporal.PlainTime {
   return Temporal.PlainTime.from(value)
 }
 
-/** Parse strictly before Temporal can constrain or coerce the supplied time. */
+/** 在 Temporal 能够约束或强制转换所提供的时间之前先行严格解析。 */
 function dailyTime(value: string): Temporal.PlainTime {
   return localClockTime(value, 'daily')
 }
 
 /**
- * Parse one strict local clock time accepted by the weekly selector.
- * @param value - Candidate `HH:mm:ss` time with optional one-to-three fractional digits.
- * @returns The parsed plain time; malformed input throws ScheduleInputError.
+ * 解析 weekly 选择器接受的一个严格本地时钟时间。
+ * @param value - 候选的 `HH:mm:ss` 时间，可带一到三位小数。
+ * @returns 解析出的 plain time；畸形输入抛出 ScheduleInputError。
  */
 export function weeklyTime(value: string): Temporal.PlainTime {
   return localClockTime(value, 'weekly')
 }
 
-/** Fail already-typed durable values without wrapping the stored-data diagnostic. */
+/** 让已带类型的持久化值失败，而不包装存储数据的诊断信息。 */
 function rethrowLogError(error: unknown): never {
-  /* v8 ignore next -- every wrapped call raises ScheduleInputError, so this pass-through never fires. */
+  /* v8 ignore next -- 每个被包装的调用抛出的都是 ScheduleInputError，所以这条透传永不触发。 */
   if (error instanceof ScheduleLogError) throw error
   throw new ScheduleLogError(String(error))
 }
 
-/** Decode a Host daily rule without re-resolving its committed UTC target. */
+/** 解码一个 Host 每日规则，而不重新解析其已提交的 UTC 目标。 */
 function decodeDailyRecord(value: Record<string, unknown>): DailyScheduleRecord {
   const title = decodeRecordTitle(
     value,
@@ -580,9 +578,9 @@ function decodeDailyRecord(value: Record<string, unknown>): DailyScheduleRecord 
 }
 
 /**
- * Normalize the explicit ISO weekday set of one weekly rule.
- * @param weekdays - Untrusted candidate weekday values.
- * @returns Frozen unique ascending weekdays from 1 (Monday) through 7 (Sunday).
+ * 归一化一个每周规则的显式 ISO 星期集合。
+ * @param weekdays - 不可信的候选星期值。
+ * @returns 冻结的、从 1（周一）到 7（周日）的唯一升序星期。
  */
 export function normalizeWeekdays(weekdays: unknown): number[] {
   if (!Array.isArray(weekdays) || weekdays.length === 0) {
@@ -605,9 +603,9 @@ export function normalizeWeekdays(weekdays: unknown): number[] {
   return ordered
 }
 /**
- * Decode a Host weekly rule without re-resolving its committed UTC target.
- * @param value - Untrusted durable record already identified as weekly.
- * @returns Detached frozen weekly record; malformed fields throw ScheduleLogError.
+ * 解码一个 Host 每周规则，而不重新解析其已提交的 UTC 目标。
+ * @param value - 已识别为 weekly 的、不可信的持久化记录。
+ * @returns 脱钩并冻结的每周记录；畸形字段抛出 ScheduleLogError。
  */
 function decodeWeeklyRecord(value: Record<string, unknown>): WeeklyScheduleRecord {
   const title = decodeRecordTitle(
@@ -636,7 +634,7 @@ function decodeWeeklyRecord(value: Record<string, unknown>): WeeklyScheduleRecor
     rethrowLogError(error)
   }
   if (time !== normalized) throw new ScheduleLogError('weekly time must be normalized to HH:mm:ss.SSS')
-  // normalizeWeekdays proves the field is a number array before this check compares it to the decoded copy.
+  // normalizeWeekdays 在本检查把它与解码副本比较之前，已证明该字段是数字数组。
   const stored = value['weekdays'] as number[]
   let weekdays: number[]
   try {
@@ -654,9 +652,9 @@ function decodeWeeklyRecord(value: Record<string, unknown>): WeeklyScheduleRecor
 }
 
 /**
- * Decode a Host cron rule without re-resolving its committed UTC target.
- * @param value - Untrusted durable record already identified as cron.
- * @returns Detached frozen cron record; malformed fields throw ScheduleLogError.
+ * 解码一个 Host cron 规则，而不重新解析其已提交的 UTC 目标。
+ * @param value - 已识别为 cron 的、不可信的持久化记录。
+ * @returns 脱钩并冻结的 cron 记录；畸形字段抛出 ScheduleLogError。
  */
 function decodeCronRecord(value: Record<string, unknown>): CronScheduleRecord {
   const title = decodeRecordTitle(
@@ -692,12 +690,12 @@ function decodeCronRecord(value: Record<string, unknown>): CronScheduleRecord {
 }
 
 /**
- * Decode a current Host task record, preserving its committed target and stored zone spelling.
+ * 解码一个当前的 Host 任务记录，保留其已提交的目标与已存储的时区拼写。
  *
- * Every variant of a stored Host task carries its title, so the historical
- * one-shot variants are re-checked for that member after their shape decodes.
- * @param value - Untrusted durable JSON record.
- * @returns Detached frozen record; malformed fields throw ScheduleLogError.
+ * 一个已存储 Host 任务的每个变体都携带其名称，因此历史的一次性变体
+ * 在其结构解码之后会被再次检查该成员。
+ * @param value - 不可信的持久化 JSON 记录。
+ * @returns 脱钩并冻结的记录；畸形字段抛出 ScheduleLogError。
  */
 export function decodeScheduleRecord(value: unknown): ScheduleRecord {
   if (isRecord(value) && value['kind'] === 'daily') return decodeDailyRecord(value)
@@ -709,12 +707,12 @@ export function decodeScheduleRecord(value: unknown): ScheduleRecord {
 }
 
 /**
- * Decode only the variants admitted by historical version-1 Session events.
+ * 只解码历史版本 1 Session 事件所承认的那些变体。
  *
- * A record written before titles existed decodes without that member, so the
- * fold keeps reading a log that the current creation path could not write.
- * @param value - Untrusted durable JSON record from a Session event.
- * @returns Detached frozen record, without a title when the event omitted it.
+ * 在名称存在之前写入的记录会解码为不带该成员，因此折叠过程仍能读取
+ * 一段当前创建路径无法写入的日志。
+ * @param value - 来自 Session 事件的、不可信的持久化 JSON 记录。
+ * @returns 脱钩并冻结的记录；当事件省略了名称时不带名称。
  */
 function decodeLegacyScheduleRecord(value: unknown): LegacyScheduleRecord {
   if (!isRecord(value)) throw new ScheduleLogError('schedule record must be an object')
@@ -727,9 +725,9 @@ function decodeLegacyScheduleRecord(value: unknown): LegacyScheduleRecord {
 }
 
 /**
- * Decode one strict version-1 `schedule/change` payload.
- * @param value - Untrusted durable JSON value.
- * @returns Detached, frozen Schedule change.
+ * 解码一个严格的版本 1 `schedule/change` 载荷。
+ * @param value - 不可信的持久化 JSON 值。
+ * @returns 脱钩并冻结的 Schedule 变更。
  */
 export function decodeScheduleChange(value: unknown): ScheduleChange {
   if (!isRecord(value)) throw new ScheduleLogError('schedule/change payload must be an object')
@@ -779,14 +777,14 @@ export function decodeScheduleChange(value: unknown): ScheduleChange {
   }
 }
 
-/** Timing fields one fixed-rate decision needs from its record. */
+/** 一次固定频率决策需要从其记录中取得的定时字段。 */
 type EveryOccurrenceInput = Pick<EveryScheduleRecord, 'everySeconds' | 'scheduledAt'>
 
 /**
- * Resolve one fixed-rate decision without enumerating missed occurrences.
- * @param record - Active record whose target is the earliest unaccepted occurrence.
- * @param acceptedAt - Wall-clock decision time in epoch milliseconds.
- * @returns The latest due occurrence and first strictly future target, if representable.
+ * 解析一次固定频率决策，而不枚举错过的 occurrence。
+ * @param record - 其目标为最早未被接受 occurrence 的活动记录。
+ * @param acceptedAt - 以 epoch 毫秒表示的墙上时钟决策时间。
+ * @returns 最新的到期 occurrence，以及第一个严格处于未来的目标（若可表示）。
  */
 export function resolveEveryOccurrence(
   record: EveryOccurrenceInput,
@@ -807,7 +805,7 @@ export function resolveEveryOccurrence(
   }
   const steps = Math.floor((acceptedAt - target) / interval)
   const occurrence = target + steps * interval
-  /* v8 ignore next -- bounded operands and a quotient-derived product stay safe. */
+  /* v8 ignore next -- 有界的操作数与由商推导出的乘积始终保持安全。 */
   if (!Number.isSafeInteger(occurrence) || occurrence < target || occurrence > acceptedAt) {
     throw new ScheduleLogError('every occurrence arithmetic must stay within the accepted interval')
   }
@@ -822,24 +820,24 @@ export function resolveEveryOccurrence(
   })
 }
 
-/** Project an explicit instant into a calendar date in the rule's zone. */
+/** 把一个显式时刻投影到该规则时区下的日历日期。 */
 function localDate(epoch: number, timeZone: string): Temporal.PlainDate {
   return Temporal.Instant.fromEpochMilliseconds(epoch).toZonedDateTimeISO(timeZone).toPlainDate()
 }
 
-/** Recognize one of the rule's explicit ISO weekdays on a local calendar date. */
+/** 在一个本地日历日期上识别该规则的某个显式 ISO 星期。 */
 type WeekdayMatch = (date: Temporal.PlainDate) => boolean
 
-/** Skip every local date; used by a rule that selects by time alone. */
+/** 不跳过任何本地日期；供仅按时间选择的规则使用。 */
 const EVERY_DATE: WeekdayMatch = () => true
 
-/** Select the explicit ISO weekdays of one normalized weekly rule. */
+/** 选择一个已归一化每周规则的显式 ISO 星期。 */
 function weekdaySet(weekdays: readonly number[]): WeekdayMatch {
   const selected = new Set(weekdays)
   return date => selected.has(date.dayOfWeek)
 }
 
-/** Find the first actual occurrence after now and, when supplied, after a delivered date. */
+/** 找出 now 之后、且在提供时还在某个已投递日期之后的第一个实际 occurrence。 */
 function nextMatchingTarget(
   time: Temporal.PlainTime,
   timeZone: string,
@@ -862,7 +860,7 @@ function nextMatchingTarget(
   return undefined
 }
 
-/** Find the latest actual occurrence at or before a decision without leaving the committed floor. */
+/** 在不越过已提交下限的前提下，找出决策时刻或之前的最新实际 occurrence。 */
 function latestDueOccurrence(
   timeZone: string,
   matches: WeekdayMatch,
@@ -870,18 +868,18 @@ function latestDueOccurrence(
   acceptedAt: number,
   savedTarget: number,
 ): number {
-  // Offsets are less than 24 hours; a date-line rollback can make the current local date earlier than a due date.
+  // 偏移量小于 24 小时；日期线回退可能使当前本地日期早于某个到期日期。
   let date = localDate(acceptedAt, 'UTC').add({ days: 1 })
   for (;; date = date.subtract({ days: 1 })) {
     if (!matches(date)) continue
     const candidate = localInstant(date.toPlainDateTime(time), timeZone)
     if (candidate === undefined || candidate > acceptedAt) continue
-    // A committed target remains due even if current tzdata places the rule before it.
+    // 即使当前的 tzdata 把该规则排到它之前，已提交的目标仍然到期。
     return Math.max(candidate, savedTarget)
   }
 }
 
-/** Resolve a wall-clock rule only when its decision is at a representable four-digit-year instant. */
+/** 仅当墙上时钟规则的决策处于一个可表示的四位年份时刻时才解析它。 */
 function acceptedDecision(selector: string, acceptedAt: number): number {
   if (!Number.isSafeInteger(acceptedAt)
     || acceptedAt < MIN_FOUR_DIGIT_YEAR_MS || acceptedAt > MAX_FOUR_DIGIT_YEAR_MS) {
@@ -890,7 +888,7 @@ function acceptedDecision(selector: string, acceptedAt: number): number {
   return acceptedAt
 }
 
-/** Find the first actual daily occurrence after now and, when supplied, after a delivered date. */
+/** 找出 now 之后、且在提供时还在某个已投递日期之后的第一个实际每日 occurrence。 */
 function nextDailyTarget(
   time: Temporal.PlainTime,
   timeZone: string,
@@ -901,10 +899,10 @@ function nextDailyTarget(
 }
 
 /**
- * Resolve a daily decision near the decision's local date, not across its missed history.
- * @param record - Daily rule with a committed earliest unaccepted UTC target.
- * @param acceptedAt - Explicit wall-clock decision time, at or after the committed target.
- * @returns Latest actual due occurrence and the next future occurrence on a later local date.
+ * 在决策所在的本地日期附近解析一次每日决策，而不是跨越其错过的历史。
+ * @param record - 带有已提交的最早未被接受 UTC 目标的每日规则。
+ * @param acceptedAt - 显式的墙上时钟决策时间，不早于已提交的目标。
+ * @returns 最新的实际到期 occurrence，以及更晚一个本地日期上的下一次 occurrence。
  */
 export function resolveDailyOccurrence(record: DailyScheduleRecord, acceptedAt: number): RecurringOccurrence {
   const decision = acceptedDecision('daily', acceptedAt)
@@ -918,13 +916,13 @@ export function resolveDailyOccurrence(record: DailyScheduleRecord, acceptedAt: 
 }
 
 /**
- * Find the first actual weekly occurrence after now and, when supplied, after a delivered date.
- * @param time - Normalized local clock time of the rule.
- * @param timeZone - Explicit zone interpreting that clock time.
- * @param weekdays - Normalized explicit ISO weekdays of the rule.
- * @param now - Explicit decision time in epoch milliseconds.
- * @param afterDate - Local date of the delivered occurrence, excluded from the search.
- * @returns The first strictly future target, or exhaustion as undefined.
+ * 找出 now 之后、且在提供时还在某个已投递日期之后的第一个实际每周 occurrence。
+ * @param time - 规则的已归一化本地时钟时间。
+ * @param timeZone - 解释该时钟时间的显式时区。
+ * @param weekdays - 规则的已归一化显式 ISO 星期。
+ * @param now - 以 epoch 毫秒表示的显式决策时间。
+ * @param afterDate - 已投递 occurrence 所在的本地日期，不参与搜索。
+ * @returns 第一个严格处于未来的目标，或耗尽时为 undefined。
  */
 function nextWeeklyTarget(
   time: Temporal.PlainTime,
@@ -937,10 +935,10 @@ function nextWeeklyTarget(
 }
 
 /**
- * Resolve a weekly decision near the decision's local date, not across its missed history.
- * @param record - Weekly rule with a committed earliest unaccepted UTC target.
- * @param acceptedAt - Explicit wall-clock decision time, at or after the committed target.
- * @returns Latest actual due occurrence and the next future occurrence on a selected weekday.
+ * 在决策所在的本地日期附近解析一次每周决策，而不是跨越其错过的历史。
+ * @param record - 带有已提交的最早未被接受 UTC 目标的每周规则。
+ * @param acceptedAt - 显式的墙上时钟决策时间，不早于已提交的目标。
+ * @returns 最新的实际到期 occurrence，以及某个被选中星期上的下一次 occurrence。
  */
 export function resolveWeeklyOccurrence(record: WeeklyScheduleRecord, acceptedAt: number): RecurringOccurrence {
   const decision = acceptedDecision('weekly', acceptedAt)
@@ -955,16 +953,16 @@ export function resolveWeeklyOccurrence(record: WeeklyScheduleRecord, acceptedAt
 }
 
 /**
- * Build the local-date predicate of one parsed cron rule under Vixie day-of-month/day-of-week semantics.
+ * 按 Vixie 的日/周语义构造一个已解析 cron 规则的本地日期判定函数。
  *
- * The star flag selects the branch only; it never excuses a field's matched values.
- * When either field text starts with `*`, a local date must satisfy BOTH fields, so a
- * stepped star such as `*` followed by `/2` still restricts the dates it matches. A bare
- * `*` matches every value, which makes that field's match always true and degrades the
- * AND to the other field, exactly like Vixie's `DOM_STAR`/`DOW_STAR` test. Only when
- * neither field text starts with `*` does either field matching suffice.
- * @param parsed - Parsed cron rule with canonical field text and matched values.
- * @returns Whether one local date matches the rule.
+ * star 标志只用于选择分支；它绝不会豁免字段自身的匹配值。当任一字段文本
+ * 以 `*` 开头时，一个本地日期必须同时满足两个字段，因此像 `*` 后跟 `/2`
+ * 这样的步进 star 依然限制它所匹配的日期。裸 `*` 匹配每一个值，这使该字段
+ * 的匹配恒为真，并把 AND 退化为另一个字段，正如 Vixie 的
+ * `DOM_STAR`/`DOW_STAR` 判定。只有当两个字段文本都不以 `*` 开头时，
+ * 任一字段匹配才足够。
+ * @param parsed - 带有规范字段文本与匹配值的已解析 cron 规则。
+ * @returns 某个本地日期是否匹配该规则。
  */
 function cronDateMatch(parsed: ParsedCronExpression): WeekdayMatch {
   const months = new Set(parsed.months)
@@ -973,7 +971,7 @@ function cronDateMatch(parsed: ParsedCronExpression): WeekdayMatch {
   const dayOfMonthRestricted = !parsed.dayOfMonthStar
   const dayOfWeekRestricted = !parsed.dayOfWeekStar
   return (date) => {
-    /* v8 ignore next -- both callers pre-filter by month before matching a date. */
+    /* v8 ignore next -- 两个调用方在匹配日期之前都已按月份预筛。 */
     if (!months.has(date.month)) return false
     const dayOfMonth = daysOfMonth.has(date.day)
     const dayOfWeek = daysOfWeek.has(date.dayOfWeek % 7)
@@ -982,7 +980,7 @@ function cronDateMatch(parsed: ParsedCronExpression): WeekdayMatch {
   }
 }
 
-/** Enumerate one parsed cron rule's local times of day in ascending wall-clock order. */
+/** 按墙上时钟升序列出一个已解析 cron 规则的本地时刻。 */
 function cronTimes(parsed: ParsedCronExpression): readonly Temporal.PlainTime[] {
   const times: Temporal.PlainTime[] = []
   for (const hour of parsed.hours) {
@@ -992,15 +990,15 @@ function cronTimes(parsed: ParsedCronExpression): readonly Temporal.PlainTime[] 
 }
 
 /**
- * Find the first strictly future cron occurrence without leaving the four-digit UTC year range.
+ * 找出第一个严格处于未来的 cron occurrence，且不越出四位 UTC 年份范围。
  *
- * The walk stops at {@link CRON_SEARCH_HORIZON_YEARS} past the floor date when that
- * horizon precedes the four-digit ceiling: a rule with no match inside the horizon
- * never matches, so its search resolves to exhaustion instead of scanning to the ceiling.
- * @param parsed - Parsed cron rule.
- * @param timeZone - Explicit zone interpreting its local date and time.
- * @param floor - Instant every returned target must exceed.
- * @returns The first matching target, or exhaustion as undefined.
+ * 当该视野早于四位年份上限时，遍历会在下限日期之后
+ * {@link CRON_SEARCH_HORIZON_YEARS} 处停止：一个在该视野内没有任何匹配
+ * 的规则永不匹配，因此它的搜索解析为耗尽，而不是一路扫描到上限。
+ * @param parsed - 已解析的 cron 规则。
+ * @param timeZone - 解释其本地日期与时间的显式时区。
+ * @param floor - 每个返回目标都必须超过的时刻。
+ * @returns 第一个匹配的目标，或耗尽时为 undefined。
  */
 function nextCronTarget(parsed: ParsedCronExpression, timeZone: string, floor: number): string | undefined {
   const times = cronTimes(parsed)
@@ -1008,8 +1006,8 @@ function nextCronTarget(parsed: ParsedCronExpression, timeZone: string, floor: n
   const months = new Set(parsed.months)
   const firstDate = localDate(floor, timeZone)
   let date = firstDate
-  // The floor's own local wall clock, so the first date converts only candidates
-  // that can exceed it instead of its whole day of times.
+  // 下限自身的本地墙上时钟，这样首个日期只转换那些可能超过它的候选时刻，
+  // 而不是它整整一天的所有时刻。
   const floorTime = Temporal.Instant.fromEpochMilliseconds(floor).toZonedDateTimeISO(timeZone).toPlainTime()
   const ceiling = localDate(MAX_FOUR_DIGIT_YEAR_MS, 'UTC').add({ days: 1 })
   const horizon = date.add({ years: CRON_SEARCH_HORIZON_YEARS })
@@ -1034,17 +1032,17 @@ function nextCronTarget(parsed: ParsedCronExpression, timeZone: string, floor: n
 }
 
 /**
- * Find the latest matching cron occurrence at or before a decision without leaving the committed floor.
+ * 在不越过已提交下限的前提下，找出决策时刻或之前的最新匹配 cron occurrence。
  *
- * The walk stops at {@link CRON_SEARCH_HORIZON_YEARS} before the decision date when that
- * horizon follows the four-digit floor, which is the local date holding that floor instant
- * in the rule's own zone: a rule with no match inside the horizon keeps the committed target
- * instead of scanning back to the floor, and a candidate before the floor instant is skipped.
- * @param parsed - Parsed cron rule.
- * @param timeZone - Explicit zone interpreting its local date and time.
- * @param decision - Wall-clock decision time in epoch milliseconds.
- * @param savedTarget - Committed target that stays due even when current zone data resolves past it.
- * @returns The latest due occurrence, or the committed target when no local occurrence is representable.
+ * 当该视野晚于四位年份下限时，遍历会在决策日期之前
+ * {@link CRON_SEARCH_HORIZON_YEARS} 处停止；该下限即在规则自身时区中
+ * 持有该下限时刻的那个本地日期：一个在该视野内没有任何匹配的规则
+ * 保留已提交的目标，而不是一路回溯到下限，而早于该下限时刻的候选会被跳过。
+ * @param parsed - 已解析的 cron 规则。
+ * @param timeZone - 解释其本地日期与时间的显式时区。
+ * @param decision - 以 epoch 毫秒表示的墙上时钟决策时间。
+ * @param savedTarget - 已提交的目标，即使当前时区数据把它解析到更晚也仍然到期。
+ * @returns 最新的到期 occurrence，或当没有本地 occurrence 可表示时的已提交目标。
  */
 function latestCronOccurrence(
   parsed: ParsedCronExpression,
@@ -1055,12 +1053,12 @@ function latestCronOccurrence(
   const times = cronTimes(parsed)
   const matches = cronDateMatch(parsed)
   const months = new Set(parsed.months)
-  // Offsets are less than 24 hours; a date-line rollback can make a due local date
-  // later than the UTC decision date, which is why the walk starts one day after it.
+  // 偏移量小于 24 小时；日期线回退可能使一个到期的本地日期晚于 UTC 决策日期，
+  // 这正是遍历从它之后一天开始的原因。
   let date = localDate(decision, 'UTC').add({ days: 1 })
-  // The floor is an instant: the earliest local date the walk may reach is the one
-  // holding it in the rule's own zone, and candidates below it are skipped, so a
-  // negative offset can still resolve a due local minute dated before the UTC floor.
+  // 下限是一个时刻：遍历可以到达的最早本地日期，是在规则自身时区中
+  // 持有该时刻的那个日期，而低于它的候选会被跳过，因此一个负偏移
+  // 仍然可以解析出一个日期早于 UTC 下限的到期本地分钟。
   const floorDate = localDate(MIN_FOUR_DIGIT_YEAR_MS, timeZone)
   const horizon = date.subtract({ years: CRON_SEARCH_HORIZON_YEARS })
   const firstDate = Temporal.PlainDate.compare(horizon, floorDate) > 0 ? horizon : floorDate
@@ -1070,11 +1068,10 @@ function latestCronOccurrence(
       continue
     }
     if (matches(date)) {
-      // One conversion of the date's earliest wall clock decides whether the whole
-      // date lies beyond the decision: every later time on it is later too, so the
-      // walk steps back instead of converting the rest of a day that cannot match.
-      // An earliest time that a DST gap removes leaves the bound to the first time
-      // that does exist, and a date with no existing time keeps the full walk.
+      // 对这一天最早的墙上时钟做一次转换，即可判定整日是否都超出决策：
+      // 该日更晚的时刻也更晚，因此遍历直接回退，而不是转换完一整天
+      // 不可能匹配的其余时刻。被 DST 间隙消除的最早时刻会让这个界
+      // 退到第一个确实存在的时刻，而一个没有任何存在时刻的日期则保留完整遍历。
       const earliest = times.reduce<number | undefined>(
         (found, time) => found ?? localInstant(date.toPlainDateTime(time), timeZone),
         undefined,
@@ -1086,7 +1083,7 @@ function latestCronOccurrence(
       for (const time of [...times].reverse()) {
         const candidate = localInstant(date.toPlainDateTime(time), timeZone)
         if (candidate === undefined || candidate > decision || candidate < MIN_FOUR_DIGIT_YEAR_MS) continue
-        // A committed target remains due even if current tzdata places the rule before it.
+        // 即使当前的 tzdata 把该规则排到它之前，已提交的目标仍然到期。
         return Math.max(candidate, savedTarget)
       }
     }
@@ -1096,10 +1093,10 @@ function latestCronOccurrence(
 }
 
 /**
- * Resolve a cron decision near the decision's local date, not across its missed history.
- * @param record - Cron rule with a committed earliest unaccepted UTC target.
- * @param acceptedAt - Explicit wall-clock decision time, at or after the committed target.
- * @returns Latest actual due occurrence and the first future occurrence.
+ * 在决策所在的本地日期附近解析一次 cron 决策，而不是跨越其错过的历史。
+ * @param record - 带有已提交的最早未被接受 UTC 目标的 cron 规则。
+ * @param acceptedAt - 显式的墙上时钟决策时间，不早于已提交的目标。
+ * @returns 最新的实际到期 occurrence 与第一个未来的 occurrence。
  */
 export function resolveCronOccurrence(record: CronScheduleRecord, acceptedAt: number): RecurringOccurrence {
   const decision = acceptedDecision('cron', acceptedAt)
@@ -1113,19 +1110,19 @@ export function resolveCronOccurrence(record: CronScheduleRecord, acceptedAt: nu
 }
 
 /**
- * Identify recurring Host records explicitly, excluding both one-shot variants.
- * @param record - Current Host schedule record.
- * @returns Whether the record uses a recurring rule.
+ * 显式地识别重复型 Host 记录，排除两个一次性变体。
+ * @param record - 当前的 Host schedule 记录。
+ * @returns 该记录是否使用重复规则。
  */
 export function isRecurringScheduleRecord(record: ScheduleRecord): record is RecurringScheduleRecord {
   return record.kind === 'every' || record.kind === 'daily' || record.kind === 'weekly' || record.kind === 'cron'
 }
 
 /**
- * Resolve one due recurring Host record with its rule-specific calendar or interval arithmetic.
- * @param record - Due recurring rule.
- * @param acceptedAt - Explicit decision time in epoch milliseconds.
- * @returns Latest due occurrence and optional future target.
+ * 用其规则专属的日历或间隔算术，解析一个已到期的重复型 Host 记录。
+ * @param record - 已到期的重复规则。
+ * @param acceptedAt - 以 epoch 毫秒表示的显式决策时间。
+ * @returns 最新的到期 occurrence 与可选的未来目标。
  */
 export function resolveRecurringOccurrence(record: RecurringScheduleRecord, acceptedAt: number): RecurringOccurrence {
   switch (record.kind) {
@@ -1138,7 +1135,7 @@ export function resolveRecurringOccurrence(record: RecurringScheduleRecord, acce
 
 type DecodedDispatch = Extract<ScheduleChange, { operation: 'dispatch' }>
 
-/** Apply one decoded dispatch to its exact active record. */
+/** 把一次已解码的派发应用到其精确的活动记录上。 */
 function dispatchedRecord(record: LegacyScheduleRecord, change: DecodedDispatch): LegacyScheduleRecord | undefined {
   const hasAcceptedAt = 'acceptedAt' in change
   if (record.kind !== 'every') {
@@ -1153,13 +1150,13 @@ function dispatchedRecord(record: LegacyScheduleRecord, change: DecodedDispatch)
 }
 
 /**
- * Apply already-decoded Schedule changes to one complete fold value.
+ * 把已解码的 Schedule 变更应用到一个完整的折叠值上。
  *
- * The transition authority for full-log replay. One mutable Map/Set pair spans
- * the whole batch; the returned arrays are materialized and frozen once.
- * @param folded - complete active records and used-id history before the changes.
- * @param changes - strictly decoded durable mutations in log order.
- * @returns the complete fold value after every mutation.
+ * 这是完整日志重放的迁移权威。一对可变的 Map/Set 贯穿整批变更；
+ * 返回的数组只被物化并冻结一次。
+ * @param folded - 变更之前的完整活动记录与已用 id 历史。
+ * @param changes - 按日志顺序排列的、严格解码的持久化变更。
+ * @returns 每一次变更之后的完整折叠值。
  */
 export function applyScheduleChanges(
   folded: FoldedSchedules,
@@ -1191,7 +1188,7 @@ export function applyScheduleChanges(
         else active.set(change.id, next)
         break
       }
-      /* v8 ignore next 3 -- decodeScheduleChange returns a closed operation union. */
+      /* v8 ignore next 3 -- decodeScheduleChange 返回一个封闭的 operation 联合类型。 */
       default: {
         const unreachable: never = change
         throw new ScheduleLogError(`unknown decoded schedule change ${String(unreachable)}`)
@@ -1205,10 +1202,10 @@ export function applyScheduleChanges(
 }
 
 /**
- * Fold the package-owned stream after the durable fork seed boundary.
- * @param events - Complete ordered session log or candidate-extended log.
- * @param inheritedEventCount - Inherited prefix length excluded from child ownership.
- * @returns Active records and all previously used ids.
+ * 在持久化分叉种子边界之后，折叠本包拥有的事件流。
+ * @param events - 完整有序的 session 日志，或候选扩展后的日志。
+ * @param inheritedEventCount - 被排除在子级所有权之外的继承前缀长度。
+ * @returns 活动记录与所有此前使用过的 id。
  */
 export function foldScheduleEvents(
   events: readonly SessionEvent[],
@@ -1232,9 +1229,9 @@ export function foldScheduleEvents(
 }
 
 /**
- * Allocate the next readable id without reusing any prior session-local id.
- * @param folded - Fold containing every previously created id.
- * @returns A fresh `schedule-N` identity.
+ * 分配下一个可读 id，而不复用任何先前的 session 局部 id。
+ * @param folded - 含有每一个此前创建过的 id 的折叠结果。
+ * @returns 一个全新的 `schedule-N` 标识。
  */
 export function allocateScheduleId(folded: FoldedSchedules): ScheduleIdType {
   const seen = new Set(folded.seenIds)
@@ -1248,13 +1245,13 @@ export function allocateScheduleId(folded: FoldedSchedules): ScheduleIdType {
 }
 
 /**
- * Validate a model after rule and compute its durable target.
- * @param id - Already allocated task id.
- * @param prompt - Reminder content supplied at creation.
- * @param afterSeconds - Requested positive delay.
- * @param now - Single rule-acceptance wall-clock sample in epoch milliseconds.
- * @param title - Required task name supplied at creation.
- * @returns Frozen durable after record.
+ * 校验一个 model after 规则，并计算其持久化目标。
+ * @param id - 已分配的任务 id。
+ * @param prompt - 创建时提供的提醒内容。
+ * @param afterSeconds - 请求的正延迟。
+ * @param now - 单次规则接受的墙上时钟采样，以 epoch 毫秒表示。
+ * @param title - 创建时提供的必需任务名。
+ * @returns 冻结的持久化 after 记录。
  */
 export function createAfterScheduleRecord(
   id: ScheduleIdType,
@@ -1283,13 +1280,13 @@ export function createAfterScheduleRecord(
 }
 
 /**
- * Validate an absolute selector and compute its sole durable UTC target.
- * @param id - Already allocated task id.
- * @param prompt - Reminder content supplied at creation.
- * @param at - Explicit-offset instant or structured local calendar value.
- * @param now - Single rule-acceptance wall-clock sample in epoch milliseconds.
- * @param title - Required task name supplied at creation.
- * @returns Frozen durable absolute one-shot record.
+ * 校验一个绝对选择器，并计算其唯一的持久化 UTC 目标。
+ * @param id - 已分配的任务 id。
+ * @param prompt - 创建时提供的提醒内容。
+ * @param at - 带显式偏移的时刻，或结构化的本地日历值。
+ * @param now - 单次规则接受的墙上时钟采样，以 epoch 毫秒表示。
+ * @param title - 创建时提供的必需任务名。
+ * @returns 冻结的持久化绝对一次性记录。
  */
 export function createAtScheduleRecord(
   id: ScheduleIdType,
@@ -1313,9 +1310,9 @@ export function createAtScheduleRecord(
 }
 
 /**
- * Parse an absolute selector without requiring it to be future.
- * @param at - Explicit-offset instant or strict local calendar input.
- * @returns Resolved epoch milliseconds; malformed input throws ScheduleInputError.
+ * 解析一个绝对选择器，而不要求它处于未来。
+ * @param at - 带显式偏移的时刻，或严格的本地日历输入。
+ * @returns 解析出的 epoch 毫秒；畸形输入抛出 ScheduleInputError。
  */
 export function parseAtInput(at: AtInput): number {
   let target: number
@@ -1346,13 +1343,13 @@ export function parseAtInput(at: AtInput): number {
 }
 
 /**
- * Validate a fixed-rate selector and compute the first target of a new interval anchor.
- * @param id - Already allocated task id.
- * @param prompt - Reminder content supplied at creation.
- * @param everySeconds - Requested fixed safe-integer interval.
- * @param now - Single rule-acceptance wall-clock sample in epoch milliseconds.
- * @param title - Required task name supplied at creation.
- * @returns Frozen durable fixed-rate record.
+ * 校验一个固定频率选择器，并计算一个新间隔锚点的第一个目标。
+ * @param id - 已分配的任务 id。
+ * @param prompt - 创建时提供的提醒内容。
+ * @param everySeconds - 请求的固定安全整数间隔。
+ * @param now - 单次规则接受的墙上时钟采样，以 epoch 毫秒表示。
+ * @param title - 创建时提供的必需任务名。
+ * @returns 冻结的持久化固定频率记录。
  */
 export function createEveryScheduleRecord(
   id: ScheduleIdType,
@@ -1387,13 +1384,13 @@ export function createEveryScheduleRecord(
 }
 
 /**
- * Create a daily wall-clock rule with a strictly future committed UTC target.
- * @param id - Already allocated task identity.
- * @param prompt - Reminder content supplied at creation.
- * @param daily - Strict local time and explicit IANA zone.
- * @param now - Single rule-acceptance wall-clock sample in epoch milliseconds.
- * @param title - Required task name supplied at creation.
- * @returns Frozen daily record; absent future dates throw time_out_of_range.
+ * 创建一个带有严格处于未来的已提交 UTC 目标的每日墙上时钟规则。
+ * @param id - 已分配的任务标识。
+ * @param prompt - 创建时提供的提醒内容。
+ * @param daily - 严格的本地时间与显式的 IANA 时区。
+ * @param now - 单次规则接受的墙上时钟采样，以 epoch 毫秒表示。
+ * @param title - 创建时提供的必需任务名。
+ * @returns 冻结的每日记录；没有未来日期时抛出 time_out_of_range。
  */
 export function createDailyScheduleRecord(
   id: ScheduleIdType,
@@ -1420,9 +1417,9 @@ export function createDailyScheduleRecord(
 }
 
 /**
- * Normalize a daily selector without calculating a new committed target.
- * @param daily - Strict local time and explicit IANA zone.
- * @returns Normalized time and canonical zone; malformed input throws ScheduleInputError.
+ * 归一化一个每日选择器，而不计算新的已提交目标。
+ * @param daily - 严格的本地时间与显式的 IANA 时区。
+ * @returns 归一化的时间与规范时区；畸形输入抛出 ScheduleInputError。
  */
 export function parseDailyInput(daily: DailyInput): { readonly time: string; readonly timeZone: string } {
   if (!isRecord(daily) || !hasExactKeys(daily, ['time', 'time_zone']) || typeof daily['time'] !== 'string') {
@@ -1440,13 +1437,13 @@ export function parseDailyInput(daily: DailyInput): { readonly time: string; rea
 }
 
 /**
- * Create a weekly wall-clock rule with a strictly future committed UTC target.
- * @param id - Already allocated task identity.
- * @param prompt - Reminder content supplied at creation.
- * @param weekly - Strict local time, explicit IANA zone, and explicit ISO weekday set.
- * @param now - Single rule-acceptance wall-clock sample in epoch milliseconds.
- * @param title - Required task name supplied at creation.
- * @returns Frozen weekly record; absent future weekdays throw time_out_of_range.
+ * 创建一个带有严格处于未来的已提交 UTC 目标的每周墙上时钟规则。
+ * @param id - 已分配的任务标识。
+ * @param prompt - 创建时提供的提醒内容。
+ * @param weekly - 严格的本地时间、显式 IANA 时区与显式 ISO 星期集合。
+ * @param now - 单次规则接受的墙上时钟采样，以 epoch 毫秒表示。
+ * @param title - 创建时提供的必需任务名。
+ * @returns 冻结的每周记录；没有未来的星期时抛出 time_out_of_range。
  */
 export function createWeeklyScheduleRecord(
   id: ScheduleIdType,
@@ -1474,13 +1471,13 @@ export function createWeeklyScheduleRecord(
 }
 
 /**
- * Create a cron wall-clock rule with a strictly future committed UTC target.
- * @param id - Already allocated task identity.
- * @param prompt - Reminder content supplied at creation.
- * @param cron - Strict five-field expression and explicit IANA zone.
- * @param now - Single rule-acceptance wall-clock sample in epoch milliseconds.
- * @param title - Required task name supplied at creation.
- * @returns Frozen cron record; absent future occurrences throw time_out_of_range.
+ * 创建一个带有严格处于未来的已提交 UTC 目标的 cron 墙上时钟规则。
+ * @param id - 已分配的任务标识。
+ * @param prompt - 创建时提供的提醒内容。
+ * @param cron - 严格的五字段表达式与显式的 IANA 时区。
+ * @param now - 单次规则接受的墙上时钟采样，以 epoch 毫秒表示。
+ * @param title - 创建时提供的必需任务名。
+ * @returns 冻结的 cron 记录；没有未来的 occurrence 时抛出 time_out_of_range。
  */
 export function createCronScheduleRecord(
   id: ScheduleIdType,
@@ -1507,9 +1504,9 @@ export function createCronScheduleRecord(
 }
 
 /**
- * Normalize a weekly selector without calculating a new committed target.
- * @param weekly - Strict local time, explicit IANA zone, and explicit ISO weekday set.
- * @returns Normalized time, canonical zone, and unique ascending weekdays; malformed input throws ScheduleInputError.
+ * 归一化一个每周选择器，而不计算新的已提交目标。
+ * @param weekly - 严格的本地时间、显式 IANA 时区与显式 ISO 星期集合。
+ * @returns 归一化的时间、规范时区与唯一升序星期；畸形输入抛出 ScheduleInputError。
  */
 export function parseWeeklyInput(
   weekly: WeeklyInput,
@@ -1532,15 +1529,15 @@ export function parseWeeklyInput(
   }
 }
 
-/** Field bounds of the supported five-field cron dialect, in evaluation order. */
+/** 所支持的五字段 cron 方言的字段边界，按求值顺序排列。 */
 interface CronFieldSpec {
-  /** Field name used in diagnostics. */
+  /** 诊断信息中使用的字段名。 */
   readonly name: string
-  /** Lowest value accepted in the input dialect. */
+  /** 输入方言中接受的最小值。 */
   readonly min: number
-  /** Highest value accepted in the input dialect; Sunday accepts both 0 and 7. */
+  /** 输入方言中接受的最大值；星期日同时接受 0 与 7。 */
   readonly max: number
-  /** Highest value retained after folding Sunday 7 onto 0. */
+  /** 把星期日 7 折叠到 0 之后保留的最大值。 */
   readonly canonicalMax: number
 }
 
@@ -1552,17 +1549,17 @@ const CRON_FIELDS: readonly [CronFieldSpec, CronFieldSpec, CronFieldSpec, CronFi
   { name: 'day-of-week', min: 0, max: 7, canonicalMax: 6 },
 ]
 
-/** One parsed cron field: its matched values, canonical spelling, and Vixie star flag. */
+/** 一个已解析的 cron 字段：其匹配值、规范拼写与 Vixie star 标志。 */
 interface ParsedCronField {
-  /** Unique ascending matched values after Sunday folding. */
+  /** 星期日折叠之后的唯一升序匹配值。 */
   readonly values: readonly number[]
-  /** Canonical spelling of exactly those values. */
+  /** 恰好这些值的规范拼写。 */
   readonly canonical: string
-  /** Whether the field text starts with `*`, which is Vixie's DOM_STAR/DOW_STAR test. */
+  /** 字段文本是否以 `*` 开头，即 Vixie 的 DOM_STAR/DOW_STAR 判定。 */
   readonly star: boolean
 }
 
-/** Build the stable diagnostic for one malformed cron field element. */
+/** 为一个畸形的 cron 字段元素构造稳定的诊断信息。 */
 function invalidCronField(spec: CronFieldSpec, element: string): ScheduleInputError {
   return new ScheduleInputError(
     'invalid_rule',
@@ -1571,7 +1568,7 @@ function invalidCronField(spec: CronFieldSpec, element: string): ScheduleInputEr
   )
 }
 
-/** Read one in-range cron field value. */
+/** 读取一个在范围内的 cron 字段值。 */
 function cronFieldValue(text: string, spec: CronFieldSpec): number {
   const value = Number(text)
   if (!Number.isSafeInteger(value) || value < spec.min || value > spec.max) {
@@ -1583,7 +1580,7 @@ function cronFieldValue(text: string, spec: CronFieldSpec): number {
   return value
 }
 
-/** Read one positive cron field step. */
+/** 读取一个正的 cron 字段步长。 */
 function cronFieldStep(text: string, spec: CronFieldSpec): number {
   const step = Number(text)
   if (!Number.isSafeInteger(step) || step < 1) {
@@ -1592,7 +1589,7 @@ function cronFieldStep(text: string, spec: CronFieldSpec): number {
   return step
 }
 
-/** Expand one comma-separated cron field into its matched value set. */
+/** 把一个逗号分隔的 cron 字段展开为它的匹配值集合。 */
 function cronFieldValues(raw: string, spec: CronFieldSpec): number[] {
   const matched = new Set<number>()
   for (const element of raw.split(',')) {
@@ -1610,7 +1607,7 @@ function cronFieldValues(raw: string, spec: CronFieldSpec): number[] {
       const groups = stepped?.groups
       if (groups === undefined) throw invalidCronField(spec, element)
       const stepText = groups['step']
-      /* v8 ignore next -- a successful fixed regex always provides the step group. */
+      /* v8 ignore next -- 成功的固定正则总是提供 step 分组。 */
       if (stepText === undefined) throw invalidCronField(spec, element)
       const step = cronFieldStep(stepText, spec)
       for (let value = spec.min; value <= spec.max; value += step) matched.add(value)
@@ -1620,7 +1617,7 @@ function cronFieldValues(raw: string, spec: CronFieldSpec): number[] {
     const groups = parsed?.groups
     if (groups === undefined) throw invalidCronField(spec, element)
     const startText = groups['start']
-    /* v8 ignore next -- a successful fixed regex always provides the start group. */
+    /* v8 ignore next -- 成功的固定正则总是提供 start 分组。 */
     if (startText === undefined) throw invalidCronField(spec, element)
     const start = cronFieldValue(startText, spec)
     const end = groups['end']
@@ -1647,21 +1644,21 @@ function cronFieldValues(raw: string, spec: CronFieldSpec): number[] {
 }
 
 /**
- * Read one value the encoder already proved present.
- * @param values - matched value set the parser always fills.
- * @param index - index the caller derived from that set.
- * @returns the value at that index.
+ * 读取一个编码器已证明存在的值。
+ * @param values - 解析器总是会填满的匹配值集合。
+ * @param index - 调用方从该集合推导出的下标。
+ * @returns 该下标处的值。
  */
 function cronFieldValueAt(values: readonly number[], index: number): number {
   const value = values[index]
-  /* v8 ignore next -- a parsed cron field always matches at least one value. */
+  /* v8 ignore next -- 一个已解析的 cron 字段总是至少匹配一个值。 */
   if (value === undefined) throw new ScheduleLogError('cron field encoding requires a non-empty value set')
   return value
 }
 
-/** Encode one matched value set as the shortest equivalent comma-separated cron field.
- * @param values - Matched values in ascending order.
- * @returns Field text that re-parses to exactly `values`, never spelled with a leading `*`.
+/** 把一个匹配值集合编码为最短的等价逗号分隔 cron 字段。
+ * @param values - 按升序排列的匹配值。
+ * @returns 重新解析后恰好得到 `values` 的字段文本，且绝不以 `*` 开头。
  */
 function encodeCronField(values: readonly number[]): string {
   const first = cronFieldValueAt(values, 0)
@@ -1694,10 +1691,10 @@ function encodeCronField(values: readonly number[]): string {
 }
 
 /**
- * One uniform walk from a field's minimum, folded exactly as a parsed field folds.
- * @param spec - Field range and canonical maximum.
- * @param step - Positive step of the walk.
- * @returns Ascending values `step` produces from the minimum.
+ * 从字段最小值出发的一次均匀遍历，其折叠方式与已解析字段的折叠完全一致。
+ * @param spec - 字段范围与规范最大值。
+ * @param step - 遍历的正步长。
+ * @returns `step` 从最小值出发产生的升序值。
  */
 function starWalk(spec: CronFieldSpec, step: number): number[] {
   const walked = new Set<number>()
@@ -1708,17 +1705,16 @@ function starWalk(spec: CronFieldSpec, step: number): number[] {
 }
 
 /**
- * Canonical spelling of a field whose text started with `*`.
+ * 一个文本以 `*` 开头的字段的规范拼写。
  *
- * Only a `*`-prefixed spelling keeps the star flag, and only the bare star or a star-step
- * (a `*` followed by `/n`) admits a leading `*`, so the encoding is the bare star for every
- * value, otherwise the widest star-step walk plus any remaining values as a list.
- * Re-parsing therefore reproduces both the star flag and the matched set, which is what
- * keeps day-of-month/day-of-week AND/OR selection stable across a stored canonical
- * expression.
- * @param values - Matched values in ascending order.
- * @param spec - Field range and canonical maximum.
- * @returns Canonical field text that starts with `*`.
+ * 只有 `*`-前缀的拼写才保留 star 标志，且只有裸 star 或 star-步长
+ * （`*` 后跟 `/n`）才允许前导 `*`，因此当覆盖每一个值时编码就是裸 star，
+ * 否则是最宽的 star-步长遍历加上列表形式的剩余值。重新解析因此会同时
+ * 复现 star 标志与匹配集合，这正是让日/周的 AND/OR 选择在存储一个规范
+ * 表达式之后保持稳定不变的原因。
+ * @param values - 按升序排列的匹配值。
+ * @param spec - 字段范围与规范最大值。
+ * @returns 以 `*` 开头的规范字段文本。
  */
 function encodeStarCronField(values: readonly number[], spec: CronFieldSpec): string {
   if (values.length === spec.canonicalMax - spec.min + 1) return '*'
@@ -1732,7 +1728,7 @@ function encodeStarCronField(values: readonly number[], spec: CronFieldSpec): st
       bestWalk = walk
     }
   }
-  /* v8 ignore next -- the widest step yields the single minimum, which every `*`-led field matches. */
+  /* v8 ignore next -- 最宽的步长会产出唯一的那个最小值，而每个以 `*` 开头的字段都匹配它。 */
   if (bestStep === undefined) throw new ScheduleInputError('invalid_rule', `${spec.name} cannot keep a leading \`*\`.`)
   const walked = new Set(bestWalk)
   const remaining = values.filter(value => !walked.has(value))
@@ -1743,13 +1739,13 @@ function encodeStarCronField(values: readonly number[], spec: CronFieldSpec): st
 }
 
 /**
- * Parse one cron field into its matched values, canonical spelling, and star flag.
+ * 把一个 cron 字段解析为它的匹配值、规范拼写与 star 标志。
  *
- * The star flag tests the field text's first character, which is how Vixie sets
- * `DOM_STAR`/`DOW_STAR`: a stepped star (`*` followed by `/2`) is a star although
- * it matches half the range, while an explicit full range such as `1-31` is
- * restricted. Canonicalization preserves the flag: a `*`-led field keeps a `*`-led
- * spelling, and a field that did not start with `*` is never spelled as a star-step.
+ * star 标志检测字段文本的首字符，这正是 Vixie 设置
+ * `DOM_STAR`/`DOW_STAR` 的方式：一个步进 star（`*` 后跟 `/2`）虽然只匹配
+ * 半个范围，但仍是 star；而像 `1-31` 这样的显式完整范围则是受限的。
+ * 规范化会保留该标志：以 `*` 开头的字段保持以 `*` 开头的拼写，
+ * 而一个不是以 `*` 开头的字段绝不会被拼写成 star-步长。
  */
 function parseCronField(raw: string, spec: CronFieldSpec): ParsedCronField {
   const values = cronFieldValues(raw, spec)
@@ -1761,27 +1757,27 @@ function parseCronField(raw: string, spec: CronFieldSpec): ParsedCronField {
   })
 }
 
-/** Parsed five-field cron rule: canonical text plus every field's matched values. */
+/** 已解析的五字段 cron 规则：规范文本，以及每个字段的匹配值。 */
 interface ParsedCronExpression {
-  /** Canonical expression stored in the durable record. */
+  /** 存储在持久化记录中的规范表达式。 */
   readonly expression: string
-  /** Unique ascending matched minutes. */
+  /** 唯一升序的匹配分钟。 */
   readonly minutes: readonly number[]
-  /** Unique ascending matched hours. */
+  /** 唯一升序的匹配小时。 */
   readonly hours: readonly number[]
-  /** Unique ascending matched days of the month. */
+  /** 唯一升序的匹配日期。 */
   readonly daysOfMonth: readonly number[]
-  /** Unique ascending matched months. */
+  /** 唯一升序的匹配月份。 */
   readonly months: readonly number[]
-  /** Unique ascending matched cron weekdays, Sunday 0 through Saturday 6. */
+  /** 唯一升序的匹配 cron 星期，星期日 0 到星期六 6。 */
   readonly daysOfWeek: readonly number[]
-  /** Whether the day-of-month field text starts with `*` (Vixie `DOM_STAR`). */
+  /** 日期字段文本是否以 `*` 开头（Vixie `DOM_STAR`）。 */
   readonly dayOfMonthStar: boolean
-  /** Whether the day-of-week field text starts with `*` (Vixie `DOW_STAR`). */
+  /** 星期字段文本是否以 `*` 开头（Vixie `DOW_STAR`）。 */
   readonly dayOfWeekStar: boolean
 }
 
-/** Parse and canonicalize one strict five-field cron expression. */
+/** 解析并规范化一个严格的五字段 cron 表达式。 */
 function parseCronExpression(expression: string): ParsedCronExpression {
   if (typeof expression !== 'string' || expression.length === 0 || expression.trim() !== expression) {
     throw new ScheduleInputError('invalid_rule', 'cron.expression must be a non-empty trimmed string.')
@@ -1797,7 +1793,7 @@ function parseCronExpression(expression: string): ParsedCronExpression {
   const [minute, hour, dayOfMonth, month, dayOfWeek] = fields.map(
     (field, index) => {
       const fieldSpec = CRON_FIELDS[index]
-      /* v8 ignore next -- the five-field split bounds this index. */
+      /* v8 ignore next -- 五字段切分界定了该索引。 */
       if (fieldSpec === undefined) throw new ScheduleLogError('cron field specification is missing')
       return parseCronField(field, fieldSpec)
     },
@@ -1815,18 +1811,18 @@ function parseCronExpression(expression: string): ParsedCronExpression {
 }
 
 /**
- * Canonicalize one strict five-field cron expression.
- * @param expression - Candidate `minute hour day-of-month month day-of-week` expression.
- * @returns The canonical expression; malformed or unsupported input throws ScheduleInputError.
+ * 规范化一个严格的五字段 cron 表达式。
+ * @param expression - 候选的 `分 时 日 月 周` 表达式。
+ * @returns 规范表达式；畸形或不受支持的输入抛出 ScheduleInputError。
  */
 export function canonicalizeCronExpression(expression: string): string {
   return parseCronExpression(expression).expression
 }
 
 /**
- * Normalize a cron selector without calculating a new committed target.
- * @param cron - Strict five-field expression and explicit IANA zone.
- * @returns The canonical expression and canonical zone; malformed input throws ScheduleInputError.
+ * 归一化一个 cron 选择器，而不计算新的已提交目标。
+ * @param cron - 严格的五字段表达式与显式的 IANA 时区。
+ * @returns 规范表达式与规范时区；畸形输入抛出 ScheduleInputError。
  */
 export function parseCronInput(cron: CronInput): { readonly expression: string; readonly timeZone: string } {
   if (!isRecord(cron) || !hasExactKeys(cron, ['expression', 'time_zone']) || typeof cron['expression'] !== 'string') {
@@ -1844,10 +1840,10 @@ export function parseCronInput(cron: CronInput): { readonly expression: string; 
 }
 
 /**
- * Derive one execution-local management view.
- * @param record - Active durable record.
- * @param now - Wall-clock sample used for its timing state.
- * @returns Complete Host delivery view.
+ * 派生一个执行局部的管理视图。
+ * @param record - 活动的持久化记录。
+ * @param now - 用于判定其时序状态的墙上时钟采样。
+ * @returns 完整的 Host 投递视图。
  */
 export function scheduleView(record: ScheduleRecord, now: number): ScheduleView {
   return Object.freeze({
@@ -1857,13 +1853,13 @@ export function scheduleView(record: ScheduleRecord, now: number): ScheduleView 
   })
 }
 
-/** Fixed model-facing origin line shared by one-shot and recurring reminder delivery. */
+/** 一次性与重复提醒投递共享的、面向模型的固定来源行。 */
 const SCHEDULED_MESSAGE_FRAMING = 'This is a scheduled message from the user'
 
 /**
- * Render the fixed model framing for a due reminder.
- * @param record - Due active record.
- * @returns Stable model-visible text with JSON-escaped dynamic fields.
+ * 渲染一个到期提醒的固定模型框架文本。
+ * @param record - 到期的活动记录。
+ * @returns 稳定的模型可见文本，其动态字段经过 JSON 转义。
  */
 export function renderReminderFraming(record: OneShotScheduleRecord): string {
   return [
@@ -1876,9 +1872,9 @@ export function renderReminderFraming(record: OneShotScheduleRecord): string {
 }
 
 /**
- * Render one recurring reminder batch in the supplied order.
- * @param reminders - Complete admitted batch with one latest occurrence per record.
- * @returns Stable model-visible text whose dynamic payload is canonical JSON.
+ * 按所提供的顺序渲染一批重复提醒。
+ * @param reminders - 完整的已准入批次，每个记录一个最新 occurrence。
+ * @returns 稳定的模型可见文本，其动态载荷是规范 JSON。
  */
 export function renderRecurringReminderBatchFraming(
   reminders: readonly { readonly record: RecurringScheduleRecord; readonly occurrenceAt: string }[],

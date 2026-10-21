@@ -1,10 +1,9 @@
 /**
- * Register the DeepSeek Search and Fetch APIs in `ctx.web` as `deepseek-search-api`
- * and `deepseek-fetch-api`. Each operation is one direct API request without an
- * auxiliary model request; both providers read this section's credential and API
- * base. `web.searchProvider` and `web.fetchProvider` select them. A Session on the
- * DeepSeek account route authenticates with the account token when the account
- * service allows the endpoint; every other request uses the configured key.
+ * 在 `ctx.web` 中将 DeepSeek 搜索与抓取 API 注册为 `deepseek-search-api`
+ * 和 `deepseek-fetch-api`。每次操作都是一次直接的 API 请求，无需辅助模型请求；
+ * 两个提供方都读取本节的凭据和 API 基址。`web.searchProvider` 和 `web.fetchProvider`
+ * 选择它们。基于 DeepSeek 账号路由的会话在账号服务允许该端点时，使用账号令牌进行认证；
+ * 所有其他请求使用配置的密钥。
  * @module @deepseek-ai/dsh-web-deepseek-api
  */
 import type { Context, Volatile } from '@deepseek-ai/cordis'
@@ -24,23 +23,23 @@ export {
 } from './search.ts'
 export type { DeepSeekSearchApiOptions } from './search.ts'
 
-/** Cordis plugin name used by loader diagnostics. */
+/** 供加载器诊断使用的 Cordis 插件名。 */
 export const name = 'web-deepseek-api'
 
-/** The web seam both providers register into. */
+/** 两个提供方都注册进入的 web seam。 */
 export const inject = ['web']
 
-/** Settings read by the next search or fetch without re-registering either provider. */
+/** 在下一次搜索或抓取之前读取的设置，无需重新注册任一提供方。 */
 export interface Config {
-  /** Literal DeepSeek API key; prefer {@link apiKeyEnv} so no secret enters configuration files. */
+  /** 字面 DeepSeek API 密钥；优先使用 {@link apiKeyEnv}，以免机密进入配置文件。 */
   apiKey: Volatile<string | undefined>
-  /** Credential reference resolved for each operation; defaults to `DEEPSEEK_API_KEY`. */
+  /** 为每次操作解析的凭据引用；默认为 `DEEPSEEK_API_KEY`。 */
   apiKeyEnv: Volatile<string>
-  /** API base including its path prefix; `/search` and `/fetch` are appended. */
+  /** API 基址，含路径前缀；会追加 `/search` 和 `/fetch`。 */
   baseURL: Volatile<string>
-  /** Search API results per search, from 1 through 50; a smaller request bound wins. Defaults to 10. */
+  /** 每次搜索的搜索 API 结果数，从 1 到 50；较小的请求上限胜出。默认 10。 */
   count: Volatile<number>
-  /** Send the triggering user question, bounded to 128 characters, as `ori_question`. Defaults to true. */
+  /** 发送触发本次轮次的用户问题，限长 128 字符，作为 `ori_question`。默认 true。 */
   sendOriginalQuestion: Volatile<boolean>
 }
 
@@ -53,10 +52,9 @@ export const Config = z.object({
 })
 
 /**
- * Read the text of the latest human prompt, the question that triggered the
- * current turn. Injected user-role context carries another source kind.
- * @param session - the initiating Session, when the search runs inside one.
- * @returns the prompt's joined text blocks, or undefined without a prompt.
+ * 读取最新一条人类提示词的文本，即触发本次轮次的问题。注入的用户角色上下文携带另一种来源类型。
+ * @param session - 发起会话的 Session，当搜索在其中运行时。
+ * @returns 提示词拼接后的文本块，无提示词时为 undefined。
  */
 function latestUserQuestion(session: Session | undefined): string | undefined {
   const prompt = session?.deriveMessages().findLast(message => message.role === 'user' && message.source.kind === 'user')
@@ -65,9 +63,9 @@ function latestUserQuestion(session: Session | undefined): string | undefined {
 }
 
 /**
- * Register the Search API and Fetch API providers over one live settings section.
- * @param ctx - plugin context owning both registrations.
- * @param config - live settings, read once per operation.
+ * 在一个实时的设置节之上注册搜索 API 和抓取 API 提供方。
+ * @param ctx - 拥有这两次注册的插件上下文。
+ * @param config - 实时设置，每次操作读取一次。
  */
 export function apply(ctx: Context, config: Config): void {
   const auth = () => deepSeekWebAuth(ctx, { apiKey: config.apiKey.get(), apiKeyEnv: config.apiKeyEnv.get() })

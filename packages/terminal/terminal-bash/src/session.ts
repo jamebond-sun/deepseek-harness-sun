@@ -1,4 +1,4 @@
-/** Persistent PTY session with bounded output, readiness, and terminal-protocol replies. */
+/** 具有有界输出、就绪判定与终端协议应答的持久化 PTY 会话。 */
 
 import { Buffer } from 'node:buffer'
 import type { IDisposable, Terminal as HeadlessTerminalType } from '@xterm/headless'
@@ -41,7 +41,7 @@ function utf8Tail(text: string, maxBytes: number): { text: string; truncated: bo
   return { text: chars.slice(start).join(''), truncated: true }
 }
 
-// Bound pending string fragments independently of deployment retention limits.
+// 独立地约束待定字符串片段，不受部署侧保留上限的影响。
 const COALESCED_CHUNK_UNITS = 4096
 
 interface TextChunk {
@@ -50,7 +50,7 @@ interface TextChunk {
   next: TextChunk | undefined
 }
 
-/** Retention work is amortized over appended text; reads assemble the retained chunks. */
+/** 保留工作在追加文本时被平摊；读取时再拼装保留下来的分块。 */
 class BoundedTextBuffer {
   private head: TextChunk | undefined
   private tail: TextChunk | undefined
@@ -74,26 +74,26 @@ class BoundedTextBuffer {
 
   append(text: string): void {
     if (text.length === 0) return
-    // Sanitized text can be a slice retaining discarded controls; copy UTF-16 without replacing lone surrogates.
+    // 已清理文本可能是一段保留了被丢弃控制字符的切片；以 UTF-16 复制而不替换孤立代理项。
     text = Buffer.from(text, 'utf16le').toString('utf16le')
     this.bytes += Buffer.byteLength(text)
     const tail = this.tail
     if (tail !== undefined) {
       const last = this.lastCodeUnit
       const first = text.charCodeAt(0)
-      // Concatenation can turn two three-byte lone surrogates into one four-byte code point.
+      // 拼接可能把两个三字节的孤立代理项合成一个四字节码点。
       if (last >= 0xd800 && last <= 0xdbff && first >= 0xdc00 && first <= 0xdfff) this.bytes -= 2
     }
     for (let index = text.indexOf('\n'); index !== -1; index = text.indexOf('\n', index + 1)) {
       this.newlines += 1
     }
     this.lastCodeUnit = text.charCodeAt(text.length - 1)
-    // The head never grows, so eviction never rescans a growing string.
+    // 头分块不会增长，因此淘汰时永远不会重新扫描一个不断增长的字符串。
     if (tail !== undefined && tail !== this.head && tail.text.length + text.length <= COALESCED_CHUNK_UNITS) {
       tail.text += text
     } else {
       if (tail !== undefined && tail.text.length <= COALESCED_CHUNK_UNITS) {
-        // Copy coalesced fragments into one string; large tails already own their storage.
+        // 将已合并的片段复制到同一个字符串中；大尾部已经拥有自己的存储。
         tail.text = Buffer.from(tail.text, 'utf16le').toString('utf16le')
       }
       const chunk: TextChunk = { text, start: 0, next: undefined }
@@ -118,8 +118,8 @@ class BoundedTextBuffer {
     }
     const head = this.head
     if (head !== undefined && head.start >= head.text.length / 2) {
-      // Copy UTF-16 verbatim so a small suffix cannot retain an oversized input's backing store.
-      // Copying only after discarding at least half keeps this work amortized over discarded text.
+      // 逐字复制 UTF-16，以免一个小的后缀留住了超大输入的底层存储。
+      // 仅在丢弃至少一半之后才复制，可让这部分工作在被丢弃文本上保持平摊。
       head.text = Buffer.from(head.text.slice(head.start), 'utf16le').toString('utf16le')
       head.start = 0
     }
@@ -217,9 +217,9 @@ class LocalSendOperation implements TerminalSendOperation {
   }
 
   acceptsStdinWait(pgid: number, waiting: boolean): boolean {
-    // The same group may still expose the wait that existed before terminal.write.
-    // Observe every poll so a departure before the exact-settlement threshold
-    // still makes a later return to that wait post-write evidence.
+    // 同一进程组仍可能暴露 terminal.write 之前就存在的等待。
+    // 观察每一次轮询，使得在精确结算阈值之前的离开，仍能构成写入之后
+    // 回到该等待状态的证据。
     if (pgid !== this.initialForegroundPgid) return waiting
     if (!waiting) this.initialForegroundLeftWait = true
     return waiting && this.initialForegroundLeftWait
@@ -238,7 +238,7 @@ export class LocalPtySession implements TerminalBackendSession {
   motd = ''
   readonly pid: number
   private readonly decoder = new TextDecoder()
-  /** Protocol state only; the sanitizer and bounded buffers own returned text. */
+  /** 仅用于协议状态；已清理文本与有界缓冲区才真正持有返回的文本内容。 */
   private readonly emulator: HeadlessTerminalType
   private readonly emulatorData: IDisposable
   private readonly sanitizer: TerminalSanitizer
@@ -246,10 +246,10 @@ export class LocalPtySession implements TerminalBackendSession {
   private readonly outputEnded = Promise.withResolvers<void>()
   private readonly completion: Promise<void>
   private statusValue: TerminalSessionStatus = { kind: 'running' }
-  // TODO(pty-send-state-consolidation): Fold the per-send fields below
-  // (active/activeTimer/activeDeadlineTimer/activeAbort/interrupting/
-  // activeWrite/pollingReady/polling and terminal-protocol work) into one send-lifecycle
-  // owner; the cancellation/readiness interplay has enough pinned tests to carry that refactor safely.
+  // TODO(pty-send-state-consolidation): 将下方每个发送相关的字段
+  // （active/activeTimer/activeDeadlineTimer/activeAbort/interrupting/
+  // activeWrite/pollingReady/polling 以及终端协议相关工作）合并到单一的发送生命周期
+  // 拥有者中；取消/就绪之间的相互作用已有足够的固定测试，足以安全地承载该重构。
   private active: LocalSendOperation | undefined
   private activeTimer: NodeJS.Timeout | undefined
   private activeDeadlineTimer: NodeJS.Timeout | undefined
@@ -305,9 +305,9 @@ export class LocalPtySession implements TerminalBackendSession {
   }
 
   /**
-   * Capture startup output through the same readiness contract as later sends.
-   * @param signal - optional cancellation while the shell reaches its first prompt.
-   * @returns Resolves after startup readiness; rejects on exit or readiness timeout.
+   * 通过和后续发送相同的就绪契约来捕获启动输出。
+   * @param signal - 在 shell 抵达首个提示符期间的可选取消信号。
+   * @returns 启动就绪后兑现；在退出或就绪超时时拒绝。
    */
   async initialize(signal?: AbortSignal): Promise<void> {
     this.initializing = true
@@ -374,12 +374,10 @@ export class LocalPtySession implements TerminalBackendSession {
       }
     } catch (error: unknown) {
       if (this.protocolWorkPending()) await this.drainTerminalProtocol()
-      // A pre-write inspection failure while cancellation owns the slot must not
-      // release it: interruptOnce's in-flight foreground signal could land on a
-      // successor's foreground group. The interrupt path's post-signal tail
-      // resumes polling, whose guarded catch propagates a persistent failure.
-      // A retained settled operation implies that same in-flight interrupt, so
-      // this guard admits only an unsettled active send.
+      // 在取消信号持有该槽位时发生写前检查失败，绝不能释放它：interruptOnce
+      // 正在飞行的 FG 信号可能落到后继的 FG 进程组上。中断路径在信号之后的尾部
+      // 会恢复轮询，其受保护的 catch 会传播一个持久性失败。一个被保留的已结算
+      // 操作意味着同一个正在飞行的中断，因此本守卫只接纳尚未结算的活动发送。
       if (this.active === operation && !this.closing && this.interrupting !== operation) {
         this.failActive(error)
       }
@@ -399,14 +397,14 @@ export class LocalPtySession implements TerminalBackendSession {
           this.activeWrite = undefined
         }
       }
-      // Cancellation owns post-write signalling and reservation release.
+      // 取消信号负责写后信令与槽位释放。
       if (operation.cancelRequested) return
       if (this.active === operation && operation.settled) {
         this.releaseSettledActive()
         return
       }
-      // Closing can race the awaited provider write even though static analysis sees only local assignments.
-      // oxlint-disable-next-line typescript/no-unnecessary-condition -- awaited provider writes can close the session.
+      // 尽管静态分析只看到局部赋值，关闭仍可能与被 await 的提供者写入产生竞态。
+      // oxlint-disable-next-line typescript/no-unnecessary-condition -- 被 await 的提供者写入可能会关闭会话。
       if (this.active === operation && !this.closing) {
         this.pollingReady = operation
         this.schedulePoll(operation)
@@ -497,11 +495,10 @@ export class LocalPtySession implements TerminalBackendSession {
     const sanitized = this.sanitizer.push(data)
     this.appendOutput(sanitized.text)
     if (sanitized.prompt) {
-      // TODO(pty-delayed-signal-prompt): With a reproducer, define a marker-generation boundary
-      // before attributing a signal-delayed prompt to a later send.
-      // Bash can print PROMPT_COMMAND before the kernel publishes its return
-      // to the foreground process group. Retain the marker; polling below is
-      // the authority that accepts it only after bash owns the foreground.
+      // TODO(pty-delayed-signal-prompt): 在能稳定复现的前提下，界定一个标记生成边界，
+      // 再把“信号延迟导致的提示符”归因到后续发送之前先明确它。
+      // bash 可能在内核将返回值发布到前台进程组之前就打印 PROMPT_COMMAND。
+      // 保留该标记；下面的轮询才是权威，它只在 bash 拥有前台后才接受该标记。
       this.promptSeen = true
       this.promptTail = ''
       this.lastOutputAt = Date.now()
@@ -579,17 +576,15 @@ export class LocalPtySession implements TerminalBackendSession {
         this.settleActive('stdin_read')
         return
       }
-      // A prompt candidate can race bash's foreground handoff, but an interactive
-      // child also inherits PROMPT_COMMAND. Silence therefore remains the bound
-      // on waiting for shell ownership instead of letting a child marker suppress
-      // readiness until the absolute timeout.
+      // 一个提示符候选可能与 bash 的前台交接产生竞态，但交互式子进程也会继承
+      // PROMPT_COMMAND。因此静默仍是等待 shell 拥有前台的上限，而不是让子进程
+      // 标记把就绪压制到绝对超时为止。
       const handoffGrace = this.promptSeen ? this.config.handoffGraceMs : 0
-      // A seen marker whose printable tail has not arrived yet is the prompt function's own
-      // evidence that the shell reached its prompt: the tail is written by the same render, so
-      // its absence within the bound is a delivery delay rather than an absent prompt. The
-      // configured tolerance holds the send on the exact path for that state alone: a tail that
-      // arrived and was then invalidated by later output can no longer complete, so it keeps the
-      // plain bound. Zero leaves the bound at `idleSilenceMs + handoffGraceMs`.
+      // 一个已出现、但其可打印尾部尚未到达的标记，正是提示函数自身证明 shell 已抵达
+      // 提示符的证据：尾部由同一渲染写出，因此在边界内缺失尾部只是投递延迟，而非提示符
+      // 缺失。配置中的容差只为该状态在精确路径上挂起发送：一个已到达、随后又被后续输出
+      // 失效的尾部无法再完成，因此它仍保持普通边界。零值将边界保持在
+      // `idleSilenceMs + handoffGraceMs`。
       const tailPending = this.promptSeen && !this.promptTextSeen && CONTROLLED_PROMPT.startsWith(this.promptTail)
       const tailGrace = tailPending ? this.config.promptTailGraceMs : 0
       if (startupHasOutput && idleFor >= this.config.idleSilenceMs + handoffGrace + tailGrace) {
@@ -601,13 +596,13 @@ export class LocalPtySession implements TerminalBackendSession {
     } finally {
       this.polling = false
       const active = this.active
-      // Awaited provider inspection can clear or replace the active send despite static analysis.
-      // oxlint-disable-next-line typescript/no-unnecessary-condition -- awaited inspection can replace the active send.
+      // 尽管静态分析看不到，被 await 的提供者检查仍可能清除或替换活动发送。
+      // oxlint-disable-next-line typescript/no-unnecessary-condition -- 被 await 的检查可能替换活动发送。
       if (active !== undefined && this.pollingReady === active) this.schedulePoll(active)
     }
   }
 
-  /** Wait until generated replies reach the provider before another send can publish. */
+  /** 在另一个发送可以发布之前，等待已生成的应答抵达提供者。 */
   private async drainTerminalProtocol(): Promise<void> {
     for (;;) {
       const emulatorWrites = this.emulatorWrites
@@ -619,7 +614,7 @@ export class LocalPtySession implements TerminalBackendSession {
     }
   }
 
-  /** Sample foreground state only after protocol replies are quiet for the entire inspection. */
+  /** 仅在整个检查期间协议应答都已平静之后，才采样前台状态。 */
   private async inspectForegroundAfterProtocol(): Promise<SubprocessTerminalForeground | undefined> {
     for (;;) {
       if (this.protocolWorkPending()) await this.drainTerminalProtocol()
@@ -772,9 +767,9 @@ export class LocalPtySession implements TerminalBackendSession {
   }
 
   private async closeOnce(reason: string): Promise<void> {
-    // Stop readiness polling but retain the active operation: teardown settles
-    // it as session_exit below, so an in-flight send is never mis-settled as
-    // stdin_read/inferred_idle/timeout during the grace period.
+    // 停止就绪轮询但保留活动操作：下面的拆除会把它结算为 session_exit，
+    // 因此在宽限期内，一个正在飞行的发送绝不会被错误地结算为
+    // stdin_read/inferred_idle/timeout。
     this.stopPolling()
     this.closeEmulator()
     try {
@@ -782,7 +777,7 @@ export class LocalPtySession implements TerminalBackendSession {
     } catch (error: unknown) {
       throw new Error(`PTY cleanup failed (${reason})`, { cause: error })
     }
-    // Quiescence is the active send's terminal outcome.
+    // 静止状态即为活动发送的最终结果。
     this.settleActive('session_exit')
     await this.completion
     this.terminal.output.off('data', this.onTerminalData)

@@ -1,9 +1,7 @@
 /**
- * Execution types for the bash executor seam. Background job semantics belong
- * to `@deepseek-ai/dsh-jobs`; this seam exposes only process handles. The
- * managed-environment and captured-output vocabulary is owned by the
- * subprocess seam and re-exported here so bash consumers keep one import
- * root.
+ * bash 执行器能力缝的执行类型。后台作业语义属于 `@deepseek-ai/dsh-jobs`，
+ * 本能力缝只暴露进程句柄。受管环境与输出采集的词汇由 subprocess 能力缝
+ * 持有并在此重新导出，使 bash 使用方只保留一个导入入口。
  * @module dsh-shell/types
  */
 
@@ -14,225 +12,210 @@ export { DSH_ENV_PREFIX } from '@deepseek-ai/dsh-subprocess'
 export type { CollectedOutput, DshEnvironment, DshEnvironmentKey, SubprocessOutputRead, SubprocessOutputReader } from '@deepseek-ai/dsh-subprocess'
 
 /**
- * Non-consuming offset readers over a background process's captured streams,
- * for observers independent of the consuming {@link ShellProcess.readOutput}
- * cursor. Every background process exposes both streams; a spawn that
- * rejected produced no process output, so its stderr reader serves the
- * `spawn failed: …` note as the whole stream.
+ * 后台进程已采集输出流之上的非消费式偏移读取器，供独立于
+ * {@link ShellProcess.readOutput} 消费游标的观察者使用。每个后台进程都会
+ * 暴露这两条流；被拒绝的 spawn 不产生任何进程输出，因此其 stderr 读取器
+ * 会把 `spawn failed: …` 提示作为整条流提供。
  */
 export interface ShellObservedStreams {
-  /** Offset reader over captured stdout. */
+  /** 已采集 stdout 之上的偏移读取器。 */
   stdout: SubprocessOutputReader
-  /** Offset reader over captured stderr (the spawn-failure note after a rejected spawn). */
+  /** 已采集 stderr 之上的偏移读取器（spawn 失败时即为 spawn 失败提示）。 */
   stderr: SubprocessOutputReader
 }
 
 /**
- * Sandbox facts for one run, present iff a sandboxing executor handled it.
- * Facts are reported independently of process exit status so callers can
- * distinguish command failures from policy denials and runner failures.
+ * 单次运行的沙箱事实，仅当由带沙箱能力的执行器处理时才存在。
+ * 这些事实独立于进程退出状态上报，便于调用方区分命令失败、策略拒绝与
+ * 运行器故障。
  */
 export interface ShellSandboxInfo {
-  /** The mode the command actually ran under. */
+  /** 命令实际运行所处的模式。 */
   mode: SandboxMode
-  /** Whether the sandbox denied a file operation. */
+  /** 沙箱是否拒绝过某次文件操作。 */
   denied: boolean
-  /** How completely the selected runner enforced the requested mode. */
+  /** 所选运行器对请求模式的执行完整程度。 */
   enforcement?: SandboxEnforcement
-  /** Whether the sandbox runner failed before the command could run. */
+  /** 沙箱运行器是否在命令执行之前就已失败。 */
   runnerFailed?: boolean
 }
 
 /**
- * What the executor does when the deadline expires: `kill` stops the command
- * and classifies the result `timedOut` (the default), and `none` arms no
- * deadline at all, leaving the caller's signal and {@link ShellProcess.kill}
- * as the only ways to stop the command. A consumer that wants to keep waiting
- * only for a while runs the command under `none` and bounds its own wait.
+ * 执行器在期限到期时的动作：`kill` 终止命令并把结果归类为 `timedOut`
+ * （默认值）；`none` 完全不设期限，此时调用方的 signal 与
+ * {@link ShellProcess.kill} 是终止命令的唯一手段。只想等待一段时间的
+ * 使用方可以用 `none` 运行命令，并自行限制等待时长。
  */
 export type ShellExpiryPolicy = 'kill' | 'none'
 
 /**
- * A caller's execution REQUEST: `workdir` and `timeoutMs` are optional and
- * filled by {@link ShellExecutor.resolve} from the implementation's config.
- * This is the model-/plugin-facing shape; pass it to `resolve()` to obtain a
- * fully-resolved {@link ShellExecSpec}.
+ * 调用方的执行请求：`workdir` 与 `timeoutMs` 为可选，由
+ * {@link ShellExecutor.resolve} 依据实现自身的配置补齐。这是面向模型／插件的
+ * 形状；交给 `resolve()` 即可得到完全解析的 {@link ShellExecSpec}。
  */
 export interface ShellExecRequest {
   command: string
-  /** Working directory override (default: implementation-configured). */
+  /** 工作目录覆盖项（默认取实现配置值）。 */
   workdir?: string | undefined
-  /** Timeout override in milliseconds (implementations cap it). */
+  /** 超时覆盖值，单位毫秒（实现会对它设上限）。 */
   timeoutMs?: number | undefined
-  /** Deadline policy at `timeoutMs` expiry (default `'kill'`). */
+  /** `timeoutMs` 到期时的期限策略（默认 `'kill'`）。 */
   onExpiry?: ShellExpiryPolicy | undefined
   /**
-   * Foreground stdout capture budget in bytes. Absent uses the executor's
-   * default output cap. Trusted in-process consumers use this when they must
-   * parse complete stdout up to their own bounded limit; the model-facing bash
-   * tool does not expose it as a parameter.
+   * 前台 stdout 采集字节预算。缺省时使用执行器默认的输出上限。受信任的
+   * 进程内使用方在必须解析完整 stdout（直到自己的有界上限）时使用它；
+   * 面向模型的 bash 工具不把它作为参数暴露。
    */
   stdoutMaxBytes?: number | undefined
-  /** Abort signal — implementations kill the command when it fires, and treat a signal that is already aborted as fired. */
+  /** 中止信号——实现在它触发时终止命令，并把已处于中止状态的信号视为已触发。 */
   signal?: AbortSignal | undefined
   /**
-   * Bytes to write to the command's stdin, then close it. Absent leaves stdin
-   * closed/empty (the default for model-driven tool calls). Set by in-process
-   * plugins (e.g. the hooks bridges, which write a hook command's JSON payload
-   * to its stdin); the model-facing bash tool does not expose it as a parameter
-   * (a model that needs stdin uses shell syntax like a heredoc or a pipe).
+   * 写入命令 stdin 的字节，随后关闭 stdin。缺省则 stdin 保持关闭／为空
+   * （模型驱动的工具调用即为此默认情形）。由进程内插件设置（例如 hooks
+   * 桥接会把 hook 命令的 JSON 负载写入其 stdin）；面向模型的 bash 工具
+   * 不把它作为参数暴露（需要 stdin 的模型可用 heredoc 或管道等 shell 语法）。
    */
   stdin?: string | undefined
   /**
-   * Ordinary environment entries for the command, merged after the credential
-   * scrub. Managed facts belong in {@link dshEnv}, which merges after this
-   * map, so an entry here can never displace one. Set by in-process plugins
-   * (the hooks bridges set `CLAUDE_PROJECT_DIR`, `CLAUDE_PLUGIN_ROOT`, …); the
-   * model-facing bash tool does not expose it as a parameter.
+   * 命令的普通环境项，在凭据清理之后合并。受管事实属于 {@link dshEnv}，
+   * 它在本表之后再合并，因此此处的项永远无法顶替受管项。由进程内插件
+   * 设置（hooks 桥接会设置 `CLAUDE_PROJECT_DIR`、`CLAUDE_PLUGIN_ROOT` 等）；
+   * 面向模型的 bash 工具不把它作为参数暴露。
    */
   env?: Record<string, string> | undefined
   /**
-   * Harness-owned `DSH_*` variables for this execution (typed to managed
-   * keys). Executors discard ambient `DSH_*` entries before merging this
-   * snapshot last, so an unavailable current fact cannot inherit a stale
-   * value from the harness process and a caller {@link env} entry cannot
-   * displace a managed one.
+   * 本次执行的、由 harness 持有的 `DSH_*` 变量（类型化为受管键）。执行器
+   * 会先丢弃进程环境中既有的 `DSH_*` 项，再最后合并这份快照，因此当前
+   * 不可用的事实不会继承 harness 进程里的过期值，调用方的 {@link env}
+   * 项也无法顶替受管项。
    */
   dshEnv?: DshEnvironment | undefined
-  /** Fully resolved per-call sandbox policy; sandboxing executors default it. */
+  /** 完全解析后的单次调用沙箱策略；带沙箱能力的执行器会为它设默认值。 */
   sandboxPolicy?: SandboxExecutionPolicy | undefined
 }
 
 /**
- * A resolved execution spec. {@link ShellExecutor.resolve} fills and caps the
- * required fields; under `onExpiry: 'none'` the resolved `timeoutMs` arms no
- * timer and is only echoed into {@link ShellRunResult.timeoutMs}.
+ * 已解析的执行规约。{@link ShellExecutor.resolve} 会填充必填字段并施加上限；
+ * 在 `onExpiry: 'none'` 下，解析出的 `timeoutMs` 不启用任何计时器，只会被
+ * 原样回写到 {@link ShellRunResult.timeoutMs}。
  */
 export interface ShellExecSpec {
   command: string
   workdir: string
   timeoutMs: number
-  /** Deadline policy at `timeoutMs` expiry ({@link ShellExecutor.resolve} defaults it to `'kill'`). */
+  /** `timeoutMs` 到期时的期限策略（{@link ShellExecutor.resolve} 默认为 `'kill'`）。 */
   onExpiry: ShellExpiryPolicy
   /**
-   * Resolved stdout capture budget in bytes, applied to every execution's
-   * stdout; stderr keeps the executor's own output cap.
+   * 解析出的 stdout 采集字节预算，作用于每次执行的 stdout；stderr 仍使用
+   * 执行器自身的输出上限。
    */
   stdoutMaxBytes: number
-  /** Abort signal — implementations kill the command when it fires, and treat a signal that is already aborted as fired. */
+  /** 中止信号——实现在它触发时终止命令，并把已处于中止状态的信号视为已触发。 */
   signal?: AbortSignal | undefined
-  /** Bytes to write to stdin before closing it; absent means no stdin. */
+  /** 关闭 stdin 之前写入的字节；缺省表示没有 stdin。 */
   stdin?: string | undefined
   /**
-   * Ordinary environment entries carried through from
-   * {@link ShellExecRequest.env}; {@link dshEnv} still merges after them.
-   * OPTIONAL on the spec for the same reason as `stdin`: absent means no
-   * ordinary extra environment.
+   * 从 {@link ShellExecRequest.env} 透传的普通环境项；{@link dshEnv} 仍在
+   * 它们之后再合并。与 `stdin` 同理，它在规约上是可选的：缺省表示没有
+   * 额外的普通环境项。
    */
   env?: Record<string, string> | undefined
-  /** Managed `DSH_*` snapshot (typed to managed keys); merges after {@link env}. */
+  /** 受管的 `DSH_*` 快照（类型化为受管键）；在 {@link env} 之后合并。 */
   dshEnv?: DshEnvironment | undefined
-  /** Resolved sandbox policy; ignored by executors that do not confine. */
+  /** 解析后的沙箱策略；不实施隔离的执行器会忽略它。 */
   sandboxPolicy: SandboxExecutionPolicy | undefined
 }
 
-/** The outcome of a foreground run, including timeout during preparation. */
+/** 前台运行的结果，包含准备阶段发生超时的情形。 */
 export interface ShellRunResult {
-  /** Exit code; null when preparation expired or the process died from a signal. */
+  /** 退出码；准备阶段超时或进程死于信号时为 null。 */
   exitCode: number | null
-  /** Terminating signal, or null when none was reported, including preparation expiry. */
+  /** 终止信号；未上报任何信号时为 null，准备阶段超时亦为 null。 */
   signal: NodeJS.Signals | null
   /**
-   * True when the executor's own timeout was the FIRST cause to cut the command
-   * short. Mutually exclusive with {@link aborted}: one fused deadline drives
-   * both the timeout and the caller's cancellation, so a timeout and an abort
-   * racing before process close report the single first-abort cause, not both
-   * (see the [timeout-library Agent Note](../../../../.agents/notes/implemented/architecture/2026-07-06-timeout-deadline-library.md)).
+   * 当执行器自身的超时是让命令中断的第一个原因时为 true。与
+   * {@link aborted} 互斥：同一个融合期限同时驱动超时与调用方的取消，
+   * 因此在进程关闭前竞态的超时与中止只会上报唯一的“首个中止原因”，
+   * 而不会同时上报两者（参见 [timeout-library Agent Note](../../../../.agents/notes/implemented/architecture/2026-07-06-timeout-deadline-library.md)）。
    */
   timedOut: boolean
   /**
-   * True when the caller's `AbortSignal` was the FIRST cause to kill the command
-   * (and it was not the executor's own timeout). Mutually exclusive with
-   * {@link timedOut} — see there for the first-cause classification.
+   * 当调用方的 `AbortSignal` 是终止命令的第一个原因（且不是执行器自身的
+   * 超时）时为 true。与 {@link timedOut} 互斥——首因分类见其说明。
    */
   aborted: boolean
-  /** The effective timeout applied to this run (after defaulting/capping). */
+  /** 本次运行实际生效的超时时间（经过默认值填充与上限收敛）。 */
   timeoutMs: number
   stdout: CollectedOutput
   stderr: CollectedOutput
-  /** Sandbox execution facts, absent for an unsandboxed executor. */
+  /** 沙箱执行事实；不带沙箱的执行器不提供该字段。 */
   sandbox?: ShellSandboxInfo
 }
 
-/** Lifecycle of a background process. */
+/** 后台进程的生命周期状态。 */
 export type ShellProcessStatus = 'running' | 'completed' | 'killed'
 
-/** One incremental {@link ShellProcess.readOutput} read. */
+/** 一次增量 {@link ShellProcess.readOutput} 读取。 */
 export interface ShellProcessRead {
-  /** Output produced since the previous read (stderr in a marked section). */
+  /** 上次读取之后新增的输出（stderr 位于带标记的区块中）。 */
   delta: string
-  /** True when truncation dropped unread bytes the delta cannot include. */
+  /** 截断丢弃了本次 delta 未能包含的未读字节时为 true。 */
   lossy: boolean
-  /** Full stdout spill file, when stdout truncation occurred and a safe path is available. */
+  /** stdout 发生截断且存在安全路径时，完整的 stdout 溢出文件路径。 */
   stdoutSpillPath?: string
-  /** Full stderr spill file, when stderr truncation occurred and a safe path is available. */
+  /** stderr 发生截断且存在安全路径时，完整的 stderr 溢出文件路径。 */
   stderrSpillPath?: string
 }
 
 /**
- * A background process handle returned by {@link ShellExecutor.start}. It is the
- * only access path; buffered output remains readable after exit. Composition
- * teardown (the subprocess service's disposal) kills running processes and
- * awaits {@link done}; an executor-only reload leaves them running.
+ * {@link ShellExecutor.start} 返回的后台进程句柄。它是唯一的访问途径；
+ * 缓冲的输出在进程退出后仍可读取。composition 拆除（即 subprocess 服务
+ * 的 disposal）会终止仍在运行的进程并等待 {@link done}；仅重载执行器则
+ * 让这些进程继续运行。
  */
 export interface ShellProcess {
-  /** Process lifecycle state (settled exactly once). */
+  /** 进程生命周期状态（恰好落定一次）。 */
   status: ShellProcessStatus
-  /** Exit code once finished (null = killed by signal / still running). */
+  /** 结束后的退出码（null 表示被信号终止／仍在运行）。 */
   exitCode: number | null
-  /** Terminating signal name, when signal-killed. */
+  /** 被信号终止时的终止信号名。 */
   signal: NodeJS.Signals | null
   /**
-   * Resolves when the underlying process settles (never rejects — provider
-   * rejection settles as `killed` with a stage-neutral error on stderr).
+   * 在底层进程落定时兑现（永不拒绝——provider 拒绝会以 `killed` 落定，
+   * 并在 stderr 上留下与阶段无关的错误）。
    */
   readonly done: Promise<void>
-  /** Sandbox facts, stamped once a confined process settles. */
+  /** 沙箱事实；受隔离的进程落定后被写入。 */
   sandbox?: ShellSandboxInfo
   /**
-   * Read output produced since the previous read (consuming — consecutive
-   * reads never re-deliver). Reads that lost data flag `lossy` and point at
-   * full-stream spill files when available.
+   * 读取上次读取之后新增的输出（消费式——连续读取不会重复投递）。
+   * 丢失数据的读取会标记 `lossy`，并在可用时指向整流的溢出文件。
    */
   readOutput(): ShellProcessRead
   /**
-   * Non-consuming offset readers over the same captured streams the consuming
-   * {@link readOutput} cursor drains, including the provider-failure note a
-   * rejected spawn leaves on stderr. Independent observers read here at their
-   * own offsets without stealing bytes from `readOutput`.
+   * 位于 {@link readOutput} 游标所消耗的同一批已采集输出流之上的非消费式
+   * 偏移读取器，其中包含被拒绝的 spawn 在 stderr 上留下的 provider 失败
+   * 提示。独立观察者可在此按各自偏移读取，而不会从 `readOutput` 抢走字节。
    */
   observed: ShellObservedStreams
   /**
-   * Terminate the provider-managed range. Returns false when it had already finished
-   * (no-op); idempotent.
+   * 终止 provider 托管的进程。若它已结束则返回 false（空操作）；幂等。
    */
   kill(): boolean
 }
 
 /**
- * The one execution handle {@link ShellExecutor.execute} returns: the live
- * {@link ShellProcess} itself plus the foreground projection `result()`.
+ * {@link ShellExecutor.execute} 返回的唯一执行句柄：即存活的
+ * {@link ShellProcess} 本身，再加上前台投影 `result()`。
  */
 export interface ShellExecution extends ShellProcess {
   /**
-   * Foreground projection: settles when the process closes, with split
-   * collected streams and first-cause `timedOut`/`aborted` classification.
-   * Rejects only for infrastructure failures (a spawn that never produced a
-   * process); nonzero exits, timeout kills, and abort kills resolve with a
-   * descriptive result. Created on demand and memoized — callers that never
-   * invoke it (background producers) never observe the rejection either; the
-   * handle's `done`/read path carries the spawn-failure story for them.
-   * @returns the settled foreground result for this execution.
+   * 前台投影：在进程关闭时落定，给出分流采集的输出与首因
+   * `timedOut`/`aborted` 分类。仅在基础设施故障时拒绝（即 spawn 从未
+   * 产生进程）；非零退出、超时终止与中止终止都会以描述性结果兑现。
+   * 按需创建并被记忆化——从不调用它的使用方（后台生产者）同样不会观察到
+   * 拒绝；spawn 失败的信息由句柄的 `done`／读取路径承载。
+   * @returns 本次执行已落定的前台结果。
    */
   result(): Promise<ShellRunResult>
 }

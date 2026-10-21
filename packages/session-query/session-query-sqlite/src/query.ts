@@ -1,4 +1,4 @@
-/** Request normalization, parameterized predicates, and result presentation. */
+/** 请求归一化、参数化谓词与结果呈现。 */
 
 import {
   SessionQueryError,
@@ -15,23 +15,23 @@ import type {
   SessionSearchRequest,
 } from '@deepseek-ai/dsh-session-query'
 
-/** Collision-free marker inserted before an FTS5 match by `highlight()`. */
+/** 由 `highlight()` 插入在 FTS5 匹配之前的无冲突标记。 */
 export const FTS_HIGHLIGHT_START = '\uFDD0'
-/** Collision-free marker inserted after an FTS5 match by `highlight()`. */
+/** 由 `highlight()` 插入在 FTS5 匹配之后的无冲突标记。 */
 export const FTS_HIGHLIGHT_END = '\uFDD1'
 
-/** Largest page size whose internal lookahead remains an exact SQLite integer binding. */
+/** 内部前瞻仍是精确 SQLite 整数绑定的最大页大小。 */
 export const SQLITE_MAX_PAGE_LIMIT = Number.MAX_SAFE_INTEGER - 1
 
-/** Portable host-parameter ceiling shared by predicate and statement builders. */
+/** 谓词与语句构建器共用的、可移植的宿主机参数上限。 */
 export const SQLITE_PORTABLE_VARIABLE_LIMIT = 32_766
 
-/** Supported outer-predicate budget that keeps SQLite FTS5 MATCH usable. */
+/** 受支持的外层谓词预算，保证 SQLite FTS5 MATCH 仍可用。 */
 export const SQLITE_FTS5_OUTER_PREDICATE_LIMIT = 14
 
 /**
- * Reject prospective SQLite binding growth beyond the portable ceiling.
- * @param count - binding count at the current construction boundary.
+ * 拒绝 SQLite 绑定数量增长到超过可移植上限。
+ * @param count - 当前构建边界处的绑定数量。
  */
 export function assertPortableBindingCount(count: number): void {
   if (count > SQLITE_PORTABLE_VARIABLE_LIMIT) {
@@ -43,8 +43,8 @@ export function assertPortableBindingCount(count: number): void {
 }
 
 /**
- * Reject compiled outer predicates beyond the supported FTS5 planner budget.
- * @param count - predicate count including fixed statement predicates.
+ * 拒绝超出受支持的 FTS5 规划器预算的已编译外层谓词。
+ * @param count - 含语句固定谓词在内的谓词数量。
  */
 export function assertFts5OuterPredicateCount(count: number): void {
   if (count > SQLITE_FTS5_OUTER_PREDICATE_LIMIT) {
@@ -55,15 +55,15 @@ export function assertFts5OuterPredicateCount(count: number): void {
   }
 }
 
-/** Limit defaults needed to normalize a search request. */
+/** 归一化搜索请求所需的分页默认值。 */
 export interface QueryLimits {
-  /** Page size used when the request omits one. */
+  /** 请求省略页大小时使用的值。 */
   defaultLimit: number
-  /** Largest accepted page size. */
+  /** 可接受的最大页大小。 */
   maxLimit: number
 }
 
-/** Normalized cross-session request. */
+/** 归一化后的跨会话请求。 */
 export interface NormalizedSessionRequest {
   query: string
   sessionFilters: readonly SessionResultFilter[]
@@ -72,7 +72,7 @@ export interface NormalizedSessionRequest {
   cursor?: SessionSearchCursor
 }
 
-/** Normalized within-session request. */
+/** 归一化后的会话内请求。 */
 export interface NormalizedEventRequest {
   sessionId: SessionEventSearchRequest['sessionId']
   query: string
@@ -81,21 +81,21 @@ export interface NormalizedEventRequest {
   cursor?: SessionSearchCursor
 }
 
-/** Parameterized SQL predicate fragment. */
+/** 参数化的 SQL 谓词片段。 */
 export interface SqlWhere {
-  /** SQL without the leading `WHERE`. */
+  /** 不含前导 `WHERE` 的 SQL。 */
   sql: string
-  /** Bindings in placeholder order. */
+  /** 按占位符顺序排列的绑定值。 */
   params: Array<string | number>
-  /** Number of compiled predicates in `sql`. */
+  /** `sql` 中已编译谓词的数量。 */
   predicateCount: number
 }
 
 /**
- * Validate and canonicalize a cross-session request.
- * @param request - caller-provided query, filters, limit, and cursor.
- * @param limits - configured default and maximum page sizes.
- * @returns normalized request with explicit arrays and limit.
+ * 校验并规范化一个跨会话请求。
+ * @param request - 调用方提供的查询、过滤器、页大小与游标。
+ * @param limits - 配置中的默认页大小与最大页大小。
+ * @returns 带有显式数组与页大小的归一化请求。
  */
 export function normalizeSessionRequest(
   request: SessionSearchRequest,
@@ -114,10 +114,10 @@ export function normalizeSessionRequest(
 }
 
 /**
- * Validate and canonicalize a within-session request.
- * @param request - caller-provided target, query, filters, limit, and cursor.
- * @param limits - configured default and maximum page sizes.
- * @returns normalized request with an explicit filter array and limit.
+ * 校验并规范化一个会话内请求。
+ * @param request - 调用方提供的目标、查询、过滤器、页大小与游标。
+ * @param limits - 配置中的默认页大小与最大页大小。
+ * @returns 带有显式过滤器数组与页大小的归一化请求。
  */
 export function normalizeEventRequest(
   request: SessionEventSearchRequest,
@@ -138,9 +138,9 @@ export function normalizeEventRequest(
 }
 
 /**
- * Compile logical-session predicates against selected-document columns.
- * @param filters - validated ANDed logical-session clauses.
- * @returns parameterized SQL fragment and ordered bindings.
+ * 针对已选文档的列编译逻辑会话谓词。
+ * @param filters - 经过校验的、按 AND 组合的逻辑会话子句。
+ * @returns 参数化的 SQL 片段与有序绑定值。
  */
 export function buildSessionWhere(filters: readonly SessionResultFilter[]): SqlWhere {
   const clauses: string[] = []
@@ -186,9 +186,9 @@ export function buildSessionWhere(filters: readonly SessionResultFilter[]): SqlW
 }
 
 /**
- * Compile event metadata predicates against selected-document columns.
- * @param filters - validated ANDed event metadata clauses.
- * @returns parameterized SQL fragment and ordered bindings.
+ * 针对已选文档的列编译事件元数据谓词。
+ * @param filters - 经过校验的、按 AND 组合的事件元数据子句。
+ * @returns 参数化的 SQL 片段与有序绑定值。
  */
 export function buildEventWhere(filters: readonly SessionEventMetadataFilter[]): SqlWhere {
   const clauses: string[] = []
@@ -216,18 +216,18 @@ export function buildEventWhere(filters: readonly SessionEventMetadataFilter[]):
 }
 
 /**
- * Quote caller text as one FTS5 phrase so query syntax remains inert data.
- * @param query - normalized caller query.
- * @returns FTS5 expression containing one escaped literal phrase.
+ * 把调用方文本作为一个 FTS5 短语加引号，使查询语法始终只是惰性数据。
+ * @param query - 归一化后的调用方查询。
+ * @returns 只包含一个已转义字面短语的 FTS5 表达式。
  */
 export function quoteFtsData(query: string): string {
   return `"${query.replaceAll('"', '""')}"`
 }
 
 /**
- * Remove reserved marker collisions before text enters FTS5 or MATCH.
- * @param text - extracted document text or normalized caller query.
- * @returns text with reserved noncharacters mapped to replacement characters.
+ * 在文本进入 FTS5 或 MATCH 之前消除保留标记的冲突。
+ * @param text - 抽取出的文档文本或归一化后的调用方查询。
+ * @returns 保留的非字符已被映射为替换字符的文本。
  */
 export function sanitizeFtsText(text: string): string {
   return text
@@ -237,9 +237,9 @@ export function sanitizeFtsText(text: string): string {
 }
 
 /**
- * Build the stable normalized request identity stored in opaque cursors.
- * @param request - normalized request whose filter ordering is canonicalized.
- * @returns deterministic JSON identity for cursor binding.
+ * 构建存放在不透明游标中的、稳定的归一化请求身份。
+ * @param request - 过滤器顺序已被规范化的归一化请求。
+ * @returns 用于游标绑定的确定性 JSON 身份。
  */
 export function requestFingerprint(request: NormalizedSessionRequest | NormalizedEventRequest): string {
   if ('sessionId' in request) {
@@ -261,10 +261,10 @@ export function requestFingerprint(request: NormalizedSessionRequest | Normalize
 }
 
 /**
- * Build a whitespace-normalized excerpt no longer than `maxChars`.
- * @param markedText - complete document with FTS5 `highlight()` markers.
- * @param maxChars - maximum result length in Unicode code points.
- * @returns bounded plain-text snippet.
+ * 构建一段做过空白归一化的摘录，长度不超过 `maxChars`。
+ * @param markedText - 带有 FTS5 `highlight()` 标记的完整文档。
+ * @param maxChars - 结果长度上限，按 Unicode 码位计。
+ * @returns 有界的纯文本片段。
  */
 export function makeSnippet(markedText: string, maxChars: number): string {
   const { text: clean, matchStart } = normalizeMarkedText(markedText)

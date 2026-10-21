@@ -1,4 +1,4 @@
-/** Read-only Host and Client runtime API discovery for plugin development. */
+/** 面向插件开发的只读 Host 与 Client 运行时 API 发现。 */
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
@@ -14,9 +14,9 @@ function requireAgent(exec: ToolExecution): Agent {
   return exec.agent
 }
 
-/** Register read-only runtime inspection tools over the Host providers that
- * `@deepseek-ai/dsh-tool-cordis/host` registers once per process.
- * @param ctx Agent-scoped registration context.
+/** 在 `@deepseek-ai/dsh-tool-cordis/host` 每个进程注册一次的 Host 提供方之上，
+ * 注册只读的运行时巡检工具。
+ * @param ctx 代理作用域内的注册上下文。
  */
 export function apply(ctx: Context): void {
   ctx.tools.register(defineTool({

@@ -1,13 +1,11 @@
 /**
- * Compaction checkpoint source: the correlated constructor and type
- * every backend uses for its replacement user message, plus the predicate that
- * recognizes persisted checkpoints.
+ * 压缩检查点来源：各后端用于其替换用户消息的关联构造函数与类型，
+ * 以及用于识别已持久化检查点的断言。
  *
- * The seam itself lives in `@deepseek-ai/dsh-compaction`, which re-exports these
- * contracts; this module is a pure type/value/predicate outlet (no cordis
- * imports, no module augmentation) so client and wire programs can name the
- * checkpoint source without loading the host plugin's Context merges — the
- * `dsh-commands/brand` shape.
+ * 该能力接缝本身位于 `@deepseek-ai/dsh-compaction`，它重新导出了这些
+ * 约定；本模块是一个纯类型/值/断言出口（不导入 cordis，不做模块增强），
+ * 以便客户端与连线（wire）程序在无需加载宿主插件的 Context 合并的情况下
+ * 引用检查点来源——即 `dsh-commands/brand` 的形态。
  *
  * @module @deepseek-ai/dsh-compaction/checkpoint
  */
@@ -18,17 +16,17 @@ import type { CompactionId } from './brand.ts'
 
 const COMPACT_CHECKPOINT_MARKER = Object.freeze({ kind: 'compact-checkpoint' } as const)
 
-/** Message source carried by a concrete compaction checkpoint. */
+/** 具体压缩检查点所携带的消息来源。 */
 export type CompactionCheckpointSource = typeof COMPACT_CHECKPOINT_MARKER & {
   readonly compactionId: CompactionId
   readonly sourceCommandId?: CommandId
 }
 
 /**
- * Create a checkpoint source correlated with one compaction transaction.
- * @param compactionId - owning compaction identity.
- * @param sourceCommandId - initiating manual command, when present.
- * @returns immutable checkpoint source.
+ * 创建一个与某次压缩事务相关联的检查点来源。
+ * @param compactionId - 所属压缩标识。
+ * @param sourceCommandId - 发起本次操作的手动命令，存在时提供。
+ * @returns 不可变的检查点来源。
  */
 export function compactCheckpointSource(
   compactionId: CompactionId,
@@ -42,9 +40,9 @@ export function compactCheckpointSource(
 }
 
 /**
- * Test whether a persisted message source identifies a compaction checkpoint.
- * @param source - source restored from a surface user message.
- * @returns whether the source carries the backend-independent checkpoint marker.
+ * 判断某个已持久化的消息来源是否标识一个压缩检查点。
+ * @param source - 从表层用户消息恢复而来的来源。
+ * @returns 该来源是否携带与后端无关的检查点标记。
  */
 export function isCompactCheckpointSource(source: MessageSource): source is CompactionCheckpointSource {
   return source.kind === 'compact-checkpoint'

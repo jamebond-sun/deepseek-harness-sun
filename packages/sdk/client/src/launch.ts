@@ -1,5 +1,5 @@
 /**
- * Resolve the public SDK launch configuration to one dsh subprocess.
+ * 将公开的 SDK 启动配置解析为一个 dsh 子进程。
  * @module @deepseek-ai/dsh-sdk-client/launch
  */
 
@@ -8,15 +8,15 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { HarnessClientOptions } from './types.ts'
 
-/** Default bound for a profile to answer the SDK initialize handshake. */
+/** profile 应答 SDK initialize 握手的默认时限。 */
 export const DEFAULT_INITIALIZE_TIMEOUT_MS = 10_000
 
-/** Internal generic process launch used by the transport and fake-runtime tests. */
+/** 传输层与 fake-runtime 测试所使用的内部通用进程启动描述。 */
 export interface RuntimeProcessOptions {
   command: string
   args: string[]
   cwd?: string
-  /** Materialize the complete child environment when the client starts its subprocess. */
+  /** 在客户端启动其子进程时物化完整的子进程环境。 */
   environment: () => NodeJS.ProcessEnv
   description: string
   initializeTimeoutMs: number
@@ -26,13 +26,13 @@ export interface RuntimeProcessOptions {
   disposeGraceMs?: number
 }
 
-/** Node argv plus internal profile patches required by one resolved dsh entry. */
+/** 某个已解析 dsh 入口所需的 Node argv 与内部 profile 补丁。 */
 export interface DshNodeLaunch {
-  /** Arguments before the profile selector. */
+  /** 位于 profile 选择器之前的参数。 */
   nodeArgs: string[]
-  /** Internal patches applied below caller-supplied patches. */
+  /** 在调用方提供的补丁之下应用的内部补丁。 */
   patches: string[]
-  /** Environment values required by the resolved entry mode. */
+  /** 已解析入口模式所要求的环境变量值。 */
   environment: NodeJS.ProcessEnv
 }
 
@@ -41,16 +41,16 @@ interface PackageManifest {
   bin?: unknown
 }
 
-/** Read a package manifest from one resolved package.json URL. */
+/** 从一个已解析的 package.json URL 读取包清单。 */
 function manifest(url: string): PackageManifest {
   return JSON.parse(readFileSync(fileURLToPath(url), 'utf8')) as PackageManifest
 }
 
 /**
- * Resolve and version-check a dsh executable from package manifests.
- * @param dshManifestUrl - resolved URL of the dsh package manifest.
- * @param clientManifestUrl - resolved URL of the SDK client manifest.
- * @returns the absolute dsh executable path.
+ * 从包清单中解析并做版本校验，得到 dsh 可执行文件。
+ * @param dshManifestUrl - dsh 包清单的已解析 URL。
+ * @param clientManifestUrl - SDK 客户端清单的已解析 URL。
+ * @returns dsh 可执行文件的绝对路径。
  */
 export function resolveDshBinFromManifests(dshManifestUrl: string, clientManifestUrl: string): string {
   const dshManifest = manifest(dshManifestUrl)
@@ -66,8 +66,8 @@ export function resolveDshBinFromManifests(dshManifestUrl: string, clientManifes
 }
 
 /**
- * Resolve and version-check the built dsh executable installed with this SDK.
- * @returns the absolute built executable path, whether or not it exists in a source checkout.
+ * 解析并做版本校验，得到随本 SDK 一起安装的已构建 dsh 可执行文件。
+ * @returns 已构建可执行文件的绝对路径，无论它在源码检出中是否存在。
  */
 export function installedDshBin(): string {
   return resolveDshBinFromManifests(
@@ -77,11 +77,11 @@ export function installedDshBin(): string {
 }
 
 /**
- * Resolve the Node launch for one same-version dsh package.
- * @param dshManifestUrl - resolved URL of the dsh package manifest.
- * @param clientManifestUrl - resolved URL of the SDK client manifest.
- * @param sourceLoaderUrl - optional absolute tsx loader URL for deterministic tests.
- * @returns built output, or the source entry plus its compatibility patch and tsx environment.
+ * 解析某个同版本 dsh 包的 Node 启动方式。
+ * @param dshManifestUrl - dsh 包清单的已解析 URL。
+ * @param clientManifestUrl - SDK 客户端清单的已解析 URL。
+ * @param sourceLoaderUrl - 可选的绝对 tsx loader URL，用于确定性测试。
+ * @returns 已构建产物，或源码入口加上其兼容性补丁与 tsx 环境变量。
  */
 export function resolveDshNodeLaunchFromManifests(
   dshManifestUrl: string,
@@ -109,8 +109,8 @@ export function resolveDshNodeLaunchFromManifests(
 }
 
 /**
- * Resolve the installed dsh package to a built or source Node launch.
- * @returns the launch descriptor for the current checkout or installed package.
+ * 将已安装的 dsh 包解析为已构建或源码形式的 Node 启动方式。
+ * @returns 当前检出或已安装包所对应的启动描述符。
  */
 function installedDshNodeLaunch(): DshNodeLaunch {
   return resolveDshNodeLaunchFromManifests(
@@ -120,10 +120,10 @@ function installedDshNodeLaunch(): DshNodeLaunch {
 }
 
 /**
- * Resolve caller-relative filesystem inputs and construct canonical dsh argv.
- * @param options - public SDK launch options.
- * @param callerCwd - parent-process directory used for lexical resolution.
- * @returns one generic subprocess spec for the JSON-RPC transport.
+ * 解析相对调用方的文件系统输入，并构造规范的 dsh argv。
+ * @param options - 公开的 SDK 启动选项。
+ * @param callerCwd - 用于词法解析的父进程目录。
+ * @returns 供 JSON-RPC 传输层使用的一个通用子进程规格。
  */
 export function resolveDshLaunch(
   options: HarnessClientOptions = {},

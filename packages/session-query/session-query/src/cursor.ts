@@ -1,14 +1,14 @@
-/** Opaque cursor identity for session-search pagination. */
+/** 会话搜索分页所用的不透明游标标识。 */
 
 import type { Branded } from '@deepseek-ai/dsh-brand'
 
-/** Provider-owned opaque continuation token returned by session search. */
+/** 由提供方持有的不透明续接令牌，由会话搜索返回。 */
 export type SessionSearchCursor = Branded<'SessionSearchCursor'>
 
 /**
- * Brand an encoded provider cursor for the public search contract.
- * @param value - opaque encoded cursor value.
- * @returns the same runtime string with session-search cursor identity.
+ * 为公共搜索契约标记一个已编码的提供方游标。
+ * @param value - 不透明的已编码游标值。
+ * @returns 运行时相同的字符串，附带会话搜索游标标识。
  */
 export function SessionSearchCursor(value: string): SessionSearchCursor {
   return value as SessionSearchCursor

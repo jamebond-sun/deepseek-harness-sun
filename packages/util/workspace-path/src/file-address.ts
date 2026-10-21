@@ -1,66 +1,62 @@
 /**
- * The `dsh-resource://file/…` address grammar: how a file is named across the
- * Sidebar and the resource model, built and parsed without touching a
- * filesystem.
+ * `dsh-resource://file/…` 地址文法：一个文件在侧边栏与资源模型中如何被命名，
+ * 在构建与解析时不接触文件系统。
  * @module
  */
 
 /**
- * A file resource address, in one of two scopes.
+ * 一个文件资源地址，处于两种作用域之一。
  *
- * Every resource address is `dsh-resource://<type>/…`, the URI host naming the
- * resource protocol; for `file` the path opens with the scope:
+ * 每个资源地址都是 `dsh-resource://<type>/…`，URI 的 host 命名资源协议；对于
+ * `file`，路径以作用域开头：
  *
- * - `dsh-resource://file/session/<sessionId>/<path>` names a file by its path,
- *   relative to that Session's workspace root or absolute; the
- *   Host resolves it against the root it holds for the Session.
- * - `dsh-resource://file/absolute/<path>` names a file by its absolute path with
- *   the leading `/` dropped (`dsh-resource://file/absolute/home/ys/notes.txt`;
- *   Windows `dsh-resource://file/absolute/C:/x/y.txt`; a UNC path keeps an empty
- *   first segment, `dsh-resource://file/absolute//server/share/x.txt`). It carries
- *   no Session.
+ * - `dsh-resource://file/session/<sessionId>/<path>` 按路径命名一个文件，相对于
+ *   该 Session 的工作区根或绝对路径；Host 针对它为该 Session 持有的根解析它。
+ * - `dsh-resource://file/absolute/<path>` 按绝对路径命名一个文件，并去掉前导
+ *   `/`（`dsh-resource://file/absolute/home/ys/notes.txt`；Windows
+ *   `dsh-resource://file/absolute/C:/x/y.txt`；UNC 路径保留一个空的首段，
+ *   `dsh-resource://file/absolute//server/share/x.txt`）。它不携带 Session。
  *
- * Every id and path segment is component-encoded, so a name carrying `#`, `?`,
- * or a space survives the round trip; `:` stays literal so a drive letter reads
- * as written.
+ * 每个 id 与路径段都做组件编码，因此带有 `#`、`?` 或空格的名称能完好往返；
+ * `:` 保持字面，以便盘符照写可读。
  */
 export type FileAddress =
   | {
     readonly scope: 'session'
-    /** The Session whose Host workspace resolves the path. */
+    /** 其 Host 工作区解析该路径的 Session。 */
     readonly sessionId: string
-    /** Absolute or workspace-relative `/`-separated path; empty for the workspace root itself. */
+    /** 绝对的或工作区相对的 `/` 分隔路径；工作区根本身为空。 */
     readonly path: string
   }
   | {
     readonly scope: 'absolute'
-    /** Absolute `/`-separated path: `/a/b` on POSIX, `C:/a/b` for a Windows drive, `//server/share/a` for a UNC path. */
+    /** 绝对的 `/` 分隔路径：POSIX 上为 `/a/b`，Windows 盘符为 `C:/a/b`，UNC 路径为 `//server/share/a`。 */
     readonly path: string
   }
 
-/** The scheme and type every file address opens with. */
+/** 每个文件地址都以之开头的 scheme 与类型。 */
 const FILE_ADDRESS_PREFIX = 'dsh-resource://file/'
 
-/** Component-encode one id or path segment, keeping `:` literal for drive letters. */
+/** 编码一个 id 或路径段，为盘符保留字面的 `:`。 */
 function encodeSegment(segment: string): string {
   return encodeURIComponent(segment).replace(/%3A/gi, ':')
 }
 
-/** Encode a `/`-separated path segment by segment. */
+/** 逐段编码一个 `/` 分隔的路径。 */
 function encodePath(path: string): string {
   return path.split('/').map(encodeSegment).join('/')
 }
 
-/** Whether a decoded first path segment is a Windows drive (`C:`). */
+/** 解码后的首个路径段是否为一个 Windows 盘符（`C:`）。 */
 function isDriveSegment(segment: string | undefined): boolean {
   return segment !== undefined && /^[A-Za-z]:$/.test(segment)
 }
 
 /**
- * Build the address of a file read through one Session.
- * @param sessionId - the Session whose Host workspace resolves the path.
- * @param path - absolute or workspace-relative path; backslashes are normalized to `/`, and leading `./` prefixes are dropped.
- * @returns the `dsh-resource://file/session/<sessionId>/<path>` address.
+ * 构建通过一个 Session 读取的文件的地址。
+ * @param sessionId - 其 Host 工作区解析该路径的 Session。
+ * @param path - 绝对或工作区相对路径；反斜杠规范化为 `/`，前导 `./` 前缀被丢弃。
+ * @returns `dsh-resource://file/session/<sessionId>/<path>` 地址。
  */
 export function sessionFileAddress(sessionId: string, path: string): string {
   const normalized = path.replace(/\\/g, '/').replace(/^(?:\.\/)+/, '')
@@ -68,10 +64,10 @@ export function sessionFileAddress(sessionId: string, path: string): string {
 }
 
 /**
- * Build the address of a file by its absolute path.
- * @param path - absolute path; backslashes are normalized to `/` and the leading `/` is dropped,
- *   except that a UNC path (`\\server\share`) keeps one empty first segment.
- * @returns the `dsh-resource://file/absolute/<path>` address.
+ * 按绝对路径构建文件的地址。
+ * @param path - 绝对路径；反斜杠规范化为 `/` 并去掉前导 `/`，但 UNC 路径
+ *   （`\\server\share`）保留一个空的首段。
+ * @returns `dsh-resource://file/absolute/<path>` 地址。
  */
 export function absoluteFileAddress(path: string): string {
   const normalized = path.replace(/\\/g, '/')
@@ -81,10 +77,11 @@ export function absoluteFileAddress(path: string): string {
 }
 
 /**
- * Read a file address back into its parts without resolving `.` or `..`.
- * Query and fragment suffixes are ignored; encoded path segments are decoded.
- * @param address - a candidate address.
- * @returns the parts, or `undefined` when the string is not a `dsh-resource://file/` URI in a known scope with a path, or a segment is not validly encoded.
+ * 把一个文件地址读回其组成部分，而不解析 `.` 或 `..`。
+ * 查询与片段后缀被忽略；已编码的路径段被解码。
+ * @param address - 一个候选地址。
+ * @returns 组成部分，或当该字符串不是一个处于已知作用域、带有路径的
+ *   `dsh-resource://file/` URI，或某段编码不合法时为 `undefined`。
  */
 export function parseFileAddress(address: string): FileAddress | undefined {
   try {
@@ -97,7 +94,7 @@ export function parseFileAddress(address: string): FileAddress | undefined {
       return { scope, sessionId: decodeURIComponent(id), path: segments.map(decodeURIComponent).join('/') }
     }
     if (scope === 'absolute') {
-      // An empty first segment with more behind it is a UNC path's `//`; alone it is no path.
+      // 首段为空且后面还有内容，是 UNC 路径的 `//`；单独出现则不成路径。
       const unc = rest[0] === '' && rest.length > 1
       const segments = (unc ? rest.slice(1) : rest).map(decodeURIComponent)
       if (segments.length === 0 || segments[0] === '') return undefined
@@ -106,7 +103,7 @@ export function parseFileAddress(address: string): FileAddress | undefined {
     }
     return undefined
   } catch {
-    // `decodeURIComponent` throws URIError on a malformed escape.
+    // `decodeURIComponent` 在遇到畸形转义时抛出 URIError。
     return undefined
   }
 }

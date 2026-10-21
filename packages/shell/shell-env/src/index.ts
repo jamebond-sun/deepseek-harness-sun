@@ -1,9 +1,8 @@
 /**
- * Tool-independent shell environment plugin: owns the `ctx.shellEnv` registry of
- * trusted, per-execution `DSH_*` variables consumed by the model-facing shell
- * tools (`dsh-tool-bash`, `dsh-tool-pwsh`). Built-in shell facts are owned by
- * the registry itself while plugins can register additional, enumerable facts
- * with effect-scoped disposal.
+ * 与具体工具无关的 shell 环境插件：持有 `ctx.shellEnv` 注册表，登记供面向
+ * 模型的 shell 工具（`dsh-tool-bash`、`dsh-tool-pwsh`）使用的、按次执行
+ * 且受信任的 `DSH_*` 变量。内置 shell 事实由注册表自身持有，插件则可注册
+ * 额外的、可枚举的事实，并随 effect 作用域一并释放。
  *
  * @module @deepseek-ai/dsh-shell-env
  */
@@ -14,7 +13,7 @@ import { DSH_ENV_PREFIX } from '@deepseek-ai/dsh-shell'
 import type { DshEnvironment, DshEnvironmentKey } from '@deepseek-ai/dsh-shell'
 import { DSH_HOME_ENV, resolveDshHome } from '@deepseek-ai/dsh-home-paths'
 import type { ToolExecution } from '@deepseek-ai/dsh-tools'
-// Declares `Context.profileContext`, the launcher-provided profile the built-ins read.
+// 声明 `Context.profileContext`，即内置变量读取的、由启动器提供的 profile。
 import type {} from '@deepseek-ai/dsh-app-boot'
 
 declare module '@deepseek-ai/cordis' {
@@ -26,46 +25,45 @@ declare module '@deepseek-ai/cordis' {
 export const name = 'shell-env'
 export const inject: string[] = []
 
-/** Plugin config (all optional — the built-in facts resolve without defaults). */
+/** 插件配置（全部可选——内置事实无需默认值即可解析）。 */
 export interface Config {
-  /** DeepSeek Harness home directory exposed as `DSH_HOME`; defaults to `$DSH_HOME` or `~/.dsh`. */
+  /** 以 `DSH_HOME` 暴露的 DeepSeek Harness 主目录；默认为 `$DSH_HOME` 或 `~/.dsh`。 */
   dshHome?: string
 }
 
-/** Runtime configuration schema for the shell-env plugin. */
+/** shell-env 插件的运行时配置 schema。 */
 export const Config: z<Config> = z.object({
   dshHome: z.string(),
 })
 
-/** Model-visible metadata for one managed `DSH_*` environment variable. */
+/** 单个受管 `DSH_*` 环境变量的模型可见元数据。 */
 export interface BashEnvVariable {
-  /** Concise description of the environment fact represented by the variable. */
+  /** 该变量所代表环境事实的简要描述。 */
   description: string
 }
 
 /**
- * A plugin contribution to the managed environment of each model shell call.
- * Declared keys make ownership conflicts detectable before the first command;
- * `resolve` computes only the values available for the current execution.
+ * 插件对每次模型 shell 调用受管环境的一份贡献。声明式的键让归属冲突能在
+ * 第一条命令之前就被发现；`resolve` 只计算本次执行可用的值。
  */
 export interface BashEnvContributor {
-  /** Stable contributor name used in diagnostics and duplicate detection. */
+  /** 稳定的贡献者名称，用于诊断与重复检测。 */
   name: string
-  /** Complete set of `DSH_*` keys this contributor may return. */
+  /** 该贡献者可能返回的完整 `DSH_*` 键集合。 */
   variables: Readonly<Record<DshEnvironmentKey, BashEnvVariable>>
   /**
-   * Resolve this contributor's available values for one tool execution.
-   * @param execution - the shell tool execution and its optional calling agent.
-   * @returns a partial map containing only keys declared in {@link variables}.
+   * 为一次工具执行解析该贡献者可用的值。
+   * @param execution - 本次 shell 工具执行及其可选的调用方 agent。
+   * @returns 仅包含在 {@link variables} 中声明过的键的部分映射。
    */
   resolve(execution: ToolExecution): Readonly<Partial<Record<DshEnvironmentKey, string>>>
 }
 
-/** An enumerable declaration returned by {@link ShellEnvRegistry.list}. */
+/** {@link ShellEnvRegistry.list} 返回的可枚举声明。 */
 export interface BashEnvVariableInfo extends BashEnvVariable {
-  /** Contributor that owns the variable. */
+  /** 持有该变量的贡献者。 */
   contributor: string
-  /** Declared `DSH_*` environment variable name. */
+  /** 已声明的 `DSH_*` 环境变量名。 */
   key: DshEnvironmentKey
 }
 
@@ -83,12 +81,10 @@ const RESERVED_BASH_ENV_KEYS = new Set<DshEnvironmentKey>([
 const BASH_ENV_KEY_SUFFIX = /^[A-Z][A-Z0-9_]*$/
 
 /**
- * Registry (`ctx.shellEnv`) for trusted, per-execution `DSH_*` variables.
- * The namespace is rebuilt for every model shell call: ambient `DSH_*` values
- * are discarded by the executor, then the registry's current snapshot is
- * injected. Built-in shell facts remain owned by the registry itself while
- * plugins can register additional, enumerable facts with effect-scoped
- * disposal.
+ * 受信任的、按次执行的 `DSH_*` 变量的注册表（`ctx.shellEnv`）。该命名空间
+ * 会为每次模型 shell 调用重建：执行器先丢弃进程环境中既有的 `DSH_*` 值，
+ * 再注入注册表的当前快照。内置 shell 事实仍由注册表自身持有，插件则可注册
+ * 额外的、可枚举的事实，并随 effect 作用域一并释放。
  */
 export class ShellEnvRegistry extends Service {
   private readonly contributors = new Map<string, BashEnvContributor>()
@@ -96,9 +92,9 @@ export class ShellEnvRegistry extends Service {
   private readonly dshHome: string
 
   /**
-   * Create and install the `ctx.shellEnv` service.
-   * @param ctx - Cordis context that owns the service and registrations.
-   * @param config - home-directory configuration for the built-in variables.
+   * 创建并安装 `ctx.shellEnv` 服务。
+   * @param ctx - 持有该服务及其注册项的 Cordis context。
+   * @param config - 内置变量的主目录配置。
    */
   constructor(ctx: Context, config: Config = {}) {
     super(ctx, 'shellEnv')
@@ -106,10 +102,10 @@ export class ShellEnvRegistry extends Service {
   }
 
   /**
-   * Register one environment contributor. Names and keys are unique; built-in
-   * keys are reserved. Registration is disposed with the calling plugin fiber.
-   * @param contributor - declared key ownership and per-execution resolver.
-   * @returns the disposer that unregisters the contribution.
+   * 注册一个环境贡献者。名称与键必须唯一；内置键被保留。该注册会随调用方
+   * 插件的 fiber 一同释放。
+   * @param contributor - 已声明的键归属与按次执行的解析器。
+   * @returns 用于注销该贡献的 disposer。
    */
   register(contributor: BashEnvContributor): () => void {
     const dispose = this.ctx.effect(function* (this: ShellEnvRegistry) {
@@ -149,9 +145,9 @@ export class ShellEnvRegistry extends Service {
   }
 
   /**
-   * Build the trusted `DSH_*` snapshot for one shell tool execution.
-   * @param execution - the current tool execution.
-   * @returns an immutable environment overlay containing built-ins and current contributions.
+   * 为一次 shell 工具执行构建受信任的 `DSH_*` 快照。
+   * @param execution - 当前的工具执行。
+   * @returns 包含内置变量与当前贡献项的不可变环境覆盖层。
    */
   collect(execution: ToolExecution): DshEnvironment {
     const values: Record<DshEnvironmentKey, string> = {
@@ -184,11 +180,11 @@ export class ShellEnvRegistry extends Service {
     return Object.freeze(Object.fromEntries(Object.entries(values).sort(([left], [right]) => left.localeCompare(right))))
   }
 
-  // TODO(bash-env-list-builtins): Include registry-owned built-ins before diagnostics,
-  // prompt, or UI code treats list() as an exhaustive environment catalog.
+  // TODO(bash-env-list-builtins): 在诊断、提示词或 UI 代码把 list() 当作
+  // 详尽的环境目录之前，先纳入注册表自有的内置变量。
   /**
-   * Enumerate plugin-contributed variables without executing their resolvers.
-   * @returns declarations sorted by environment variable name.
+   * 枚举插件贡献的变量，而不执行它们的解析器。
+   * @returns 按环境变量名排序的声明。
    */
   list(): BashEnvVariableInfo[] {
     return [...this.contributors.values()]
@@ -202,9 +198,9 @@ export class ShellEnvRegistry extends Service {
 }
 
 /**
- * Load the shell-env plugin: register the `ctx.shellEnv` registry service.
- * @param ctx - Cordis context that owns the service and registrations.
- * @param config - home-directory configuration for the built-in variables.
+ * 加载 shell-env 插件：注册 `ctx.shellEnv` 注册表服务。
+ * @param ctx - 持有该服务及其注册项的 Cordis context。
+ * @param config - 内置变量的主目录配置。
  */
 export function apply(ctx: Context, config: Config = {}): void {
   new ShellEnvRegistry(ctx, config)

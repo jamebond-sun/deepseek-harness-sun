@@ -1,16 +1,16 @@
-/** Linux native containment decisions over injected host observations. */
+/** 基于注入的主机观测所做 Linux 原生隔离决策。 */
 
 import type { LiteralArgvOptions } from './linux-scope.ts'
 
-/** Host observations behind each decision; the runtime supplies the real checks and tests script them. */
+/** 每次决策背后的主机观测；运行时提供真实检查，测试则通过脚本设定它们。 */
 export interface LinuxScopeObservations {
-  /** Run the deep transient-scope probe: literal-argv options when a scope can start, otherwise undefined. */
+  /** 运行深度临时 scope 探测：当 scope 可启动时返回字面 argv 选项，否则为 undefined。 */
   probe(): LiteralArgvOptions | undefined
-  /** Identify the process listening on the user manager's private socket, or undefined when none listens. */
+  /** 识别正在用户管理器私有套接字上监听的进程，若无人监听则为 undefined。 */
   managerListener(): string | undefined
   /** Confirm the user manager before a launch under a positive verdict. */
   confirmManager(): boolean
-  /** Identify the systemd-run binary scope launches resolve, or undefined when none resolves. */
+  /** 识别 scope 启动所解析到的 systemd-run 可执行文件，若无法解析则为 undefined。 */
   launcherIdentity(): string | undefined
 }
 
@@ -44,22 +44,21 @@ type LinuxScopeState =
   | { readonly kind: 'unavailable'; readonly listener: string | undefined }
 
 /**
- * Provider-lifetime Linux scope selection. A probe runs on the first selection and again only after
- * a scope launch never started its target, a different user-manager listener appears under a
- * negative verdict, or the systemd-run binary changes under a positive one. A positive verdict
- * confirms the user manager on every selection. Selection is synchronous, so a decision stays
- * valid for the launch that follows it.
+ * 提供方生命周期内的 Linux scope 选择。探测在首次选择时运行，且仅在以下情况再次运行：
+ * 某次 scope 启动从未启动其目标；否定结论下出现了不同的用户管理器监听者；
+ * 或肯定结论下 systemd-run 可执行文件发生变化。肯定结论会在每次选择时确认用户管理器。
+ * 选择是同步的，因此一个决策对其随后的那次启动始终有效。
  */
 export class LinuxScopeSelector {
   private state: LinuxScopeState = { kind: 'unprobed', trigger: 'first' }
   private generation = 0
 
-  /** @param observe - host checks consulted by each selection. */
+  /** @param observe - 每次选择都会咨询的主机检查。 */
   constructor(private readonly observe: LinuxScopeObservations) {}
 
   /**
-   * Choose containment for one eligible launch.
-   * @returns the decision and the branch that produced it.
+   * 为一次符合资格的启动选择隔离方式。
+   * @returns 决策及其所产生的分支。
    */
   select(): LinuxScopeDecision {
     const state = this.state
@@ -77,9 +76,9 @@ export class LinuxScopeSelector {
   }
 
   /**
-   * Record that a scope launched under generation exited before its bootstrap started the target,
-   * so the next selection probes again. Launches from a superseded probe are ignored.
-   * @param generation - generation of the scope decision that launched it.
+   * 记录一次在 generation 下启动的 scope 于其引导程序启动目标之前便已退出，
+   * 因此下一次选择会再次探测。来自已被取代的探测的启动会被忽略。
+   * @param generation - 启动它的 scope 决策的代次。
    */
   scopeNotStarted(generation: number): void {
     if (generation === this.generation) this.state = { kind: 'unprobed', trigger: 'scope-not-started' }

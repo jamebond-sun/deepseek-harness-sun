@@ -1,12 +1,12 @@
-/** Configuration resolution for deterministic tool-result pruning. */
+/** 确定性工具结果修剪的配置解析。 */
 
 import { deepFreeze } from '@deepseek-ai/dsh-util-values'
 import type { ResolvedConfig, ToolResultPruneConfig } from './types.ts'
 
-/** Fixed marker substituted for every removed middle span. */
+/** 用于替换每个被移除的中间段的固定标记。 */
 export const PRUNE_MARKER = '\n\n[... tool result middle pruned ...]\n\n'
 
-/** Low-friction defaults for coding-agent tool output. */
+/** 面向编程代理工具输出的低摩擦默认值。 */
 export const DEFAULTS: ResolvedConfig = deepFreeze({
   thresholdChars: 8192,
   headChars: 4096,
@@ -20,18 +20,18 @@ const CONFIG_KEYS: ReadonlySet<string> = new Set([
 ])
 
 /**
- * Count Unicode code points without splitting surrogate pairs.
- * @param text - text to measure.
- * @returns the Unicode code-point count.
+ * 统计 Unicode 码点数量，且不拆分代理对。
+ * @param text - 待测量的文本。
+ * @returns Unicode 码点数量。
  */
 export function codePointLength(text: string): number {
   return Array.from(text).length
 }
 
 /**
- * Resolve and validate pruning budgets.
- * @param config - raw plugin configuration.
- * @returns a detached deeply immutable configuration.
+ * 解析并校验修剪预算。
+ * @param config - 原始插件配置。
+ * @returns 一个解耦、深度不可变的配置。
  */
 export function resolveConfig(config: ToolResultPruneConfig = {}): ResolvedConfig {
   for (const key of Object.keys(config)) {

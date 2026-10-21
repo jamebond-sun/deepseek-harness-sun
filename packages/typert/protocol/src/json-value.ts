@@ -1,24 +1,23 @@
 /**
- * Lossless JSON checks every Remote carrier shares: the Client handle before it
- * queues an uplink item, the Gateway at its wire and codec-less uplink
- * boundaries, and the in-process mock.
+ * 所有 Remote 载体共享的无损 JSON 校验：Client 句柄在排队上行项之前、
+ * Gateway 在其传输线与无编解码的上行边界，以及进程内 mock。
  */
 
 /**
- * Test whether a value crosses JSON transport without coercion or omission.
- * @param value - candidate boundary value.
- * @returns whether the value is losslessly JSON-compatible.
+ * 检验一个值能否在无强制转换或省略的情况下穿越 JSON 传输。
+ * @param value - 候选边界值。
+ * @returns 该值是否无损兼容 JSON。
  */
 export function isRemoteJsonValue(value: unknown): boolean {
   return visitJsonValue(value, new Set<object>())
 }
 
 /**
- * Test whether a value may travel as one uplink item: a lossless JSON value, or
- * a top-level `undefined`, which the wire carries as an `item` frame without
- * `value`. Nested `undefined`, `NaN`, and infinities stay rejected.
- * @param value - candidate uplink item.
- * @returns whether the item crosses every carrier unchanged.
+ * 检验一个值能否作为一个上行项传输：无损 JSON 值，或顶层的 `undefined`
+ * （传输线以不含 `value` 的 `item` 帧携带它）。嵌套的 `undefined`、`NaN`
+ * 与无穷大仍被拒绝。
+ * @param value - 候选上行项。
+ * @returns 该上行项是否能不变地穿越每个载体。
  */
 export function isRemoteUplinkItem(value: unknown): boolean {
   return value === undefined || isRemoteJsonValue(value)

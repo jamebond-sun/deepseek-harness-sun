@@ -1,22 +1,22 @@
-/** Lazy Koffi bindings for generic Win32 process, stdio, and Job operations. */
+/** 针对通用 Win32 进程、stdio 与 Job 操作的惰性 Koffi 绑定。 */
 
 import * as abi from './abi.ts'
 import { Win32Error } from './errors.ts'
 import { requireKoffi, type Koffi } from './koffi.ts'
 
 declare const nativePtr: unique symbol
-/** Koffi native pointer branded against accidental numeric use. */
+/** 经品牌化标记、以防被意外当作数值使用的 Koffi 原生指针。 */
 export type NativePtr = bigint & { readonly [nativePtr]: true }
 
 type Ptr = ReturnType<Koffi['pointer']>
 
-/** Loaded Win32 libraries and the shared stdcall binder used by process extensions. */
+/** 已加载的 Win32 库，以及由进程扩展示例使用的共享 stdcall 绑定器。 */
 export interface Win32BindingContext {
-  /** Kernel process, handle, pipe, and Job APIs. */
+  /** 内核进程、句柄、管道与 Job API。 */
   readonly kernel32: ReturnType<Koffi['load']>
-  /** Token and security APIs. */
+  /** 令牌与安全 API。 */
   readonly advapi32: ReturnType<Koffi['load']>
-  /** Bind one stdcall function from a loaded Win32 library. */
+  /** 从已加载的 Win32 库中绑定一个 stdcall 函数。 */
   readonly bind: (
     library: ReturnType<Koffi['load']>,
     name: string,
@@ -26,15 +26,15 @@ export interface Win32BindingContext {
 }
 
 /**
- * Return whether a Koffi pointer represents NULL.
- * @param value - pointer value returned by Koffi or a Win32 call.
- * @returns true for null, undefined, or address zero.
+ * 返回一个 Koffi 指针是否表示 NULL。
+ * @param value - 由 Koffi 或某个 Win32 调用返回的指针值。
+ * @returns 对于 null、undefined 或地址零为 true。
  */
 export function isNullPtr(value: NativePtr | null | undefined): value is null | undefined {
   return value === null || value === undefined || (value as bigint) === 0n
 }
 
-/** STARTUPINFOW fields used by inherited or piped stdio launches. */
+/** 由被继承或管道化 stdio 启动所使用的 STARTUPINFOW 字段。 */
 export interface StartupInfoInput {
   cb: number
   dwFlags: number
@@ -46,7 +46,7 @@ export interface StartupInfoInput {
   lpReserved2?: NativePtr
 }
 
-/** Decoded PROCESS_INFORMATION result. */
+/** 已解码的 PROCESS_INFORMATION 结果。 */
 export interface ProcessInfoOutput {
   hProcess: NativePtr | null
   hThread: NativePtr | null
@@ -54,7 +54,7 @@ export interface ProcessInfoOutput {
   dwThreadId: number
 }
 
-/** Generic Win32 calls consumed by restricted-token sandbox process operations. */
+/** 受限制令牌沙箱进程操作所使用的通用 Win32 调用。 */
 export interface Win32ProcessBindings {
   closeHandle(handle: NativePtr): number
   getLastError(): number
@@ -123,7 +123,7 @@ export interface Win32ProcessBindings {
   getStdHandle(stdHandle: number): NativePtr
 }
 
-/** Generic Win32 calls plus Node's libuv descriptor-to-handle bridge. */
+/** 通用 Win32 调用，外加 Node 的 libuv 描述符到句柄的桥接。 */
 export interface CurrentTokenProcessBindings extends Win32ProcessBindings {
   uvGetOsfhandle(fileDescriptor: number): NativePtr | null
 }
@@ -137,7 +137,7 @@ interface Win32Types {
 
 let cachedTypes: Win32Types | undefined
 
-/** Resolve Koffi pointer and process layouts on the first native operation. */
+/** 在首次原生操作时解析 Koffi 指针与进程布局。 */
 function win32Types(): Win32Types {
   if (cachedTypes !== undefined) return cachedTypes
   const koffi = requireKoffi()
@@ -208,43 +208,43 @@ export function decodePtr(slot: NativePtr): NativePtr | null {
 }
 
 /**
- * Decode a uint32 out-parameter.
- * @param slot - uint32 slot filled by Win32.
- * @returns decoded unsigned value.
+ * 解码一个 uint32 出参。
+ * @param slot - 由 Win32 填充的 uint32 槽位。
+ * @returns 解码后的无符号值。
  */
 export function decodeUint32(slot: NativePtr): number {
   return requireKoffi().decode(slot, 'uint32') as number
 }
 
 /**
- * Allocate a zeroed STARTUPINFOW.
- * @returns allocated struct pointer.
+ * 分配一个清零的 STARTUPINFOW。
+ * @returns 已分配的结构体指针。
  */
 export function allocStartupInfo(): NativePtr {
   return requireKoffi().alloc(win32Types().STARTUPINFOW, 1) as NativePtr
 }
 
 /**
- * Encode the stdio-bearing STARTUPINFOW fields.
- * @param startupInfo - allocated STARTUPINFOW pointer.
- * @param fields - fields required for inherited stdio.
+ * 编码承载 stdio 的 STARTUPINFOW 字段。
+ * @param startupInfo - 已分配的 STARTUPINFOW 指针。
+ * @param fields - 被继承 stdio 所需的字段。
  */
 export function encodeStartupInfo(startupInfo: NativePtr, fields: StartupInfoInput): void {
   requireKoffi().encode(startupInfo, win32Types().STARTUPINFOW, fields)
 }
 
 /**
- * Allocate a zeroed PROCESS_INFORMATION.
- * @returns allocated struct pointer.
+ * 分配一个清零的 PROCESS_INFORMATION。
+ * @returns 已分配的结构体指针。
  */
 export function allocProcessInfo(): NativePtr {
   return requireKoffi().alloc(win32Types().PROCESS_INFORMATION, 1) as NativePtr
 }
 
 /**
- * Decode PROCESS_INFORMATION.
- * @param processInfo - struct pointer filled by CreateProcess.
- * @returns process/thread handles and ids.
+ * 解码 PROCESS_INFORMATION。
+ * @param processInfo - 由 CreateProcess 填充的结构体指针。
+ * @returns 进程/线程句柄与 id。
  */
 export function decodeProcessInfo(processInfo: NativePtr): ProcessInfoOutput {
   return requireKoffi().decode(processInfo, win32Types().PROCESS_INFORMATION) as ProcessInfoOutput
@@ -253,7 +253,7 @@ export function decodeProcessInfo(processInfo: NativePtr): ProcessInfoOutput {
 let cachedContext: Win32BindingContext | undefined
 let cached: CurrentTokenProcessBindings | undefined
 
-/* v8 ignore start -- exercised by native Windows ABI and sandbox jobs. */
+/* v8 ignore start -- 由原生 Windows ABI 与沙箱 Job 演练。 */
 function bindingContext(): Win32BindingContext {
   if (cachedContext !== undefined) return cachedContext
   const koffi = requireKoffi()
@@ -314,9 +314,9 @@ function bindings(): CurrentTokenProcessBindings {
 }
 
 /**
- * Extend the shared process table with caller-owned Win32 API families.
- * @param create - binds only the caller-specific operations from the shared libraries.
- * @returns generic process bindings combined with the caller-specific operations.
+ * 用调用方拥有的 Win32 API 族扩展共享进程表。
+ * @param create - 只从共享库中绑定调用方特定的操作。
+ * @returns 通用进程绑定与调用方特定操作的合并结果。
  */
 export function extendWin32ProcessBindings<Extension extends object>(
   create: (context: Win32BindingContext) => Extension,
@@ -325,8 +325,8 @@ export function extendWin32ProcessBindings<Extension extends object>(
 }
 
 /**
- * Load the generic process binding table without policy-specific extensions.
- * @returns shared Win32 process, stdio, and Job operations.
+ * 加载不带策略特定扩展的通用进程绑定表。
+ * @returns 共享的 Win32 进程、stdio 与 Job 操作。
  */
 export function loadWin32ProcessBindings(): CurrentTokenProcessBindings {
   return bindings()
@@ -334,10 +334,10 @@ export function loadWin32ProcessBindings(): CurrentTokenProcessBindings {
 /* v8 ignore stop */
 
 /**
- * Format a Win32 error code through FormatMessageW.
- * @param api - active binding table.
- * @param win32Code - captured GetLastError value.
- * @returns trimmed system message, or an empty string when unavailable.
+ * 通过 FormatMessageW 格式化一个 Win32 错误码。
+ * @param api - 当前活动的绑定表。
+ * @param win32Code - 捕获到的 GetLastError 值。
+ * @returns 修剪后的系统消息；不可用时为空字符串。
  */
 export function errorText(api: Win32ProcessBindings, win32Code: number): string {
   const buffer = Buffer.alloc(1024)
@@ -354,11 +354,11 @@ export function errorText(api: Win32ProcessBindings, win32Code: number): string 
 }
 
 /**
- * Throw the current GetLastError value.
- * @param api - active binding table.
- * @param name - failing Win32 operation.
- * @param detail - optional operation context.
- * @returns never; always throws Win32Error.
+ * 抛出当前的 GetLastError 值。
+ * @param api - 当前活动的绑定表。
+ * @param name - 失败的 Win32 操作。
+ * @param detail - 可选的操作上下文。
+ * @returns never；始终抛出 Win32Error。
  */
 export function throwLastError(api: Win32ProcessBindings, name: string, detail?: string): never {
   const win32Code = api.getLastError()
@@ -366,12 +366,12 @@ export function throwLastError(api: Win32ProcessBindings, name: string, detail?:
 }
 
 /**
- * Throw an explicitly captured Win32 error code.
- * @param api - active binding table.
- * @param name - failing Win32 operation.
- * @param win32Code - error captured before cleanup.
- * @param detail - optional operation context.
- * @returns never; always throws Win32Error.
+ * 抛出一个被显式捕获的 Win32 错误码。
+ * @param api - 当前活动的绑定表。
+ * @param name - 失败的 Win32 操作。
+ * @param win32Code - 在清理之前捕获的错误。
+ * @param detail - 可选的操作上下文。
+ * @returns never；始终抛出 Win32Error。
  */
 export function throwWin32(
   api: Win32ProcessBindings,

@@ -1,27 +1,22 @@
 /**
- * The model-facing filesystem discovery tool suite (`glob`, `grep`) over the
- * packaged ripgrep binary (`@vscode/ripgrep`). This single plugin registers
- * both tools; the binary ships inside the npm dependency, so no system `rg`
- * install and no shell layer is involved.
+ * 建立在打包的 ripgrep 二进制（`@vscode/ripgrep`）之上、面向模型的文件系统发现工具套件
+ * （`glob`、`grep`）。这单个插件注册这两个工具；该二进制随 npm 依赖一起分发，
+ * 因此不需要系统安装 `rg`，也不涉及任何 shell 层。
  *
- * ## Spawn-backed, not a `ctx.fs` provider method
+ * ## 由 spawn 支撑，而非 `ctx.fs` 的提供者方法
  *
- * Local workspace discovery is a process-backed `rg` workflow, so these tools
- * execute through `ctx.subprocess.spawn()` with fixed ripgrep argv templates —
- * never `ctx.shell`, never `ctx.shell.start()`, never a model-visible background
- * task. The tool layer owns schemas, argument validation, argv construction
- * ({@link module:@deepseek-ai/dsh-tool-fs-search/glob} /
- * {@link module:@deepseek-ai/dsh-tool-fs-search/grep}), result parsing,
- * retention, formatted-result spill, and timeout declaration; the subprocess
- * seam owns spawn execution, process-tree termination, environment scrubbing,
- * and raw output capture. The package injects `tools`, `systemPrompt`, and
- * `subprocess` — deliberately NOT `fs`, and `ctx.spillStore` is read
- * opportunistically with `ctx.get()` because formatted-result spill is optional.
+ * 本地工作区发现是一个由进程支撑的 `rg` 工作流，因此这些工具通过
+ * `ctx.subprocess.spawn()` 以固定的 ripgrep argv 模板执行 —— 绝不经由 `ctx.shell`、
+ * `ctx.shell.start()`，也绝不是模型可见的后台任务。工具层负责模式、参数校验、argv 构造
+ * （{@link module:@deepseek-ai/dsh-tool-fs-search/glob} /
+ * {@link module:@deepseek-ai/dsh-tool-fs-search/grep}）、结果解析、保留策略、
+ * 格式化结果的转储以及超时声明；subprocess 接缝则负责 spawn 执行、进程树终止、
+ * 环境变量清理与原始输出捕获。本包注入 `tools`、`systemPrompt` 与 `subprocess` ——
+ * 刻意**不**注入 `fs`；而 `ctx.spillStore` 是以 `ctx.get()` 机会式读取的，
+ * 因为格式化结果的转储是可选的。
  *
- * Returned paths are displayed relative to the resolved workdir and are
- * follow-up-readable only in co-located deployments where the workdir and the
- * filesystem `read` root are the same workspace — a documented v1 deployment
- * requirement, not runtime-validated.
+ * 返回的路径以相对已解析工作目录的形式展示，且只有在"工作目录与文件系统 `read` 根目录是
+ * 同一个工作区"的同地部署下才能被后续读取 —— 这是 v1 已记录的部署要求，运行时并不校验。
  *
  * @module @deepseek-ai/dsh-tool-fs-search
  */
@@ -64,33 +59,36 @@ export {
 } from './search-core.ts'
 export type { GrepMatch, RipgrepRun, SearchErrorCode } from './search-core.ts'
 
-/** Cordis plugin name used by loader diagnostics. */
+/** 供加载器诊断使用的 Cordis 插件名。 */
 export const name = 'tool-fs-search'
 
-/** Services required by the search tool suite (`spillStore` is optional, read via `ctx.get()`). */
+/** 搜索工具套件所需的服务（`spillStore` 是可选的，通过 `ctx.get()` 读取）。 */
 export const inject = ['tools', 'systemPrompt', 'subprocess', 'workingDirectory']
 
-/** Plugin config; over-cap glob sampling is an explicit deployment choice and the remaining fields have defaults. */
+/** 插件配置；对超出上限的 glob 做采样是一项显式的部署选择，其余字段均有默认值。 */
 export interface Config {
-  /** Whether an over-cap `glob` page is sampled across top-level entries instead of taking the modification-time head. */
+  /** 超上限的 `glob` 页是跨顶层条目采样，还是取修改时间的头部。 */
   sampleOverCapGlobResults: boolean
-  /** Max paths one `glob` call retains inline; later paths go to the formatted spill file. */
+  /** 单次 `glob` 调用内联保留的最大路径数；超出的路径进入格式化的转储文件。 */
   globMaxResults?: number
-  /** Max flat matches one `grep` call retains inline; later matches go to the formatted spill file. */
+  /** 单次 `grep` 调用内联保留的最大扁平命中数；超出的命中进入格式化的转储文件。 */
   grepMaxMatches?: number
-  /** Max bytes retained for one matched-line preview (the cut preserves UTF-8 boundaries). */
+  /** 单行命中预览保留的最大字节数（截断处保持 UTF-8 边界）。 */
   grepMaxLineBytes?: number
-  /** Max bytes of one search's serialized `presentationMeta`; trailing groups/paths drop past it so the persisted card stays bounded. */
+  /** 单次搜索序列化后的 `presentationMeta` 最大字节数；超过则丢弃尾部的分组/路径，
+   * 使持久化的卡片保持有界。 */
   searchMetaMaxBytes?: number
-  /** Max complete raw `rg` stdout bytes a search will parse; larger raw output fails with `SEARCH_RAW_OUTPUT_OVERFLOW`. */
+  /** 单次搜索会去解析的 `rg` 原始 stdout 最大完整字节数；更大的原始输出以
+   * `SEARCH_RAW_OUTPUT_OVERFLOW` 失败。 */
   rawOutputMaxBytes?: number
-  /** Terminate-escalation grace (ms), handed to the subprocess seam and bounded by `MAX_TIMER_DELAY_MS`. */
+  /** 终止升级的宽限期（毫秒），交给 subprocess 接缝，并受 `MAX_TIMER_DELAY_MS` 约束。 */
   graceMs?: number
-  /** Max bytes retained for one search's stderr tail; the excerpt is embedded in `SEARCH_*` error messages, never shown on success. */
+  /** 单次搜索保留的 stderr 尾部最大字节数；该摘要会被嵌入 `SEARCH_*` 错误消息，
+   * 成功时绝不展示。 */
   stderrMaxBytes?: number
   /**
-   * Cooperative tool-call timeout budget (ms) on both tools, enforced by
-   * `@deepseek-ai/dsh-tool-call-timeout-policy` through `exec.signal`.
+   * 两个工具上共同的协作式工具调用超时预算（毫秒），由
+   * `@deepseek-ai/dsh-tool-call-timeout-policy` 通过 `exec.signal` 强制执行。
    */
   timeoutMs?: number
 }
@@ -107,10 +105,10 @@ export const Config: z<Config> = z.object({
   timeoutMs: z.number().default(SEARCH_TIMEOUT_MS),
 })
 
-/** The shape after schemastery applied the defaults. */
+/** schemastery 应用默认值之后的形状。 */
 type ResolvedConfig = Required<Config>
 
-/** Every search cap counts items/bytes/milliseconds — a positive integer, or retention and timeout arithmetic misbehaves silently. */
+/** 每个搜索上限都以条目/字节/毫秒计 —— 必须是正整数，否则保留策略与超时算术会静默出错。 */
 function assertPositiveInteger(name: string, value: number): void {
   if (!Number.isInteger(value) || value < 1) {
     throw new Error(`tool-fs-search: ${name} must be a positive integer`)
@@ -118,16 +116,15 @@ function assertPositiveInteger(name: string, value: number): void {
 }
 
 /**
- * Register the `glob`/`grep` filesystem discovery tool suite. The packaged
- * ripgrep binary is always available (an npm dependency), so registration is
- * unconditional.
+ * 注册 `glob`/`grep` 文件系统发现工具套件。打包的 ripgrep 二进制始终可用
+ * （作为 npm 依赖），因此注册是无条件的。
  *
- * @param ctx - plugin context; registrations are effects scoped to this plugin.
- * @param config - resolved plugin configuration from schemastery.
+ * @param ctx - 插件上下文；所有注册都是以该插件为作用域的 effect。
+ * @param config - 由 schemastery 解析出的插件配置。
  */
 // oxlint-disable-next-line typescript/require-await -- async keeps a load-time config rejection a rejection, not a synchronous throw
 export async function apply(ctx: Context, config: Config): Promise<void> {
-  // schemastery (Config) has already filled every defaulted field.
+  // schemastery（Config）已经填好所有带默认值的字段。
   const resolved = config as ResolvedConfig
   assertPositiveInteger('globMaxResults', resolved.globMaxResults)
   assertPositiveInteger('grepMaxMatches', resolved.grepMaxMatches)

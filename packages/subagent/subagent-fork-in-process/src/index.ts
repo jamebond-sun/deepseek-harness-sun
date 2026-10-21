@@ -1,9 +1,9 @@
 /**
- * The in-process FORK subagent backend: registers a {@link SubagentProvider} on
- * `ctx.subagents` that runs each child as a child {@link Agent} SEEDED with a prefix of the
- * parent's session log — so the child inherits the parent's conversation context instead of
- * starting fresh. The seed ends at the last `turn/end`: the current tool-call turn is
- * unbalanced and cannot be replayed as a valid child session.
+ * 进程内 FORK 子代理后端：在 `ctx.subagents` 上注册一个
+ * {@link SubagentProvider}，把每个子代理作为一个子 {@link Agent} 运行，并用
+ * 父 session 日志的一段前缀为其播种 —— 因此子代理继承父代理的对话上下文，
+ * 而非全新启动。播种在最后一个 `turn/end` 处结束：当前工具调用轮次是不
+ * 平衡的，无法作为有效的子 session 重放。
  * @module @deepseek-ai/dsh-subagent-fork-in-process
  */
 
@@ -19,15 +19,15 @@ import type {
 } from '@deepseek-ai/dsh-subagent'
 
 export const name = 'subagent-fork-in-process'
-// `tools` is deliberately NOT injected — same rationale as subagent-spawn-in-process: the
-// per-run structured runtime gates its capture-tool registration on `tools`
-// itself, so this backend's apply timing (and the delegation tool's position
-// in the model-visible tool list) is unchanged by structured output.
+// 有意不注入 `tools` —— 与 subagent-spawn-in-process 相同的理由：
+// 按运行的结构化运行时以 `tools` 自身为其捕获工具注册的门槛，
+// 因此本后端的 apply 时机（以及委托工具在模型可见工具列表中的位置）
+// 不因结构化输出而改变。
 export const inject = ['subagents']
 
-/** Config: the registry name to register the provider under. */
+/** 配置：注册该提供方所用的注册表名称。 */
 export interface Config {
-  /** Provider name on `ctx.subagents` (default `fork`). */
+  /** `ctx.subagents` 上的提供方名称（默认 `fork`）。 */
   providerName: string
 }
 
@@ -36,26 +36,25 @@ export const Config: z<Config> = z.object({
 })
 
 /**
- * The balanced completed-turn prefix of `parent`'s log: every event up to and including the
- * last `turn/end`. The in-flight turn is excluded; before any completed turn the child starts
- * fresh. Because live sequence numbers equal array indexes, the result remains a valid seed
- * beginning at sequence zero.
- * @param parent - the agent whose session log to slice.
- * @returns the seed events, contiguous from seq 0; empty when no turn has completed.
+ * `parent` 日志中平衡的已完成轮次前缀：直到并包括最后一个 `turn/end` 的
+ * 每个事件。正在进行中的轮次被排除；在任何已完成轮次之前，子代理全新启动。
+ * 由于实时序号等于数组下标，结果仍是自序号零开始的有效播种。
+ * @param parent - 要切片其 session 日志的 agent。
+ * @returns 自 seq 0 连续的播种事件；当没有轮次完成时为空。
  */
 function completedTurnPrefix(parent: Agent): SessionEvent[] {
-  // oxlint-disable-next-line typescript/no-deprecated -- Existing Session history read; migration deferred.
+  // oxlint-disable-next-line typescript/no-deprecated -- 沿用既有 Session 历史读取；迁移暂缓。
   const events = parent.session.snapshotEvents()
   const lastEnd = events.findLast(e => e.type === 'turn/end')
   if (lastEnd === undefined) return []
-  // seq === array index (the append contract), so slice up to and including it.
+  // seq === 数组下标（append 契约），因此切片到它并包含它。
   return events.slice(0, lastEnd.seq + 1)
 }
 
 /**
- * The fork provider. Supports `depthLimit` and `outputSchema` (via the shared
- * in-process structured runtime), `agentOptions` (merged over the parent
- * route). The child inherits its parent's preset composition.
+ * fork 提供方。支持 `depthLimit` 与 `outputSchema`（经由共享的进程内结构化
+ * 运行时）、`agentOptions`（合并覆盖到父路由之上）。子代理继承其父代理的
+ * 预设组合。
  */
 class ForkInProcessProvider implements SubagentProvider {
   readonly capabilities: SubagentCapabilities = {
@@ -64,15 +63,14 @@ class ForkInProcessProvider implements SubagentProvider {
     outputSchema: true,
     depthLimit: true,
   }
-  // Context contract: a forked child IS seeded with the parent's completed-turn prefix.
+  // 上下文契约：一个 fork 出的子代理确实被父代理的已完成轮次前缀播种。
   readonly inheritsParentContext = true
 
   constructor(readonly name: string) {}
 
   prepareContinuable(request: ContinuableCreateRequest): Promise<ContinuableCreateSpec> {
-    // The fork prefix is captured ONCE, at creation: it becomes part of the
-    // child's own durable transcript, so a later cold resume replays that
-    // prefix instead of re-forking the parent's newer history.
+    // fork 前缀在创建时只捕获一次：它成为子代理自身持久化 transcript 的
+    // 一部分，因此之后的冷恢复重放该前缀，而不是重新 fork 父代理更新的历史。
     const seed = completedTurnPrefix(request.parent)
     return Promise.resolve(seed.length > 0 ? { seed } : {})
   }

@@ -1,24 +1,24 @@
-/** Live plugin Config discovery projected from the running Loader tree. */
+/** 从运行中的 Loader 树投影出实时插件 Config 发现结果。 */
 
 import type { Context } from '@deepseek-ai/cordis'
 import type { Entry } from '@deepseek-ai/cordis-plugin-loader'
-// Declares `Context.pluginPackages`, the profile package lookup that resolves an entry's package directory.
+// 声明 `Context.pluginPackages`，即用于将条目解析到其包目录的 profile 包查找表。
 import { createConfigProjector, isNativeConfigSchema, LOADER_EXPRESSION_SCHEMA, type NativeConfigSchema } from '@deepseek-ai/dsh-app-boot'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 
 /**
- * `schema`: the running plugin declares a native Schemastery Config. `absent`: it runs without one.
- * `unsupported`: its Config is not a native Schemastery graph. `tree`: a Loader carrier (`cordis:group`,
- * `cordis:include`) whose `config` is a child entry list, not a plugin Config. `inactive`: the entry is
- * disabled, was never imported, or its fiber has been disposed, so no Config is read. A plugin whose
- * `apply` failed keeps its fiber and still reports its Config.
+ * `schema`：运行中的插件声明了一个原生 Schemastery Config。`absent`：插件运行时不带 Config。
+ * `unsupported`：其 Config 不是原生 Schemastery 图。`tree`：一个 Loader 载体（`cordis:group`、
+ * `cordis:include`），其 `config` 是子条目列表而非插件 Config。`inactive`：该条目
+ * 已被禁用、从未被导入，或其实例纤程已被释放，因此不读取 Config。一个 `apply`
+ * 失败的插件会保留其实例纤程，并仍会报告其 Config。
  */
 type ConfigStatus = 'schema' | 'absent' | 'unsupported' | 'tree' | 'inactive'
 
 interface LiveConfig {
-  /** Loader entry id, unique across nested include trees (`parent:child`). */
+  /** Loader 条目 id，在嵌套 include 树中唯一（`parent:child`）。 */
   id: string
-  /** Tree-local id that profile patches address. */
+  /** profile 补丁所寻址的树内局部 id。 */
   patchId: string
   name: string
   status: ConfigStatus
@@ -41,7 +41,7 @@ function listing({ id, patchId, name, status }: LiveConfig): { [key: string]: Js
   return { id, patchId, name, status }
 }
 
-/** Model-supplied query fields, validated at the tool JSON boundary. */
+/** 模型提供的查询字段，在工具 JSON 边界处校验。 */
 interface ConfigQuery {
   entry: string | undefined
   name: string | undefined
@@ -69,31 +69,31 @@ function parseQuery(input: JsonValue | undefined): ConfigQuery {
   return { entry: text('entry'), name: text('name'), offset, limit }
 }
 
-/** Resolve the package directory behind an entry's plugin name through the profile package lookup. */
+/** 通过 profile 包查找表，解析某条目插件名背后的包目录。 */
 function packageDir(ctx: Context, entry: Entry): { packageDir?: string } {
   const baseUrl = entry.parent.tree.ctx.baseUrl
   const dir = baseUrl === undefined ? undefined : ctx.get('pluginPackages')?.packageOf(entry.options.name, baseUrl)?.dir
   return dir === undefined ? {} : { packageDir: dir }
 }
 
-/** Projection output is JSON by construction; the CLI schema dump serializes the same values. */
+/** 投影输出按构造即为 JSON；CLI 的 schema 转储会序列化相同的值。 */
 function toJson(value: object): JsonValue {
   return JSON.parse(JSON.stringify(value)) as JsonValue
 }
 
 /**
- * Answer the `Config.listConfigs` inspect query from the live Loader tree.
- * Without `entry`, return one page of the directory: each entry's Loader id, patch id, plugin name, and Config
- * status, optionally filtered to one exact plugin `name`, with `total` and `nextOffset` (null on the last page).
- * With `entry`, return that entry with its resolved `packageDir` (the directory holding the package README and
- * built `lib/`, when the profile package lookup resolves it) and project its native Config into one self-contained
- * JSON Schema 2020-12 document whose `$defs` carry the shared and `loaderExpression` definitions, plus omission
- * acceptance and projection limitations.
- * Validators and transform callbacks are not executed; runtime-created Agent preset trees are outside the Loader.
- * @param ctx - Host context; its `loader`, when the profile was mounted by one, owns the entry tree.
- * @param input - model-supplied query: `entry` (Loader entry id), or `name`, `offset` (default 0), and `limit` (1 to 100, default 25).
- * @returns one directory page, or one entry's status and projected schema.
- * @throws when no Loader mounted this Host, when a query field is malformed, or when the entry id matches no live entry.
+ * 从实时 Loader 树回答 `Config.listConfigs` 巡检查询。
+ * 未提供 `entry` 时，返回目录的一页：每个条目的 Loader id、patch id、插件名以及 Config
+ * 状态，可选按某个精确插件 `name` 过滤，并附带 `total` 与 `nextOffset`（最后一页为 null）。
+ * 提供 `entry` 时，返回该条目及其已解析的 `packageDir`（在 profile 包查找表能解析时，
+ * 即持有包 README 与已构建 `lib/` 的目录），并将其原生 Config 投影为一份自包含的
+ * JSON Schema 2020-12 文档，其 `$defs` 携带共享定义与 `loaderExpression` 定义，外加省略
+ * 接受性与投影限制。
+ * 校验器与变换回调不会被执行；运行时创建的 Agent 预设树处于 Loader 之外。
+ * @param ctx - Host 上下文；当本 profile 由其挂载时，其 `loader` 拥有该条目树。
+ * @param input - 模型提供的查询：`entry`（Loader 条目 id），或 `name`、`offset`（默认 0）与 `limit`（1 到 100，默认 25）。
+ * @returns 一页目录，或某个条目的状态与投影后的 schema。
+ * @throws 当本 Host 未挂载任何 Loader、查询字段格式错误，或条目 id 不匹配任何实时条目时。
  */
 export async function queryLiveConfig(ctx: Context, input: JsonValue | undefined): Promise<JsonValue> {
   const loader = ctx.get('loader')

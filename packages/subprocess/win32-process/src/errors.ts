@@ -1,8 +1,8 @@
-/** Win32 call failure with the exact API name and error code. */
+/** 带有确切 API 名称与错误码的 Win32 调用失败。 */
 export class Win32Error extends Error {
-  /** Win32 function whose checked result failed. */
+  /** 其受检查结果失败的 Win32 函数。 */
   readonly api: string
-  /** Exact GetLastError value or direct Win32 API error code. */
+  /** 确切的 GetLastError 值或直接 Win32 API 错误码。 */
   readonly win32Code: number
 
   constructor(api: string, win32Code: number, detail?: string) {

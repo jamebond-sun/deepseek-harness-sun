@@ -1,4 +1,4 @@
-/** Pure task-view derivation shared by the task board and the client projection. */
+/** 由任务看板与客户端投影共享的、纯函数式的任务视图派生。 */
 
 import { brandString } from '@deepseek-ai/dsh-brand'
 import type { SessionId } from '@deepseek-ai/dsh-session'
@@ -6,33 +6,32 @@ import type { TeamState } from './projection.ts'
 import type { TeamTaskSnapshot, TeamTaskView } from './types.ts'
 
 /**
- * Whether two normalized file or directory prefixes overlap on path components.
- * @param left - normalized write scope.
- * @param right - normalized write scope.
- * @returns whether either scope contains the other.
+ * 两个归一化后的文件或目录前缀是否在路径组件上重叠。
+ * @param left - 归一化后的写入作用域。
+ * @param right - 归一化后的写入作用域。
+ * @returns 任一作用域是否包含另一个。
  */
 function scopesOverlap(left: string, right: string): boolean {
   return left === right || left.startsWith(`${right}/`) || right.startsWith(`${left}/`)
 }
 
 /**
- * Whether every current blocker of one task completed.
- * @param state - Team state supplying sibling tasks.
- * @param task - durable task snapshot to test.
- * @returns whether the task has no incomplete blockers.
+ * 某个任务的每一个当前阻塞项是否都已完成。
+ * @param state - 提供同级任务的 Team 状态。
+ * @param task - 待测试的持久化任务快照。
+ * @returns 该任务是否没有未完成的阻塞项。
  */
 export function taskReady(state: TeamState, task: TeamTaskSnapshot): boolean {
   return task.blockedBy.every(id => state.tasks.find(candidate => candidate.id === id)?.status === 'completed')
 }
 
 /**
- * Derive one task view with owner name, readiness, and advisory write overlaps.
- * A committing caller may pass its pre-append state because `task` supplies the
- * new value explicitly; owner names, blocker readiness, and other task scopes
- * do not change when that snapshot is appended.
- * @param state - Team state supplying members and sibling tasks.
- * @param task - durable task snapshot to view.
- * @returns a detached task view.
+ * 派生一份带有属主名称、就绪状态与建议性写入重叠的任务视图。
+ * 一次正在提交的调用方可以传入它在追加之前的状态，因为 `task` 显式提供了
+ * 新值；当该快照被追加时，属主名称、阻塞项就绪状态以及其他任务作用域都不会变化。
+ * @param state - 提供成员与同级任务的 Team 状态。
+ * @param task - 待查看的持久化任务快照。
+ * @returns 一份已分离的任务视图。
  */
 export function projectTaskView(state: TeamState, task: TeamTaskSnapshot): TeamTaskView {
   const ownerName = task.ownerId === undefined

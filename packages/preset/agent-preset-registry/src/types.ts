@@ -1,48 +1,48 @@
-/** Client-safe payloads and event declarations owned by the agent-preset domain. */
+/** agent-preset 领域所拥有的、对客户端安全的载荷与事件声明。 */
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 
 
 /**
- * One declared preset as a client reads it.
+ * 客户端视角下读取到的一个已声明预设。
  */
 export interface AgentPresetRow {
-  /** Stable identifier; also the label's fallback. */
+  /** 稳定标识符；同时也是标签的回退值。 */
   readonly id: string
-  /** Whether a session naming no preset composes this one. */
+  /** 未指定预设的会话是否使用本预设进行组合。 */
   readonly isDefault: boolean
-  /** Display name the preset published. */
+  /** 预设发布的显示名。 */
   readonly name?: string
-  /** One sentence on what this preset is for. */
+  /** 用一句话说明该预设的用途。 */
   readonly description?: string
-  /** Why this preset cannot compose a session; absent when it can. */
+  /** 为何该预设无法组合会话；可用时不存在。 */
   readonly broken?: string
 }
 
-/** The roster one deployment currently supplies. */
+/** 某次部署当前提供的名册。 */
 export interface AgentPresetRoster {
-  /** Every current declaration, including activation failures. */
+  /** 当前所有声明，包括激活失败的。 */
   readonly presets: readonly AgentPresetRow[]
 }
 
-/** One preset's declared composition, rendered for reading. */
+/** 一个预设已声明的组合，渲染后供阅读。 */
 export interface AgentPresetDocument {
-  /** The preset the composition belongs to. */
+  /** 该组合所属的预设。 */
   readonly agentPreset: string
-  /** The declared child plugin list as entry-list YAML, `!!js` expressions included. */
+  /** 以条目列表 YAML 形式呈现的已声明子插件列表，包含 `!!js` 表达式。 */
   readonly content: string
-  /** Display name the preset published. */
+  /** 预设发布的显示名。 */
   readonly name?: string
-  /** One sentence on what this preset is for. */
+  /** 用一句话说明该预设的用途。 */
   readonly description?: string
 }
 
 declare module '@deepseek-ai/dsh-typert-protocol' {
   interface RemoteErrorDetailsMap {
-    /** No declaration supplies the requested identity. */
+    /** 没有任何声明提供所请求的身份。 */
     'agent-preset/not-found': { readonly agentPreset: string; readonly available: readonly string[] }
-    /** The id is unusable, already taken, or its composition cannot be installed. */
+    /** 该 id 不可用、已被占用，或其组合无法安装。 */
     'agent-preset/invalid': { readonly agentPreset: string; readonly reason: string }
-    /** The session's conversation has started, so its composition is fixed. */
+    /** 会话的对话已开始，因此其组合已固定。 */
     'agent-preset/locked': { readonly sessionId: SessionId; readonly agentPreset: string }
   }
 }
@@ -52,7 +52,7 @@ declare module '@deepseek-ai/dsh-session-projection/types' {
     agentPreset: string | null
   }
   interface SessionProjectionMap {
-    /** Preset the Session runs, or null when the deployment composes none. */
+    /** Session 运行的预设；当部署不组合任何预设时为 null。 */
     agentPreset: string | null
   }
 }
@@ -60,11 +60,11 @@ declare module '@deepseek-ai/dsh-session-projection/types' {
 declare module '@deepseek-ai/cordis' {
   interface Events {
     /**
-     * One session committed a different agent preset to its durable log.
-     * Consumers invalidate only state derived from that session's composition.
+     * 某个会话把另一个 agent 预设提交进了它的持久化日志。
+     * 消费方只应失效那些源自该会话组合的状态。
      * @mode emit
-     * @param sessionId - the session whose composition changed.
-     * @param agentPreset - the preset recorded by the committed selection.
+     * @param sessionId - 组合发生变化的会话。
+     * @param agentPreset - 本次已提交选择所记录的预设。
      */
     'agent-preset/selected'(sessionId: SessionId, agentPreset: string): void
   }

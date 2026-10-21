@@ -1,34 +1,33 @@
 /**
- * Small value helpers shared by the engine and the host: reading a mod's
- * untyped call input, wording a thrown value, and JSON encoding as typed by
- * what it does.
+ * 由引擎与宿主共享的小型取值辅助函数：读取某个 mod 的无类型调用输入、
+ * 措辞化一个被抛出的值，以及按其所做之事定类型的 JSON 编码。
  * @module
  */
 
 /**
- * The message of a thrown value: an Error's `message`, anything else as text.
- * @param error - the thrown value.
- * @returns the message text.
+ * 一个被抛出值的消息：Error 的 `message`，其余任何值都作为文本。
+ * @param error - 被抛出的值。
+ * @returns 消息文本。
  */
 export function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
 /**
- * A mod's call input as a field record; anything that is not an object reads as empty.
- * @param input - the value a mod passed.
- * @returns the fields, or an empty record.
+ * 将某个 mod 的调用输入作为字段记录读取；任何非对象的取值都读作空。
+ * @param input - 该 mod 传入的值。
+ * @returns 字段，或一条空记录。
  */
 export function record(input: unknown): Record<string, unknown> {
   return typeof input === 'object' && input !== null ? input as Record<string, unknown> : {}
 }
 
 /**
- * Require one string field of a mod's call input.
- * @param value - the field value.
- * @param what - the field, named in the error.
- * @returns the string.
- * @throws TypeError when the value is not a string.
+ * 要求某个 mod 的调用输入包含一个字符串字段。
+ * @param value - 该字段的值。
+ * @param what - 出错时用于指名的字段。
+ * @returns 该字符串。
+ * @throws TypeError 当该值不是字符串时。
  */
 export function requireString(value: unknown, what: string): string {
   if (typeof value !== 'string') throw new TypeError(`${what} must be a string`)
@@ -36,9 +35,9 @@ export function requireString(value: unknown, what: string): string {
 }
 
 /**
- * `JSON.stringify` as typed by what it does: undefined for a value JSON cannot carry.
- * @param value - the value to encode.
- * @returns the JSON text, or undefined.
+ * 按其所做之事定类型的 `JSON.stringify`：对于 JSON 无法承载的值返回 undefined。
+ * @param value - 待编码的值。
+ * @returns JSON 文本，或 undefined。
  */
 export function stringify(value: unknown): string | undefined {
   const encoded: string | undefined = JSON.stringify(value)

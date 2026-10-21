@@ -1,7 +1,7 @@
 /**
- * Host-only workflow request and live-run handles. The browser-safe durable
- * vocabulary remains in `./types` so Client programs never import Agent or
- * host Cordis context declarations.
+ * 仅宿主侧使用的 workflow 请求与活跃运行句柄。浏览器安全的持久化词汇
+ * 仍留在 `./types` 中，以便 Client 程序绝不会导入 Agent，或宿主的 Cordis
+ * 上下文声明。
  *
  * @module @deepseek-ai/dsh-workflow
  */
@@ -12,38 +12,38 @@ import type {
 } from './types.ts'
 
 /**
- * What a caller asks for when starting a workflow run. `meta` and `args` are
- * plain JSON data by the seam contract. `parent` is required because every
- * `agent()` spawned by the script is attributed to that live Agent.
+ * 调用方在启动一次 workflow 运行时所请求的内容。`meta` 与 `args` 按 seam
+ * 契约为纯 JSON 数据。`parent` 是必需的，因为脚本所生成的每一个 `agent()`
+ * 都归属于那个活跃的 Agent。
  */
 export interface WorkflowStartRequest {
-  /** The plain-JS script body (top-level await allowed; ends with `return <json-value>`). */
+  /** 纯 JS 脚本正文（允许顶层 await；以 `return <json-value>` 结尾）。 */
   script: string
-  /** The workflow's identity block, as plain JSON data (shape-validated by the engine). */
+  /** workflow 的身份块，作为纯 JSON 数据（由引擎进行形状校验）。 */
   meta: WorkflowMeta
-  /** Optional input exposed verbatim to the script as the `args` global. */
+  /** 原样暴露给脚本、作为 `args` 全局的可选输入。 */
   args?: unknown
-  /** Optional engine-wide child-provider override for this run. */
+  /** 可选的、针对该运行的引擎级子项 provider 覆盖。 */
   subagentProvider?: string
-  /** Optional per-run total-child ceiling. */
+  /** 可选的、逐运行的总子项上限。 */
   maxTotalAgents?: number
-  /** The agent on whose behalf the run executes (parent of every child). */
+  /** 代表运行执行（每个子项的父级）的代理。 */
   parent: Agent
-  /** Cancels the run when aborted. */
+  /** 中止时取消该运行。 */
   signal?: AbortSignal
 }
 
 /**
- * Holder-owned live workflow. `result` never rejects; consumers may cancel
- * and must call idempotent `dispose()` to await script and child quiescence.
+ * 属主拥有的活跃 workflow。`result` 永不 reject；消费者可以取消，且
+ * 必须调用幂等的 `dispose()` 以等待脚本与子项静止。
  */
 export interface WorkflowRun {
   readonly id: WorkflowRunId
-  /** The validated meta block available before the script body runs. */
+  /** 在脚本正文运行前即可用的已校验 meta 块。 */
   readonly meta: WorkflowMeta
   readonly result: Promise<WorkflowResult>
-  /** Cancel the run and its children. */
+  /** 取消该运行及其子项。 */
   cancel(reason?: string): void
-  /** Cancel if needed and await script and child cleanup. */
+  /** 必要时取消，并等待脚本与子项清理完成。 */
   dispose(): Promise<void>
 }

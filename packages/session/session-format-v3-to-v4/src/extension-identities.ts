@@ -1,10 +1,10 @@
-/** Fixed V3 event vocabulary and namespaced historical opaque events. */
+/** 固定的 V3 事件词表与带命名空间的历史不透明事件。 */
 
 import type { SessionFormatEvent } from '@deepseek-ai/dsh-session-format'
 
-// This historical list must not inherit additions or removals from the current Session event list.
+// 这份历史清单不得继承当前 Session 事件清单的新增或删除。
 /* jscpd:ignore-start */
-/** First-party event names understood by the released V3 reader, independent of the installed writer. */
+/** 已发布的 V3 读取器可理解的一方事件名，与已安装的写入器无关。 */
 export const RELEASED_V3_EVENT_TYPES: ReadonlySet<string> = new Set([
   'agent-preset/selected',
   'agent/inbox/spliced',
@@ -68,9 +68,9 @@ export const RELEASED_V3_EVENT_TYPES: ReadonlySet<string> = new Set([
 /* jscpd:ignore-end */
 
 /**
- * Keep unknown ignorable events opaque after header promotion.
- * @param event - original V3 event; this incoming identity conversion is applied once.
- * @returns the same event or an ignorable namespaced event retaining its payload and coordinates.
+ * 在头部提升之后让未知的可忽略事件保持不透明。
+ * @param event - 原始 V3 事件；这次入站身份转换只应用一次。
+ * @returns 同一个事件，或一个保留其载荷与坐标的可忽略命名空间事件。
  */
 export function namespaceV3OpaqueEvent(event: SessionFormatEvent): SessionFormatEvent {
   return event['ignorable'] === true && !RELEASED_V3_EVENT_TYPES.has(event.type)

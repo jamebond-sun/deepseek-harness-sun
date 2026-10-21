@@ -1,4 +1,4 @@
-/** Mandatory native V4 relationships; incomplete tails retain their open transactions. */
+/** 强制的原生 V4 关系；不完整的尾部保留其未结事务。 */
 
 import { isDeepStrictEqual } from 'node:util'
 import { SessionFormatError, isSessionFormatJsonObject, sessionFormatCount } from '@deepseek-ai/dsh-session-format'
@@ -48,7 +48,7 @@ interface Compaction {
   summarized: boolean
 }
 
-/** One native artifact's lifecycle state; no state survives between reads. */
+/** 单个原生制品的生命周期状态；状态不会在两次读取之间保留。 */
 class Relationships {
   turn: number | null = null
   step: number | null = null
@@ -335,7 +335,7 @@ function notStartedRepair(
   const error = record(data['error'], 'not-started error')
   if (error['name'] !== 'ToolNotStartedError' || error['code'] !== 'TOOL_NOT_STARTED' || message['isError'] !== true || event['sourceEventSeqs'] !== undefined) return false
   const id = text(message['id'], 'not-started message id')
-  // Fork-specific fields and identity are checked by assertV4ForkResult before relationships.
+  // 与 fork 相关的字段与身份在关系校验之前由 assertV4ForkResult 检查。
   if (id.startsWith(`forked-tool-result-${callId}-`)) return true
   const prefix = `interrupted-tool-result-${callId}-`
   const suffix = id.slice(prefix.length)
@@ -375,9 +375,9 @@ function titleSources(
 }
 
 /**
- * Validate native V4 lifecycle and ownership facts without rewriting any event.
- * @param artifact - artifact whose V4 envelopes and messages have been admitted.
- * @param knownEventTypes - installed event types whose payloads this reader interprets.
+ * 校验原生 V4 的生命周期与归属事实，不重写任何事件。
+ * @param artifact - 其 V4 信封与消息均已被接纳的制品。
+ * @param knownEventTypes - 本读取器会解释其载荷的已安装事件类型。
  */
 export function assertV4LifecycleRelationships(artifact: SessionFormatArtifact, knownEventTypes: ReadonlySet<string>): void {
   const state = new Relationships(artifact, knownEventTypes)

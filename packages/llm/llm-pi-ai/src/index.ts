@@ -1,38 +1,36 @@
 /**
- * Generic pi-ai-backed LLM adapter plugin. One plugin instance owns a dict of
- * provider routes; a route naming an installed pi-ai provider inherits that
- * provider's endpoint, protocol, and model catalog as defaults, and a route
- * pi-ai does not ship is declared outright. Profile facts resolve per request
- * over the optional `llm-pi-ai` user-settings section and the optional
- * credential seam, so a changed key, endpoint, model, or knob reaches the next
- * request without a restart; a changed *route set* (or a route's
- * registration-captured retry policy) re-registers the same adapter instance
- * in place.
+ * 由 pi-ai 支撑的通用 LLM 适配器插件。一个插件实例持有一份提供方路由字典；
+ * 一条指名了某个已安装 pi-ai 提供方的路由，会继承该提供方的端点、协议与
+ * 模型目录作为默认值，而一条 pi-ai 并未自带的路由则是被直接声明出来的。
+ * 各个 profile 事实在每次请求时通过可选的 `llm-pi-ai` 用户设置小节与
+ * 可选的凭据接缝解析，因此一次变更的密钥、端点、模型或开关无需重启
+ * 就能到达下一次请求；一次变更的*路由集合*（或某条路由随注册一起捕获的
+ * 重试策略）会让同一个适配器实例就地重新注册。
  *
  * ```yaml
  * - id: llm
  *   name: '@deepseek-ai/dsh-llm-pi-ai'
  *   config:
  *     providers:
- *       # Catalog route: everything but the credential comes from pi-ai.
+ *       # 目录路由：除凭据之外的一切都来自 pi-ai。
  *       openai:
  *         apiKeyEnv: OPENAI_API_KEY
  *         retryPolicy:
  *           mode: normal
  *           maxRetries: 2
- *       # Catalog route with the catalog narrowed and one capacity corrected.
+ *       # 目录路由，但目录被收窄，且一个容量被改正。
  *       anthropic:
  *         apiKeyEnv: ANTHROPIC_API_KEY
  *         models:
  *           - id: claude-sonnet-4-5
  *             contextWindow: 200000
- *       # Hand-declared route: pi-ai ships nothing under this key.
+ *       # 手工声明的路由：pi-ai 在这个键之下不自带任何东西。
  *       acme-gateway:
  *         displayName: Acme Gateway
  *         apiKeyEnv: ACME_GATEWAY_API_KEY
  *         api: openai-completions
  *         baseURL: https://gateway.acme.example/v1
- *         # Reasoning dialect for a URL pi-ai cannot recognize.
+ *         # 一个 pi-ai 无法识别的 URL 所使用的推理方言。
  *         compat:
  *           thinkingFormat: deepseek
  *         models:
@@ -44,8 +42,8 @@
  *             name: Acme Think
  *             contextWindow: 262144
  *             maxTokens: 32768
- *             # key = selectable level, value = wire spelling; only off may
- *             # leave the value empty (supported, send nothing).
+ *             # key = 可选强度，value = 线路拼写；只有 off 可以让该值为空
+ *             #（受支持，但不发送任何东西）。
  *             reasoningEfforts:
  *               off:
  *               high: high
@@ -97,15 +95,14 @@ export const inject = ['llm']
 const NS = 'llm-pi-ai'
 
 /**
- * The registry captures these per route; a change here must re-register.
- * Sorted by provider so a settings document that merely reorders its keys is
- * not mistaken for a route change.
+ * 注册表按路由捕获这些事实；这里发生变化就必须重新注册。
+ * 按提供方排序，因此一份仅仅重新排列了键的设置文档不会被误认为一次路由变更。
  */
 function registrationFacts(profiles: ReadonlyMap<string, ResolvedPiAiProviderProfile>): unknown {
   return [...profiles.entries()]
-    // `displayName` rides along because the registry hands it to every selector
-    // through `providerInfo()`: a rename that did not re-register would leave
-    // the old label showing until some unrelated fact happened to change.
+    // `displayName` 被一并带上，是因为注册表会通过 `providerInfo()`
+    // 把它交给每一个选择器：一次没有重新注册的重命名会让旧标签继续显示，
+    // 直到某个无关的事实碰巧发生变化。
     .map(([provider, profile]) => ({
       provider,
       displayName: profile.displayName,
@@ -115,15 +112,13 @@ function registrationFacts(profiles: ReadonlyMap<string, ResolvedPiAiProviderPro
 }
 
 /**
- * The configurable-provider directory: every installed catalog route, plus
- * every route the current profiles declare. A hand-declared route has no
- * catalog entry, so without this union it would have no settings address and
- * configuration surfaces could neither show nor edit it. A catalog route also
- * carries its catalog endpoint and native authentication, which a settings
- * editor shows while the profile leaves the endpoint or the credential
- * reference unset.
- * @param profiles - the currently resolved provider profiles.
- * @returns the directory entries in catalog order, declared routes last.
+ * 可配置提供方目录：每条已安装的目录路由，外加当前各个 profile 所声明的
+ * 每条路由。一条手工声明的路由没有目录条目，因此没有这个并集它就没有
+ * 设置地址，配置界面既无法显示也无法编辑它。一条目录路由还携带它的
+ * 目录端点与原生认证，而设置编辑器会在该 profile 未设置端点或凭据引用时
+ * 展示它们。
+ * @param profiles - 当前已解析的各个提供方 profile。
+ * @returns 按目录顺序排列的各个目录条目，已声明的路由在最后。
  */
 function directoryEntries(
   profiles: ReadonlyMap<string, ResolvedPiAiProviderProfile>,
@@ -137,9 +132,9 @@ function directoryEntries(
       displayName,
       settingsNs,
       settingsPath: ['providers', provider],
-      // Membership of the installed catalog, not of the settings document:
-      // narrowing a shipped provider's models stores a profile too, and that
-      // route is still one pi-ai knows.
+      // 属于已安装目录的成员身份，而不是属于设置文档的：
+      // 收窄一个自带提供方的模型同样会存储一份 profile，
+      // 而那条路由仍然是 pi-ai 所知道的一条。
       declared: installed === undefined,
       ...installed === undefined ? {} : providerDefaultsOf(installed),
       ...error === undefined ? {} : { error },
@@ -150,20 +145,18 @@ function directoryEntries(
   return [...entries.values()]
 }
 
-/** Register one generic pi-ai adapter for all configured provider routes. */
+/** 为所有已配置的提供方路由注册一个通用 pi-ai 适配器。 */
 export function apply(ctx: Context, config: Config): void {
   ctx.inject(['settings'], (child) => { child.effect(() => child.settings.configure({ auto: false }, ctx.fiber)) })
   const settingsNs = ctx.fiber.entry?.options.id ?? NS
   let lastRaw: ReturnType<Config['providers']['get']> | undefined
   let memoized: ReadonlyMap<string, ResolvedPiAiProviderProfile> | undefined
   /**
-   * The resolved profiles for the current configuration, memoized by the raw
-   * snapshot's identity — which is also what makes the adapter's own snapshot
-   * stable across operations that observe no change.
+   * 当前配置的各个已解析 profile，按原始快照的身份记忆化——
+   * 而这也正是让适配器自己的快照在那些未观察到变化的操作之间保持稳定的原因。
    *
-   * Catalog diagnostics stay in the snapshot beside serviceable models, so
-   * stored configuration remains visible after an installed catalog changes.
-   * Scalar configuration errors still reject resolution.
+   * 目录诊断信息留在快照中、与可服务的模型并列，因此在一份已安装的目录
+   * 发生变化之后，已存储的配置仍然可见。标量配置错误仍然会让解析 reject。
    */
   const profiles = (): ReadonlyMap<string, ResolvedPiAiProviderProfile> => {
     const raw = config.providers.get()
@@ -190,16 +183,15 @@ export function apply(ctx: Context, config: Config): void {
     profile: ResolvedPiAiProviderProfile,
   ): Promise<string | undefined> => {
     const ref = profile.apiKeyEnv
-    // Only a profile that names no credential at all defers to pi-ai's
-    // provider-native discovery. Once one is named, a miss must fail loud:
-    // handing pi-ai `undefined` would let it pick up an unrelated ambient key
-    // (OPENAI_API_KEY and friends), billing another tenant for a request the
-    // deployment meant to authenticate differently.
+    // 只有完全没有指名任何凭据的 profile 才会委派给 pi-ai 的提供方原生发现。
+    // 一旦指名了一个，未命中就必须响亮地失败：把 `undefined` 交给 pi-ai
+    // 会让它捡起一个无关的环境密钥（OPENAI_API_KEY 之类），
+    // 从而为一个本打算以不同方式认证的请求向另一个租户计费。
     if (ref === undefined) return undefined
     const credentials = ctx.get('credentials')
     const hit = credentials !== undefined
       ? (await credentials.resolve(ref))?.value
-      // Without the seam the environment is the whole credential plane.
+      // 没有该接缝时，环境就是整个凭据平面。
       : launchEnvironmentOf(ctx).get(ref)?.value
     if (hit !== undefined && hit.length > 0) return assertUsableApiKey(hit, 'llm-pi-ai', ref)
     throw new LlmError(
@@ -210,9 +202,9 @@ export function apply(ctx: Context, config: Config): void {
     )
   }
 
-  // One store and one ambient context for the whole plugin instance: both read
-  // through `ctx` per call, so they stay correct across the collection rebuilds
-  // a configuration change causes, and a sign-in survives one.
+  // 整个插件实例共用一个存储与一个环境上下文：两者都按每次调用通过 `ctx`
+  // 读取，因此它们在一次配置变更所引起的集合重建之间保持正确，
+  // 而一次登录也能在其中存活下来。
   const auth = { credentials: credentialStoreFrom(ctx), authContext: authContextFrom(ctx) }
   const adapter = new PiAiAdapter({
     profiles,
@@ -231,26 +223,24 @@ export function apply(ctx: Context, config: Config): void {
       )
     },
   })
-  // Independent of the route set: signing in is what makes a route worth
-  // adding, so the flows are offered before any profile names their provider.
-  // Scoped to the authorization seam rather than injected outright, because a
-  // composition without it (headless, ACP) simply has no surface to sign in
-  // from, while everything else this plugin does still works.
+  // 独立于路由集合：登录正是让一条路由值得被添加的原因，
+  // 因此这些流程在任何 profile 指名它们的提供方之前就已经被提供。
+  // 它被限定在授权接缝之内，而不是被直接注入，因为一个没有它的组合
+  // （headless、ACP）根本就没有可以从中登录的界面，
+  // 而本插件所做的其他一切仍然照常工作。
   ctx.inject(['authorization'], (authorized) => { registerPiAiFlows(authorized, auth) })
-  // The full installed catalog is configurable from the moment the plugin
-  // mounts — dormant or not — so configuration surfaces can offer every
-  // pi-ai provider before any route exists. Hand-declared routes join it as
-  // profiles appear, and leave with them.
+  // 完整的已安装目录从插件挂载的那一刻起就是可配置的——无论是否处于休眠——
+  // 因此配置界面可以在任何路由存在之前就提供每一个 pi-ai 提供方。
+  // 手工声明的路由随各个 profile 出现而加入它，并随它们一起离开。
   let directory: DirectoryRegistrationHandle | undefined
   let directoryFacts: unknown
   const ensureDirectory = (): void => {
     const entries = directoryEntries(profiles(), settingsNs)
     if (deepEqualJson(entries, directoryFacts)) return
-    // Atomic replace, never dispose-then-register: a route another adapter
-    // family already declares (a profile keyed `deepseek-official`) would
-    // otherwise leave this plugin's whole directory withdrawn and the Models
-    // page empty. The candidate set is validated first, so a collision keeps
-    // the previous entries serving and only costs a diagnostic.
+    // 原子替换，绝不是先释放再注册：否则一条已被另一个适配器家族声明的
+    // 路由（一个键为 `deepseek-official` 的 profile）会让本插件的整个目录
+    // 被撤下，而 Models 页面变空。候选集合会先被校验，因此一次冲突会让
+    // 先前的条目继续服务，而只付出一条诊断信息。
     if (directory === undefined) {
       directory = ctx.llm.registerConfigurableProviders(entries)
     } else {
@@ -259,7 +249,7 @@ export function apply(ctx: Context, config: Config): void {
     directoryFacts = entries
   }
   ensureDirectory()
-  /** Host-owned request inputs for discovery of one configured route. */
+  /** 为发现某条已配置路由所提供的、由宿主持有的请求输入。 */
   const storedDiscoveryProfile = (
     provider: string | undefined,
   ): StoredModelDiscoveryProfile | undefined => {
@@ -271,35 +261,33 @@ export function apply(ctx: Context, config: Config): void {
       resolveApiKey: () => resolveApiKey(provider, profile),
     }
   }
-  // Interrogating an endpoint is a configuration-time action over a draft, so
-  // it is offered for the whole namespace rather than per route: the provider
-  // a surface is adding does not exist yet. The draft is the whole request
-  // except the stored credential and deployment-owned headers: the curated UI
-  // accepts neither, so an already-configured route supplies both inside the
-  // Host rather than widening the discovery request.
+  // 探查一个端点是一个配置时刻的、针对一份草稿的动作，因此它是为整个
+  // 命名空间而非按路由提供的：某个界面正在添加的那个提供方还不存在。
+  // 该草稿就是除已存储凭据与由部署持有的请求头之外的整个请求：
+  // 那个受管的 UI 两者都不接受，因此一条已配置的路由会在宿主机内部
+  // 提供这两者，而不是去扩大那个发现请求。
   ctx.llm.registerModelDiscovery(settingsNs, (request, signal) => discoverModels(
     { ...request, ...signal === undefined ? {} : { signal } },
     () => storedDiscoveryProfile(request.provider),
   ))
-  // Route effects bind to this apply fiber via the stable `ctx` reference,
-  // even when a swap runs inside the scoped settings callback below. A bare
-  // mount (zero routes) is the dormant posture: nothing registers until a
-  // settings section supplies profiles, and routes drop when it empties.
+  // 各个路由 effect 通过那个稳定的 `ctx` 引用绑定到本 apply fiber，
+  // 即使某次交换运行在下面那个带作用域的设置回调内部。一次空挂载
+  // （零条路由）就是休眠姿态：在某个设置小节提供各个 profile 之前
+  // 不会注册任何东西，而当它清空时各条路由随之消失。
   let registration: AdapterRegistrationHandle | undefined
   let registeredFacts: unknown
   const ensureRegistrationFacts = (): void => {
     const facts = registrationFacts(profiles())
     if (deepEqualJson(facts, registeredFacts)) return
-    // The registry captures the route set and each route's retry policy at
-    // registration, so a change to either must re-register. The swap is
-    // atomic (same adapter instance, validated before anything moves): a
-    // conflicting route leaves the previous routes serving requests, and
-    // `registeredFacts` only advances once the registry actually holds the
-    // new set — so returning to a working configuration always re-applies.
+    // 注册表在注册时捕获路由集合与每条路由的重试策略，因此其中任一项
+    // 发生变化都必须重新注册。这次交换是原子的（同一个适配器实例，
+    // 且在任何东西移动之前就已校验）：一条冲突的路由会让先前的路由
+    // 继续服务请求，而 `registeredFacts` 只在注册表真正持有新集合之后
+    // 才前进——因此回到一份可工作的配置总会重新应用。
     const routes = [...profiles().keys()]
     if (registration === undefined) {
-      // Dormant bare mount: nothing is registered until a section supplies
-      // profiles, and an empty section keeps it that way.
+      // 休眠的空挂载：在某个小节提供各个 profile 之前不会注册任何东西，
+      // 而一个空的小节会让它保持这样。
       if (routes.length === 0) {
         registeredFacts = facts
         return

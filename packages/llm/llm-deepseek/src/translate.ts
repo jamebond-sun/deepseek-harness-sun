@@ -1,4 +1,4 @@
-/** Translate Messages events while preserving block order and cumulative usage. */
+/** 转换 Messages 事件，同时保持块顺序与累计用量。 */
 
 import { LlmError, ToolCallId } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock, FinishReason, StreamChunk, TokenUsage } from '@deepseek-ai/dsh-llm'
@@ -13,9 +13,9 @@ interface Block {
   json: string
 }
 
-/** Decode a required string from provider JSON.
- * @param value - provider field.
- * @returns the validated string.
+/** 从提供方 JSON 中解码一个必需的字符串。
+ * @param value - 提供方字段。
+ * @returns 已校验的字符串。
  */
 export function string(value: unknown): string {
   if (typeof value !== 'string') throw new LlmError('DeepSeek Messages expected a string field', 'MALFORMED_RESPONSE')
@@ -96,10 +96,10 @@ function stopReason(raw: unknown): FinishReason {
   }
 }
 
-/** Translate decoded SSE data into the Harness stream protocol.
- * @param events - framed, decoded provider events in arrival order.
- * @param model - requested model id stored in durable replay state.
- * @returns blocks, one final usage value, and exactly one terminal finish.
+/** 把已解码的 SSE 数据转换为 Harness 流协议。
+ * @param events - 按到达顺序排列的、已分帧并解码的提供方事件。
+ * @param model - 保存在持久化回放状态中的被请求模型 id。
+ * @returns 各个块、一个最终用量值，以及恰好一个终止性 finish。
  */
 export async function* translate(events: AsyncIterable<Record<string, unknown>>, model: string): AsyncGenerator<StreamChunk> {
   const blocks = new Map<number, Block>()
@@ -114,7 +114,7 @@ export async function* translate(events: AsyncIterable<Record<string, unknown>>,
       continue
     }
     if (!['content_block_start', 'content_block_delta', 'content_block_stop', 'message_delta', 'message_stop'].includes(String(event.type))) {
-      // Anthropic permits additional event types; content-bearing events remain validated below.
+      // Anthropic 允许额外的事件类型；承载内容的事件仍会在下面被校验。
       continue
     }
     if (!started) return malformed('event precedes message_start')
@@ -147,7 +147,7 @@ export async function* translate(events: AsyncIterable<Record<string, unknown>>,
     } else {
       if (reason === undefined || [...blocks.values()].some(block => !block.closed)) return malformed('message_stop without settled blocks and stop reason')
       if (blocks.size === 0 && reason.kind === 'stop') throw new LlmError('DeepSeek Messages returned no content', 'EMPTY_RESPONSE')
-      // Truncated tool JSON is retained in the stream, then pruned by the shared assembler.
+      // 被截断的工具 JSON 会保留在流中，随后由共享组装器裁剪。
       if (reason.kind !== 'max-tokens') {
         for (const { content } of blocks.values()) {
           if (content.type !== 'tool-call') continue

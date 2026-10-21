@@ -1,4 +1,4 @@
-/** Native source admission preserves unknown attribution and refuses retired plugin wrappers. */
+/** 原生源接纳保留未知归属，并拒绝已退役的 plugin 包装。 */
 
 import { SessionFormatError, isSessionFormatJsonObject } from '@deepseek-ai/dsh-session-format'
 import type { SessionFormatEvent } from '@deepseek-ai/dsh-session-format'
@@ -12,8 +12,8 @@ function source(message: Readonly<Record<string, unknown>>): void {
 }
 
 /**
- * Validate producer attribution in every declared durable message slot.
- * @param event - complete native V4 event before Session adoption.
+ * 校验每个已声明的持久消息槽位中的生产者归属。
+ * @param event - 被 Session 接纳之前的完整原生 V4 事件。
  */
 export function assertV4MessageSources(event: SessionFormatEvent): void {
   mapEventMessages(event, (message) => {
@@ -23,8 +23,8 @@ export function assertV4MessageSources(event: SessionFormatEvent): void {
 }
 
 /**
- * Refuse retired source syntax even after a malformed recoverable row; leave incomplete messages to decoding.
- * @param row - parsed row whose incomplete values have not been classified by the scanner.
+ * 即使在格式错误的可恢复行之后，也拒绝已退役的源语法；不完整的消息交给解码处理。
+ * @param row - 已解析的行，其不完整的值尚未被扫描器分类。
  */
 export function assertV4SourceRowAdmission(row: unknown): void {
   if (!isSessionFormatJsonObject(row) || !isSessionFormatJsonObject(row['data'])) return

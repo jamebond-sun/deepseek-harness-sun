@@ -1,6 +1,6 @@
-/** Foreground question lifetime and Client claims; durable question state stays in the projection. */
+/** 前台提问的生命周期与 Client 认领；问题的持久状态留在投影里。 */
 
-/** One live foreground wait, counted by the Host only while no answer UI holds it. */
+/** 一次生效中的前台等待，仅当没有任何作答 UI 持有时才由 Host 计时。 */
 export class TimedQuestionWait {
   private readonly controller = new AbortController()
   private readonly completion = Promise.withResolvers<void>()
@@ -8,9 +8,9 @@ export class TimedQuestionWait {
   private timer: ReturnType<typeof setTimeout> | undefined
 
   /**
-   * @param deadline - Host-clock deadline used while no Client holds the wait.
-   * @param parent - Calling Turn's cancellation signal.
-   * @param timeout - Business error used to settle an unattended wait.
+   * @param deadline - 没有 Client 持有该等待时使用的 Host 时钟截止时间。
+   * @param parent - 发起调用的 Turn 的取消信号。
+   * @param timeout - 用于终结一次无人看管的等待的业务错误。
    */
   constructor(
     readonly deadline: number,
@@ -22,10 +22,10 @@ export class TimedQuestionWait {
     else this.schedule()
   }
 
-  /** Cancellation shared with the foreground waterfall, not with the calling Turn. */
+  /** 与前台 waterfall 共享的取消信号，而不是发起调用的 Turn 的那个。 */
   get signal(): AbortSignal { return this.controller.signal }
 
-  /** Settles when the wait is cancelled, expires, or is disposed. */
+  /** 在等待被取消、到期或被回收时兑现。 */
   get done(): Promise<void> { return this.completion.promise }
 
   private readonly parentAborted = (): void => { this.close(this.parent?.reason) }
@@ -38,9 +38,9 @@ export class TimedQuestionWait {
   }
 
   /**
-   * Hold the wait for one answer UI until its stream closes or the question settles.
-   * @param signal - This business stream's cancellation lifetime.
-   * @returns One remaining-duration frame; completion releases the claim.
+   * 为一个作答 UI 持有该等待，直到其流关闭或该问题终结。
+   * @param signal - 这条业务流的取消生命周期。
+   * @returns 一帧剩余时长；其兑现意味着认领被释放。
    */
   async *attach(signal: AbortSignal): AsyncIterable<{ remainingMs: number }> {
     if (signal.aborted || this.signal.aborted) return
@@ -69,8 +69,8 @@ export class TimedQuestionWait {
   }
 
   /**
-   * Release timers, parent cancellation, and all Client claims.
-   * @param reason - Cancellation delivered to the foreground waterfall.
+   * 释放定时器、父级取消订阅以及所有 Client 认领。
+   * @param reason - 投递给前台 waterfall 的取消原因。
    */
   close(reason: unknown): void {
     if (this.signal.aborted) return

@@ -8,23 +8,23 @@ import { SessionLogDownloadDialog, type SessionLogDownloadDialogProps } from './
 import type { SessionLogDownloadDialogInjected } from './Dialog.tsx'
 import css from './HeaderAction.module.css'
 
-/** Session download controls with observable feedback availability and a Session feedback action. */
+/** 带有可观察反馈可用性与一条 Session 反馈动作的 Session 下载控件。 */
 export interface SessionLogDownloadHeaderInjected extends SessionLogDownloadDialogInjected {
   hooks: SessionLogDownloadDialogInjected['hooks'] & { feedbackAvailable: ObservableSnapshot<boolean> }
   /**
-   * Open the existing Session feedback draft without recording feedback; no-op after the feedback plugin unloads.
-   * @param sessionId - Session whose feedback form to open.
+   * 打开已有的 Session 反馈草稿，而不记录反馈；反馈插件卸载后为空操作。
+   * @param sessionId - 要打开其反馈表单的 Session。
    */
   openFeedback: (sessionId: SessionId) => void
 }
 
-/** Session download props plus the optional feedback action. */
+/** Session 下载属性加上可选的反馈动作。 */
 export type SessionLogDownloadHeaderProps = SessionLogDownloadDialogProps & InjectFace<SessionLogDownloadHeaderInjected>
 
 /**
- * Render the Session Header menu with download and optional feedback actions.
- * @param props - Session runtime, download controller, and localized copy.
- * @returns the persistent Header action and Session-scoped dialog.
+ * 渲染带有下载与可选反馈动作的 Session Header 菜单。
+ * @param props - Session 运行时、下载控制器与本地化文案。
+ * @returns 常驻的 Header 动作与 Session 作用域的弹窗。
  */
 export function SessionLogDownloadHeaderAction(props: SessionLogDownloadHeaderProps): ReactNode {
   const { sessionId, useSessionLogDownload, useFeedbackAvailable, request, openFeedback, t } = props

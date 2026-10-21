@@ -1,42 +1,42 @@
-/** Browser-safe durable image selection declaration and pure replay definition. */
+/** 浏览器安全的持久化图像选择声明与纯重放定义。 */
 
 import type { Message } from '@deepseek-ai/dsh-llm'
 import type { SessionSeq } from '@deepseek-ai/dsh-session/types'
 import type { SessionMessageProjection } from '@deepseek-ai/dsh-session/surface'
 import { offloadMessageImages } from './project-message.ts'
 
-/** Exact input-image occurrences selected by one durable offload decision. */
+/** 由一次持久化卸载决策所选中的精确输入图像出现项。 */
 export interface ImageOffloadTarget {
-  /** Current message-producing event containing these occurrences. */
+  /** 包含这些出现项的、当前产生消息的事件。 */
   seq: SessionSeq
-  /** Zero-based depth-first image indexes within the immutable message. */
+  /** 不可变消息内、从零开始的深度优先图像索引。 */
   imageIndexes: number[]
 }
 
 declare module '@deepseek-ai/dsh-session/types' {
   interface SessionEventMap {
     /**
-     * Permanently omit selected input-image occurrences from subsequent model requests.
-     * Targets name unique current user/message or tool/result nodes. Nonempty, strictly
-     * increasing indexes count all images in depth-first order, including nested tool
-     * results and already omitted images. Message nodes and identities remain unchanged.
+     * 从后续模型请求中永久省略所选的输入图像出现项。
+     * 目标以唯一当前的 user/message 或 tool/result 节点命名。非空、严格递增的索引
+     * 以深度优先顺序统计所有图像，包括嵌套的工具结果与已省略的图像。
+     * 消息节点与标识保持不变。
      * @messageProjection
      */
     'image/offload': { targets: ImageOffloadTarget[] }
   }
 }
 
-/** Whether a durable value is a JSON object. */
+/** 判断某个持久化值是否为 JSON 对象。 */
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-/** Whether a durable occurrence index or sequence is canonical. */
+/** 判断某个持久化出现项索引或序列是否规范。 */
 function isIndex(value: unknown): value is SessionSeq {
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 && !Object.is(value, -0)
 }
 
-/** Atomic validation and reconstruction shared by live sessions and detached replay. */
+/** 在线会话与独立重放所共享的原子化校验与重建。 */
 export const imageOffloadProjection: SessionMessageProjection<'image/offload'> = {
   type: 'image/offload',
   project(event, context) {

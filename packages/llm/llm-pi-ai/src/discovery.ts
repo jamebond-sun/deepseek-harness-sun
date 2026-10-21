@@ -1,23 +1,19 @@
 /**
- * Answering "which models can this provider serve?" for the configuration
- * surface's "fetch available models" action.
+ * 为配置界面上“获取可用模型”这个动作回答“这条提供方能提供哪些模型？”。
  *
- * A route the installed pi-ai catalog ships is answered **from that catalog**,
- * with no network call at all: pi-ai's registry is the authoritative list for
- * its own providers, and it carries the capacities a listing endpoint would
- * not disclose. Only a route the catalog does not describe — a gateway, a
- * self-hosted server — is interrogated over the wire.
+ * 一条已安装的 pi-ai 目录所自带的路由，会**从那个目录**作答，
+ * 完全不产生网络调用：pi-ai 的注册表对它自己的提供方而言是权威列表，
+ * 并且它携带了一个列表端点所不会披露的那些容量。只有一条目录没有描述过
+ * 的路由——一个网关、一台自托管的服务器——才会通过线路被探查。
  *
- * Neither path is a catalog refresh. Nothing here is stored: the request
- * carries a draft the user is still editing, and the reply is candidate
- * metadata the surface offers for adoption. `cordis.patch.yml` remains the only
- * thing that decides what a route serves.
+ * 这两条路径都不是一次目录刷新。这里没有任何东西被存储：该请求携带
+ * 的是用户仍在编辑的草稿，而应答是某个界面可以提议采纳的候选元数据。
+ * `cordis.patch.yml` 仍然是决定一条路由提供什么的唯一因素。
  *
- * OpenAI-compatible and Anthropic Messages protocols are interrogated through
- * their native model-listing endpoints. The parser accepts the standard
- * `data` array and the enriched `models` map some compatible gateways expose.
- * Every other protocol reports that it cannot be interrogated so the surface
- * falls back to hand-entry rather than guessing its response fields.
+ * OpenAI 兼容与 Anthropic Messages 协议通过它们原生的模型列表端点被探查。
+ * 解析器接受标准的 `data` 数组，以及某些兼容网关所暴露的那种更丰富的
+ * `models` 映射。其他每一种协议都会报告它无法被探查，因此界面会回退到
+ * 手工录入，而不是去猜测它的响应字段。
  *
  * @module dsh-llm-pi-ai/discovery
  */
@@ -28,13 +24,13 @@ import { attributionHeaders } from '@deepseek-ai/dsh-llm'
 import { catalogModels } from './catalog.ts'
 
 /**
- * Protocols whose model listing this module can read. OpenAI protocols use
- * bearer auth at `GET {baseURL}/models`; Anthropic Messages uses `x-api-key`
- * and `anthropic-version` at its native `GET /v1/models`. Azure is absent
- * despite its OpenAI lineage — it authenticates with an `api-key` header and
- * requires an `api-version` query — and Codex authenticates through OAuth;
- * guessing at either would report an authentication failure as a provider
- * with no models. pi-ai's remaining protocols are absent for the same reason.
+ * 本模块能够读取其模型列表的那些协议。OpenAI 各协议在
+ * `GET {baseURL}/models` 上使用 bearer 认证；Anthropic Messages 在它原生的
+ * `GET /v1/models` 上使用 `x-api-key` 与 `anthropic-version`。尽管 Azure
+ * 出身于 OpenAI，它并不在此列——它用一个 `api-key` 请求头认证，并且要求
+ * 一个 `api-version` 查询参数——而 Codex 通过 OAuth 认证；对两者中的任一
+ * 个凭空猜测，都会把一次认证失败报告成一个没有任何模型的提供方。
+ * pi-ai 其余的协议出于同样的原因也不在此列。
  */
 const LISTABLE_PROTOCOLS: ReadonlySet<string> = new Set([
   'anthropic-messages',
@@ -42,36 +38,36 @@ const LISTABLE_PROTOCOLS: ReadonlySet<string> = new Set([
   'openai-responses',
 ])
 
-/** Stable API version required by Anthropic's model-listing endpoint. */
+/** Anthropic 的模型列表端点所要求的稳定 API 版本。 */
 const ANTHROPIC_VERSION = '2023-06-01'
 
-/** Largest model-list page accepted by Anthropic's public endpoint; discovery reads one page and does not follow `has_more`. */
+/** Anthropic 公共端点所接受的最大模型列表页；发现只读取一页，且不跟随 `has_more`。 */
 const ANTHROPIC_MODEL_LIMIT = 1000
 
 /**
- * Endpoint replies larger than this are refused. The endpoint is whatever URL
- * the user typed, so the ceiling holds on the bytes actually read rather than
- * on the length the server claims — the same two-stage shape `dsh-web-fetch`
- * uses for its own caller-supplied URLs, except that a truncated model listing
- * is not parseable, so overflow rejects instead of truncating.
+ * 大于这个尺寸的端点应答会被拒绝。该端点是用户输入的任意 URL，
+ * 因此这个上限作用于实际读到的字节，而不是服务器所声称的长度——
+ * 这与 `dsh-web-fetch` 对它自己那些由调用方提供的 URL 所使用的
+ * 两阶段形状相同，唯一区别是一个被截断的模型列表无法被解析，
+ * 因此超限时是拒绝而不是截断。
  */
 const MAX_RESPONSE_BYTES = 4 * 1024 * 1024
 
-/** Capacity fields nested by enriched model-directory replies. */
+/** 由更丰富的模型目录应答所嵌套的容量字段。 */
 interface ListingLimit {
   context?: unknown
   output?: unknown
 }
 
-/** Per-route capacities OpenRouter nests under each entry. */
+/** OpenRouter 嵌套在每个条目之下的、按路由的容量。 */
 interface ListingTopProvider {
   max_completion_tokens?: unknown
 }
 
-/** One entry of a supported `GET /models` reply. */
+/** 一个受支持的 `GET /models` 应答中的一个条目。 */
 interface ListingEntry {
   id?: unknown
-  /** Common gateway extensions; absent from the official listings. */
+  /** 常见的网关扩展；官方列表中没有。 */
   name?: unknown
   display_name?: unknown
   displayName?: unknown
@@ -87,7 +83,7 @@ interface ListingEntry {
   top_provider?: ListingTopProvider | null
 }
 
-/** A positive integer field of a listing entry, or `undefined` when absent or unusable. */
+/** 一个列表条目中为正整数的字段，或当缺失/不可用时为 `undefined`。 */
 function capacity(...candidates: readonly unknown[]): number | undefined {
   for (const candidate of candidates) {
     if (typeof candidate === 'number' && Number.isInteger(candidate) && candidate > 0) return candidate
@@ -95,7 +91,7 @@ function capacity(...candidates: readonly unknown[]): number | undefined {
   return undefined
 }
 
-/** A non-empty string field of a listing entry, or `undefined`. */
+/** 一个列表条目中为非空字符串的字段，或 `undefined`。 */
 function label(...candidates: readonly unknown[]): string | undefined {
   for (const candidate of candidates) {
     if (typeof candidate === 'string' && candidate.length > 0) return candidate
@@ -104,15 +100,13 @@ function label(...candidates: readonly unknown[]): string | undefined {
 }
 
 /**
- * Join the endpoint base with the protocol's listing path. The base is
- * treated as a prefix rather than a URL to resolve against, so a deployment
- * path such as `https://gateway.example/openai/v1` keeps its segments instead
- * of losing them to `URL` resolution. OpenAI protocols list at
- * `{baseURL}/models`. Anthropic lists at `{root}/v1/models`, where the root is
- * the base without trailing slashes and without one trailing `/v1` segment:
- * gateway documentation publishes both spellings of the same root. Only this
- * listing URL normalizes that segment; model requests receive the configured
- * `baseURL` unchanged.
+ * 把端点基址与该协议的列表路径拼接起来。基址被当作一个前缀，
+ * 而不是一个要据以解析的 URL，因此像 `https://gateway.example/openai/v1`
+ * 这样的部署路径会保留它的各个段，而不是被 `URL` 解析丢掉。OpenAI 各协议
+ * 在 `{baseURL}/models` 上列表。Anthropic 在 `{root}/v1/models` 上列表，
+ * 其中那个根是去掉尾部斜杠、并去掉一个尾部 `/v1` 段之后的基址：
+ * 网关文档会把同一个根写成这两种形式。只有这个列表 URL 会规范化那个段；
+ * 模型请求收到的 `baseURL` 保持不变。
  */
 function listingUrl(baseURL: string, api: string): string {
   const base = baseURL.replace(/\/+$/, '')
@@ -122,10 +116,10 @@ function listingUrl(baseURL: string, api: string): string {
 }
 
 /**
- * Read a reply body, refusing one that outgrows the ceiling. A declared length
- * is checked first so an honest server is turned away without transferring
- * anything; the accumulated total is what actually enforces the bound, because
- * a server that under-declares (or streams) tells us nothing up front.
+ * 读取一个应答体，并拒绝一个超出上限的应答。先检查所声明的长度，
+ * 因此一个诚实的服务器会在不传输任何东西的情况下被挡回；真正执行这个
+ * 上界的是累计总量，因为一个少报（或流式输出）的服务器在事前告诉不了
+ * 我们任何信息。
  */
 async function readBounded(response: Response, url: string): Promise<string> {
   const oversized = (): LlmError =>
@@ -135,7 +129,7 @@ async function readBounded(response: Response, url: string): Promise<string> {
     await response.body?.cancel()
     throw oversized()
   }
-  /* v8 ignore next -- fetch always exposes a body stream on a 2xx Response; the null guard is defensive. */
+  /* v8 ignore next -- fetch 在一个 2xx Response 上总是暴露 body 流；这个 null 守卫只是防御性的。 */
   if (response.body === null) return ''
   const reader = response.body.getReader()
   const chunks: Uint8Array[] = []
@@ -149,10 +143,10 @@ async function readBounded(response: Response, url: string): Promise<string> {
       chunks.push(value)
     }
   } finally {
-    /* v8 ignore next 4 -- cancel() after a completed or abandoned read settles without rejecting; unobserved best-effort cleanup. */
+    /* v8 ignore next 4 -- 在一次已完成的或被放弃的读取之后 cancel() 会毫无 reject 地落定；这是不被观察的尽力清理。 */
     await reader.cancel().catch(() => {
-      // Cancel after a drained read, or after this function walked away from
-      // an oversized one, is cleanup; the reply is already decided either way.
+      // 在一次已被抽干的读取之后、或在本函数已从一个超限的读取走开之后
+      // 的取消，只是清理；无论哪种情况，应答都已经判定完毕。
     })
   }
   const body = new Uint8Array(total)
@@ -165,18 +159,16 @@ async function readBounded(response: Response, url: string): Promise<string> {
 }
 
 /**
- * Read one supported model-listing reply. The standard `data` array takes
- * precedence when both supported formats are present. An enriched `models`
- * map uses each property key as the endpoint-facing id; its nested `id` is
- * only a fallback for an empty key because gateways may put a canonical model
- * identity there instead of the alias they accept on requests. Only
- * object-valued map entries are models; primitive properties are ignored
- * because they may be directory metadata rather than model records.
+ * 读取一个受支持的模型列表应答。当两种受支持的格式同时出现时，
+ * 标准的 `data` 数组优先。一个更丰富的 `models` 映射把每个属性键当作
+ * 面向端点的 id；它嵌套的 `id` 只是在键为空时的兜底，因为网关可能把
+ * 一个规范的模型身份放在那里，而不是它们在请求上所接受的那个别名。
+ * 只有对象值的映射条目才是模型；原始值属性会被忽略，因为它们可能是
+ * 目录元数据而不是模型记录。
  *
- * Entries without a usable id are skipped rather than failing the whole
- * interrogation: a single malformed row should not deny the user the rest of
- * a working endpoint's catalog. Missing names fall back to the adopted id so
- * the Web form receives a complete human-readable row.
+ * 没有可用 id 的条目会被跳过，而不是让整个探查失败：一行格式错误的
+ * 记录不应剥夺用户使用一个工作端点的其余目录。缺失的名称回退为被采纳的
+ * id，因此 Web 表单收到的是一行完整的人类可读记录。
  */
 function readListing(body: unknown): LlmDiscoveredModel[] {
   const listing = body as { data?: unknown; models?: unknown } | null
@@ -230,12 +222,12 @@ function readListing(body: unknown): LlmDiscoveredModel[] {
 }
 
 /**
- * Accept one probe key, or refuse it before the header is built. Without this
- * the `fetch` below would throw a ByteString `TypeError` that this function's
- * catch reports as `could not reach <url>` — blaming the network for a local,
- * deterministic fault.
- * @param raw - the key typed into the form or read from storage.
- * @returns the trimmed, usable key.
+ * 接受一个探查用密钥，或在请求头被构建之前就拒绝它。没有这一步，
+ * 下面的 `fetch` 会抛出一个 ByteString `TypeError`，而本函数的 catch
+ * 会把它报告为 `could not reach <url>` —— 把一个本地的、确定性的
+ * 故障归咎于网络。
+ * @param raw - 被键入表单或从存储中读出的密钥。
+ * @returns 已裁剪、可用的密钥。
  */
 function usableProbeKey(raw: string): string {
   const checked = normalizeApiKey(raw)
@@ -248,30 +240,30 @@ function usableProbeKey(raw: string): string {
   )
 }
 
-/** Host-owned profile inputs that a configuration draft deliberately omits. */
+/** 一份配置草稿刻意省略掉的、由宿主持有的 profile 输入。 */
 export interface StoredModelDiscoveryProfile {
-  /** Deployment headers configured on the named route. */
+  /** 在被指名的路由上配置的、由部署提供的请求头。 */
   readonly headers: Readonly<Record<string, string>> | undefined
-  /** Resolve the named route's credential only when the draft carries none. */
+  /** 仅当该草稿没有携带任何凭据时，才解析被指名路由的凭据。 */
   readonly resolveApiKey: () => Promise<string | undefined>
 }
 
 /**
- * Interrogate one draft provider endpoint for the models it advertises.
- * @param request - the endpoint, protocol, and one-shot credential to use.
- * @param storedProfile - Host-owned headers and lazy credential resolution for
- *   the named route. It is read only on the path that reaches the network; the
- *   credential is resolved only when the draft carries none.
- * @returns the advertised models in endpoint order.
- * @throws LlmError when the protocol has no readable listing, the endpoint
- *   refuses or fails the request, or the reply is not a model listing.
+ * 探查一个草稿提供方端点，看它宣传了哪些模型。
+ * @param request - 要使用的端点、协议与一次性凭据。
+ * @param storedProfile - 由宿主持有的请求头，以及对被指名路由的惰性凭据解析。
+ *   只有在会到达网络的那条路径上才读取它；且仅当该草稿没有携带凭据时
+ *   才解析凭据。
+ * @returns 按端点顺序排列的、被宣传的模型。
+ * @throws 当该协议没有可读的列表、端点拒绝或使该请求失败，
+ *   或应答不是一个模型列表时，抛出 LlmError。
  */
 export async function discoverModels(
   request: LlmModelDiscoveryOperation,
   storedProfile?: () => StoredModelDiscoveryProfile | undefined,
 ): Promise<readonly LlmDiscoveredModel[]> {
-  // A catalog route already has its answer, and a better one: the installed
-  // entries carry context windows and output caps no listing endpoint reports.
+  // 一条目录路由已经有它的答案，而且是更好的答案：那些已安装的条目
+  // 携带了任何列表端点都不会报告的上下文窗口与输出上限。
   if (request.provider !== undefined) {
     const installed = catalogModels(request.provider)
     if (installed.size > 0) {
@@ -291,12 +283,11 @@ export async function discoverModels(
       'DISCOVERY_FAILED',
     )
   }
-  // A draft that has not chosen a protocol yet is asked as OpenAI Chat
-  // Completions: it is the shape a gateway is overwhelmingly likely to speak,
-  // and the alternative — refusing until the field is filled — would withhold
-  // the action from the case it exists for. The cost is a misdirected message
-  // when the endpoint speaks something else (an Anthropic gateway answers 401,
-  // which reads as a credential problem), and hand-entry remains the way out.
+  // 一份尚未选择协议的草稿会按 OpenAI Chat Completions 去询问：
+  // 它是一个网关压倒性可能所说的形状，而另一种做法——在字段被填好之前
+  // 拒绝——会把这个动作从它为之存在的那个场景上撤走。代价是当该端点
+  // 说的是别的协议时会有一条误导性的消息（一个 Anthropic 网关会应答 401，
+  // 读起来像一个凭据问题），而手工录入仍然是出路。
   const api = request.api ?? 'openai-completions'
   if (!LISTABLE_PROTOCOLS.has(api)) {
     throw new LlmError(
@@ -305,11 +296,11 @@ export async function discoverModels(
     )
   }
   const url = listingUrl(request.baseURL, api)
-  // A key typed into the form wins: it may replace the stored key that is
-  // failing. The stored profile is asked past the catalog and protocol checks,
-  // and its credential resolver remains lazy so a typed key cannot fail over a
-  // stored credential it supersedes. A route may still authenticate through a
-  // deployment-owned Authorization header when neither key exists.
+  // 一个被键入表单的密钥优先：它可能要替换掉那个正在失败的已存储密钥。
+  // 已存储的 profile 是在目录与协议检查之后才被询问的，而它的凭据解析
+  // 保持惰性，因此一个键入的密钥不会因为一个被它取代的已存储凭据而失败。
+  // 当两者都不存在时，一条路由仍然可以通过某个由部署持有的
+  // Authorization 请求头来认证。
   const stored = storedProfile?.()
   const supplied = request.apiKey ?? await stored?.resolveApiKey()
   const apiKey = supplied === undefined ? undefined : usableProbeKey(supplied)
@@ -345,9 +336,8 @@ export async function discoverModels(
   try {
     text = await readBounded(response, url)
   } catch (error: unknown) {
-    // Cancellation during the body read rejects with the abort reason, which
-    // may be any value; the caller gets the same coded failure it would have
-    // for a cancellation before the request went out.
+    // 读取响应体期间的取消会以 abort reason 来 reject，它可能是任意值；
+    // 调用方得到的是与请求发出之前的取消相同的、带错误码的失败。
     if (request.signal?.aborted) {
       throw new LlmError('model discovery aborted by caller', 'ABORTED', { cause: error })
     }

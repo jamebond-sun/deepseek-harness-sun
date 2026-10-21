@@ -22,9 +22,9 @@ import type {
 } from './types.ts'
 
 /**
- * Compile a build-static physical codec and adjacent migration catalog.
- * @param options - complete codecs, migrations, current version, and restorer.
- * @returns immutable physical dispatch and migration operations.
+ * 编译一个构建期静态的物理编解码器与相邻迁移目录。
+ * @param options - 完整的编解码器集合、迁移集合、当前版本与恢复器。
+ * @returns 不可变的物理分发与迁移操作。
  */
 export function createSessionFormatCatalog(options: SessionFormatCatalogOptions): SessionFormatCatalog {
   const chain = createSessionFormatChain(options)
@@ -58,7 +58,7 @@ export function createSessionFormatCatalog(options: SessionFormatCatalogOptions)
       })
     }
     const codec = codecs.get(storedVersion)
-    /* v8 ignore next -- construction proves every supported version has exactly one codec. */
+    /* v8 ignore next -- 构造过程已保证每个受支持版本有且仅有一个编解码器。 */
     if (codec === undefined) {
       return Object.freeze({
         status: 'unsupported',
@@ -100,7 +100,7 @@ export function createSessionFormatCatalog(options: SessionFormatCatalogOptions)
       )
     }
     const codec = codecs.get(storedVersion)
-    /* v8 ignore next -- construction proves every supported version has exactly one codec. */
+    /* v8 ignore next -- 构造过程已保证每个受支持版本有且仅有一个编解码器。 */
     if (codec === undefined) {
       throw new SessionFormatUnsupportedMigrationError(`this build has no Session format codec for v${storedVersion}`)
     }

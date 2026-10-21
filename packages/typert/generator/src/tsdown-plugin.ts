@@ -1,11 +1,9 @@
 /**
- * Optional tsdown (rolldown) plugin face of the typert generator. It lowers
- * standard decorators in TypeScript dependencies before bundling, then emits
- * model-driven face artifacts at the package output root. Packages without a
- * Typert or Remote export are skipped. Workspace mode generates in a Worker
- * Thread started by the pass's first `buildStart`, so bundling continues on the
- * main thread while Typert analyzes; the pass's first `writeBundle` awaits the
- * result and writes every artifact once.
+ * Typert 生成器的可选 tsdown（rolldown）插件端。它在打包前先在 TypeScript
+ * 依赖中降级标准装饰器，然后在包输出根处发射模型驱动的端产物。没有 Typert 或
+ * Remote 导出的包会被跳过。Workspace 模式在由本次通过的第一个 `buildStart`
+ * 启动的 Worker 线程中生成，因此打包在主线程上继续，而 Typert 进行分析；本次
+ * 通过的第一个 `writeBundle` 等待结果并一次性写入每个产物。
  * @module @deepseek-ai/dsh-typert-generator/tsdown
  */
 
@@ -19,7 +17,7 @@ import type { WorkspaceEmitResult } from './workspace.ts'
 import type { TypertFace } from './model.ts'
 import type { WorkspaceWorkerRequest, WorkspaceWorkerResponse } from './worker.ts'
 
-/** The subset of the rolldown plugin contract used here (structural; avoids a rolldown type dependency). */
+/** 此处使用的 rolldown 插件契约子集（结构化；避免 rolldown 类型依赖）。 */
 interface TypertPlugin {
   name: string
   buildStart: (options: { cwd: string }) => void
@@ -34,33 +32,32 @@ interface TypertPlugin {
 const TYPESCRIPT_MODULE = /^[^?]*\.[cm]?tsx?(?:\?|$)/
 const DECORATOR_SYNTAX = /^\s*@[A-Za-z_$][\w$]*/m
 
-// Full builds and typecheck own TypeScript diagnostics. Benchmark-only emission
-// defers them to the required full-build CI jobs; Typert generates reflection
-// without repeating those diagnostics.
+// 完整构建与类型检查各自拥有 TypeScript 诊断。仅基准的发射将这些诊断推迟到
+// 所需的完整构建 CI 作业；Typert 生成反射而不重复这些诊断。
 const TSC_OWNED_DIAGNOSTICS = { checkDiagnostics: false } as const
 
-/** Generation scope selected by a tsdown build phase. */
+/** 由 tsdown 构建阶段选定的生成范围。 */
 export interface TypertPluginOptions {
-  /** Package mode emits only the package being bundled; workspace mode emits every explicit contributor once. */
+  /** package 模式只发射正在被打包的包；workspace 模式一次性发射每个显式贡献者。 */
   readonly mode?: 'package' | 'workspace'
-  /** Independent TypeScript program faces included in this phase. */
+  /** 本阶段包含的、独立的 TypeScript 程序端。 */
   readonly faces?: readonly TypertFace[]
 }
 
-/** A workspace-mode generation failure reported by, or observed on, the Typert Worker Thread. */
+/** 一个在 Typert Worker 线程上报告或观察到的 workspace 模式生成失败。 */
 export class TypertWorkerError extends Error {
   override name = 'TypertWorkerError'
 }
 
-/** Settled workspace generation; failures are values so an unclaimed generation never rejects unhandled. */
+/** 已结算的 workspace 生成；失败作为值返回，因此未被认领的生成绝不会以未处理的方式 reject。 */
 type GenerationOutcome =
   | { readonly ok: true; readonly artifacts: readonly WorkspaceEmitResult[] }
   | { readonly ok: false; readonly error: TypertWorkerError }
 
 /**
- * Create the decorator-lowering and typert-generation plugin for the root tsdown config.
- * @param pluginOptions - package/workspace emission mode and independent program faces.
- * @returns a rolldown-compatible plugin that lowers source decorators and emits local and Host-for-Client artifacts.
+ * 为根 tsdown 配置创建装饰器降级与 typert 生成插件。
+ * @param pluginOptions - 包/workspace 发射模式与独立的程序端。
+ * @returns 一个与 rolldown 兼容的插件，降级源码装饰器并发射本地与 Host-for-Client 产物。
  */
 export function typertPlugin(pluginOptions: TypertPluginOptions = {}): TypertPlugin {
   const artifactsByRoot = new Map<string, readonly WorkspaceEmitResult[]>()
@@ -81,13 +78,13 @@ export function typertPlugin(pluginOptions: TypertPluginOptions = {}): TypertPlu
   return {
     name: 'dsh-typert-generator',
     buildStart(inputOptions) {
-      // tsdown builds every workspace package concurrently through this one
-      // plugin instance; the first package build to start launches generation.
+      // tsdown 通过这一个插件实例并发构建每个 workspace 包；
+      // 第一个开始构建的包会启动生成。
       if (pluginOptions.mode === 'workspace') void workspaceGeneration(findWorkspaceRoot(inputOptions.cwd))
     },
     transform: {
-      // Rolldown evaluates the id filter natively, so non-TypeScript modules
-      // never cross into this JavaScript hook.
+      // Rolldown 原生求值 id 过滤器，因此非 TypeScript 模块永远不会进入
+      // 这个 JavaScript 钩子。
       filter: { id: TYPESCRIPT_MODULE },
       handler(code, id) {
         if (!TYPESCRIPT_MODULE.test(id) || !DECORATOR_SYNTAX.test(code)) return
@@ -108,15 +105,14 @@ export function typertPlugin(pluginOptions: TypertPluginOptions = {}): TypertPlu
       },
     },
     async writeBundle(bundleOptions) {
-      // options.dir is the package's absolute outDir (<package>/lib); its
-      // nearest package.json owns the bundle even when a custom config writes
-      // a nested output such as <package>/lib/dev.
+      // options.dir 是包的绝对 outDir（<package>/lib）；即便自定义配置写入
+      // 如 <package>/lib/dev 这样的嵌套输出，其最近的 package.json 仍拥有该 bundle。
       if (bundleOptions.dir === undefined) return
       const root = findWorkspaceRoot(bundleOptions.dir)
       if (emittedWorkspaces.has(root)) return
       if (pluginOptions.mode === 'workspace') {
-        // The first bundle to finish claims emission and reports any failure;
-        // later bundles of the pass return without waiting.
+        // 第一个完成的 bundle 认领发射并报告任何失败；
+        // 本次通过的后续 bundle 不等待直接返回。
         emittedWorkspaces.add(root)
         const outcome = await workspaceGeneration(root)
         if (!outcome.ok) throw outcome.error
@@ -144,8 +140,8 @@ export function typertPlugin(pluginOptions: TypertPluginOptions = {}): TypertPlu
 }
 
 /**
- * Run workspace generation in a Worker Thread. The outcome never rejects, and
- * every terminal path terminates the worker before the outcome settles.
+ * 在 Worker 线程中运行 workspace 生成。结果绝不会 reject，且每个终结路径都会在
+ * 结果结算前终止 worker。
  */
 function generateInWorker(request: WorkspaceWorkerRequest): Promise<GenerationOutcome> {
   const worker = spawnWorker(request)
@@ -189,11 +185,11 @@ function workerError(request: WorkspaceWorkerRequest, problem: string, cause: un
 }
 
 function spawnWorker(request: WorkspaceWorkerRequest): Worker {
-  /* v8 ignore next 3 -- the tsdown host build runs the built worker entry. */
+  /* v8 ignore next 3 -- tsdown 的宿主构建会运行已构建的 worker 入口。 */
   if (!import.meta.url.endsWith('.ts')) {
     return new Worker(new URL('./worker.js', import.meta.url), { workerData: request })
   }
-  // Source runs load the TypeScript worker entry through tsx.
+  // 源码运行通过 tsx 加载 TypeScript worker 入口。
   const bootstrap = [
     `import { register } from ${JSON.stringify(import.meta.resolve('tsx/esm/api'))}`,
     'register()',

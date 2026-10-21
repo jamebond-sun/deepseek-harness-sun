@@ -1,4 +1,4 @@
-/** Filesystem provider preserving remote identities and helper-owned atomic mutations. */
+/** 保留远端文件标识与 helper 所持有原子变更的文件系统 provider。 */
 import { posix } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { FileSystem, FsError } from '@deepseek-ai/dsh-fs'
@@ -16,7 +16,7 @@ const errorCodes: Record<FsErrorCode, true> = {
   FS_STALE_VERSION: true, FS_NOT_OBSERVED: true, FS_AMBIGUOUS_EDIT: true, FS_EDIT_NOT_FOUND: true, FS_ABORTED: true,
 }
 
-/** Remote filesystem paired with the SSH subprocess and sandbox providers. */
+/** 与 SSH 子进程和沙箱 provider 配对的远端文件系统。 */
 export class SshFileSystem extends FileSystem {
   static inject = ['ssh', 'sandboxPolicy']
 

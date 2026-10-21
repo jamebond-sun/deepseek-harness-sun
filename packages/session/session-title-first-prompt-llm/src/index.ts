@@ -1,4 +1,4 @@
-/** First-human-message model provider for `ctx.sessionTitle`. */
+/** 面向 `ctx.sessionTitle` 的、首条人类消息模型提供方。 */
 
 /* jscpd:ignore-start -- both shipped providers import the same shared packages. */
 import type { Context } from '@deepseek-ai/cordis'
@@ -24,15 +24,15 @@ export const name = 'session-title-first-prompt-llm'
 export const inject = ['sessionTitle', 'llm', 'sessions']
 
 /* jscpd:ignore-start -- each provider owns its title-length targets and reasoning control. */
-/** Required execution controls plus this provider's title-length targets; no defaults. */
+/** 所需的执行控制，加上本提供方的标题长度目标；无默认值。 */
 export interface Config extends SessionTitleLlmConfig {
-  /** Target word count for non-CJK titles. */
+  /** 非 CJK 标题的目标词数。 */
   readonly targetWords: number
-  /** Target character count for Chinese, Japanese, or Korean titles. */
+  /** 中文、日文或韩文标题的目标字符数。 */
   readonly targetCjkCharacters: number
 }
 
-/** Loader schema for this provider's required execution controls and title-length targets. */
+/** 针对本提供方所需执行控制与标题长度目标的 Loader schema。 */
 export const Config: z<Config> = z.object({
   targetWords: z.number().step(1).min(1).required(),
   targetCjkCharacters: z.number().step(1).min(1).required(),
@@ -43,13 +43,13 @@ export const Config: z<Config> = z.object({
   model: SessionTitleLlmConfigFields.model,
 })
 
-/** Validated immutable provider policy. */
+/** 已校验的不可变提供方策略。 */
 interface ResolvedConfig extends ResolvedSessionTitleLlmConfig {
   readonly targetWords: number
   readonly targetCjkCharacters: number
 }
 
-/** Validate one positive title-length target. */
+/** 校验一个正的标题长度目标。 */
 function assertTarget(name: 'targetWords' | 'targetCjkCharacters', value: number): number {
   if (!Number.isInteger(value) || value <= 0) {
     throw new Error(`session-title-first-prompt-llm: ${name} must be a positive integer`)
@@ -58,9 +58,9 @@ function assertTarget(name: 'targetWords' | 'targetCjkCharacters', value: number
 }
 
 /**
- * Validate the shared execution controls and this provider's title-length targets.
- * @param config - untrusted plugin configuration.
- * @returns immutable provider policy.
+ * 校验共享的执行控制，以及本提供方的标题长度目标。
+ * @param config - 不受信任的插件配置。
+ * @returns 不可变的提供方策略。
  */
 function resolveConfig(config: Config): ResolvedConfig {
   const { targetWords, targetCjkCharacters, ...execution } = config
@@ -71,13 +71,13 @@ function resolveConfig(config: Config): ResolvedConfig {
   }
 }
 
-/** Select the route's least supported reasoning effort for a title call. */
+/** 为一次标题调用选择该路由支持度最低的推理力度。 */
 const selectReasoningEffort = (model: Readonly<LlmResolvedModelInfo>): ReasoningEffortId | undefined =>
   model.reasoning?.efforts[0]?.id
 /* jscpd:ignore-end */
 
 /* jscpd:ignore-start -- independent provider strategies share only the execution module, not prompt or parsing policy. */
-/** Language-aware system instruction for a title derived from one message. */
+/** 针对从一条消息推导出的标题、具备语言感知的系统指令。 */
 function systemPrompt(config: ResolvedConfig): string {
   return [
     'Create a concise title for an AI coding-assistant session from the supplied human messages.',
@@ -88,21 +88,19 @@ function systemPrompt(config: ResolvedConfig): string {
   ].join('\n')
 }
 
-/** Frame the selected messages as JSON so user text cannot break structural delimiters. */
+/** 把所选消息框定为 JSON，使用户文本无法破坏结构化分隔符。 */
 function frameMessages(messages: readonly SessionTitleUserMessage[]): string {
   return `Generate the session title from this JSON array of human messages:\n${JSON.stringify(messages)}`
 }
 
-/** Asterisk emphasis wrapping a whole line, such as `**Title**`. */
+/** 用星号强调包裹整行，例如 `**Title**`。 */
 const EMPHASIS_WRAPPER = /^(?<marker>\*{1,3})(?<inner>\S(?:.*\S)?)\k<marker>$/u
 
 /**
- * Take the title from model output: the first non-empty line, without
- * asterisk emphasis that wraps that whole line. Models that disregard the
- * one-line instruction put the title first and commentary after it. A line
- * that is entirely `*` emphasis loses the marker pair even when the model
- * meant it literally; the inner-marker check keeps emphasis inside a longer
- * line, and the system instruction forbids Markdown.
+ * 从模型输出中取标题：取第一个非空行，去掉包裹整行的星号强调。无视单行
+ * 指令的模型会把标题放在最前、注释放在其后。一条完全由 `*` 强调构成的行，
+ * 即便模型本意是字面量，也会丢掉这对标记；内部标记检查会保留较长行内的
+ * 强调，而系统指令禁止 Markdown。
  */
 function titleFromOutput(text: string): string {
   const line = text.split(/\r?\n/u).map(item => item.trim()).find(item => item.length > 0) ?? ''
@@ -112,7 +110,7 @@ function titleFromOutput(text: string): string {
   return marker === undefined || inner === undefined || inner.includes(marker) ? line : inner
 }
 
-/** Reject terminal tool-call or max-token outcomes and derive one non-empty title from the text blocks. */
+/** 拒绝终结性的工具调用或触达最大令牌的结果，并从文本块中推导出一个非空标题。 */
 function titleFromResponse(response: SessionTitleLlmResponse): string {
   switch (response.finish.kind) {
     case 'stop':
@@ -121,7 +119,7 @@ function titleFromResponse(response: SessionTitleLlmResponse): string {
       throw new Error('session-title-llm: title output must contain text only')
     case 'max-tokens':
       throw new Error('session-title-llm: title output reached maxOutputTokens')
-    /* v8 ignore next -- closed SessionTitleLlmFinish union exhaustiveness guard */
+    /* v8 ignore next -- 封闭的 SessionTitleLlmFinish 联合穷尽性守卫 */
     default: return assertNever(response.finish, 'SessionTitleLlmFinish')
   }
   if (response.blocks.some(block => block.type === 'tool-call')) {

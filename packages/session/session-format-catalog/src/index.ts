@@ -1,4 +1,4 @@
-/** Build-static first-party Session format migration catalog. */
+/** 构建期静态的一方 Session 格式迁移目录。 */
 
 export { sessionFormatCatalog } from './generated.ts'
 export { createSessionFormatCatalogWithChildren } from './children.ts'

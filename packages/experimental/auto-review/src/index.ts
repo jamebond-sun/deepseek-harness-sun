@@ -1,9 +1,8 @@
 /**
- * LLM-backed authorization gate for the current-session-only Auto permission
- * preset. Every native call and every started PTC inner call is reviewed once
- * before its body; the outer `run_code` transport is deliberately excluded.
- * Under the `ask` approval policy a reviewer denial asks the user; under
- * `never` it is final.
+ * 由 LLM 支撑的授权关卡，面向仅限当前会话的 Auto 权限预设。
+ * 每一次原生调用与每一次已启动的 PTC 内部调用，都会在其函数体执行前被评审一次；
+ * 外层的 `run_code` 传输被刻意排除在外。在 `ask` 审批策略下，评审者的拒绝会询问用户；
+ * 在 `never` 策略下则为终态。
  *
  * @module @deepseek-ai/dsh-experimental-auto-review
  */
@@ -32,12 +31,12 @@ import {
   type ToolExecution,
 } from '@deepseek-ai/dsh-tools'
 
-/** Structured error name persisted for every final reviewer denial. */
+/** 为每一次终态评审拒绝而持久化的、结构化的错误名称。 */
 const AUTO_REVIEW_DENIED_ERROR_NAME = 'AutoReviewDeniedError'
-/** Structured error code persisted for every final reviewer denial. */
+/** 为每一次终态评审拒绝而持久化的、结构化的错误码。 */
 const AUTO_REVIEW_DENIED_CODE = 'AUTO_REVIEW_DENIED'
 
-/** Fixed policy sent as the first of the review request's five sections. */
+/** 作为评审请求五个小节中的第一节发送的固定策略。 */
 const REVIEW_POLICY = `REVIEW_POLICY
 You are the final authorization reviewer for exactly one pending tool call. Your decision replaces human approval for this call. If you allow it, the call executes immediately with full host access and no later confirmation.
 
@@ -61,7 +60,7 @@ Judge the pending action by what its tool and arguments will actually do. The ex
 
 For any allow, end with exactly the applicable two-member object and nothing else. In particular, when a medium action is allowed, the complete text must be exactly {"risk":"medium","decision":"allow"}. Do not add reason, explanation, labels, Markdown, or surrounding prose. Stop immediately after the closing brace.`
 
-/** A parsed reviewer risk classification and decision. */
+/** 一个已解析的、评审者的风险分级与决策。 */
 type AutoReviewDecision =
   | { readonly risk: 'low'; readonly decision: 'allow' }
   | { readonly risk: 'medium'; readonly decision: 'allow' }
@@ -121,20 +120,20 @@ interface ScopedPtcStart {
   readonly step: StepIdentity
 }
 
-/** Cordis plugin name used by loader diagnostics. */
+/** 供加载器诊断所用的 Cordis 插件名称。 */
 export const name = 'experimental-auto-review'
-/** Complete host services required before Auto may be advertised. */
+/** 在 Auto 可被对外宣告之前，所需的主机服务全集。 */
 export const inject = ['approval', 'llm', 'permissionPresets', 'sessions', 'tools', 'workingDirectory']
 
-/** Return JSON text for one immutable logged value. */
+/** 为某一个不可变的、已记录的取值返回 JSON 文本。 */
 function json(value: unknown): string {
   const rendered = JSON.stringify(value, null, 2) as string | undefined
-  /* v8 ignore next -- accepted Session facts and frozen review snapshots are lossless JSON by contract. */
+  /* v8 ignore next -- 按约定，被接受的 Session 事实与已冻结的评审快照都是无损 JSON。 */
   if (rendered === undefined) throw new Error('auto-review: a required value is not JSON-serializable')
   return rendered
 }
 
-/** Recreate the agent-loop's parse of one native call's logged raw arguments. */
+/** 重建 agent-loop 对某一次原生调用所记录原始参数的解析结果。 */
 function parseLoggedArguments(raw: string): unknown {
   if (raw === '') return {}
   try {
@@ -144,17 +143,17 @@ function parseLoggedArguments(raw: string): unknown {
   }
 }
 
-/** Compare two lossless-JSON values without retaining aliases. */
+/** 比较两个无损 JSON 取值，且不保留别名引用。 */
 function sameJson(left: unknown, right: unknown): boolean {
   return JSON.stringify(left) === JSON.stringify(right)
 }
 
-/** Whether one logged JSON value is an object record rather than null or an array. */
+/** 某个已记录的 JSON 取值是否为一个对象记录，而非 null 或数组。 */
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
 }
 
-/** Validate the schema fields that must be present in a logged pending action. */
+/** 校验某次已记录待处理动作中必须存在的 schema 字段。 */
 function loggedSchema(
   value: { readonly description?: unknown; readonly parameters?: unknown },
   expectedName: string,
@@ -170,36 +169,36 @@ function loggedSchema(
   }
 }
 
-/** Read live abort state across awaits without relying on stale narrowing. */
+/** 在不依赖过期收窄的前提下，跨 await 读取实时的中止状态。 */
 function isAborted(signal: AbortSignal): boolean {
   return signal.aborted
 }
 
-/** Whether this visible message is a durable shipped-Web human instruction. */
+/** 当前可见消息是否是一条已持久化的、来自 Web 端的人类指令。 */
 function isHumanInstruction(source: MessageSource): boolean {
   return source.kind === 'user'
     && typeof (source as { readonly rpcId?: unknown }).rpcId === 'string'
 }
 
-/** Whether this visible context is the current project-instruction source. */
+/** 当前可见上下文是否为当前项目指令的来源。 */
 function isProjectInstruction(source: MessageSource): boolean {
   return source.kind === 'agent-instructions'
 }
 
-/** Whether this source is a compaction checkpoint. */
+/** 当前来源是否为一次压缩检查点。 */
 function isCheckpoint(source: MessageSource): boolean {
   const kind: string = source.kind
   return kind === 'compact-checkpoint'
 }
 
-/** Whether this message was durably attributed to the child's direct parent. */
+/** 当前消息是否被持久地归因为该子代理的直接父级。 */
 function isDirectParentInstruction(source: MessageSource, parentSession: string | undefined): boolean {
   return parentSession !== undefined
     && source.kind === 'agent-message'
     && (source as { readonly senderSessionId?: unknown }).senderSessionId === parentSession
 }
 
-/** Find the visible-role identity of the in-process child's creation prompt. */
+/** 找出处于进程中的子代理其创建提示的、可见角色身份。 */
 function directParentInitialPromptSeq(
   agent: Agent,
   events: readonly SessionEvent[],
@@ -223,7 +222,7 @@ function directParentInitialPromptSeq(
   return undefined
 }
 
-/** Assign one retained text block its fixed instruction, constraint, summary, or fact role. */
+/** 为某一被保留的文本块指派其固定的指令、约束、摘要或事实角色。 */
 function textRole(
   source: MessageSource,
   seq: SessionEvent['seq'],
@@ -238,7 +237,7 @@ function textRole(
   return 'fact'
 }
 
-/** Partition one visible user-role message into role-labelled retained blocks. */
+/** 将一条可见的用户角色消息切分为带角色标注的、被保留的块。 */
 function filteredUserEntries(
   seq: SessionEvent['seq'],
   source: MessageSource,
@@ -256,22 +255,22 @@ function filteredUserEntries(
   }))
 }
 
-/** Copy the turn and step identity carried by one core execution event. */
+/** 复制某一次核心执行事件所携带的轮次与步骤身份。 */
 function stepIdentity(data: { readonly turn: number; readonly step: number }): StepIdentity {
   return { turn: data.turn, step: data.step }
 }
 
-/** Compare two turn-and-step identities. */
+/** 比较两个“轮次+步骤”身份。 */
 function sameStep(left: StepIdentity, right: StepIdentity): boolean {
   return left.turn === right.turn && left.step === right.step
 }
 
-/** Key one call id inside the step that owns its lifecycle. */
+/** 在拥有其生命周期的步骤内部，为某次调用 id 构造键。 */
 function scopedCallKey(step: StepIdentity, callId: ToolCallId): string {
   return `${step.turn}\0${step.step}\0${callId}`
 }
 
-/** Assign each PTC start to the step open when it was logged. */
+/** 将每一次 PTC 启动指派给在它被记录时仍处于打开状态的步骤。 */
 function scopePtcStarts(events: readonly SessionEvent[]): {
   readonly starts: readonly ScopedPtcStart[]
   readonly openStep: StepIdentity | undefined
@@ -300,7 +299,7 @@ function scopePtcStarts(events: readonly SessionEvent[]): {
   return { starts, openStep }
 }
 
-/** Resolve one native action from its visible call and latest request header. */
+/** 根据某次原生调用的可见调用与最新请求头，解析其动作。 */
 function nativeAction(
   exec: ToolExecution,
   headerTools: readonly ToolSchema[] | undefined,
@@ -327,7 +326,7 @@ function nativeAction(
   }
 }
 
-/** Resolve a PTC inner action from its binding schema and logged identity. */
+/** 根据某次 PTC 内部调用的绑定 schema 与已记录身份，解析其动作。 */
 function ptcAction(
   exec: ToolExecution,
   start: ScopedPtcStart,
@@ -354,18 +353,17 @@ function ptcAction(
 }
 
 /**
- * Freeze the five reviewer sections from one session and pending execution.
- * @param agent - agent whose durable surface and request header authorize the call.
- * @param exec - immutable pending execution.
- * @returns the exact route and four data sections paired with {@link REVIEW_POLICY}.
+ * 从某一会话与待处理的执行中，冻结出供评审者使用的五个小节。
+ * @param agent - 其持久化外表面与请求头为该调用授权的 agent。
+ * @param exec - 不可变的待处理执行。
+ * @returns 与 {@link REVIEW_POLICY} 配对的、精确的路由与四个数据小节。
  */
 function snapshotAutoReview(agent: Agent, exec: ToolExecution, cwd: string): ReviewSnapshot {
   const { session } = agent
-  // The reviewer's risk inputs are the whole action history: earlier native calls
-  // and PTC starts carry the authorizations and duplicate identities this call is
-  // compared against, and the direct parent's initial prompt sets the delegated
-  // scope. No projection or paged reader exposes those records yet.
-  // oxlint-disable-next-line typescript/no-deprecated -- Reviewer needs the whole action history; no projection or paged reader exists yet.
+  // 评审者的风险输入是完整的动作历史：更早的原生调用与 PTC 启动携带了本次调用
+  // 所要比对的授权与重复身份，而直接父级的初始提示则设定了被委派的作用域。
+  // 目前尚没有任何投影或分页读取器暴露这些记录。
+  // oxlint-disable-next-line typescript/no-deprecated -- 评审者需要完整的动作历史；目前尚不存在投影或分页读取器。
   const events = session.snapshotEvents()
   const nodes = [...session.surface.nodes]
   const header = session.requestHeader()
@@ -417,7 +415,7 @@ function snapshotAutoReview(agent: Agent, exec: ToolExecution, cwd: string): Rev
   const visibleParentKeys = new Set<string>()
   let passedCurrentRoot = false
   for (const seq of nodes) {
-    // Surface nodes are event indexes produced by this Session's validated fold.
+    // 外表面节点是由本会话经过校验的折叠所产生的事件索引。
     // oxlint-disable-next-line typescript/no-non-null-assertion
     const event = events[seq]!
     if (event.type === 'user/message') {
@@ -506,7 +504,7 @@ function snapshotAutoReview(agent: Agent, exec: ToolExecution, cwd: string): Rev
 
   const action = exec.parent === undefined
     ? nativeAction(exec, header.tools, currentRootCall)
-    // The branch above established that every nested execution has one scoped start.
+    // 上面的分支已经确立：每一次嵌套执行都恰好拥有一个作用域化的启动点。
     // oxlint-disable-next-line typescript/no-non-null-assertion
     : ptcAction(exec, currentPtcStart!, visibleParentKeys)
   return deepFreeze({
@@ -519,7 +517,7 @@ function snapshotAutoReview(agent: Agent, exec: ToolExecution, cwd: string): Rev
   })
 }
 
-/** Render the four data sections paired with the fixed policy section. */
+/** 渲染与固定策略小节配对的四个数据小节。 */
 function reviewUserText(snapshot: ReviewSnapshot): string {
   return [
     'ENVIRONMENT',
@@ -533,7 +531,7 @@ function reviewUserText(snapshot: ReviewSnapshot): string {
   ].join('\n\n')
 }
 
-/** Count members in the raw top-level JSON object. */
+/** 统计原始顶层 JSON 对象中的成员数量。 */
 function topLevelMemberCount(text: string): number {
   const syntax = text.replace(/"(?:\\.|[^"\\])*"/gs, '')
   let depth = 0
@@ -555,7 +553,7 @@ function topLevelMemberCount(text: string): number {
   return count
 }
 
-/** Parse the closed risk/decision protocol and its fixed safety combinations. */
+/** 解析封闭的风险/决策协议及其固定的安全组合。 */
 function parseDecision(text: string): AutoReviewDecision {
   const value: unknown = JSON.parse(text)
   if (value === null || typeof value !== 'object' || Array.isArray(value)) {
@@ -584,7 +582,7 @@ function parseDecision(text: string): AutoReviewDecision {
   throw new Error('auto-review: reviewer output does not match the risk/decision protocol')
 }
 
-/** Consume zero or more reasoning blocks, one JSON text block, and one terminal stop. */
+/** 消费零个或多个推理块、一个 JSON 文本块，以及一个终止停止信号。 */
 async function readDecision(stream: AsyncIterable<StreamChunk>): Promise<AutoReviewDecision> {
   const assembler = new BlockAssembler()
   let finished = false
@@ -611,7 +609,7 @@ async function readDecision(stream: AsyncIterable<StreamChunk>): Promise<AutoRev
   return parseDecision(final.text)
 }
 
-/** Review one frozen pending action with the fixed policy and current LLM route. */
+/** 使用固定策略与当前 LLM 路由，评审一个已被冻结的待处理动作。 */
 async function classifyRisk(
   ctx: Context,
   agent: Agent,
@@ -620,7 +618,7 @@ async function classifyRisk(
 ): Promise<AutoReviewDecision> {
   const cwd = await ctx.workingDirectory.ensure(agent, signal)
   const snapshot = snapshotAutoReview(agent, exec, cwd)
-  // This review prompt is sent only through ctx.llm.stream and never enters a Session log.
+  // 这一评审提示只通过 ctx.llm.stream 发送，永远不会进入 Session 日志。
   const options: GenerateOptions = deepFreeze({
     provider: snapshot.provider,
     model: snapshot.model,
@@ -635,7 +633,7 @@ async function classifyRisk(
   return readDecision(ctx.llm.stream(options))
 }
 
-/** Materialize the fixed model-facing final Auto denial plus optional UI detail. */
+/** 具现出面向模型的、固定的终态 Auto 拒绝，以及可选的 UI 细节。 */
 function denied(exec: ToolExecution, reason?: string): PreToolDecision {
   return {
     kind: 'deny',
@@ -649,8 +647,8 @@ function denied(exec: ToolExecution, reason?: string): PreToolDecision {
 }
 
 /**
- * Ask the user to decide one call the reviewer denied. The audited reason is
- * English; the prompt text is localized and keeps the reviewer's raw reason.
+ * 请用户决定评审者所拒绝的某一次调用。被审计的理由为英文；提示文本已本地化，
+ * 并保留评审者的原始理由。
  */
 function askUser(exec: ToolExecution, reason?: string): PreToolDecision {
   const denial = `Auto review denied tool "${exec.name}"`
@@ -663,7 +661,7 @@ function askUser(exec: ToolExecution, reason?: string): PreToolDecision {
   }
 }
 
-/** Materialize a reviewer failure as its own error rather than a denial. */
+/** 将一次评审者失败具现为它自身的错误，而非一次拒绝。 */
 function failed(exec: ToolExecution, error: unknown): PreToolDecision {
   const message = error instanceof Error ? error.message : String(error)
   return {
@@ -672,9 +670,9 @@ function failed(exec: ToolExecution, error: unknown): PreToolDecision {
   }
 }
 
-/** Install the Auto preset and its prepended per-call review gate. */
+/** 安装 Auto 预设及其被前置的、每次调用前的评审关卡。 */
 export function apply(ctx: Context): void {
-  // Retain the injected service while this context drains on disposal.
+  // 在本上下文于处置时排空期间，保留被注入的服务。
   const permissionPresets = ctx.permissionPresets
   let accepting = true
   const active = new Set<Promise<void>>()
@@ -704,7 +702,7 @@ export function apply(ctx: Context): void {
         if (isAborted(lifecycle.signal)) return { kind: 'cancel' }
         if (!review.ok) return failed(exec, review.error)
         const { decision } = review
-        // The permission owner pins an approval policy into every published Session.
+        // 权限拥有者将某一项审批策略固定进每一个已发布的 Session。
         if (decision.decision === 'deny' && ctx.approval.overrideOf(agent.session) === 'never') {
           return denied(exec, decision.reason)
         }

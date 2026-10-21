@@ -1,6 +1,5 @@
 /**
- * DeepSeek Fetch API provider: page Markdown through one direct request, without
- * a model request.
+ * DeepSeek Fetch API 提供方：通过一次直接请求获取页面 Markdown，无需模型请求。
  * @module @deepseek-ai/dsh-web-deepseek-api/fetch
  */
 import type { WebFetchProvider, WebFetchRequest, WebFetchResult } from '@deepseek-ai/dsh-web'
@@ -10,24 +9,23 @@ import {
   type DeepSeekWebAuth,
 } from './transport.ts'
 
-/** Stable id the Fetch API provider registers under in the fetch registry. */
+/** Fetch API 提供方在抓取注册表中注册的固定 id。 */
 export const DEEPSEEK_FETCH_API_PROVIDER_ID = 'deepseek-fetch-api'
 
-/** Authentication and endpoint settings snapshotted for one fetch. */
+/** 为一次抓取快照化的认证与端点设置。 */
 export interface DeepSeekFetchApiOptions extends DeepSeekWebAuth {
-  /** API base including its path prefix; `/fetch` is appended. */
+  /** API 基址，含路径前缀；会追加 `/fetch`。 */
   baseURL: string
 }
 
 /**
- * Fetch page Markdown through the DeepSeek Fetch API. The API reports neither the
- * target's status nor a final URL, and it fails when the target yields no usable
- * content, so a success is the requested page retrieved with HTTP 200.
+ * 通过 DeepSeek Fetch API 获取页面 Markdown。该 API 既不报告目标状态码，也不报告最终 URL，
+ * 并且在目标未产出可用内容时会失败，因此一次成功即表示以 HTTP 200 获取到了所请求的页面。
  */
 export class DeepSeekFetchApiProvider implements WebFetchProvider {
   readonly id = DEEPSEEK_FETCH_API_PROVIDER_ID
 
-  /** @param resolveOptions - the options for the NEXT fetch, read once at each fetch's entry. */
+  /** @param resolveOptions - 供下一次抓取使用的选项，在每次抓取入口处读取一次。 */
   constructor(private readonly resolveOptions: () => DeepSeekFetchApiOptions) {}
 
   available(): boolean {

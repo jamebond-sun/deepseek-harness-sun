@@ -1,27 +1,27 @@
-/** Chromium inspection and automation through the pinned Chrome DevTools MCP server. @module */
+/** 通过被固定的 Chrome DevTools MCP 服务器进行 Chromium 检查与自动化。@module */
 
 import { fileURLToPath } from 'node:url'
 import type { Context } from '@deepseek-ai/cordis'
 import { BrowserMcpConfig, mountSessionMcp, validateBrowserMcpConfig } from '@deepseek-ai/dsh-experimental-browser-use-runtime/mcp'
 import type {} from '@deepseek-ai/dsh-working-directory'
 
-/** Cordis identity for the Chrome DevTools MCP browser provider. */
+/** Chrome DevTools MCP 浏览器提供方的 Cordis 身份标识。 */
 export const name = 'experimental-browser-use-chrome-devtools-mcp'
 
-/** Services required for scoped MCP startup and prompt readiness checks. */
+/** 为作用域化的 MCP 启动与提示就绪检查所需的服务。 */
 export const inject = ['browserUse', 'agents', 'tools', 'systemPrompt', 'workingDirectory']
 
-/** Fixed Chromium launch or existing-browser attachment settings. */
+/** 固定的 Chromium 启动，或对既有浏览器的附加设置。 */
 export type Config = BrowserMcpConfig
 
-/** Validate the launch or attachment configuration before activation. */
+/** 在激活之前，校验启动或附加配置。 */
 export const Config: typeof BrowserMcpConfig = BrowserMcpConfig
 
 /**
- * Expose Chrome DevTools' upstream catalog through one MCP process per live Session.
- * Attached browsers remain externally owned; the server disables usage statistics.
- * @param ctx - provider context supplying browser use, Agents, and tools.
- * @param config - validated browser choice and optional tool timeout.
+ * 通过每个活动 Session 各一个 MCP 进程，暴露 Chrome DevTools 的上游目录。
+ * 被附加的浏览器仍由外部拥有；该服务器会禁用使用情况统计。
+ * @param ctx - 提供浏览器使用、Agents 与工具的提供方上下文。
+ * @param config - 已校验的浏览器选择，以及可选的工具有超时。
  */
 export function apply(ctx: Context, config: Config): void {
   validateBrowserMcpConfig(config)

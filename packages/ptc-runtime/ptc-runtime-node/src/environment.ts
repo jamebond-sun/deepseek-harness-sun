@@ -1,11 +1,11 @@
-/** Startup variables required by native executables before model evaluation. */
+/** 在模型求值之前，原生可执行文件所需的启动变量。 */
 
-/** Native executable search, Windows system paths, and sandbox temporary paths retained in the OS environment. */
+/** 操作系统环境中保留的：原生可执行文件搜索路径、Windows 系统路径，以及沙箱临时路径。 */
 export const STARTUP_ENVIRONMENT_NAMES: ReadonlySet<string> = new Set(['PATH', 'PATHEXT', 'SYSTEMROOT', 'WINDIR', 'TEMP', 'TMP'])
 
 /**
- * Clear inherited credentials while preserving native child-process startup paths.
- * @param state - Child process environment, replaced with an empty program-visible object.
+ * 清除继承而来的凭据，同时保留原生子进程所需的启动路径。
+ * @param state - 子进程环境，会被替换为一个程序可见的空对象。
  */
 export function clearProgramEnvironment(state: { env: NodeJS.ProcessEnv }): void {
   for (const key of Object.keys(state.env)) {

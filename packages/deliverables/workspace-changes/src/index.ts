@@ -1,12 +1,10 @@
 /**
- * Summarizes the files each top-level turn changed from git working-tree
- * snapshots taken at turn start and turn end, plus whole-file captures taken
- * around each file-tool edit for paths git does not cover, and serves each
- * listed file's before-and-after comparison on demand. Each summary is
- * announced by a `workspace/changes` Session event that carries only the turn
- * number; summaries and comparisons are served through the `workspaceChanges`
- * service until the Session is disposed. Outside a git repository, or without
- * git, the summary lists file-tool edits only.
+ * 汇总每个顶层回合从回合开始与回合结束所拍摄的 git 工作树快照中
+ * 发生的文件变更，外加针对 git 未覆盖的路径、在每次文件工具编辑
+ * 周围拍摄的整文件捕获，并按需为每一个被列出的文件提供其前后比较。每次摘要由
+ * 仅携带回合号的 `workspace/changes` Session 事件宣布；摘要与比较通过
+ * `workspaceChanges` 服务一直提供，直到 Session 被释放。在 git 仓库之外，或
+ * 没有 git 时，摘要仅列出文件工具的编辑。
  */
 import { homedir, tmpdir } from 'node:os'
 import type { Context } from '@deepseek-ai/cordis'
@@ -24,30 +22,30 @@ export type {
   WorkspaceChangedFile, WorkspaceChanges, WorkspaceChangesSummary, WorkspaceDiffHunk, WorkspaceFileDiff,
 } from './types.ts'
 
-/** Stable Loader identity. */
+/** 稳定的 Loader 标识。 */
 export const name = 'workspace-changes'
 
-/** Services used to run git, resolve mutation targets, and observe turns. */
+/** 用于运行 git、解析变更目标以及观察回合的服务。 */
 export const inject = ['subprocess', 'fs']
 
-/** Snapshot, capture, and comparison bounds. Invalid values fail plugin load. */
+/** 快照、捕获与比较的边界。无效值会导致插件加载失败。 */
 export interface Config {
-  /** Milliseconds one git command may run before the turn's record is abandoned. */
+  /** 一条 git 命令在回合记录被放弃之前可运行的毫秒数。 */
   timeoutMs: number
-  /** Bytes of git output retained per command; a larger diff listing abandons the record. */
+  /** 每次命令保留的 git 输出字节数；更大的差异列表会放弃该记录。 */
   outputMaxBytes: number
-  /** Maximum files carried by one summary; `total` still reports the complete count. */
+  /** 一个摘要所携带的最大文件数；`total` 仍报告完整计数。 */
   maxFiles: number
   /**
-   * Bytes a file may hold to be captured around a file-tool edit or read from a snapshot for its comparison.
-   * A larger file gets no comparison; one captured around a file-tool edit is also listed without counts.
+   * 一个文件可持有的、用于在文件工具编辑周围被捕获、或从快照读取以进行比较的字节数。
+   * 更大的文件不会得到比较；在文件工具编辑周围被捕获的更大文件也列而无计数。
    */
   maxFileBytes: number
-  /** Milliseconds a line comparison may run before it degrades to whole-file replacement. */
+  /** 行比较在退化为整文件替换之前可运行的毫秒数。 */
   diffTimeoutMs: number
 }
 
-/** Schemastery validation for {@link Config}. */
+/** 针对 {@link Config} 的 Schemastery 校验。 */
 export const Config: z<Config> = z.object({
   timeoutMs: z.number().default(30_000),
   outputMaxBytes: z.number().default(8 * 1024 * 1024),
@@ -62,12 +60,11 @@ function eligible(session: Session): string | undefined {
 }
 
 /**
- * Resolve the git executable once. On macOS the Xcode stub at `/usr/bin/git`
- * opens an installer dialog instead of running, so it counts as absent until
- * developer tools are selected.
- * @param ctx - subprocess capability.
- * @param signal - plugin lifetime.
- * @returns the executable path, or null when git is unavailable.
+ * 一次性解析 git 可执行文件。在 macOS 上，`/usr/bin/git` 处的 Xcode 桩
+ * 会打开安装对话框而非运行，因此在选择开发者工具之前它算作缺失。
+ * @param ctx - 子进程能力。
+ * @param signal - 插件生命周期。
+ * @returns 可执行文件路径；当 git 不可用时为 null。
  */
 async function resolveGit(ctx: Context, signal: AbortSignal): Promise<string | null> {
   let executable: string
@@ -86,11 +83,11 @@ async function resolveGit(ctx: Context, signal: AbortSignal): Promise<string | n
 }
 
 /**
- * Observe top-level turns of every Session with a working directory, capture
- * file-tool edits, announce change summaries, and serve them with their
- * comparisons as `workspaceChanges`.
- * @param ctx - host context with `subprocess` and `fs`.
- * @param config - validated bounds.
+ * 观察每个拥有工作目录的 Session 的顶层回合，捕获
+ * 文件工具编辑，宣布变更摘要，并以 `workspaceChanges` 身份
+ * 连同其比较一起提供服务。
+ * @param ctx - 带有 `subprocess` 与 `fs` 的宿主上下文。
+ * @param config - 已校验的边界。
  */
 export function apply(ctx: Context, config: Config): void {
   for (const [field, value] of [

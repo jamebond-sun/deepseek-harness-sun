@@ -1,4 +1,4 @@
-/** Lazy assembly of generated Remote definitions using caller-supplied Zod; no runtime imports. */
+/** 使用调用方提供的 Zod 惰性组装生成的 Remote 定义；不引入运行时导入。 */
 
 import type { z } from 'zod'
 import type {
@@ -18,12 +18,12 @@ type Parameter = TypertRemoteParameterSpec & { readonly wire: string }
 type Index = Pick<TypertRemoteInfo, 'descriptors' | 'methods'>
 
 /**
- * Retain one generated definition per endpoint without constructing parsers or projections.
- * The class instance builds its shared descriptor/method index on first access;
- * input schemas and JSON Schema projections are cached only when requested.
- * @param spec - compiler-produced method facts and Zod factories.
- * @param zod - the generated artifact's Zod runtime for named-input parsers.
- * @returns a lazy, mountable info instance with no registration or transport effects.
+ * 为每个端点保留一份生成的定义，而无需构造解析器或投影。
+ * 类实例在首次访问时构建其共享的描述符/方法索引；输入 schema 与
+ * JSON Schema 投影仅在被请求时缓存。
+ * @param spec - 编译器产出的方法事实与 Zod 工厂。
+ * @param zod - 生成产物用于具名输入解析器的 Zod 运行时。
+ * @returns 一个惰性的、可挂载的 info 实例，无注册或传输副作用。
  */
 export function createTypertRemoteInfo(spec: TypertRemoteSpec, zod: typeof z): TypertRemoteInfo {
   return new RemoteInfo(spec, zod)
@@ -67,13 +67,13 @@ class RemoteInfo implements TypertRemoteInfo {
             const named = input as Readonly<Record<string, unknown>>
             const values = parameters.map(parameter => named[parameter.wire])
             if (definition.cancellation !== undefined) values.push(signal)
-            // Namespace access retains the Gateway's mount checks and scoped receiver policy.
+            // 命名空间访问保留了 Gateway 的挂载检查与限定接收方策略。
             const receiver = Reflect.get(remote, namespace) as object
             const call = Reflect.get(receiver, method) as (...args: unknown[]) => ReturnType<Method['invoke']>
             return call.apply(receiver, values)
           },
         })
-        // The generated namespace return type is selected by this same descriptor's mode.
+        // 生成的命名空间返回类型由同一描述符的 mode 选定。
         methods[endpoint] = direct as Method
       }
       descriptors.push(descriptor)
@@ -83,9 +83,9 @@ class RemoteInfo implements TypertRemoteInfo {
 }
 
 /**
- * Narrow a Registry descriptor to its generated direct-method capabilities.
- * @param descriptor - a live descriptor, including possible source fallback or Context-only receivers.
- * @returns whether generated named input and direct invocation are available.
+ * 将一个 Registry 描述符收窄为其生成的直连方法能力。
+ * @param descriptor - 一个存活的描述符，可能包含源码回退或仅 Context 接收方。
+ * @returns 是否具备生成的具名输入与直连调用能力。
  */
 export function isTypertRemoteMethod(descriptor: InvocationDescriptor): descriptor is Method {
   return descriptor.invocation.kind === 'direct' && descriptor.result.mode === 'strict'

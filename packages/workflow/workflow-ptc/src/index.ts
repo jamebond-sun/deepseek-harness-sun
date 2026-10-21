@@ -1,6 +1,6 @@
 /**
- * Workflow orchestration through the shared sandboxed Node PTC executor.
- * The VM supplies script helpers; the process applies the calling Session's file policy.
+ * 通过共享的沙箱化 Node PTC 执行器进行 workflow 编排。
+ * VM 提供脚本辅助函数；进程应用调用 Session 的文件策略。
  * @module @deepseek-ai/dsh-workflow-ptc
  */
 
@@ -29,42 +29,42 @@ export type {
   WorkerLimits,
 } from './types.ts'
 
-/** Plugin config (all optional — `static Config` supplies the defaults). */
+/** 插件配置（全部可选 —— 静态 `Config` 提供默认值）。 */
 export interface Config {
-  /** The `ctx.subagents` provider children run on (default `spawn`). */
+  /** 子项运行所在的 `ctx.subagents` provider（默认 `spawn`）。 */
   provider?: string
-  /** Concurrent `agent()` ceiling; `0` (the default) auto-resolves to `min(16, max(1, cores - 2))`. */
+  /** `agent()` 并发上限；`0`（默认）自动解析为 `min(16, max(1, cores - 2))`。 */
   maxConcurrentAgents?: number
-  /** Total `agent()` calls one run may start — the runaway-loop backstop (default 1000). */
+  /** 一次运行可启动的 `agent()` 调用总数 —— 失控循环的兜底上限（默认 1000）。 */
   maxTotalAgents?: number
-  /** Items accepted by a single `parallel()`/`pipeline()` call (default 4096). */
+  /** 单次 `parallel()`/`pipeline()` 调用所能接受的条目数（默认 4096）。 */
   maxItemsPerCall?: number
-  /** VM timeout for the script's initial synchronous slice (default 5000 ms). */
+  /** 脚本初始同步片段的 VM 超时（默认 5000 毫秒）。 */
   syncTimeoutMs?: number
 }
 
 type ResolvedConfig = Required<Config>
 
-/** A body that still carries the Claude Code-style meta header (meta rides the seam as data here). */
+/** 一个仍然携带 Claude Code 风格 meta 头的脚本正文（此处 meta 作为数据随 seam 传递）。 */
 const META_STATEMENT = /^\s*export\s+const\s+meta\b/
 
 /**
- * Reject invalid JavaScript synchronously before publishing a workflow run.
- * The guest compiles the same async wrapper in its own process.
+ * 在发布 workflow 运行之前同步拒绝无效的 JavaScript。
+ * guest 会在它自己的进程内编译同一个异步包装器。
  */
 function assertBodyParses(body: string, name: string): void {
   if (META_STATEMENT.test(body)) {
     throw new WorkflowError('workflow meta rides the `meta` request field, not the script: remove the `export const meta = {...}` statement from the body', 'SCRIPT_PARSE')
   }
   try {
-    // Parse only — the script object is discarded, nothing executes.
+    // 仅解析 —— 脚本对象被丢弃，没有任何执行。
     void new vm.Script(`(async () => {\n${body}\n})()`, { filename: `workflow:${name}`, lineOffset: -1 })
   } catch (error: unknown) {
     throw new WorkflowError(`workflow script does not parse: ${String(error)}`, 'SCRIPT_PARSE', { cause: error })
   }
 }
 
-/** Resolve one run's provider route before publishing work. */
+/** 在发布工作前解析一次运行的 provider 路由。 */
 function resolveSubagentProvider(ctx: Context, configured: string, override: string | undefined): string {
   const provider = override ?? configured
   if (provider.length === 0 || provider !== provider.trim()) {
@@ -79,7 +79,7 @@ function resolveSubagentProvider(ctx: Context, configured: string, override: str
   return provider
 }
 
-/** Resolve one run's total-child cap against the engine deployment ceiling. */
+/** 针对引擎部署上限解析一次运行的总子项上限。 */
 function resolveMaxTotalAgents(requested: number | undefined, ceiling: number): number {
   if (requested === undefined) return ceiling
   if (!Number.isSafeInteger(requested) || requested < 1) {
@@ -95,10 +95,9 @@ function resolveMaxTotalAgents(requested: number | undefined, ceiling: number): 
 }
 
 /**
- * The PTC-backed workflow engine. `start()` validates the script up front
- * (meta + a host-side body parse) and returns a {@link WorkflowRun} whose
- * `result` never rejects; the `workflow/*` events fire around the run per
- * the seam contract.
+ * 基于 PTC 的 workflow 引擎。`start()` 预先校验脚本（meta + 宿主侧正文
+ * 解析），并返回一个 {@link WorkflowRun}，其 `result` 永不 reject；
+ * `workflow/*` 事件按 seam 契约围绕该运行触发。
  */
 class PtcWorkflowEngine extends WorkflowEngine {
   static inject = ['subagents', 'ptcRuntime', 'sandboxPolicy', 'workingDirectory']
@@ -116,20 +115,18 @@ class PtcWorkflowEngine extends WorkflowEngine {
   constructor(ctx: Context, config: Config) {
     super(ctx)
     if (ctx.ptcRuntime.language !== 'typescript') throw new Error('workflow-ptc requires the Node TypeScript PTC runtime')
-    // schemastery (static Config) has already filled the defaulted fields;
-    // the assertion records that resolution, not a hidden fallback.
+    // schemastery（静态 Config）已经填好了带默认值的字段；该断言记录的是
+    // 那次解析，而非一个隐藏的回退。
     this.config = config as ResolvedConfig
   }
 
   /**
-   * Validate and execute a workflow script in a sandboxed Node process. Throws
-   * {@link WorkflowError} synchronously (`META_INVALID` for a malformed meta
-   * block, `SCRIPT_PARSE` for a body that does not compile) for a request
-   * that cannot begin; once a run is returned, every failure resolves through
-   * `result.stopReason` instead.
-   * @param request - the script body, its meta data and `args`, the parent
-   *   agent, and an optional cancel signal.
-   * @returns the live run (its `result` resolves when the script settles).
+   * 在一个沙箱化的 Node 进程内校验并执行 workflow 脚本。对于无法开始的请求，
+   * 同步抛出 {@link WorkflowError}（`META_INVALID` 表示畸形的 meta 块，
+   * `SCRIPT_PARSE` 表示无法编译的正文）；一旦返回了一个运行，每一次失败都会
+   * 通过 `result.stopReason` 解析，而非抛出。
+   * @param request - 脚本正文、其 meta 数据与 `args`、父代理，以及可选的取消信号。
+   * @returns 活跃的运行（其 `result` 在脚本结算时解析）。
    */
   start(request: WorkflowStartRequest): WorkflowRun {
     const meta = validateMeta(request.meta)
@@ -152,7 +149,7 @@ class PtcWorkflowEngine extends WorkflowEngine {
       ...request.args !== undefined ? { args: structuredClone(request.args) } : {},
       limits,
     }
-    // Captured service handles keep a holder-owned run usable after engine unload.
+    // 所捕获的服务句柄使一个属主拥有的运行在引擎卸载后仍然可用。
     const runCtx = this.ctx
     const subagents = runCtx.subagents
     const run = new PtcWorkflowRun(
@@ -175,8 +172,8 @@ class PtcWorkflowEngine extends WorkflowEngine {
     )
 
     this.emitWorkflowEvent('workflow/start', info)
-    // `workflow/end` fires as the (never-rejecting) result settles, with the
-    // outcome DATA only — the value stays with the run's holder.
+    // `workflow/end` 在（永不 reject 的）结果结算时触发，且只携带结果 DATA ——
+    // 值始终留在运行的属主处。
     void run.result.then((settled) => {
       this.emitWorkflowEvent('workflow/end', info, {
         stopReason: settled.stopReason,

@@ -1,6 +1,6 @@
 /**
- * Windows security-descriptor helpers for atomic local-file replacement. Koffi loads lazily so
- * non-Windows processes never open Win32 libraries.
+ * 用于本地文件原子替换的 Windows 安全描述符辅助工具。Koffi 惰性加载，
+ * 因此非 Windows 进程永远不会打开 Win32 库。
  * @module @deepseek-ai/dsh-fs-local/win32
  */
 
@@ -81,9 +81,9 @@ function win32Error(syscall: string, win32Code: number, path: string): Win32Errn
 }
 
 /**
- * Read a file's self-relative DACL security descriptor.
- * @param path - existing file whose DACL is read.
- * @returns a descriptor buffer accepted by `SetFileSecurityW`.
+ * 读取文件自相对形式的 DACL 安全描述符。
+ * @param path - 读取其 DACL 的已存在文件。
+ * @returns 可被 `SetFileSecurityW` 接受的描述符缓冲区。
  */
 export async function readFileDaclWin32(path: string): Promise<Buffer> {
   const api = await win32()
@@ -100,10 +100,10 @@ export async function readFileDaclWin32(path: string): Promise<Buffer> {
 }
 
 /**
- * Copy an existing file's DACL onto another file and protect it from staging-parent inheritance.
- * The destination must still be empty when confidentiality depends on this call.
- * @param source - existing file whose DACL is copied.
- * @param destination - existing file that receives the protected DACL.
+ * 把已存在文件的 DACL 复制到另一个文件上，并保护它免受暂存父目录继承的影响。
+ * 当机密性依赖于本次调用时，目标文件必须仍为空。
+ * @param source - 被复制其 DACL 的已存在文件。
+ * @param destination - 接收受保护 DACL 的已存在文件。
  */
 export async function copyFileDaclWin32(source: string, destination: string): Promise<void> {
   const descriptor = await readFileDaclWin32(source)
@@ -115,9 +115,9 @@ export async function copyFileDaclWin32(source: string, destination: string): Pr
 }
 
 /**
- * Replace a Windows file while preserving the replaced file's ACL and other replace metadata.
- * @param replaced - existing destination file.
- * @param replacement - closed staging file on the same volume.
+ * 替换一个 Windows 文件，同时保留被替换文件的 ACL 及其他替换元数据。
+ * @param replaced - 已存在的目标文件。
+ * @param replacement - 同一卷上已关闭的暂存文件。
  */
 export async function replaceFileWin32(replaced: string, replacement: string): Promise<void> {
   const api = await win32()

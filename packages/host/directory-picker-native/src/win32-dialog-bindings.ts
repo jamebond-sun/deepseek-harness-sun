@@ -1,15 +1,12 @@
 /**
- * koffi-backed Win32 bindings for the folder dialog: the COM vtable calls
- * behind {@link Win32DialogBindings} plus the cross-thread window closer the
- * driver uses to service aborts. The module loads on every platform; koffi
- * itself is imported lazily inside each function, so non-Windows processes
- * never load it — the same containment as the repo's other `win32.ts`
- * modules.
+ * 文件夹对话框的 koffi 版 Win32 绑定：{@link Win32DialogBindings} 背后的 COM vtable 调用，
+ * 以及驱动用于响应中止的跨线程窗口关闭器。本模块在所有平台都会加载；koffi 本身则在每个
+ * 函数内部惰性导入，因此非 Windows 进程永远不会加载它——与仓库中其他 `win32.ts` 模块
+ * 采用相同的隔离方式。
  *
- * The COM surface used here (IModalWindow/IFileDialog/IFileOpenDialog and
- * IShellItem vtable order, the GUIDs, `FOS_*` and `SIGDN_FILESYSPATH`) is
- * frozen Windows ABI since Vista; slots are offsets into the vtable at the
- * object's first pointer.
+ * 此处用到的 COM 接口（IModalWindow/IFileDialog/IFileOpenDialog 与 IShellItem 的 vtable
+ * 顺序、相关 GUID、`FOS_*` 与 `SIGDN_FILESYSPATH`）是自 Vista 起冻结的 Windows ABI；
+ * 槽位是对象首个指针所指向 vtable 中的偏移量。
  */
 
 import type { Win32DialogBindings, Win32FolderDialog } from './win32-dialog-logic.ts'
@@ -28,17 +25,17 @@ interface Koffi {
 }
 
 /**
- * Read a valid NUL-terminated UTF-16 allocation without an external buffer.
- * Generic `koffi.decode(..., 'str16')` expects a pointer variable, so the
- * buffer holds the string address rather than the string bytes.
- * @param koffi - the loaded koffi binding.
- * @param address - the string address surfaced by the `_Out_ void **` param.
- * @param pointerSize - the process's pointer width (`koffi.sizeof('void *')`).
- * @returns the decoded UTF-16 path.
+ * 在不需要外部缓冲区的情况下读取一段合法的 NUL 结尾 UTF-16 分配内存。
+ * 通用的 `koffi.decode(..., 'str16')` 需要一个指针变量，因此缓冲区里存放的是字符串
+ * 地址而不是字符串字节。
+ * @param koffi - 已加载的 koffi 绑定。
+ * @param address - `_Out_ void **` 参数给出的字符串地址。
+ * @param pointerSize - 进程的指针宽度（`koffi.sizeof('void *')`）。
+ * @returns 解码出的 UTF-16 路径。
  */
 function readUtf16(koffi: Koffi, address: unknown, pointerSize: number): string {
   const pointer = Buffer.alloc(8)
-  // koffi 3 surfaces `_Out_ void **` values as BigInt native addresses.
+  // koffi 3 把 `_Out_ void **` 的值以 BigInt 形式的原生地址呈现。
   pointer.writeBigUInt64LE(BigInt(address as bigint | number))
   return koffi.decode(pointer.subarray(0, pointerSize), 'str16') as string
 }
@@ -47,32 +44,31 @@ const COINIT_APARTMENTTHREADED = 0x2
 const CLSCTX_INPROC_SERVER = 0x1
 const SIGDN_FILESYSPATH = 0x80058000 | 0
 /**
- * Thread DPI awareness contexts, best first: per-monitor-v2 (Windows 10
- * 1703+), per-monitor (1607+), then system-aware. `SetThreadDpiAwarenessContext`
- * returns NULL for an unsupported context instead of throwing, so the caller
- * cascades to the best one the host accepts; DPI stays a cosmetic
- * best-effort — an unsupported host still gets the modern dialog.
+ * 线程 DPI 感知上下文，按优先级从高到低：per-monitor-v2（Windows 10 1703+）、
+ * per-monitor（1607+），最后是 system-aware。`SetThreadDpiAwarenessContext`
+ * 对不支持的上下文返回 NULL 而不是抛出错误，因此调用方逐级回退到宿主可接受的最高一级；
+ * DPI 始终只是观感上的尽力而为——即使宿主不支持，也仍然会拿到现代对话框。
  */
 const DPI_AWARENESS_CONTEXTS = [-4, -3, -2]
 const WM_CLOSE = 0x10
-/** `VK_MENU`: the synthesized Alt press's virtual key. */
+/** `VK_MENU`：合成的 Alt 按下所对应的虚拟键。 */
 const VK_MENU = 0x12
-/** `KEYEVENTF_KEYUP`: the synthesized Alt press's release flag. */
+/** `KEYEVENTF_KEYUP`：合成的 Alt 按下所用的释放标志。 */
 const KEYEVENTF_KEYUP = 0x2
 
-/** IFileOpenDialog vtable slots (IUnknown 0-2, IModalWindow 3, IFileDialog 4+). */
+/** IFileOpenDialog 的 vtable 槽位（IUnknown 0-2，IModalWindow 3，IFileDialog 4+）。 */
 const SLOT_RELEASE = 2
 const SLOT_SHOW = 3
 const SLOT_SET_OPTIONS = 9
 const SLOT_SET_TITLE = 17
 const SLOT_GET_RESULT = 20
-/** IShellItem vtable slot for `GetDisplayName`. */
+/** IShellItem 中 `GetDisplayName` 的 vtable 槽位。 */
 const SLOT_GET_DISPLAY_NAME = 5
 
 /**
- * Encode a canonical GUID string as its 16 little-endian bytes.
- * @param text - the `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx` form.
- * @returns the in-memory GUID bytes CoCreateInstance expects.
+ * 将规范形式的 GUID 字符串编码为其 16 字节小端表示。
+ * @param text - `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx` 形式。
+ * @returns CoCreateInstance 所需的内存内 GUID 字节。
  */
 function guidBytes(text: string): Buffer {
   const match = /^([0-9a-f]{8})-([0-9a-f]{4})-([0-9a-f]{4})-([0-9a-f]{4})-([0-9a-f]{12})$/i.exec(text) as RegExpExecArray
@@ -88,8 +84,8 @@ const CLSID_FILE_OPEN_DIALOG = guidBytes('dc1c5a9c-e88a-4dde-a5a1-60f82a20aef7')
 const IID_IFILE_OPEN_DIALOG = guidBytes('d57c7288-d4ad-4768-be02-9d969532d960')
 
 /**
- * Load koffi and expose the dialog bindings for this thread.
- * @returns the bindings {@link runFolderDialog} sequences against.
+ * 加载 koffi 并为当前线程暴露对话框绑定。
+ * @returns {@link runFolderDialog} 所编排调用的绑定。
  */
 export async function loadWin32DialogBindings(): Promise<Win32DialogBindings> {
   const koffi = (await import('koffi')).default as Koffi
@@ -97,8 +93,8 @@ export async function loadWin32DialogBindings(): Promise<Win32DialogBindings> {
   const user32 = koffi.load('user32.dll')
   const kernel32 = koffi.load('kernel32.dll')
 
-  // Vtable slots and out-pointers are pointer-width offsets: 8 on x64/arm64,
-  // 4 on ia32 — koffi reports the running process's width.
+  // vtable 槽位与出参指针都是指针宽度的偏移量：x64/arm64 上为 8，ia32 上为 4——
+  // koffi 报告的是当前运行进程的宽度。
   const pointerSize = koffi.sizeof('void *')
   const coInitializeEx = ole32.func('__stdcall', 'CoInitializeEx', 'int32', ['void *', 'uint32'])
   const coUninitialize = ole32.func('__stdcall', 'CoUninitialize', 'void', [])
@@ -114,7 +110,7 @@ export async function loadWin32DialogBindings(): Promise<Win32DialogBindings> {
   const protoGetDisplayName = koffi.proto('int32 __stdcall DshItemGetDisplayName(void *self, int32 form, _Out_ void **name)')
   const protoRelease = koffi.proto('uint32 __stdcall DshComRelease(void *self)')
 
-  /** Bind vtable slot `slot` of COM object `self` to a caller through `proto`. */
+  /** 通过 `proto` 把 COM 对象 `self` 的 vtable 槽位 `slot` 绑定为可调用函数。 */
   const method = (self: unknown, slot: number, proto: unknown): (...args: unknown[]) => number => {
     const vtable = koffi.decode(self, 'void *')
     const fn = koffi.decode(vtable, slot * pointerSize, 'void *')
@@ -127,18 +123,16 @@ export async function loadWin32DialogBindings(): Promise<Win32DialogBindings> {
       try {
         setContext = user32.func('__stdcall', 'SetThreadDpiAwarenessContext', 'void *', ['intptr'])
       } catch {
-        // Symbol absent (pre-1607 Windows): no per-thread DPI control exists.
-        // Proceed anyway — the cost is a blurry dialog above 100 % scaling on
-        // museum hosts, and the modern picker still beats dropping to the
-        // legacy 5.1 tree over a cosmetic concern.
+        // 符号不存在（1607 之前的 Windows）：不存在任何按线程的 DPI 控制能力。
+        // 仍然继续——代价只是在这类老宿主上超过 100% 缩放时对话框发虚，而为了一个观感
+        // 问题退回旧的 5.1 目录树远不如保留现代选择器。
         return
       }
       for (const context of DPI_AWARENESS_CONTEXTS) {
         if (setContext(context) !== null) return
       }
-      // Unreachable in practice (SYSTEM_AWARE is accepted wherever the symbol
-      // exists); if a host ever refuses everything, the dialog still works —
-      // just without a DPI opt-in.
+      // 实践中不可达（只要有该符号，SYSTEM_AWARE 就会被接受）；即便某个宿主拒绝全部
+      // 上下文，对话框依然可用——只是没有 DPI 选择加入而已。
     },
     coInitializeSta: () => coInitializeEx(null, COINIT_APARTMENTTHREADED) as number,
     coUninitialize: () => {
@@ -183,10 +177,9 @@ export async function loadWin32DialogBindings(): Promise<Win32DialogBindings> {
 }
 
 /**
- * Post `WM_CLOSE` to every window of a native thread — the driver's abort
- * lever against the worker blocked inside `Show`, after which `Show` returns
- * `HRESULT_CANCELLED` and the worker unwinds normally.
- * @param threadId - the dialog thread's native id (from the `showing` notice).
+ * 向某个原生线程的每个窗口投递 `WM_CLOSE`——这是驱动针对阻塞在 `Show` 内部的 worker 的
+ * 中止手段；之后 `Show` 会返回 `HRESULT_CANCELLED`，worker 便正常退出。
+ * @param threadId - 对话框线程的原生 id（来自 `showing` 通知）。
  */
 export async function closeThreadWindows(threadId: number): Promise<void> {
   const koffi = (await import('koffi')).default as Koffi

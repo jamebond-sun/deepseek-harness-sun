@@ -1,7 +1,6 @@
 /**
- * Backend-shared storage validation: the version gate, the fail-closed event
- * vocabulary, append-batch materialization, and contiguity — one place so
- * every backend refuses the same inputs identically.
+ * 后端共用的存储校验：版本闸门、失败关闭的事件词表、追加批次物化与连续性——
+ * 集中在一处，以便每个后端以完全相同的方式拒绝相同的输入。
  * @module @deepseek-ai/dsh-session-persistence/storage-contract
  */
 
@@ -19,7 +18,7 @@ import {
   type SessionLocation,
 } from './errors.ts'
 
-/** Build a format refusal that points at the raw artifact when the backend has one. */
+/** 构造一个格式拒绝；当后端持有原始制品时，指向它。 */
 function unsupported(reason: string, location: SessionLocation | undefined): SessionFormatUnsupportedError {
   return new SessionFormatUnsupportedError(
     location === undefined ? reason : `${reason} (raw log: ${location.path})`,
@@ -28,9 +27,9 @@ function unsupported(reason: string, location: SessionLocation | undefined): Ses
 }
 
 /**
- * Refuse stored metadata that is not bound to the requested session id.
- * @param id - the requested session id.
- * @param meta - the stored header.
+ * 拒绝未绑定到所请求会话 id 的已存储元数据。
+ * @param id - 所请求的会话 id。
+ * @param meta - 已存储的头部。
  */
 export function assertStoredId(id: SessionId, meta: SessionHeader): void {
   if (meta.id !== id) {
@@ -39,9 +38,9 @@ export function assertStoredId(id: SessionId, meta: SessionHeader): void {
 }
 
 /**
- * Refuse a header that has not been restored to the current logical format.
- * @param meta - the stored header.
- * @param location - the backend's artifact location for the refusal, when one exists.
+ * 拒绝尚未恢复到当前逻辑格式的头部。
+ * @param meta - 已存储的头部。
+ * @param location - 后端用于拒绝诊断的制品位置，若存在的话。
  */
 export function assertVersion(
   meta: { readonly id: SessionId; readonly version: number },
@@ -53,18 +52,17 @@ export function assertVersion(
 }
 
 /**
- * Validate one exclusively owned stored event array in place: adopt each
- * record (validating and freezing it) and refuse any event type this build
- * does not know, unless its writer marked it `ignorable: true` — silently
- * skipping an unknown required event could reconstruct a wrong session (the
- * envelope contract on `SessionEvent.ignorable`). Unknown required types and
- * retired pre-release shapes refuse here; this validator performs no migration.
- * @param meta - the stored header the events belong to.
- * @param events - exclusively owned decoded events; validated in place.
- * @param location - the backend's artifact location for refusals, when one exists.
- * @returns the same array, validated and frozen.
- * @throws {SessionFormatUnsupportedError} for unknown event types.
- * @throws {SessionPersistenceCorruptionError} for records that fail validation.
+ * 就地校验一个独占所有的已存储事件数组：接纳每条记录（校验并冻结它），
+ * 并拒绝本构建不认识的任何事件类型，除非其写入者将其标记为
+ * `ignorable: true`——静默跳过一个未知的必需事件可能重建出错误的会话
+ * （即 `SessionEvent.ignorable` 上的信封契约）。未知的必需类型与已退役的
+ * 预发布形态都在此处被拒绝；本校验器不执行任何迁移。
+ * @param meta - 这些事件所属的已存储头部。
+ * @param events - 独占所有的已解码事件；就地校验。
+ * @param location - 后端用于拒绝诊断的制品位置，若存在的话。
+ * @returns 同一个数组，已校验并冻结。
+ * @throws {SessionFormatUnsupportedError} 遇到未知事件类型时抛出。
+ * @throws {SessionPersistenceCorruptionError} 遇到未通过校验的记录时抛出。
  */
 export function validateStoredEvents(
   meta: SessionHeader,
@@ -78,8 +76,8 @@ export function validateStoredEvents(
         location,
       )
     }
-    // The one retired shape hiding under a known type: the removed delta codec's
-    // full-header "fallback" reason. Everything else retired was a whole type.
+    // 藏在已知类型之下的唯一一种已退役形态：被移除的 delta 编解码器的
+    // 全量头部 "fallback" reason。其它已退役的东西都是整个事件类型。
     if (event.type === 'request/header') {
       const data: unknown = event.data
       if (typeof data === 'object' && data !== null
@@ -104,10 +102,10 @@ export function validateStoredEvents(
 }
 
 /**
- * Validate and deep-snapshot a header passed to `create` in one traversal.
- * @param header - the caller's header.
- * @returns the detached lossless-JSON header.
- * @throws {TypeError} for non-JSON metadata or an invalid `createdAt`.
+ * 在一次遍历中校验并深度快照传给 `create` 的头部。
+ * @param header - 调用方提供的头部。
+ * @returns 已分离的无损 JSON 头部。
+ * @throws {TypeError} 遇到非 JSON 元数据或无效的 `createdAt` 时抛出。
  */
 export function materializeCreateHeader(header: SessionHeader): SessionHeader {
   const snapshot = snapshotJsonValue(header)
@@ -121,12 +119,11 @@ export function materializeCreateHeader(header: SessionHeader): SessionHeader {
 }
 
 /**
- * Validate and deep-snapshot one append batch in a single traversal, so the
- * checked value is exactly the value persisted (a check followed by a copy
- * could reread accessors into a different record).
- * @param events - the caller's batch.
- * @returns the detached lossless-JSON batch.
- * @throws {TypeError} when any event data is not losslessly JSON-serializable.
+ * 在一次遍历中校验并深度快照一个追加批次，使被检查的值恰好就是被持久化的值
+ * （先检查再复制可能会把访问器重读成另一条记录）。
+ * @param events - 调用方提供的批次。
+ * @returns 已分离的无损 JSON 批次。
+ * @throws {TypeError} 当任何事件数据无法无损 JSON 序列化时抛出。
  */
 export function materializeAppendBatch(events: readonly SessionEvent[]): readonly SessionEvent[] {
   const batch = snapshotJsonValue(events)
@@ -137,10 +134,10 @@ export function materializeAppendBatch(events: readonly SessionEvent[]): readonl
 }
 
 /**
- * Refuse a batch that does not contiguously continue the stored log.
- * @param id - the session the batch belongs to.
- * @param events - the batch, in seq order.
- * @param cursor - the stored next-seq.
+ * 拒绝未连续延续已存储日志的批次。
+ * @param id - 该批次所属的会话。
+ * @param events - 按 seq 排序的批次。
+ * @param cursor - 已存储的 next-seq。
  */
 export function assertContiguous(id: SessionId, events: readonly SessionEvent[], cursor: number): void {
   for (const [index, event] of events.entries()) {

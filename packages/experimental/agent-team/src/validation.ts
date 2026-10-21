@@ -1,13 +1,13 @@
-/** Input normalization shared by Team roster and task commands. */
+/** 由 Team 花名册与任务命令共享的输入归一化。 */
 
 import { TeamError } from './error.ts'
 
 /**
- * Normalize one required human-authored string.
- * @param value - raw input value.
- * @param field - diagnostic field name.
- * @param maxLength - maximum normalized character count.
- * @returns trimmed non-empty text.
+ * 归一化一个必需的、人工撰写的字符串。
+ * @param value - 原始输入值。
+ * @param field - 用于诊断的字段名。
+ * @param maxLength - 归一化后的最大字符数。
+ * @returns 已去除首尾空白的非空文本。
  */
 export function requiredText(value: string, field: string, maxLength: number): string {
   const text = value.trim()
@@ -19,9 +19,9 @@ export function requiredText(value: string, field: string, maxLength: number): s
 }
 
 /**
- * Normalize one workspace-relative path prefix without treating it as a lock.
- * @param value - user-authored path prefix.
- * @returns normalized slash-separated prefix.
+ * 归一化一个相对于工作区的路径前缀，且不将其视为锁。
+ * @param value - 用户撰写的路径前缀。
+ * @returns 归一化后的、以斜杠分隔的前缀。
  */
 export function writeScope(value: string): string {
   const normalized = value.replaceAll('\\', '/').replace(/^\.\//u, '').replace(/\/+$/u, '')

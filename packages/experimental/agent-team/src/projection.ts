@@ -1,4 +1,4 @@
-/** Team state projected incrementally from committed Session events, with a durable-only client view. */
+/** 从已提交的 Session 事件增量投影出的 Team 状态，外加一个仅持久的客户端视图。 */
 
 import { z } from 'zod'
 import { brandString } from '@deepseek-ai/dsh-brand'
@@ -44,8 +44,8 @@ const imageAttachmentSchema = z.object({
   name: z.string().optional(),
 }).strict()
 
-// Validate the listed variants; retired tool-result tags cannot enter the
-// merge-extensible fallback for JSON-decoded plugin content.
+// 校验所列出的变体；已退役的 tool-result 标签不能进入 JSON 解码后插件内容的
+// 可合并扩展回退分支。
 const contentBlockSchema: z.ZodType<ContentBlock> = z.lazy(() => z.union([
   z.object({ type: z.literal('text'), text: z.string() }).strict(),
   z.object({ type: z.literal('reasoning'), text: z.string() }).strict(),
@@ -56,7 +56,7 @@ const contentBlockSchema: z.ZodType<ContentBlock> = z.lazy(() => z.union([
     name: z.string(),
     arguments: z.string(),
   }).strict(),
-  // Keep unknown JSON objects by reference; loose-object parsing drops their own __proto__ keys.
+  // 按引用保留未知的 JSON 对象；宽松的对象解析会丢弃它们自身的 __proto__ 键。
   z.custom<ContentBlock>((value) => {
     if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
     const type = (value as { type?: unknown }).type
@@ -124,9 +124,9 @@ const teamMessageDeliveredEventSchema = z.object({
 }).strict() as z.ZodType<SessionEventMap['team/message/delivered']>
 
 /**
- * Current Team state selected by durable Team identity. Every applied Team
- * event produces a new state object and replaces only the collection it
- * touched; untouched collections keep their references.
+ * 由持久的 Team 身份选定的、当前的 Team 状态。每一次被应用的 Team
+ * 事件都会产生一个新的状态对象，并且只替换它触及的那个集合；
+ * 未被触及的集合保留其引用。
  */
 export interface TeamState {
   readonly id: TeamId
@@ -138,9 +138,9 @@ export interface TeamState {
 }
 
 /**
- * Construct empty state for one Team identity.
- * @param rootId - root Session identity.
- * @returns empty Team state.
+ * 为某个 Team 身份构造空状态。
+ * @param rootId - root Session 身份。
+ * @returns 空的 Team 状态。
  */
 export function emptyTeamState(rootId: SessionId): TeamProjectionState {
   return {
@@ -153,7 +153,7 @@ export function emptyTeamState(rootId: SessionId): TeamProjectionState {
   }
 }
 
-/** Checkpoint-safe state for the Team owned by the projected Session. */
+/** 由被投影 Session 拥有的 Team 的、检查点安全状态。 */
 export interface TeamProjectionState extends TeamState {
   readonly failure?: string
 }
@@ -174,20 +174,20 @@ const teamProjectionEntrySchema = z.object({
   failure: z.string().optional(),
 }).strict() as z.ZodType<TeamProjectionState>
 
-/** Whether one event belongs to the Team domain. */
+/** 某个事件是否属于 Team 领域。 */
 export type TeamEventType =
   | 'team/member'
   | 'team/task'
   | 'team/message/queued'
   | 'team/message/delivered'
 
-/** One event owned by the Team domain. */
+/** 由 Team 领域拥有的一条事件。 */
 type TeamSessionEvent = SessionEvent<TeamEventType>
 
 /**
- * Test whether a Session event belongs to the Team domain.
- * @param event - candidate Session event.
- * @returns whether the event has a Team-owned type.
+ * 测试某个 Session 事件是否属于 Team 领域。
+ * @param event - 候选的 Session 事件。
+ * @returns 该事件是否拥有一个 Team 拥有的类型。
  */
 export function isTeamEvent(event: SessionEvent): event is TeamSessionEvent {
   return event.type === 'team/member'
@@ -196,7 +196,7 @@ export function isTeamEvent(event: SessionEvent): event is TeamSessionEvent {
     || event.type === 'team/message/delivered'
 }
 
-/** Decode one persisted Team value and retain the schema failure as its cause. */
+/** 解码一份持久化的 Team 取值，并将模式校验失败保留为其 cause。 */
 function parsePersisted<T>(type: TeamEventType, schema: z.ZodType<T>, value: unknown): T {
   try {
     return schema.parse(value)
@@ -205,7 +205,7 @@ function parsePersisted<T>(type: TeamEventType, schema: z.ZodType<T>, value: unk
   }
 }
 
-/** Decode the complete current-version payload selected by one Team event type. */
+/** 解码由某个 Team 事件类型选定的、完整当前版本的载荷。 */
 function parseCurrentTeamEvent(event: TeamSessionEvent): TeamSessionEvent {
   switch (event.type) {
     case 'team/member':
@@ -216,7 +216,7 @@ function parseCurrentTeamEvent(event: TeamSessionEvent): TeamSessionEvent {
       return { ...event, data: parsePersisted(event.type, teamMessageQueuedEventSchema, event.data) }
     case 'team/message/delivered':
       return { ...event, data: parsePersisted(event.type, teamMessageDeliveredEventSchema, event.data) }
-    /* v8 ignore next 2 -- TeamEventType is closed and every member is handled above. */
+    /* v8 ignore next 2 -- TeamEventType 是封闭的，且上述已处理其每个成员。 */
     default:
       return event
   }
@@ -233,7 +233,7 @@ function applyProjectionEvent(state: TeamProjectionState, event: SessionEvent): 
     }
     return applyCurrentTeamEvent(state, parseCurrentTeamEvent(event))
   } catch (error: unknown) {
-    /* v8 ignore next -- the owned Team transition throws Error instances. */
+    /* v8 ignore next -- 自身拥有的 Team 迁移会抛出 Error 实例。 */
     return { ...state, failure: error instanceof Error ? error.message : String(error) }
   }
 }
@@ -336,7 +336,7 @@ const teamProjectionSchema = z.object({
   failure: z.string().optional(),
 }).strict() as z.ZodType<TeamProjection>
 
-/** Client views keyed by the member and task collections they were derived from. */
+/** 以派生出它们的成员与任务集合为键的客户端视图。 */
 const teamProjectionViews = new WeakMap<readonly TeamMemberSnapshot[], WeakMap<readonly TeamTaskSnapshot[], TeamProjection>>()
 
 function buildTeamProjection(state: TeamProjectionState): TeamProjection {
@@ -361,12 +361,11 @@ function buildTeamProjection(state: TeamProjectionState): TeamProjection {
 }
 
 /**
- * Durable client view of one Team state. Mailbox-only state changes reuse the
- * previous view reference, so the live drive publishes nothing for them.
- * A failure is terminal: later events retain the failed state reference and
- * do not republish its view.
- * @param state - current Team state.
- * @returns the roster and non-deleted task board, plus any projection failure.
+ * 一份 Team 状态的、持久的客户端视图。仅邮箱的状态变化会复用先前的视图引用，
+ * 因此实时驱动不会为它们发布任何内容。一次失败是终态的：后续事件保留失败状态的
+ * 引用，且不会重新发布它的视图。
+ * @param state - 当前的 Team 状态。
+ * @returns 花名册与未删除的任务看板，以及任何投影失败。
  */
 export function teamProjectionView(state: TeamProjectionState): TeamProjection {
   if (state.failure !== undefined) return buildTeamProjection(state)
@@ -383,7 +382,7 @@ export function teamProjectionView(state: TeamProjectionState): TeamProjection {
   return view
 }
 
-/** Team projection selected by the projected Session identity; the wire view carries durable roster and task state only. */
+/** 由被投影 Session 身份选定的 Team 投影；线路视图仅携带持久化的花名册与任务状态。 */
 export const teamProjectionDefinition = {
   key: 'agentTeam',
   stateVersion: 4,

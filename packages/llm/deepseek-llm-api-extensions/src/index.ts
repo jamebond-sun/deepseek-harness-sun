@@ -1,6 +1,6 @@
 /**
- * DeepSeek LLM API extension registry: plugins own independent top-level request
- * fields while the official adapter performs one preparation and acceptance transaction.
+ * DeepSeek LLM API 扩展注册表：各插件独立持有顶层请求字段，官方适配器执行一次
+ * 准备与接受事务。
  * @module @deepseek-ai/dsh-deepseek-llm-api-extensions
  */
 
@@ -28,7 +28,7 @@ interface ErasedProvider {
     | Promise<{ readonly value: DeepSeekLlmApiJson; accept?(): void | Promise<void> } | undefined>
 }
 
-/** Recursively freeze a fresh structured clone. */
+/** 递归冻结一份全新的结构化克隆。 */
 function freezeJson<T extends DeepSeekLlmApiJson>(value: T): T {
   if (value !== null && typeof value === 'object') {
     for (const child of Array.isArray(value) ? value : Object.values(value)) freezeJson(child)
@@ -37,7 +37,7 @@ function freezeJson<T extends DeepSeekLlmApiJson>(value: T): T {
   return value
 }
 
-/** Settle every acceptance callback before reporting failures. */
+/** 在报告失败之前先让所有接受回调落定。 */
 async function acceptAll(callbacks: readonly (() => void | Promise<void>)[]): Promise<void> {
   const outcomes = await Promise.allSettled(callbacks.map(callback => Promise.resolve().then(callback)))
   const failures: unknown[] = outcomes
@@ -47,7 +47,7 @@ async function acceptAll(callbacks: readonly (() => void | Promise<void>)[]): Pr
   if (failures.length > 1) throw new AggregateError(failures, 'DeepSeek LLM API extension acceptance failed')
 }
 
-/** Stop awaiting provider work when the containing model request is cancelled. */
+/** 当所在的模型请求被取消时，停止等待提供方的工作。 */
 async function abortable<T>(work: Promise<T>, signal: AbortSignal): Promise<T> {
   signal.throwIfAborted()
   const aborted = Promise.withResolvers<never>()
@@ -62,10 +62,10 @@ async function abortable<T>(work: Promise<T>, signal: AbortSignal): Promise<T> {
   }
 }
 
-/** Registry of independently owned top-level fields for official DeepSeek requests. */
+/** 官方 DeepSeek 请求中各自独立持有的顶层字段的注册表。 */
 export class DeepSeekLlmApiExtensionRegistry extends Service {
   private readonly providers = new Map<string, ErasedProvider>()
-  /** Fields whose preparation failure was already logged; later failures stay silent. */
+  /** 准备阶段已经告警过的字段；之后的失败保持静默。 */
   private readonly warnedFields = new Set<string>()
 
   constructor(ctx: Context) {
@@ -73,10 +73,10 @@ export class DeepSeekLlmApiExtensionRegistry extends Service {
   }
 
   /**
-   * Register the sole provider of one top-level request field. Registration is effect-scoped.
-   * @param field - declaration-merged field owned by the provider.
-   * @param provider - request-time field preparation and optional acceptance behavior.
-   * @returns disposer that releases the field.
+   * 注册某个顶层请求字段的唯一提供方。注册受 effect 作用域约束。
+   * @param field - 由提供方声明合并持有的字段。
+   * @param provider - 请求时的字段准备行为，以及可选的接受行为。
+   * @returns 释放该字段的 disposer。
    */
   register<K extends keyof DeepSeekLlmApiExtensionMap>(
     field: K,
@@ -101,12 +101,12 @@ export class DeepSeekLlmApiExtensionRegistry extends Service {
   }
 
   /**
-   * Prepare every currently registered field from one immutable base request.
-   * A provider whose preparation throws, or whose value cannot be cloned, is omitted
-   * from this request; the first such failure per field is logged. Only cancellation rejects. Field values are cloned
-   * and frozen; providers retain no mutable alias to the outgoing request.
-   * @param request - exact serialized request facts before extension fields.
-   * @returns detached fields and their idempotent joint acceptance transaction.
+   * 基于同一个不可变的基础请求，准备当前已注册的全部字段。
+   * 准备过程抛错、或其值无法克隆的提供方，会从本次请求中省略；每个字段的首次
+   * 此类失败会被记录日志。只有取消会导致 reject。字段值会被克隆并冻结；
+   * 提供方不会持有指向外发请求的可变别名。
+   * @param request - 附加扩展字段之前的、精确的序列化请求事实。
+   * @returns 已分离的字段，以及它们幂等的联合接受事务。
    */
   async prepare(request: DeepSeekLlmApiExtensionRequest): Promise<PreparedDeepSeekLlmApiExtensions> {
     request.signal.throwIfAborted()

@@ -1,7 +1,6 @@
 /**
- * Wire-safe approval identifiers and outcome vocabulary, free of
- * cordis/service imports so browser type chains can
- * consume them without loading this package's Context augmentation.
+ * 与传输格式无关的审批标识符与结果词汇表，不含 cordis/service 依赖，因此浏览器侧的
+ * 类型链条无需加载本包的 Context 增强即可使用它们。
  * @module @deepseek-ai/dsh-user-approval/types
  */
 
@@ -11,35 +10,34 @@ import type { Agent } from '@deepseek-ai/dsh-agent/types'
 import type { ToolCallId } from '@deepseek-ai/dsh-llm/brand'
 
 /**
- * Pairs one `approval/asked` audit event with its `approval/decided`.
- * Service-issued (one fresh id per {@link ApprovalService.request} call).
+ * 把一条 `approval/asked` 审计事件与它的 `approval/decided` 配对。
+ * 由服务签发（每次 {@link ApprovalService.request} 调用铸造一个新 id）。
  */
 export type ApprovalRequestId = Branded<'ApprovalRequestId'>
 
 /**
- * Brand a string as an {@link ApprovalRequestId}.
- * @param id - the raw id string to brand.
- * @returns the same string carrying the brand.
+ * 给字符串标上 {@link ApprovalRequestId} brand。
+ * @param id - 要打 brand 的原始 id 字符串。
+ * @returns 带上该 brand 的原字符串。
  */
 export function ApprovalRequestId(id: string): ApprovalRequestId {
   return id as ApprovalRequestId
 }
 
 /**
- * Closed approval outcomes: a one-shot grant, explicit rejection, withdrawn
- * request, or unavailable answerer. Callers fail closed on `unavailable`.
+ * 封闭的审批结果集合：一次性放行、明确拒绝、请求被撤回，或没有可用的回答方。
+ * 调用方在遇到 `unavailable` 时按失败关闭处理。
  */
 export type ApprovalOutcome = 'allowed-once' | 'rejected' | 'cancelled' | 'unavailable'
 
 declare module '@deepseek-ai/dsh-session/types' {
   interface SessionEventMap {
     /**
-     * An approval question was put to the answerer chain — log-only audit
-     * (like `hook/*`; NOT a surface event, carries no `surfaceOp`). `id` pairs
-     * it with the `approval/decided` that always follows; `toolName` is the
-     * tool the question is about, `callId` the exact tool call when the asker
-     * had one, `reason` the asker's human-readable explanation (e.g. a hook's
-     * permission-decision reason).
+     * 有一个审批问题被交给回答方链 —— 仅落日志的审计事件（与 `hook/*` 类似；
+     * 不是可见面事件，不携带 `surfaceOp`）。`id` 把它与必定紧随其后的
+     * `approval/decided` 配对；`toolName` 是该问题所针对的工具，`callId` 是提问方
+     * 持有时的那个精确工具调用，`reason` 是提问方给出的、给人看的解释
+     * （例如某个 hook 的权限判定理由）。
      */
     'approval/asked': {
       id: ApprovalRequestId
@@ -48,9 +46,9 @@ declare module '@deepseek-ai/dsh-session/types' {
       reason?: string
     }
     /**
-     * The outcome of a prior `approval/asked` (same `id`) — log-only audit.
-     * Exactly one per ask, appended when the outcome is known: a decision, a
-     * cancellation, or the fail-closed `'unavailable'`.
+     * 此前某条 `approval/asked`（同一个 `id`）的结果 —— 仅落日志的审计事件。
+     * 每次提问恰好有一条，在结果已知时追加：一个决策、一次取消，或者失败关闭的
+     * `'unavailable'`。
      */
     'approval/decided': {
       id: ApprovalRequestId
@@ -59,29 +57,29 @@ declare module '@deepseek-ai/dsh-session/types' {
   }
 }
 
-/** Client-safe payload declared for the approval answerer waterfall. */
+/** 为审批回答方 waterfall 声明的、Client 安全的载荷。 */
 export interface ApprovalRequestEvent {
-  /** Agent identity projected to the corresponding Client Context in transit. */
+  /** 在传输过程中被投影到对应 Client Context 的 agent 身份。 */
   readonly agent: Agent
-  /** Tool whose operation requires a decision. */
+  /** 其操作需要被裁决的工具。 */
   readonly toolName: string
-  /** Exact tool call being decided, when available. */
+  /** 正在被裁决的那个精确工具调用，若存在的话。 */
   readonly callId?: ToolCallId
-  /** Human-readable reason supplied by the asker. */
+  /** 提问方给出的人类可读理由。 */
   readonly reason?: string
-  /** Localized presentation only; never persisted in approval audit events. */
+  /** 仅用于本地化呈现；永不持久化到审批审计事件里。 */
   readonly displayReason?: { readonly en: string; readonly [locale: string]: string }
-  /** Cancellation lifetime of the pending request. */
+  /** 该待处理请求的取消生命周期。 */
   readonly signal?: AbortSignal
 }
 
 declare module '@deepseek-ai/cordis' {
   interface Events {
     /**
-     * Ask composed answerers for one decision. Return an outcome to claim the
-     * request or call `next()` to delegate. Scope-filtered dispatch
-     * (`@deepseek-ai/dsh-scope`): agent-scoped listeners receive only that agent.
-     * @param req - pending approval request.
+     * 请各已组合的回答方给出一个裁决。返回一个结果即认领该请求，调用 `next()`
+     * 即向下委派。作用域过滤分派（`@deepseek-ai/dsh-scope`）：agent 作用域的监听器
+     * 只收到该 agent 的请求。
+     * @param req - 待处理的审批请求。
      * @mode waterfall
      */
     'approval/request'(

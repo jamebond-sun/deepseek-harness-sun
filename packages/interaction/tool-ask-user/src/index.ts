@@ -1,7 +1,7 @@
 /**
- * Model-facing Consumer of the `ctx.userQuestions` capability seam.
- * The tool pauses until a UI provider returns a human answer, then feeds that
- * answer back into the agent loop as an ordinary tool result.
+ * `ctx.userQuestions` 能力接缝上面向模型的 Consumer。
+ * 该工具会暂停，直到某个 UI 提供者返回人类的答复，然后把该答复作为一条
+ * 普通的工具结果送回 agent 循环。
  *
  * @module @deepseek-ai/dsh-tool-ask-user
  */
@@ -12,11 +12,11 @@ import z from '@deepseek-ai/schemastery'
 import { registerTimedAskUser } from './timed.ts'
 import '@deepseek-ai/dsh-user-questions'
 
-/** Cordis row selecting the tool schema and its default foreground wait. */
+/** 选择工具 schema 及其默认前台等待时长的 Cordis 行。 */
 export interface Config {
-  /** Tool definition selected by this Cordis row. Defaults to the blocking legacy tool. */
+  /** 本 Cordis 行选定的工具定义。默认为阻塞式的 legacy 工具。 */
   mode?: 'legacy' | 'timed'
-  /** Foreground wait before automatic continuation. Defaults to 120 seconds. */
+  /** 自动继续之前的前台等待时长。默认为 120 秒。 */
   timeout?: number
 }
 

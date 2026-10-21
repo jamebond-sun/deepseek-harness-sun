@@ -1,9 +1,8 @@
 /**
- * The `$` a hook receives. Each method shapes its arguments into the mods API
- * event of the same name and hands it to the binding's `invoke`, which runs
- * the mods loaded before this one and then the engine's implementation. The
- * hook's running-time clock pauses while a call is awaited, except for
- * `$.clock.sleep`, which Claude Code counts as the hook's own time.
+ * 某个钩子所收到的 `$`。每个方法把它的参数塑造成同名的 mods API
+ * 事件，并交给绑定的 `invoke`，后者会先运行在本 mod 之前加载的 mods，
+ * 再运行引擎的实现。该钩子运行时间的时钟在一次调用被 await 期间暂停，
+ * 但 `$.clock.sleep` 除外，Claude Code 将其算作该钩子自身的时间。
  * @module
  */
 
@@ -16,31 +15,31 @@ import type {
   StateRef, ModTimer, ToastOptions, ToolCallResult, ToolInfo, ToolSpec, UiLogOptions,
 } from './types.ts'
 
-/** Timers the engine owns on a mod's behalf, so disposal and reload can cancel them. */
+/** 引擎代表某个 mod 所拥有的定时器，以便处置与重新加载时能够取消它们。 */
 export interface TimerHost {
   after(ms: number, fn: () => unknown): ModTimer
   every(ms: number, fn: () => unknown): ModTimer
 }
 
-/** What one `$` instance is bound to. */
+/** 某一个 `$` 实例所绑定到的内容。 */
 export interface ApiBinding {
   readonly mod: LoadedMod
-  /** The running hook's clock, paused while mods API calls are awaited; absent outside a hook. */
+  /** 运行中的钩子的时钟，在 mods API 调用被 await 期间暂停；在钩子之外时缺失。 */
   readonly clock: BudgetClock | undefined
   /**
-   * Raise one mods API call as its event and resolve to the value the chain
-   * answered with; a `{ deny }` answer rejects with the reason.
+   * 将一次 mods API 调用作为同名事件抛出，并解析为链所应答的值；
+   * 一次 `{ deny }` 应答会以该理由拒却。
    */
   readonly invoke: (op: string, input: unknown) => Promise<unknown>
   readonly timers: TimerHost
-  /** Receives a rejected fire-and-forget call's reason. */
+  /** 接收一次“触发即忘”调用被拒却时的理由。 */
   readonly report: (line: string) => void
 }
 
 /**
- * Build the `$` for one hook invocation.
- * @param binding - the mod, clock, and engine entry points this instance uses.
- * @returns the mods API.
+ * 为一次钩子调用构建 `$`。
+ * @param binding - 本实例所用的 mod、时钟，以及引擎入口点。
+ * @returns mods API。
  */
 export function createModsApi(binding: ApiBinding): ModsApi {
   const { mod, clock, timers } = binding
@@ -60,7 +59,7 @@ export function createModsApi(binding: ApiBinding): ModsApi {
     })
   }
 
-  // Not frozen: the proxy below returns a wrapped namespace, which a frozen target's invariant would forbid.
+  // 未被冻结：下面的代理会返回一个被包装的命名空间，而冻结目标的不变式会禁止这一点。
   const served: ModsApi = {
     plugin: Object.freeze({ name: mod.name, root: mod.root }),
     ui: Object.freeze({
@@ -144,7 +143,7 @@ export function createModsApi(binding: ApiBinding): ModsApi {
     }),
     clock: Object.freeze({
       now: (): Promise<number> => call('clock.now', {}),
-      // Counted as the hook's own time, so the clock is not paused.
+      // 被算作该钩子自身的时间，因此时钟不会暂停。
       sleep: (ms: number): Promise<void> => binding.invoke('clock.sleep', { ms }) as Promise<void>,
       after: (ms: number, fn: () => unknown): ModTimer => timers.after(ms, fn),
       every: (ms: number, fn: () => unknown): ModTimer => timers.every(ms, fn),
@@ -174,20 +173,19 @@ export function createModsApi(binding: ApiBinding): ModsApi {
   return withUnservedMembers(served, mod.name)
 }
 
-/** The method namespaces Claude Code's `$` has; `plugin` holds facts, not methods, and stays as served. */
+/** Claude Code 的 `$` 所具有的各个方法命名空间；`plugin` 持有事实而非方法，因此保持原样提供。 */
 const METHOD_NAMESPACES: ReadonlySet<string> = new Set([
   'ui', 'command', 'tool', 'prompt', 'session', 'state', 'store', 'clock', 'fs', 'process', 'http', 'env',
   'model', 'agent', 'config', 'settings', 'mcp', 'audio', 'telemetry', 'turn',
 ])
 
 /**
- * Give `$` Claude Code's full namespace set: a served member is itself; any
- * other member of a method namespace is a function whose call rejects with
- * `no implementation for <namespace>.<member>`, so a mod that reaches past
- * this host fails with the gap named, not with a TypeError.
- * @param served - the frozen object of served namespaces.
- * @param modName - the mod the `$` belongs to, for the rejection text.
- * @returns the `$` a hook receives.
+ * 赋予 `$` 以 Claude Code 完整的命名空间集合：已提供的成员即其自身；方法命名空间下的
+ * 任何其他成员都是一个函数，其调用会以 `no implementation for <namespace>.<member>`
+ * 拒却，因此一个越过了本宿主的 mod 会以被点名的缺口失败，而非抛出一个 TypeError。
+ * @param served - 已提供命名空间的、被冻结的对象。
+ * @param modName - 该 `$` 所隶属的 mod，用于拒却文本。
+ * @returns 某个钩子所收到的 `$`。
  */
 function withUnservedMembers(served: ModsApi, modName: string): ModsApi {
   const namespaces = new Map<string, object>()
@@ -211,7 +209,7 @@ function withUnservedMembers(served: ModsApi, modName: string): ModsApi {
       if (typeof namespace !== 'string' || !METHOD_NAMESPACES.has(namespace)) return own
       return namespaceOf(namespace, typeof own === 'object' && own !== null ? own : Object.freeze({}))
     },
-    // `$` is read-only, as the frozen object was.
+    // `$` 是只读的，正如被冻结的对象那样。
     set: () => false,
     defineProperty: () => false,
     deleteProperty: () => false,

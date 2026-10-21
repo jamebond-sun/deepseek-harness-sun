@@ -1,27 +1,21 @@
 /**
- * The open-in-app application catalog: a compile-time table of launchable
- * applications, each declaring per-platform launcher sources tried in order.
- * The table is data only — platform resolution lives in `resolver.ts`, icon
- * extraction in `icons.ts`. A platform with no declared entries resolves as
- * an empty catalog.
+ * open-in-app 应用程序目录：一张编译期的可启动应用表，每个应用按平台声明按顺序尝试的
+ * 启动器来源。该表只是数据——平台解析在 `resolver.ts`，图标提取在 `icons.ts`。某个平台
+ * 若没有声明任何条目，则解析为空目录。
  */
 
-/** Platforms the catalog declares entries for; any other host resolves as empty. */
+/** 目录为其声明条目的平台；其他宿主一律解析为空。 */
 export type OpenInAppPlatform = 'darwin' | 'win32' | 'linux'
 
-/** Launch-args token carrying the workspace directory (`--cd={path}`). */
+/** 承载工作区目录的启动参数占位符（`--cd={path}`）。 */
 export const PATH_TOKEN = '{path}'
 
 /**
- * How a resolved application takes the workspace directory. `argv` spawns the
- * launcher detached with the directory substituted into (or appended to) its
- * argv. Its optional environment entries overlay the credential-scrubbed
- * parent environment; `windowsHide` is reserved for CLI adapters whose child
- * process opens the visible GUI. `shell-open` hands the directory to the
- * operating system shell's open verb through `dsh-native-command`'s path
- * opener — the channel the file managers use, because they are the OS default
- * for a directory and a direct `explorer.exe <dir>` spawn does not reliably
- * raise a window.
+ * 已解析的应用程序如何接收工作区目录。`argv` 以分离方式派生启动器，并把目录代入（或追加
+ * 到）其 argv。其可选的环境条目会覆盖在已剔除凭据的父环境之上；`windowsHide` 保留给那些
+ * 子进程会打开可见 GUI 的 CLI 适配器。`shell-open` 则通过 `dsh-native-command` 的路径
+ * 打开器把目录交给操作系统 shell 的 open 动作——也就是文件管理器使用的通道，因为它们是
+ * 操作系统对目录的默认处理方式，而直接派生 `explorer.exe <dir>` 并不总能可靠地唤起窗口。
  */
 export type OpenInAppLaunch =
   | {
@@ -34,26 +28,22 @@ export type OpenInAppLaunch =
   | { readonly kind: 'shell-open' }
 
 /**
- * How one platform derives a verified launcher. Every kind resolves to an
- * artifact this host actually holds — an existing `.app` bundle, an
- * executable on disk, or a PATH resolution — never a bare install record:
- * `fixed` ships with the OS; `app` checks the known `.app` directories
- * (`/Applications`, `~/Applications`) for the named bundles; `xcode` follows
- * `xcode-select -p` so Beta or renamed installs are found; `cli` resolves a
- * PATH name in-process through the subprocess capability (PATH/PATHEXT stat,
- * no shell, no `which`); `file` takes the first existing expanded candidate;
- * `scan` picks the newest matching versioned install directory (JetBrains on
- * Windows); `app-paths` reads the Windows `App Paths` registry keys;
- * `install-record` reads the Windows Uninstall records and verifies the
- * executable they point at; `github-desktop` resolves GitHub Desktop's
- * versioned executable and packaged CLI together; `desktop` reads a Linux XDG
- * desktop entry and verifies its `TryExec`/`Exec` executable.
+ * 某个平台如何推导出一个经过校验的启动器。每种类型都解析为本宿主真实持有的产物——一个
+ * 存在的 `.app` bundle、磁盘上的一个可执行文件，或一次 PATH 解析——绝不只是一个安装记录：
+ * `fixed` 随操作系统一起提供；`app` 在已知的 `.app` 目录（`/Applications`、
+ * `~/Applications`）中查找命名过的 bundle；`xcode` 跟随 `xcode-select -p`，因此能找到
+ * Beta 版或改名过的安装；`cli` 通过 subprocess 能力在进程内解析一个 PATH 名字（PATH/PATHEXT
+ * stat，不经 shell，也不用 `which`）；`file` 取第一个存在的展开候选；`scan` 选取最新匹配
+ * 的带版本安装目录（Windows 上的 JetBrains）；`app-paths` 读取 Windows 的 `App Paths`
+ * 注册表键；`install-record` 读取 Windows 的卸载记录并校验它们指向的可执行文件；
+ * `github-desktop` 同时解析 GitHub Desktop 的带版本可执行文件与其打包的 CLI；`desktop`
+ * 读取 Linux XDG desktop entry 并校验其 `TryExec`/`Exec` 可执行文件。
  */
 export type OpenInAppLocator =
   | {
     readonly kind: 'fixed'
     readonly launch: OpenInAppLaunch
-    /** Icon source template (`.app` directory on macOS, executable on Windows). */
+    /** 图标来源模板（macOS 上的 `.app` 目录，Windows 上的可执行文件）。 */
     readonly iconPath: string
   }
   | { readonly kind: 'app'; readonly fsNames: readonly string[] }
@@ -62,7 +52,7 @@ export type OpenInAppLocator =
     readonly kind: 'cli'
     readonly name: string
     readonly args: readonly string[]
-    /** Require a desktop session before offering this native GUI launcher. */
+    /** 在提供这个原生 GUI 启动器之前要求存在桌面会话。 */
     readonly requiresDesktop?: boolean | undefined
   }
   | { readonly kind: 'file'; readonly candidates: readonly string[]; readonly args: readonly string[] }
@@ -77,76 +67,74 @@ export type OpenInAppLocator =
   | {
     readonly kind: 'install-record'
     readonly displayNamePrefix: string
-    /** Launcher under the record's `InstallLocation`; absent means the record's `DisplayIcon` executable. */
+    /** 位于记录 `InstallLocation` 之下的启动器；缺省表示使用该记录的 `DisplayIcon` 可执行文件。 */
     readonly relativeLauncher?: string | undefined
     readonly args: readonly string[]
   }
   | { readonly kind: 'github-desktop'; readonly root: string }
   | { readonly kind: 'desktop'; readonly desktopId: string; readonly args: readonly string[] }
 
-/** One platform's launcher sources and, on Linux, its icon-owning desktop entry. */
+/** 某个平台的启动器来源，以及在 Linux 上拥有其图标的 desktop entry。 */
 export interface OpenInAppPlatformSpec {
-  /** Tried in order; the first locator that yields a verified launcher wins. */
+  /** 按顺序尝试；第一个产出已校验启动器的定位器胜出。 */
   readonly locators: readonly OpenInAppLocator[]
   /**
-   * XDG desktop-entry id whose `Icon=` key names this application's icon
-   * (Linux specs only; macOS icons come from the resolved bundle, Windows
-   * icons from the resolved executable).
+   * 其 `Icon=` 键命名了本应用图标的 XDG desktop-entry id（仅 Linux 规格；macOS 的图标来自
+   * 已解析的 bundle，Windows 的图标来自已解析的可执行文件）。
    */
   readonly desktopId?: string
 }
 
-/** One launchable application and the platforms that can offer it. */
+/** 一个可启动的应用程序以及能够提供它的各个平台。 */
 export interface OpenInAppApp {
   readonly id: string
   readonly platforms: Readonly<Partial<Record<OpenInAppPlatform, OpenInAppPlatformSpec>>>
 }
 
-/** macOS spec checking the known application directories for the named bundles. */
+/** 在已知应用目录中查找命名 bundle 的 macOS 规格。 */
 function macApp(...fsNames: string[]): OpenInAppPlatformSpec {
   return { locators: [{ kind: 'app', fsNames }] }
 }
 
-/** Iconless spec from its locator chain. */
+/** 由其定位器链构成的无图标规格。 */
 function spec(...locators: OpenInAppLocator[]): OpenInAppPlatformSpec {
   return { locators }
 }
 
-/** Spec from its locator chain plus the Linux desktop entry owning its icon. */
+/** 由其定位器链加上持有其图标的 Linux desktop entry 构成的规格。 */
 function desktopSpec(desktopId: string, ...locators: OpenInAppLocator[]): OpenInAppPlatformSpec {
   return { locators, desktopId }
 }
 
-/** In-process PATH-name locator launching the resolved executable. */
+/** 启动已解析可执行文件的进程内 PATH 名字定位器。 */
 function cli(name: string, ...args: string[]): OpenInAppLocator {
   return { kind: 'cli', name, args }
 }
 
-/** In-process PATH-name locator that is meaningful only with a desktop session. */
+/** 仅在存在桌面会话时才有意义的进程内 PATH 名字定位器。 */
 function desktopCli(name: string, ...args: string[]): OpenInAppLocator {
   return { kind: 'cli', name, args, requiresDesktop: true }
 }
 
-/** First-existing-file locator launching the matched candidate. */
+/** 启动所匹配候选的第一个存在文件定位器。 */
 function file(candidates: string[], ...args: string[]): OpenInAppLocator {
   return { kind: 'file', candidates, args }
 }
 
-/** Windows `App Paths` registry locator for one registered executable name. */
+/** 针对某个已注册可执行文件名的 Windows `App Paths` 注册表定位器。 */
 function appPaths(exe: string, ...args: string[]): OpenInAppLocator {
   return { kind: 'app-paths', exe, args }
 }
 
-/** Windows Uninstall-record locator verified through the executable it points at. */
+/** 通过其所指向的可执行文件来校验的 Windows 卸载记录定位器。 */
 function installRecord(displayNamePrefix: string, relativeLauncher?: string, ...args: string[]): OpenInAppLocator {
   return { kind: 'install-record', displayNamePrefix, relativeLauncher, args }
 }
 
 /**
- * JetBrains product entry: known bundle names on macOS (direct-download and
- * Toolbox spellings), the newest versioned `%ProgramFiles%\JetBrains` install
- * or a verified Uninstall record on Windows, PATH command or Toolbox shell
- * script on Linux.
+ * JetBrains 产品条目：macOS 上为已知的 bundle 名（直接下载版与 Toolbox 版的写法），
+ * Windows 上为最新的带版本 `%ProgramFiles%\JetBrains` 安装或一条已校验的卸载记录，
+ * Linux 上为 PATH 命令或 Toolbox shell 脚本。
  */
 function jetBrains(
   id: string, productName: string, cliName: string, winExe: string, macNames: readonly string[],
@@ -171,12 +159,10 @@ function jetBrains(
 }
 
 /**
- * The launch catalog in menu order: file managers, editors and IDEs, Git
- * GUIs, terminals. Finder, Terminal, and Explorer ship with their operating
- * systems, so their locators always resolve there. macOS bundle names list
- * the common install spellings; a bundle renamed or moved outside
- * `/Applications` and `~/Applications` is not detected (README Known
- * Limitations).
+ * 按菜单顺序排列的启动目录：文件管理器、编辑器与 IDE、Git GUI、终端。Finder、Terminal
+ * 与 Explorer 随各自的操作系统一起提供，因此它们的定位器在这些系统上总是能解析。macOS 的
+ * bundle 名列出了常见的安装写法；被改名或移出 `/Applications` 与 `~/Applications` 的
+ * bundle 不会被检测到（README 已知限制）。
  */
 export const OPEN_IN_APP_CATALOG: readonly OpenInAppApp[] = [
   {
@@ -363,8 +349,8 @@ export const OPEN_IN_APP_CATALOG: readonly OpenInAppApp[] = [
     id: 'gitbash',
     platforms: {
       win32: spec(
-        // Git for Windows registers as "Git version <x.y.z>"; the bare "Git"
-        // prefix would also match "GitHub Desktop".
+        // Git for Windows 注册为 "Git version <x.y.z>"；而裸的 "Git" 前缀也会匹配
+        // "GitHub Desktop"。
         installRecord('Git version', 'git-bash.exe', `--cd=${PATH_TOKEN}`),
         file(['${ProgramFiles}/Git/git-bash.exe'], `--cd=${PATH_TOKEN}`),
       ),

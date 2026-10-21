@@ -1,297 +1,277 @@
 /**
- * Vocabulary for the subprocess Service Definition: fully-specified spawn requests with
- * Node-shaped per-stream stdio modes, bounded collected output with spill
- * recovery, raw piped streams, and managed-range termination. Command
- * defaulting, shell semantics, protocol framing, and presentation belong to
- * consumers such as the bash executor seam.
+ * subprocess 服务定义的术语表：完全指定的启动请求，带有 Node 形态的逐流 stdio
+ * 模式、带溢出恢复的有限收集输出、原始管道流，以及受管范围的终止。命令默认值、
+ * shell 语义、协议分帧与呈现属于消费者（如 bash 执行器这个 seam）。
  * @module dsh-subprocess/types
  */
 
 import type { Duplex, Readable, Writable } from 'node:stream'
 
-/** Namespace prefix reserved for DeepSeek Harness-managed child environment facts. */
+/** 为 DeepSeek Harness 管理的子进程环境事实保留的命名空间前缀。 */
 export const DSH_ENV_PREFIX = 'DSH_' as const
 
-/** One environment key inside the managed {@link DSH_ENV_PREFIX} namespace. */
+/** 受管 {@link DSH_ENV_PREFIX} 命名空间内的一个环境键。 */
 export type DshEnvironmentKey = `${typeof DSH_ENV_PREFIX}${string}`
 
-/** Trusted DeepSeek Harness variables for one child-process execution. */
+/** 供一次子进程执行使用的可信 DeepSeek Harness 变量。 */
 export type DshEnvironment = Readonly<Record<DshEnvironmentKey, string>>
 
-/** One captured stream: the (possibly truncated) text plus recovery info. */
+/** 一条被捕获的流：文本（可能被截断）及恢复信息。 */
 export interface CollectedOutput {
-  /** Collected text — the TAIL of the stream when truncated. */
+  /** 收集到的文本——截断时即流的尾部。 */
   text: string
-  /** True when bytes were dropped from `text`. */
+  /** 当 `text` 中已有字节被丢弃时为 true。 */
   truncated: boolean
-  /** Path to a file holding the COMPLETE stream, when truncated and available. */
+  /** 当发生截断且可用时，保存完整流的文件路径。 */
   spillPath?: string
 }
 
 /**
- * stdin disposition. `'ignore'` leaves fd 0 on `/dev/null`; `'pipe'` exposes
- * {@link SubprocessHandle.stdin} for the caller's ongoing protocol writes;
- * `{ data }` writes the bytes and closes (the batch shape).
+ * stdin 的处理方式。`'ignore'` 将 fd 0 指向 `/dev/null`；`'pipe'` 暴露
+ * {@link SubprocessHandle.stdin} 供调用方持续写入协议数据；
+ * `{ data }` 写入字节后关闭（批量形态）。
  */
 export type SubprocessStdinMode = 'ignore' | 'pipe' | { readonly data: string }
 
 /**
- * Bounded in-memory collection for one output stream, with an optional
- * full-stream spill file. Omitting `spill` keeps only the in-memory tail —
- * the diagnostic-tail shape (a language server's stderr); including it makes
- * the complete stream recoverable up to its cap (the bash tool shape).
+ * 单条输出流的有限内存收集，附可选的完整流溢出文件。省略 `spill` 只保留内存中的
+ * 尾部——即诊断尾部形态（语言服务器的 stderr）；包含它则使完整流可恢复至其上限
+ * （bash 工具形态）。
  */
 export interface SubprocessCollect {
-  /** In-memory cap in bytes; overflow keeps the TAIL. */
+  /** 内存上限（字节）；溢出时保留尾部。 */
   maxBytes: number
-  /** Full-stream spill file; absent disables spilling entirely. */
+  /** 完整流溢出文件；缺省则完全禁用溢出。 */
   spill?: {
-    /** Whole-stream byte cap; a larger stream discards its now-incomplete spill. */
+    /** 整流的字节上限；更大的流会丢弃其现已不完整的溢出文件。 */
     maxBytes: number
   }
 }
 
 /**
- * stdout/stderr disposition. `'pipe'` exposes the raw `Readable` for the
- * caller's protocol decoding; `'inherit'` passes the parent's descriptor
- * through (child diagnostics land on the harness's own stream); a
- * {@link SubprocessCollect} object buffers boundedly with offset-based reads.
+ * stdout/stderr 的处理方式。`'pipe'` 暴露原始 `Readable` 供调用方解码协议；
+ * `'inherit'` 透传父进程的描述符（子进程诊断落到 harness 自身的流上）；
+ * {@link SubprocessCollect} 对象按偏移读取做有限缓冲。
  */
 export type SubprocessOutputMode = 'pipe' | 'inherit' | SubprocessCollect
 
-/** Per-stream stdio dispositions, all explicit — this seam applies no defaults. */
+/** 逐流的 stdio 处理方式，全部显式指定——此 seam 不应用任何默认值。 */
 export interface SubprocessStdio {
   stdin: SubprocessStdinMode
   stdout: SubprocessOutputMode
   stderr: SubprocessOutputMode
-  /** Request a separate byte-mode duplex channel; omission creates none. */
+  /** 请求一条独立的字节模式双工通道；省略则不创建。 */
   control?: 'pipe'
 }
 
 /**
- * A fully-specified spawn request. This seam applies no defaults: every
- * disposition, limit, and directory is explicit, so the caller's own config —
- * not a hidden subprocess-service default — decides them (the `dsh-shell`
- * request/spec split is the owning template).
+ * 一个完全指定的启动请求。此 seam 不应用任何默认值：每一种处理方式、限制与目录
+ * 都是显式的，因此由调用方自身的配置——而非隐藏的 subprocess 服务默认值——来决定
+ * （`dsh-shell` 的 request/spec 拆分是归属模板）。
  */
 export interface SubprocessSpawnSpec {
-  /** Executable and arguments; `argv[0]` is the program. Never shell-interpreted here. */
+  /** 可执行文件及参数；`argv[0]` 为程序名。此处绝不会做 shell 解释。 */
   argv: readonly string[]
-  /** Working directory for the child. */
+  /** 子进程的工作目录。 */
   cwd: string
-  /** Per-stream stdio dispositions. */
+  /** 逐流的 stdio 处理方式。 */
   stdio: SubprocessStdio
   /**
-   * Positive finite grace period in milliseconds, no greater than
-   * `MAX_TIMER_DELAY_MS`, available to the provider's termination procedure
-   * and used for draining still-open collected pipes after the process exits
-   * (an inherited descriptor held by a survivor cannot hold the outcome open
-   * indefinitely). Providers document whether range termination is staged or
-   * immediate.
+   * 正数且有限的宽限期（毫秒），不超过 `MAX_TIMER_DELAY_MS`，供提供方的终止流程
+   * 使用，并在进程退出后用于排空仍打开的收集管道（被幸存者持有的继承描述符不能
+   * 无限期地拖住结果）。各提供方需记录其范围终止是分阶段的还是即时的。
    */
   graceMs: number
   /**
-   * Abort signal — starts the terminate escalation on the managed range when
-   * it fires. The caller owns deadlines and cause classification; this seam
-   * only reacts to the abort.
+   * 中止信号——触发时在受管范围内启动终止升级。截止时间与原因分类由调用方负责；
+   * 此 seam 只响应中止。
    */
   signal?: AbortSignal | undefined
   /**
-   * Explicit environment entries merged onto the implementation's scrubbed
-   * parent base (see `scrubbedParentEnv`), with no namespace validation. A
-   * string is a deliberate caller opt-in, so a forwarded credential-shaped
-   * entry or current `DSH_*` fact survives the scrub; `undefined` is a
-   * tombstone that removes an ordinary ambient entry from the child.
+   * 显式环境项，合并到实现的已清理父环境基底上（见 `scrubbedParentEnv`），不做
+   * 命名空间校验。字符串是调用方刻意的显式加入，因此被转发的凭据形态项或当前的
+   * `DSH_*` 事实会越过清理而保留；`undefined` 是一个墓碑值，用于从子进程中移除
+   * 一条普通的外部环境项。
    */
   env?: NodeJS.ProcessEnv | undefined
 }
 
 /**
- * Exit facts of one closed process — Node's `close`-event vocabulary.
- * Deliberately carries NO timeout or cancellation classification (the caller
- * reads the signal it owns to classify causes) and NO output: collected
- * streams stay readable through {@link SubprocessHandle.collected} after
- * settlement, so batch and streaming callers share one access path.
+ * 一个已关闭进程的退出事实——沿用 Node 的 `close` 事件术语。刻意不携带超时或取消
+ * 分类（调用方读取其自身拥有的信号来分类原因），也不携带输出：收集后的流在结算后
+ * 仍可通过 {@link SubprocessHandle.collected} 读取，因此批处理与流式调用方共用
+ * 同一访问路径。
  */
 export interface SubprocessOutcome {
-  /** Exit code; null when the process died from a signal. */
+  /** 退出码；进程因信号死亡时为 null。 */
   exitCode: number | null
-  /** Terminating signal (e.g. 'SIGTERM'); null on normal exit. */
+  /** 终止信号（如 'SIGTERM'）；正常退出时为 null。 */
   signal: NodeJS.Signals | null
 }
 
-/** One incremental {@link SubprocessOutputReader.readFrom} read. */
+/** 一次增量 {@link SubprocessOutputReader.readFrom} 读取。 */
 export interface SubprocessOutputRead {
-  /** Stream text from the requested offset (the whole retained tail when lossy). */
+  /** 从请求偏移开始的流文本（有损时为完整保留的尾部）。 */
   text: string
-  /** Whole-stream offset to resume from on the next read. */
+  /** 下一次读取时续传的整流产偏移。 */
   nextOffset: number
-  /** True when the requested offset slid out of the in-memory tail window. */
+  /** 请求的偏移已滑出内存尾部窗口时为 true。 */
   lossy: boolean
-  /** Path to the full-stream spill file, when one was created and remains intact. */
+  /** 完整流溢出文件的路径，当已创建且仍完好时。 */
   spillPath?: string
 }
 
 /**
- * Cursor-free incremental access to one collected output stream. Offsets are
- * whole-stream byte coordinates owned by the caller, so independent readers
- * cannot consume one another's output; `readFrom(0)` after settlement is the
- * batch result (`lossy` then means the in-memory tail lost its head — the
- * {@link CollectedOutput.truncated} fact).
+ * 对一条收集输出流的无游标增量访问。偏移是调用方拥有的整流产字节坐标，因此独立的
+ * 读取者不会互相消耗对方的输出；结算后的 `readFrom(0)` 即批处理结果（`lossy` 此时
+ * 意味着内存尾部的头部已丢失——即 {@link CollectedOutput.truncated} 事实）。
  */
 export interface SubprocessOutputReader {
   /**
-   * Read everything captured since `fromByte`. When that offset has slid out
-   * of the in-memory tail window the read is `lossy` — it returns the whole
-   * retained tail and the gap is only recoverable from the spill file.
-   * @param fromByte - whole-stream offset to resume from (a prior read's `nextOffset`; 0 for the first read).
-   * @returns the delta text, the next offset, the `lossy` flag, and the spill path when one exists.
+   * 读取自 `fromByte` 以来捕获到的所有内容。当该偏移已滑出内存尾部窗口时，此次读取
+   * 为 `lossy`——返回完整保留的尾部，缺口只能从溢出文件中恢复。
+   * @param fromByte - 续传的整流产偏移（上一次读取的 `nextOffset`；首次读取为 0）。
+   * @returns 增量文本、下一偏移、`lossy` 标志，以及（若存在）溢出文件路径。
    */
   readFrom(fromByte: number): SubprocessOutputRead
 }
 
-/** Offset-based readers for the streams spawned in collect mode. */
+/** 针对以收集模式启动的流的基于偏移的读取器。 */
 export interface SubprocessCollectedOutputs {
-  /** Present iff stdout is a {@link SubprocessCollect}. */
+  /** 当且仅当 stdout 为 {@link SubprocessCollect} 时存在。 */
   readonly stdout?: SubprocessOutputReader
-  /** Present iff stderr is a {@link SubprocessCollect}. */
+  /** 当且仅当 stderr 为 {@link SubprocessCollect} 时存在。 */
   readonly stderr?: SubprocessOutputReader
 }
 
 /**
- * A live subprocess and its provider-managed process range. Collected output
- * remains readable after exit; piped streams belong to the caller.
+ * 一个存活的子进程及其由提供方管理的进程范围。收集输出在退出后仍可读；
+ * 管道流归调用方所有。
  *
- * Termination and {@link SubprocessHandle.waitForExit} use the same managed
- * range. Each provider documents the range it can observe and its signalling
- * and observation limits.
+ * 终止与 {@link SubprocessHandle.waitForExit} 使用同一受管范围。每个提供方需记录
+ * 其可观察的范围，以及其信号与观察的限制。
  */
 export interface SubprocessHandle {
   /** The child's stdin, present iff spawned with `stdin: 'pipe'`. */
   readonly stdin: Writable | undefined
-  /** The child's raw stdout, present iff spawned with `stdout: 'pipe'`. */
+  /** 子进程的原始 stdout，当且仅当以 `stdout: 'pipe'` 启动时存在。 */
   readonly stdout: Readable | undefined
-  /** The child's raw stderr, present iff spawned with `stderr: 'pipe'`. */
+  /** 子进程的原始 stderr，当且仅当以 `stderr: 'pipe'` 启动时存在。 */
   readonly stderr: Readable | undefined
-  /** Separate caller-owned byte channel when requested; native startup failure may leave it absent. */
+  /** 当被请求时的一条独立、调用方拥有的字节通道；原生启动失败可能导致其缺失。 */
   readonly control: Duplex | undefined
-  /** Offset-based readers for collect-mode streams (also readable after exit). */
+  /** 针对收集模式流的基于偏移的读取器（退出后亦可读）。 */
   readonly collected: SubprocessCollectedOutputs
-  /** Resolves with spawned-command exit facts; rejects for spawn or provider failures. */
+  /** 以启动命令的退出事实结算；因启动或提供方失败而拒绝。 */
   readonly done: Promise<SubprocessOutcome>
   /**
-   * Begin the provider's documented termination procedure on the managed range
-   * — the seam's only termination verb. Idempotent, a no-op once that range is
-   * gone, and also triggered by the spec's abort signal.
+   * 在受管范围上启动提供方记录的终止流程——这是此 seam 唯一的终止动词。幂等，
+   * 一旦该范围消失即为空操作，且同样由 spec 的中止信号触发。
    */
   terminate(): void
   /**
-   * Wait until the same managed range is empty — not just until the spawned
-   * command reports its outcome, so surviving work remains observable.
-   * @param signal - optional bound for the wait.
-   * @returns `true` when the managed range is empty, `false` when the signal aborted first.
-   * @throws when the selected provider can no longer observe its managed range.
+   * 等待同一受管范围清空——而非仅等待启动命令上报其结果，从而使幸存的工作仍可被观察。
+   * @param signal - 等待的可选边界。
+   * @returns 受管范围为空时为 `true`，信号先中止时为 `false`。
+   * @throws 当所选提供方无法再观察其受管范围时。
    */
   waitForExit(signal?: AbortSignal): Promise<boolean>
 }
 
 /**
- * Signals supported by the terminal-process primitive. Kept member-identical
- * to `TerminalSignal` in `@deepseek-ai/dsh-terminal` without a cross-seam dependency;
- * change both together.
+ * 终端进程原语支持的信号。在不引入跨 seam 依赖的前提下，使其成员与
+ * `@deepseek-ai/dsh-terminal` 中的 `TerminalSignal` 保持一致；两者需同步修改。
  */
 export type SubprocessTerminalSignal = 'SIGINT' | 'SIGTERM' | 'SIGKILL' | 'SIGTSTP' | 'SIGHUP'
 
-/** Shell-selection facts from the subprocess provider's execution environment. */
+/** 来自 subprocess 提供方执行环境的 shell 选择事实。 */
 export interface SubprocessTerminalEnvironment {
-  /** Operating-system family that interprets executable paths and shell arguments. */
+  /** 解释可执行路径与 shell 参数的操作系统族。 */
   platform: 'posix' | 'windows'
-  /** Login or environment-selected shell, when the provider can resolve one. */
+  /** 登录或环境所选的 shell，当提供方能解析出其中之一时。 */
   defaultShell?: string
 }
 
-/** A fully specified terminal-process spawn. */
+/** 一个完全指定的终端进程启动。 */
 export interface SubprocessTerminalSpawnSpec {
-  /** Executable and arguments; `argv[0]` is the program. */
+  /** 可执行文件及参数；`argv[0]` 为程序名。 */
   argv: readonly string[]
-  /** Working directory in this subprocess provider's execution world. */
+  /** 此 subprocess 提供方执行世界中的工作目录。 */
   cwd: string
-  /** Explicit environment layered after the provider's ambient scrub. */
+  /** 在提供方环境清理之后叠加的显式环境。 */
   env?: Record<string, string> | undefined
-  /** Initial terminal row count. */
+  /** 终端初始行数。 */
   rows: number
-  /** Initial terminal column count. */
+  /** 终端初始列数。 */
   cols: number
-  /** Terminal emulation advertised to the child through TERM. */
+  /** 通过 TERM 向子进程声明的终端仿真类型。 */
   terminalType: string
-  /** Request supported interactive-shell lifecycle observation; unsupported launches report unknown activity. */
+  /** 请求支持的交互式 shell 生命周期观察；不支持的启动会报告未知活动。 */
   shellActivity?: boolean | undefined
-  /** TERM-to-KILL cleanup grace for the complete terminal session. */
+  /** 整个终端会话从 TERM 到 KILL 的清理宽限期。 */
   graceMs: number
-  /** Cancellation of terminal allocation; a published handle owns its later lifetime. */
+  /** 终端分配的取消；已发布的句柄拥有其后续生命周期。 */
   signal?: AbortSignal | undefined
 }
 
 /** Current foreground process-group facts for one terminal. */
 export interface SubprocessTerminalForeground {
-  /** Foreground process-group id published by the terminal driver. */
+  /** 由终端驱动发布的前台进程组 id。 */
   processGroupId: number
-  /** Whether the provider can currently prove that group is waiting on terminal input. */
+  /** 提供方当前能否证明该进程组正在等待终端输入。 */
   inputWaiting: boolean
 }
 
-/** Provider observation of shell lifecycle and surviving owned jobs. */
+/** 提供方对 shell 生命周期及幸存的被管作业所做的观察。 */
 export interface SubprocessTerminalActivity {
-  /** Idle requires positive prompt evidence and no observed foreground, background, or stopped jobs. */
+  /** 空闲需要正面的提示符证据，且无被观察到的前台、后台或已停止作业。 */
   state: 'idle' | 'busy' | 'unknown'
-  /** Changes with input, shell transitions, and changed process observations; scoped to this handle. */
+  /** 随输入、shell 转换及进程观察变化而变化；作用域限定于本句柄。 */
   revision: number
 }
 
 /**
- * One live terminal process and its owned OS session. Terminal allocation,
- * foreground-group inspection/signalling, and whole-session quiescence are one
- * deep subprocess primitive because none can be reconstructed from ordinary
- * piped stdio without substrate-specific process control.
+ * 一个存活的终端进程及其拥有的操作系统会话。终端分配、前台进程组检查/信令，以及
+ * 整个会话的静默，是一个深层的 subprocess 原语，因为在没有特定底层进程控制的
+ * 情况下，这些都无法从普通的管道 stdio 重建出来。
  */
 export interface SubprocessTerminalHandle {
-  /** Top-level terminal process id. */
+  /** 顶层终端进程 id。 */
   readonly pid: number
-  /** UTF-8 terminal output bytes in delivery order; ends after queued output when the terminal exits. */
+  /** 按投递顺序的 UTF-8 终端输出字节；终端退出后在已排队输出之后结束。 */
   readonly output: Readable
-  /** Resolves when the top-level process exits; rejects for a terminal startup, provider, or live transport failure. */
+  /** 顶层进程退出时结算；因终端启动、提供方或实时传输失败而拒绝。 */
   readonly done: Promise<SubprocessOutcome>
   /**
-   * Write text to the terminal input.
-   * @param data - text to deliver without implicit newline conversion.
+   * 向终端输入写入文本。
+   * @param data - 投递的文本，不做隐式换行转换。
    */
   write(data: string): Promise<void>
   /**
-   * Change the terminal dimensions and notify its foreground application.
-   * @param cols - positive terminal column count.
-   * @param rows - positive terminal row count.
+   * 改变终端尺寸并通知其前台应用。
+   * @param cols - 正数终端列数。
+   * @param rows - 正数终端行数。
    */
   resize(cols: number, rows: number): Promise<void>
   /**
-   * Inspect the current foreground process group.
-   * @returns its id and input-wait fact, or undefined when no foreground group can be resolved.
+   * 检查当前的前台进程组。
+   * @returns 其 id 与输入等待事实，或当无法解析出前台进程组时为 undefined。
    */
   inspectForeground(): Promise<SubprocessTerminalForeground | undefined>
   /**
-   * Observe command activity without interpreting output or treating silence as completion.
-   * @returns a fresh observation; unsupported shells and incomplete observations report unknown.
+   * 观察命令活动，但不解读输出，也不把静默当作完成。
+   * @returns 一次新的观察；不支持的 shell 与未完成的观察会报告 unknown。
    */
   inspectActivity(): Promise<SubprocessTerminalActivity>
   /**
-   * Deliver a signal to the current foreground process group.
-   * @param signal - permitted terminal signal.
-   * @returns the exact group id that received it.
+   * 向当前前台进程组投递一个信号。
+   * @param signal - 允许的终端信号。
+   * @returns 实际收到该信号的进程组 id。
    */
   signalForeground(signal: SubprocessTerminalSignal): Promise<number>
   /**
-   * Idempotently terminate every terminal-session member the provider can still observe and await quiescence.
-   * After settlement, no write, inspection, or signal call remains in flight.
-   * Providers document substrate-specific observability limits.
+   * 幂等地终止提供方仍能观察到的每一个终端会话成员，并等待其静默。结算之后，
+   * 不再有任何进行中的写入、检查或信号调用。提供方需记录特定底层的可观察性限制。
    */
   terminate(): Promise<void>
 }

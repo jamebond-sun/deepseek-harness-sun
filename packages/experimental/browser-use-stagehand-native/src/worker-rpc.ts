@@ -1,4 +1,4 @@
-/** One-shot MessagePorts carry browser operations and their results. */
+/** 一次性的 MessagePort 承载浏览器操作及其结果。 */
 
 import { MessageChannel, MessagePort } from 'node:worker_threads'
 import type { Worker } from 'node:worker_threads'
@@ -9,7 +9,7 @@ const responseSchema = z.discriminatedUnion('ok', [
   z.object({ ok: z.literal(false), error: z.string() }).strict(),
 ])
 
-/** Transferable reply channel paired with a validated operation payload. */
+/** 与一份经过校验的操作载荷配对的、可转移的应答通道。 */
 export const requestSchema = z.object({
   method: z.string(),
   args: z.unknown(),
@@ -17,12 +17,12 @@ export const requestSchema = z.object({
 }).strict()
 
 /**
- * Send one request and release its reply port after response or peer shutdown.
- * @param target - owning Worker or parent port.
- * @param method - operation understood by the receiver.
- * @param args - structured-cloneable request data.
- * @param signal - owning Worker lifetime, when observed by the caller.
- * @returns the receiver's value, rejecting malformed responses and peer shutdown.
+ * 发送一个请求，并在应答或对端关闭之后释放其应答端口。
+ * @param target - 所属的 Worker 或父级端口。
+ * @param method - 接收方所理解的操作。
+ * @param args - 可结构化克隆的请求数据。
+ * @param signal - 所属 Worker 的生命周期，当由调用方观察时。
+ * @returns 接收方的值，会拒绝格式错误的应答与对端关闭。
  */
 export async function request(target: MessagePort | Worker, method: string, args?: unknown, signal?: AbortSignal): Promise<unknown> {
   signal?.throwIfAborted()
@@ -55,10 +55,10 @@ export async function request(target: MessagePort | Worker, method: string, args
 }
 
 /**
- * Validate and answer one request without leaving rejected callbacks unobserved.
- * @param raw - untrusted message received from the Worker boundary.
- * @param execute - owner that validates and executes the method arguments.
- * @returns after the response has been posted and the reply port released.
+ * 校验并应答一个请求，且不留下未被观察的、被拒绝的回调。
+ * @param raw - 从 Worker 边界收到的、不可信的消息。
+ * @param execute - 校验并执行方法参数的所有者。
+ * @returns 在应答已发出且应答端口已释放之后。
  */
 export async function answer(raw: unknown, execute: (method: string, args: unknown) => Promise<unknown>): Promise<void> {
   const { method, args, reply } = requestSchema.parse(raw)

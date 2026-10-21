@@ -1,4 +1,4 @@
-/** Host-wide durable reminders and shared human/model management. */
+/** Host 范围内的持久化提醒，以及共享的人类/模型管理面。 */
 import { randomUUID } from 'node:crypto'
 import z from '@deepseek-ai/schemastery'
 import { Context, Service } from '@deepseek-ai/cordis'
@@ -63,38 +63,37 @@ export {
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
-    /** Durable Host-wide reminder management. */
+    /** Host 范围内的持久化提醒管理。 */
     schedule: ScheduleService
   }
 }
 
-/** Configuration for the Host Schedule domain. */
+/** Host Schedule domain 的配置。 */
 export interface Config {
   /**
-   * Delivery-history window retained per task, in days; omission defaults to 30.
-   * Pruning happens when an acknowledgment is appended, and `lastDelivery` is always retained.
+   * 每个任务保留的投递历史窗口，以天为单位；省略时默认为 30。
+   * 裁剪发生在追加确认的时候，而 `lastDelivery` 始终保留。
    */
   deliveryHistoryDays?: number
   /**
-   * Retained delivery records per task; omission defaults to 200. The older of this
-   * cap and the window wins, and the newest records survive.
+   * 每个任务保留的投递记录数；省略时默认为 200。
+   * 该上限与窗口二者取更严格者，最新记录被保留。
    */
   deliveryHistoryRecords?: number
 }
 
-/** Retained delivery-history window applied when the deployment states none. */
+/** 当部署未声明保留窗口时应用的投递历史窗口。 */
 const DEFAULT_DELIVERY_HISTORY_DAYS = 30
 
-/** Retained delivery-history record cap applied when the deployment states none. */
+/** 当部署未声明记录上限时应用的投递历史记录上限。 */
 const DEFAULT_DELIVERY_HISTORY_RECORDS = 200
 
 /**
- * Shared management service; reads, deletion, and timing edits never activate a Session.
+ * 共享的管理服务；读取、删除与定时编辑都绝不激活 Session。
  *
- * `sessionPersistence` is a load-order requirement rather than a directly called
- * service: a delivery commits only when `ctx.sessions.flush()` reports that a
- * `session/flush` listener participated, and the persistence backend providing this
- * service is the plugin that registers that listener.
+ * `sessionPersistence` 是一个加载顺序要求，而非被直接调用的服务：
+ * 一次投递只有在 `ctx.sessions.flush()` 报告有 `session/flush` 监听器参与
+ * 时才提交；而提供该服务的持久化后端，正是注册该监听器的插件。
  */
 export class ScheduleService extends TypertRemoteService {
   static inject = ['agents', 'sessions', 'storageDomain', 'sessionController', 'sessionPersistence']
@@ -104,7 +103,7 @@ export class ScheduleService extends TypertRemoteService {
     deliveryHistoryRecords: z.number().step(1).min(1).max(10_000).default(DEFAULT_DELIVERY_HISTORY_RECORDS),
   })
 
-  /** Resolved retention bounds shared with the runtime that appends acknowledgments. */
+  /** 与追加确认的运行时共享的、已解析的保留上限。 */
   private readonly retention: DeliveryRetentionBounds
   private readonly ready: Promise<Domain<typeof scheduleDomain>>
   private readonly initialized: PromiseLike<unknown>
@@ -113,8 +112,8 @@ export class ScheduleService extends TypertRemoteService {
   private stopping = false
 
   /**
-   * @param ctx - Host services owning storage, dispatch, and Session restoration.
-   * @param config - Validated retention configuration for delivery history.
+   * @param ctx - 持有存储、派发与 Session 恢复能力的 Host 服务。
+   * @param config - 已校验的投递历史保留配置。
    */
   constructor(ctx: Context, config: Config) {
     super(ctx, 'schedule')
@@ -125,7 +124,7 @@ export class ScheduleService extends TypertRemoteService {
     this.ready = ctx.storageDomain.open(scheduleDomain).then(async (domain) => {
       for (const [key, task] of domain.table('tasks').entries()) {
         if (key !== task.record.id) {
-          // The mismatch is the actionable failure; a rejecting close must not replace it.
+          // 键不匹配才是可操作的失败；一个 reject 的 close 不应取代它。
           try {
             await domain.close()
           } catch (error: unknown) {
@@ -143,7 +142,7 @@ export class ScheduleService extends TypertRemoteService {
         cleanup = ctx.effect(() => async () => {
           this.stopping = true
           await this.runtime?.dispose()
-          await this.chain // The chain contains failures after returning them to their callers.
+          await this.chain // 链中的失败在已返回给调用方之后仍保留在此。
           await domain.close()
         })
       } catch (error) {
@@ -164,15 +163,15 @@ export class ScheduleService extends TypertRemoteService {
       return cleanup
     })
     ctx.on('session/created', (session) => {
-      // Historical Schedule events remain readable but do not populate Host tasks.
-      // A throwing `session/created` listener rolls the attach back, so an unreadable
-      // legacy stream must warn here instead of blocking Session creation.
+      // 历史 Schedule 事件仍可读，但不会填充 Host 任务。
+      // 抛出的 `session/created` 监听器会回滚该 attach，因此一段不可读的
+      // 遗留流必须在此告警，而不是阻塞 Session 创建。
       let activeLegacy = 0
       try {
-        // oxlint-disable-next-line typescript/no-deprecated -- Explicit warning for legacy Schedule history.
+        // oxlint-disable-next-line typescript/no-deprecated -- 针对遗留 Schedule 历史的显式告警。
         activeLegacy = foldScheduleEvents(session.ownEvents()).active.length
       } catch (error: unknown) {
-        /* v8 ignore next -- foldScheduleEvents normalizes every rejected stream to ScheduleLogError. */
+        /* v8 ignore next -- foldScheduleEvents 会把每个被拒绝的流都归一化为 ScheduleLogError。 */
         if (!(error instanceof ScheduleLogError)) throw error
         ctx.logger.warn(`schedule: Session "${session.id}" historical events could not be read (${error.message}); the legacy reminder is ignored.`)
         return
@@ -181,10 +180,10 @@ export class ScheduleService extends TypertRemoteService {
         ctx.logger.warn(`schedule: Session "${session.id}" contains legacy reminders; recreate active reminders with schedule_create.`)
       }
     }, { global: true })
-    // Host tasks outlive their Session's Agent, so archive admission reads the
-    // stored rows rather than a live runtime: an idle Session whose reminders
-    // are still armed refuses the archive, and an archiving stop deletes those
-    // rows instead of letting them deliver into a closed Session.
+    // Host 任务的存活时间长于其 Session 的 Agent，因此归档准入读取的是
+    // 已存储的行，而不是一个活动的运行时：一个提醒仍处于待发状态的空闲
+    // Session 会拒绝归档，而一次归档停止会删除这些行，而不是让它们投递到
+    // 一个已关闭的 Session 中。
     ctx.effect(() => {
       const activity = ctx.on('workspace/session-activity', async ({ sessionId }, next) => {
         const active = await this.list({ sessionId })
@@ -211,19 +210,18 @@ export class ScheduleService extends TypertRemoteService {
   }
 
   /**
-   * Create a reminder bound to the caller-selected Session without activating it.
+   * 创建一个绑定到调用方所选 Session 的提醒，而不激活它。
    *
-   * The request must supply a title; a missing, blank-after-trim, or over-long
-   * title rejects with `invalid_prompt` instead of deriving one from the prompt.
-   * A Session a delegated child owns rejects with `subagent_session`, because delivery
-   * can never reach it: the child is one whose delegation depth is above zero.
-   * The record is built from the clock reading taken before the request joins the
-   * serialized queue, so a create that waits behind a longer operation keeps its
-   * request-time anchor and may already be due when the queue reaches it.
-   * @param sessionId - Original Session receiving the reminder.
-   * @param request - Validated tool selector, required title, and reminder content.
-   * @param signal - Optional cancellation checked before persistence begins, including after FIFO waits.
-   * @returns The durably stored schedule. Cancellation does not roll back an in-flight write.
+   * 请求必须提供名称；缺失、修剪后为空或超长的名称会以 `invalid_prompt`
+   * 被拒绝，而不是从提示推导出一个名称。被委派子级拥有的 Session 会以
+   * `subagent_session` 被拒绝，因为投递永远无法触达它：所谓子级，就是
+   * 其委派深度大于零的那个。记录基于请求加入串行化队列之前读取的时钟
+   * 构建，因此一个排在较长操作后面的创建保留其请求时刻的锚点，并可能在
+   * 队列执行到它时已经到期。
+   * @param sessionId - 接收该提醒的原始 Session。
+   * @param request - 已校验的工具选择器、必需的名称与提醒内容。
+   * @param signal - 可选的取消信号，在持久化开始前（包括 FIFO 等待之后）被检查。
+   * @returns 已持久化存储的 schedule。取消不会回滚一个进行中的写入。
    */
   async create(sessionId: SessionId, request: ScheduleCreateRequest, signal?: AbortSignal): Promise<ScheduleRecord> {
     if (Number(request.at !== undefined) + Number(request.after_seconds !== undefined)
@@ -263,9 +261,9 @@ export class ScheduleService extends TypertRemoteService {
   }
 
   /**
-   * Read the selected Session's active tasks without resuming its Agent.
-   * @param request - Session whose task list is requested.
-   * @returns Persisted reminders in storage order.
+   * 读取所选 Session 的活动任务，而不恢复其 Agent。
+   * @param request - 请求任务列表的 Session。
+   * @returns 按存储顺序排列的持久化提醒。
    */
   @Remote('list')
   async list(request: ScheduleListRequest): Promise<ScheduleRecord[]> {
@@ -276,10 +274,10 @@ export class ScheduleService extends TypertRemoteService {
   }
 
   /**
-   * Read all active and inactive Host reminders with their original Session bindings.
-   * A deleted reminder has no row, so it is absent here.
-   * Does not activate Sessions or read Session history.
-   * @returns Reminders ordered by scheduledAt ascending, then lexicographically by id.
+   * 读取所有活动与非活动的 Host 提醒，连同其原始 Session 绑定。
+   * 已删除的提醒没有对应行，因此不会出现在这里。
+   * 不激活 Session，也不读取 Session 历史。
+   * @returns 按 scheduledAt 升序、再按 id 字典序排列的提醒。
    */
   @Remote('catalog')
   async catalog(): Promise<ScheduleCatalogEntry[]> {
@@ -293,11 +291,11 @@ export class ScheduleService extends TypertRemoteService {
   }
 
   /**
-   * Read saved inbox deliveries without activating or reading the original Session.
-   * The task's own row supplies its binding, so its records stay readable through this lookup.
-   * @param request - Session binding, task identity, explicit limit, and optional exclusive message cursor.
-   * @returns Newest-first deliveries in append order, or a task/cursor lookup failure.
-   * @throws ScheduleInputError when limit is not a safe integer from 1 through 100.
+   * 读取已保存的 inbox 投递，而不激活或读取原始 Session。
+   * 任务自身的行提供了它的绑定，因此其记录通过这次查找仍可读。
+   * @param request - Session 绑定、任务标识、显式上限与可选的排他消息游标。
+   * @returns 按追加顺序由新到旧的投递，或任务/游标查找失败。
+   * @throws 当 limit 不是 1 到 100 的安全整数时抛出 ScheduleInputError。
    */
   @Remote('history')
   async history(request: ScheduleDeliveryHistoryRequest): Promise<ScheduleDeliveryHistoryResult> {
@@ -312,15 +310,15 @@ export class ScheduleService extends TypertRemoteService {
   }
 
   /**
-   * Delete one task belonging to the selected Session, leaving queued messages intact.
+   * 删除所选 Session 下的一个任务，已排队消息保持原样。
    *
-   * The row is removed: the task no longer schedules, leaves `list` and `catalog`, and its
-   * saved delivery records go with it. A task bound to a Session a delegated child owns
-   * stays deletable even though creation and timing edits refuse that binding, so a task
-   * stored before that rule existed remains removable.
-   * @param request - Session and exact task identity.
-   * @param signal - Optional cancellation checked before persistence begins, including after FIFO waits.
-   * @returns Whether that Session owned a deleted task. Cancellation does not roll back an in-flight write.
+   * 该行被移除：任务不再安排投递，从 `list` 与 `catalog` 中消失，其已保存的
+   * 投递记录也随之移除。绑定到被委派子级所拥有 Session 的任务仍然可删除，
+   * 尽管创建与定时编辑会拒绝该绑定，因此在那条规则出现之前存储的任务
+   * 依然可移除。
+   * @param request - Session 与精确的任务标识。
+   * @param signal - 可选的取消信号，在持久化开始前（包括 FIFO 等待之后）被检查。
+   * @returns 该 Session 是否拥有一个被删除的任务。取消不会回滚一个进行中的写入。
    */
   @Remote('delete')
   async delete(request: ScheduleDeleteRequest, signal?: AbortSignal): Promise<ScheduleDeleteResult> {
@@ -339,18 +337,18 @@ export class ScheduleService extends TypertRemoteService {
   }
 
   /**
-   * Update the name, instruction, and timing of an active task within the original Session
-   * binding without activating the Session or changing saved deliveries.
+   * 在原始 Session 绑定内更新一个活动任务的名称、指令与定时，
+   * 而不激活该 Session，也不改动已保存的投递记录。
    *
-   * Each supplied field replaces its stored value; an omitted field keeps it. A name or
-   * instruction change alone does not reset the committed target. A Session a delegated
-   * child owns returns the non-mutating `subagent_session` result, so an edit cannot
-   * re-arm a task bound to a Session delivery can never reach, and the Web editor can
-   * explain the refusal through the ordinary result it already renders.
-   * @param request - Task binding, complete observed record, and any combination of timing, name, and instruction.
-   * @param signal - Cancellation checked after domain readiness and FIFO waits, before persistence begins.
-   * @returns The committed record, unchanged record for a no-op, or a non-mutating input/lookup/conflict/refusal result.
-   * Storage and lifecycle failures reject; cancellation after a write starts does not roll it back.
+   * 每个提供的字段替换其已存储的值；省略的字段保持不变。仅修改名称或指令
+   * 不会重置已提交的目标。被委派子级所拥有的 Session 返回不改动状态的
+   * `subagent_session` 结果，因此一次编辑无法重新武装一个绑定到投递永远
+   * 触达不到之 Session 的任务，而 Web 编辑器可以通过它本就渲染的普通
+   * 结果来解释这次拒绝。
+   * @param request - 任务绑定、完整观测记录，以及定时、名称与指令的任意组合。
+   * @param signal - 在 domain 就绪与 FIFO 等待之后、持久化开始前检查的取消信号。
+   * @returns 已提交的记录、空操作时的未变更记录，或不改动状态的输入/查找/冲突/拒绝结果。
+   * 存储与生命周期失败会 reject；写入开始之后的取消不会回滚它。
    */
   @Remote('update')
   async update(request: ScheduleUpdateRequest, signal?: AbortSignal): Promise<ScheduleUpdateResult> {
@@ -374,18 +372,16 @@ export class ScheduleService extends TypertRemoteService {
   }
 
   /**
-   * Dispatch one post-commit `schedule/changed` notification, containing
-   * synchronous listener failures: every call site emits only after its durable
-   * task write landed, so a throwing listener must not reject the caller or
-   * skip the following `requestDrive()`.
+   * 派发一次提交后的 `schedule/changed` 通知，其中吞掉同步的监听器失败：
+   * 每个调用点都只在其持久化任务写入落盘之后才发出，因此一个抛出的监听器
+   * 既不能让调用方 reject，也不能跳过随后的 `requestDrive()`。
    */
   private emitChanged(): void {
     try {
       this.ctx.emit('schedule/changed')
     } catch (error: unknown) {
-      // Swallows synchronous observer exceptions only: emit dispatches
-      // listeners inline and nothing else runs in the try. The event is a
-      // notification, not a transaction participant.
+      // 只吞掉同步观察者异常：emit 会内联派发监听器，
+      // 而 try 中没有别的东西在运行。该事件是通知，不是事务参与者。
       this.ctx.logger.warn(`schedule: schedule/changed listener failed: ${String(error)}`)
     }
   }
@@ -396,16 +392,16 @@ export class ScheduleService extends TypertRemoteService {
   }
 
   /**
-   * Refuse a Session no delivery can reach because a delegated child owns it.
+   * 拒绝一个投递永远触达不到、因为被委派子级所拥有的 Session。
    *
-   * Delivery resolves the bound Session through `ctx.sessionController.resolveAgent`,
-   * which rejects the live Agent of a delegated child; a stored task for such a Session
-   * would stay permanently overdue and retry on every drive. Both operations that can
-   * arm a delivery read that same fact here instead of restating it: a delegated child
-   * is one whose {@link delegationDepthOf} is above zero, the accounting the delegation
-   * cap itself enforces, which survives a cold resume through the persisted header.
-   * @param sessionId - Session the task would be bound to.
-   * @returns The stable refusal for a delegated child's Session, or undefined when the Session is eligible.
+   * 投递通过 `ctx.sessionController.resolveAgent` 解析绑定的 Session，
+   * 而它会拒绝被委派子级的活动 Agent；针对此类 Session 的存储任务会永久
+   * 处于逾期状态，并在每次 drive 时重试。两个可以武装投递的操作都在这里
+   * 读取同一事实，而不是各自重述它：所谓被委派子级，就是其
+   * {@link delegationDepthOf} 大于零的那个 —— 正是委派上限本身所强制执行的
+   * 记账口径，它通过持久化头在冷恢复中存活。
+   * @param sessionId - 任务将要绑定到的 Session。
+   * @returns 针对被委派子级 Session 的稳定拒绝，或当该 Session 合规时返回 undefined。
    */
   private reminderTargetRefusal(sessionId: SessionId): SubagentSessionError | undefined {
     const agent = this.ctx.agents.get(sessionId)
@@ -417,15 +413,13 @@ export class ScheduleService extends TypertRemoteService {
   }
 
   /**
-   * Remove every active task stored for one Session, inside the queue the tools
-   * use.
+   * 在工具所使用的队列内，移除为某个 Session 存储的每一个活动任务。
    *
-   * Enumerating and deleting in one queue slot is what makes an archive stop
-   * ordered behind a create whose write is still in flight: a stop that read the
-   * table outside the queue could miss a row the create was about to commit and
-   * leave an armed reminder behind. Re-entering the public `delete()` from here
-   * would deadlock on this queue, so the rows are removed directly.
-   * @param sessionId - Session whose active Host tasks must stop.
+   * 在同一个队列槽位中枚举并删除，正是让一次归档停止排在一个写入仍在
+   * 进行中的创建之后的原因：若停止在队列之外读取该表，就可能漏掉创建
+   * 正要提交的那一行，从而留下一个已武装的提醒。从这里重新进入公开的
+   * `delete()` 会在这个队列上死锁，因此直接删除这些行。
+   * @param sessionId - 其活动 Host 任务必须停止的 Session。
    */
   private async stopSessionTasks(sessionId: SessionId): Promise<void> {
     await this.serialize(async () => {
@@ -434,10 +428,9 @@ export class ScheduleService extends TypertRemoteService {
         .filter(([, task]) => task.sessionId === sessionId && task.status === 'active')
         .map(([, task]) => task.record.id)
       if (active.length === 0) return
-      // One row per write: the domain table has no batch delete, and each row is
-      // durable on its own, so a failure partway through leaves the rows already
-      // removed committed. Observers hear about that change before the failure
-      // reaches the caller, which still receives it.
+      // 一次写入一行：domain 表没有批量删除，且每一行各自持久化，
+      // 因此中途失败会让已经删除的行保持已提交。观察者会在失败到达
+      // 调用方之前先听到该变更，而调用方仍会收到失败。
       let removed = false
       let failure: Error | undefined
       for (const id of active) {
@@ -445,10 +438,10 @@ export class ScheduleService extends TypertRemoteService {
           await tasks.delete(id)
           removed = true
         } catch (error: unknown) {
-          // Every row is attempted: the archive has already landed, so a row this
-          // stop skipped would stay armed in a Session whose runtime then refuses
-          // its model steps. A rejection reason that carries no Error still has to
-          // report a failure, so it is wrapped before the first one is kept.
+          // 每一行都会尝试：归档已经落地，因此这次停止跳过的一行会
+          // 在一个运行时随后拒绝其模型步骤的 Session 中保持武装。
+          // 一个不携带 Error 的 rejection 原因同样必须上报失败，
+          // 因此在保留第一个之前先把它包装起来。
           failure ??= error instanceof Error ? error : new Error(`schedule stop failed: ${String(error)}`)
         }
       }
@@ -463,7 +456,7 @@ export class ScheduleService extends TypertRemoteService {
   private serialize<T>(work: () => Promise<T>): Promise<T> {
     if (this.stopping) return Promise.reject(new Error('Schedule service is stopping'))
     const pending = this.chain.then(work)
-    this.chain = pending.catch(() => undefined) // Preserve FIFO progress after the caller receives the failure.
+    this.chain = pending.catch(() => undefined) // 在调用方收到失败之后保持 FIFO 推进。
     return pending
   }
 }

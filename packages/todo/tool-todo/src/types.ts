@@ -1,33 +1,32 @@
 /**
- * Pure types of the todo domain: the ONE home of the `todos` projection-key
- * declaration plus its payload types, free of this package's host-side value
- * imports (dsh-tools, zod). Two namespace projections serve it — `./types`
- * for host consumers, `./client/types` (the browser half-entry's re-export)
- * for client aggregates — with zero content duplication.
+ * Todo 领域的纯类型：这里是 `todos` 投影键声明的唯一归属，
+ * 包含其负载类型，且不依赖本包宿主端的值导入（dsh-tools、zod）。
+ * 两个命名空间投影服务于它 —— `./types` 供宿主消费者使用，
+ * `./client/types`（浏览器半入口的再导出）供客户端聚合使用 ——
+ * 内容零重复。
  *
  * @module @deepseek-ai/dsh-tool-todo/types
  */
 
 /**
- * One entry in an agent's todo list — the unit of the `todo/write`
- * whole-list snapshot declared by this package.
+ * Agent 待办列表中的一项 —— 本包声明的 `todo/write` 整列表
+ * 快照的单位。
  *
- * Deliberately minimal: a human-readable `content` line and a three-state
- * `status`. No id, priority, or `activeForm` — the list is replaced wholesale
- * on every write (last-write-wins), so entries need no stable identity. The
- * three statuses describe the complete portable lifecycle needed by model and
- * UI consumers.
+ * 刻意保持最小：一条人类可读的 `content` 文本，以及三态的
+ * `status`。没有 id、优先级或 `activeForm` —— 列表在每次写入时
+ * 整体替换（后写覆盖），因此条目无需稳定标识。三种状态描述了
+ * 模型与 UI 消费者所需的完整可移植生命周期。
  */
 export interface TodoItem {
-  /** What this task is — a short imperative line shown in the UI. */
+  /** 本任务的内容 —— UI 中展示的一句简短祈使句。 */
   content: string
-  /** Lifecycle state. `in_progress` marks a task being worked now; parallel work may mark several. */
+  /** 生命周期状态。`in_progress` 标记当前正在处理的任务；并行任务可标记多个。 */
   status: 'pending' | 'in_progress' | 'completed'
 }
 
 declare module '@deepseek-ai/dsh-session/types' {
   interface SessionEventMap {
-    /** Whole-list snapshot; latest write wins on replay. Log-only UI state; never derived history. */
+    /** 整列表快照；重放时以最新写入为准。仅用于日志的 UI 状态；绝不派生历史。 */
     'todo/write': { todos: TodoItem[] }
   }
 }
@@ -38,9 +37,9 @@ declare module '@deepseek-ai/dsh-session-projection/types' {
   }
   interface SessionProjectionMap {
     /**
-     * The agent's current whole todo list (the latest `todo/write` snapshot),
-     * or `null` before the first write. Whole-value rule: every `todo/write`
-     * carries the complete replacement list, so the fold is last-wins.
+     * Agent 当前的完整待办列表（最新的 `todo/write` 快照），
+     * 或在首次写入前为 `null`。整值规则：每次 `todo/write`
+     * 都携带完整的替换列表，因此折叠为后写覆盖。
      */
     todos: TodoItem[] | null
   }

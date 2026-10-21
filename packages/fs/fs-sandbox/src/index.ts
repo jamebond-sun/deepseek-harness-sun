@@ -1,27 +1,18 @@
 /**
- * `SandboxedFileSystem`: the sandbox-enforcing implementation of the
- * `@deepseek-ai/dsh-fs` Service Definition. It extends `LocalFileSystem` so all
- * text-storage mechanics — resolve, stat, read/stream, list, the atomic
- * write and the read-match-write edit critical section — are the local
- * implementation's, verbatim; this package adds only the per-call POLICY fence
- * on the two mutations. Reads pass through untouched: every mode permits
- * reading.
+ * `SandboxedFileSystem`：`@deepseek-ai/dsh-fs` 服务定义中强制实施沙箱的实现。它继承
+ * `LocalFileSystem`，因此所有文本存储机制 —— resolve、stat、读取/流式读取、列举、原子写入
+ * 以及"读-匹配-写"的编辑临界区 —— 都逐字沿用本地实现；本包只在这两处修改操作上额外加上
+ * 按次调用的**策略**围栏。读取原样穿透：所有模式都允许读取。
  *
- * The fence is a policy check in TRUSTED code over a MODEL-CONTROLLED path,
- * NOT a kernel boundary — the operations are the seam's own (open, rename),
- * and only the target path is untrusted, so canonicalize-then-contain is the
- * complete answer to this surface. This is containment, not a security
- * boundary; kernel-grade isolation of untrusted CODE stays `ctx.shell`'s job
- * (`@deepseek-ai/dsh-bash-sandbox`). The residual
- * TOCTOU (an ancestor symlink swapped between the containment re-check and the
- * syscall) is narrowed by re-canonicalizing immediately before delegating and
- * is accepted for this threat model.
+ * 这道围栏是**受信任代码**对**模型可控路径**做的策略检查，**不是**内核边界 —— 这些操作本身
+ * 属于该接缝自己的（open、rename），只有目标路径不可信，因此"先规范化再判定包含"就是这一面
+ * 的完整答案。这是包含性约束，而非安全边界；对不可信**代码**做内核级隔离仍然是 `ctx.shell`
+ * 的职责（`@deepseek-ai/dsh-bash-sandbox`）。残存的 TOCTOU（祖先符号链接在包含性复检与系统
+ * 调用之间被替换）通过在委托之前立刻重新规范化来收窄，并在该威胁模型下被接受。
  *
- * Per-call policy: `read-only` denies every mutation; `workspace-write` allows
- * a mutation only when the target canonicalizes under the policy's workspace
- * root or a platform temp area from the shared `writableRoots` policy;
- * `danger-full-access` delegates unfenced. A denial throws the structured
- * `FS_SANDBOX_DENIED`.
+ * 按次调用的策略：`read-only` 拒绝一切修改；`workspace-write` 仅当目标规范化后位于策略的
+ * 工作区根目录或共享 `writableRoots` 策略给出的平台临时目录之下时才允许修改；
+ * `danger-full-access` 不加围栏地委托。被拒绝时抛出结构化的 `FS_SANDBOX_DENIED`。
  *
  * @module @deepseek-ai/dsh-fs-sandbox
  */
@@ -37,20 +28,17 @@ import type {} from '@deepseek-ai/dsh-sandbox-policy'
 import { isPathUnder } from './containment.ts'
 
 /**
- * Plugin config: the local backend's knobs verbatim (`cwd` resolution default
- * and `diffBasisMaxBytes` overwrite-presentation bound). The sandbox default
- * (mode + `workspace-write` fallback root) is NOT here — `ctx.sandboxPolicy`
- * resolves each calling session for every enforcing capability.
+ * 插件配置：逐字沿用本地后端的旋钮（`cwd` 解析默认值与 `diffBasisMaxBytes`
+ * 覆盖展示上限）。沙箱默认值（模式 + `workspace-write` 回退根目录）**不在**这里 ——
+ * `ctx.sandboxPolicy` 会为每个强制实施该能力的调用会话解析出策略。
  */
 export type Config = LocalConfig
 
 /**
- * Sandbox-enforcing filesystem backend. Registers as `ctx.fs` (loading it
- * INSTEAD OF `dsh-fs-local`, together with a `ctx.sandboxPolicy`, is the whole
- * swap — the model-facing tools are untouched). Its configured default mode is
- * the capability fact exposed by {@link sandboxMode}; `dsh-tool-fs` resolves
- * each session's mode and cwd into a policy for every mutation, while an
- * approved escalation may stamp a strictly wider mode for one call.
+ * 强制实施沙箱的文件系统后端。注册为 `ctx.fs`（加载它而非 `dsh-fs-local`，并配合一个
+ * `ctx.sandboxPolicy`，就是全部切换动作 —— 面向模型的工具无需改动）。其已配置的默认模式
+ * 就是 {@link sandboxMode} 暴露的能力事实；`dsh-tool-fs` 为每次修改把各会话的模式与 cwd
+ * 解析成策略，而一次获批的提级则可能为单次调用打上一个严格更宽的模式。
  */
 export class SandboxedFileSystem extends LocalFileSystem {
   static inject = ['sandboxPolicy']
@@ -61,21 +49,19 @@ export class SandboxedFileSystem extends LocalFileSystem {
     this.defaultMode = ctx.sandboxPolicy.defaultMode
   }
 
-  /** The deployment default mode — the capability fact the tool layer reads to advertise escalation. */
+  /** 部署的默认模式 —— 工具层读取它来宣示提级能力。 */
   override get sandboxMode(): SandboxMode {
     return this.defaultMode
   }
 
   /**
-   * Fence the write by the per-call policy, then delegate to the inherited
-   * atomic write. See {@link checkedTarget}.
-   * @param target - the resolved target to write.
-   * @param content - the full new file content.
-   * @param expected - the write intent guarding the write; omit for unconditional.
-   * @param signal - aborts before atomic publication takes effect.
-   * @param sandboxPolicy - the per-call mode and workspace root; omit to use
-   *   the deployment fallback.
-   * @returns the write outcome from the inherited backend.
+   * 先按按次调用的策略围栏本次写入，再委托给继承来的原子写入。另见 {@link checkedTarget}。
+   * @param target - 待写入的已解析目标。
+   * @param content - 文件的全新完整内容。
+   * @param expected - 守卫本次写入的写入意图；省略表示无条件写入。
+   * @param signal - 在原子发布生效之前中断本次写入。
+   * @param sandboxPolicy - 按次调用的模式与工作区根目录；省略则使用部署回退值。
+   * @returns 继承自后端的写入结果。
    */
   override async writeText(
     target: FsTarget,
@@ -88,15 +74,13 @@ export class SandboxedFileSystem extends LocalFileSystem {
   }
 
   /**
-   * Fence the edit by the per-call policy, then delegate to the inherited
-   * atomic edit. See {@link checkedTarget}.
-   * @param target - the resolved target to edit.
-   * @param edit - the literal search/replace request.
-   * @param expected - the version guard; omit for an unconditional edit.
-   * @param signal - aborts before atomic publication takes effect.
-   * @param sandboxPolicy - the per-call mode and workspace root; omit to use
-   *   the deployment fallback.
-   * @returns the edit outcome from the inherited backend.
+   * 先按按次调用的策略围栏本次编辑，再委托给继承来的原子编辑。另见 {@link checkedTarget}。
+   * @param target - 待编辑的已解析目标。
+   * @param edit - 字面量的查找/替换请求。
+   * @param expected - 版本守卫；省略表示无条件编辑。
+   * @param signal - 在原子发布生效之前中断本次编辑。
+   * @param sandboxPolicy - 按次调用的模式与工作区根目录；省略则使用部署回退值。
+   * @returns 继承自后端的编辑结果。
    */
   override async editText(
     target: FsTarget,
@@ -109,15 +93,13 @@ export class SandboxedFileSystem extends LocalFileSystem {
   }
 
   /**
-   * Enforce the per-call policy against `target` and return the EXACT target the
-   * mutation must use, so the checked identity is the mutated one (no
-   * check-here-write-there TOCTOU). `read-only` denies; `workspace-write`
-   * re-canonicalizes NOW (`resolve` realpaths the deepest existing ancestor,
-   * reflecting a concurrently swapped symlink), requires containment under a
-   * writable root, and returns THAT fresh target; `danger-full-access` returns
-   * the caller's target unfenced. Throws the structured `FS_SANDBOX_DENIED` on
-   * refusal — the tool layer maps it to the model-facing `[sandbox: …]` marker
-   * and the escalation hint.
+   * 对 `target` 强制执行按次调用的策略，并返回本次修改必须使用的**那个**精确目标，
+   * 使被检查的同一性正是被修改的同一性（不存在"在此检查、在彼写入"的 TOCTOU）。
+   * `read-only` 直接拒绝；`workspace-write` **此刻**重新规范化（`resolve` 会对最深的已存在
+   * 祖先做 realpath，反映并发替换掉的符号链接），要求其被包含在某个可写根之下，并返回
+   * **那个**新鲜的目标；`danger-full-access` 原样返回调用方的目标，不加围栏。
+   * 拒绝时抛出结构化的 `FS_SANDBOX_DENIED` —— 工具层把它映射为面向模型的 `[sandbox: …]`
+   * 标记与提级提示。
    */
   private async checkedTarget(target: FsTarget, sandboxPolicy?: SandboxExecutionPolicy): Promise<FsTarget> {
     const policy = sandboxPolicy ?? this.ctx.sandboxPolicy.resolve()
@@ -126,9 +108,8 @@ export class SandboxedFileSystem extends LocalFileSystem {
     if (mode === 'read-only') {
       throw new FsError(`cannot write "${target.displayPath}": file access denied under read-only mode`, 'FS_SANDBOX_DENIED')
     }
-    // workspace-write: containment on the FRESH canonical path (catches a
-    // symlink ancestor swapped since the tool resolved this target), and the
-    // mutation delegates with THIS fresh target — never the stale one.
+    // workspace-write：在**新鲜**的规范路径上做包含性判定（可以捕捉到工具解析该目标之后
+    // 被替换掉的符号链接祖先），并且修改以**这个**新鲜目标委托下去 —— 绝不使用过期的那个。
     const fresh = await this.resolve(target.displayPath)
     let contained = false
     for (const root of writableRoots(policy)) {

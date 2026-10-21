@@ -1,20 +1,19 @@
 /**
- * dsh-lsp's owned branded id: {@link LspProviderId}, the opaque identity a provider reserves on
- * `ctx.lsp`. The `Branded<B>` primitive lives in `@deepseek-ai/dsh-brand`; keeping the type and its
- * factory together here lets `index.ts` re-export both under one name.
+ * dsh-lsp 自有的品牌化 id：{@link LspProviderId}，即 provider 在 `ctx.lsp` 上预留的不透明身份。
+ * `Branded<B>` 原语位于 `@deepseek-ai/dsh-brand`；把类型和它的工厂放在一起，
+ * 使 `index.ts` 能以同一个名字同时再导出二者。
  * @module @deepseek-ai/dsh-lsp/brand
  */
 
 import type { Branded } from '@deepseek-ai/dsh-brand'
 
-/** Opaque provider identity, reserved atomically with its extension mappings at registration. */
+/** 不透明的 provider 身份，在注册时与其扩展名映射一起被原子地预留。 */
 export type LspProviderId = Branded<'LspProviderId'>
 
 /**
- * Brand a string as an {@link LspProviderId}. No validation — the registry rejects an empty id at
- * registration.
- * @param id - the provider's stable identifier.
- * @returns the same string, branded.
+ * 把一个字符串标记为 {@link LspProviderId}。不做校验——注册表会在注册时拒绝空 id。
+ * @param id - provider 的稳定标识符。
+ * @returns 同一个字符串，已加品牌标记。
  */
 export function LspProviderId(id: string): LspProviderId {
   return id as LspProviderId

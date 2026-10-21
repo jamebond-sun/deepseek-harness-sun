@@ -1,4 +1,4 @@
-/** Compose Loader entry/patch structure and discovered plugin input schemas into one JSON Schema document. */
+/** 将 Loader 条目/补丁结构与被发现的插件输入 schema 组合成一份 JSON Schema 文档。 */
 
 import { createConfigProjector, LOADER_EXPRESSION_SCHEMA } from './projector.ts'
 import type {
@@ -31,13 +31,13 @@ function patchStructure(): ConfigJsonSchemaObject {
 }
 
 /**
- * Build a schema for the composed entry list and a separately addressable root-tree patch list.
- * Unknown plugin names remain open; only collected schemas supply plugin-specific constraints.
- * @param profile - selected profile name.
- * @param collected - declarations discovered without mounting plugins, including include descendants.
- * @param targets - last-id-wins patch targets from the root tree's patch index, excluding include descendants.
- * @param initialDiagnostics - composition and import diagnostics already collected.
- * @returns one JSON Schema document with explicit collection and projection annotations.
+ * 为组合后的条目列表与一个可单独寻址的根树补丁列表构建 schema。
+ * 未知的插件名保持开放；只有收集到的 schema 才提供插件特定的约束。
+ * @param profile - 所选 profile 名称。
+ * @param collected - 在不挂载插件的前提下发现的声明，包括 include 后代。
+ * @param targets - 来自根树补丁索引、后 id 胜出的补丁目标，不包括 include 后代。
+ * @param initialDiagnostics - 已经收集的组合与导入诊断。
+ * @returns 一份带有显式收集与投影注解的 JSON Schema 文档。
  */
 export async function buildConfigSchemaDocument(
   profile: string,
@@ -110,7 +110,7 @@ export async function buildConfigSchemaDocument(
     }
   }
 
-  // The Loader never initializes a disabled row unless group: true forces it, so its required config may be omitted.
+  // Loader 绝不会初始化一个被禁用的行，除非 group: true 强制它，因此其必需的 config 可被省略。
   const dormant: ConfigJsonSchemaObject = {
     properties: { disabled: { anyOf: [{ const: true }, ref('loaderExpression')] }, group: { not: { const: true } } },
     required: ['disabled'],
@@ -121,7 +121,7 @@ export async function buildConfigSchemaDocument(
     let then = validated
     if ([...choices].every(reference => requiredConfigs.has(reference))) {
       then = { if: dormant, else: { ...validated, required: ['config'] } }
-      // A dormant carrier never creates its children, so their declarations are not validated either.
+      // 一个休眠的载体绝不会创建其子项，因此它们的声明也不会被校验。
       if (![...choices].every(reference => trees.has(reference))) then.then = validated
     }
     entryRules.push({ if: { properties: { name: { const: name } }, required: ['name'] }, then })

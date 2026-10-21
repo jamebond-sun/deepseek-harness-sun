@@ -1,6 +1,6 @@
 /**
- * Provider-routed model-request retry policy on the agent loop's request
- * recovery extension point. Each scheduled retry is durable before its cancellable wait.
+ * 挂在 agent 循环请求恢复扩展点上的、按提供方路由的模型请求重试策略。
+ * 每次排定的重试在其可取消的等待之前即为持久化的。
  *
  * @module @deepseek-ai/dsh-llm-retry
  */
@@ -21,10 +21,10 @@ export { RetryId } from './brand.ts'
 export const name = 'llm-retry'
 export const inject = ['agents', 'sessionProjections']
 
-/** This policy executor has no config; providers own `retryPolicy`. */
+/** 本策略执行器没有配置；`retryPolicy` 由各提供方自行持有。 */
 export type Config = Readonly<Record<string, never>>
 
-/** Runtime schema for {@link Config}. */
+/** {@link Config} 的运行时 schema。 */
 export const Config = z.object({}) as unknown as z<Config>
 
 function validateConfig(config: Config): void {
@@ -36,9 +36,9 @@ function validateConfig(config: Config): void {
   throw new Error(`llm-retry: unknown key "${key}"`)
 }
 
-/** Non-serializable hooks used to make timing policy deterministic in tests. */
+/** 用于在测试中让时序策略保持确定性的不可序列化钩子。 */
 export interface RetryInternals {
-  /** Random sample in the inclusive zero-to-one range used for jitter. */
+  /** 用于抖动的随机采样值，落在零到一的闭区间内。 */
   random?: () => number
 }
 
@@ -96,10 +96,10 @@ function cancellableDelay(delayMs: number, signal: AbortSignal): Promise<boolean
 }
 
 /**
- * Install provider-routed normal or unbounded request recovery.
- * @param ctx - plugin context that owns the listener and active waits.
- * @param config - empty executor config; provider registrations own policy.
- * @param internals - non-serializable deterministic hooks for tests.
+ * 安装按提供方路由的普通或无界请求恢复。
+ * @param ctx - 持有该监听器与当前等待的插件上下文。
+ * @param config - 空的执行器配置；策略由各提供方注册自行持有。
+ * @param internals - 供测试使用的、不可序列化的确定性钩子。
  */
 interface RetryStateEntry {
   retry: number
@@ -108,14 +108,14 @@ interface RetryStateEntry {
 
 type LlmRetryState = Record<string, RetryStateEntry>
 
-// The cast bridges the branded retry id, which Zod cannot express directly.
+// 该类型断言用于桥接带品牌标记的重试 id，Zod 无法直接表达它。
 const llmRetryStateSchema: zod.ZodType<LlmRetryState> = zod.record(zod.string(), zod.object({
   retry: zod.number().int().nonnegative(),
   retryId: zod.string(),
 })) as unknown as zod.ZodType<LlmRetryState>
 declare module '@deepseek-ai/dsh-session-projection/types' {
   interface SessionProjectionStateMap {
-    /** Retry state for the current step by provider and policy. */
+    /** 当前步骤按提供方与策略划分的重试状态。 */
     llmRetry: LlmRetryState
   }
 }
@@ -199,8 +199,8 @@ export function apply(ctx: Context, config: Config = {}, internals: RetryInterna
     if (policy.mode === 'always') {
       if (signal.aborted || lifetime.signal.aborted) return
       const fusedSignal = AbortSignal.any([signal, lifetime.signal])
-      // The loop and plugin lifetime stay open until delegated recovery settles.
-      // An abort then wins before the decision or fallback can mutate later state.
+      // 循环与插件的生命周期会一直保持开放，直到被委派出去的下游恢复落定。
+      // 之后取消会抢先生效，使决策或兜底无法再改动后续状态。
       const downstream = await settleDownstream(next)
       if (fusedSignal.aborted) return
       if (downstream.type === 'error') {
@@ -244,9 +244,8 @@ export function apply(ctx: Context, config: Config = {}, internals: RetryInterna
     payload,
     next: () => Promise<RequestErrorAction>,
   ) => {
-    // A waterfall may have captured this callback before its registration was
-    // removed. Lifetime cancellation must prevent that stale callback from
-    // entering a downstream policy after disposal.
+    // 某个 waterfall 可能在该监听器注册被移除之前就捕获了这个回调。生命周期取消
+    // 必须阻止这个过期回调在插件释放之后进入下游策略。
     if (lifetime.signal.aborted) return Promise.resolve<RequestErrorAction>(undefined)
     return track(recover(payload, next))
   })

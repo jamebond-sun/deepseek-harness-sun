@@ -1,4 +1,4 @@
-/** Account-token authentication, the account model listing, and version gating for the DeepSeek account route. */
+/** DeepSeek 账号路由的账号令牌认证、账号模型清单，以及版本门禁。 */
 import type {} from '@deepseek-ai/cordis-plugin-loader'
 import type { Context } from '@deepseek-ai/cordis'
 import { ACCOUNT_QUOTA_EXCEEDED_CODE, APP_IDENTITY, LlmError, QUOTA_EXCEEDED_CODE } from '@deepseek-ai/dsh-llm'
@@ -20,12 +20,12 @@ export const name = 'llm-deepseek-account'
 export const inject = ['llm']
 
 const PROVIDER = 'deepseek-account'
-/** Header carrying the account token on Messages, Files, and model-listing requests. */
+/** 在 Messages、Files 与模型清单请求上携带账号令牌的请求头。 */
 const TOKEN_HEADER = 'x-dsh-auth-token'
-/** Console tag of listing diagnostics; product profiles mount no console exporter for `ctx.logger`. */
+/** 清单诊断的控制台标签；产品 profile 不会为 `ctx.logger` 挂载控制台 exporter。 */
 const LOG_TAG = '[llm-deepseek-account]'
 
-/** Connection facts of one account operation: protocol settings plus the catalog resolved with them. */
+/** 一次账号操作的连接事实：协议设置，以及随之解析出的目录。 */
 interface AccountConnection extends ResolvedDeepSeekOptions {
   readonly catalog: AccountCatalog
 }
@@ -40,7 +40,7 @@ function refuse(model: string, refusal: CatalogRefusal | undefined): void {
       )
     case 'unsupported':
       throw new LlmError(`DeepSeek model "${model}" is not supported by DeepSeek Harness; current version is ${APP_IDENTITY.version}`, 'MODEL_UNSUPPORTED')
-    /* v8 ignore next 2 -- catalog resolution produces only the closed refusal union */
+    /* v8 ignore next 2 -- 目录解析只会产生这个封闭的拒绝联合 */
     default:
       assertNever(refusal, 'account catalog refusal')
   }
@@ -65,7 +65,7 @@ export function apply(ctx: Context, config: Config): void {
         if (error.failure.status !== 401) return error
         const rejected = new LlmError(error.message, 'ACCOUNT_TOKEN_INVALID', { ...error.failure, cause: error })
         try { await account()?.rejectToken(token) }
-        catch (_credentialRemovalFailed) { /* Storage failure cannot replace the inference failure. */ }
+        catch (_credentialRemovalFailed) { /* 存储失败无法取代推理失败。 */ }
         return rejected
       },
     }
@@ -79,7 +79,7 @@ export function apply(ctx: Context, config: Config): void {
     warn: (message) => { console.warn(LOG_TAG, message) },
   })
   let loggedListing: ModelListing | undefined
-  /** Resolve the catalog for one view, logging the listing's hidden entries once per listing. */
+  /** 为一个视图解析目录，并把该清单的隐藏条目按清单记录一次。 */
   const connectionOf = (view: CatalogView): AccountConnection => {
     const resolved = settings()
     const result = resolveAccountCatalog({
@@ -98,7 +98,7 @@ export function apply(ctx: Context, config: Config): void {
   const entry = { provider: PROVIDER, displayName: 'DeepSeek Account', settingsNs: ctx.fiber.entry?.options.id ?? name, settingsPath: [] }
   const directory = ctx.llm.registerConfigurableProviders([entry])
   let reportedError: string | undefined
-  /** Publish override diagnostics on the provider directory. */
+  /** 在提供方目录上发布覆盖项的诊断信息。 */
   const discovered = (view: CatalogView): AccountConnection => {
     const connection = connectionOf(view)
     const error = connection.catalog.overrideErrors.length === 0 ? undefined : connection.catalog.overrideErrors.join('; ')

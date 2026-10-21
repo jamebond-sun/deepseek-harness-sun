@@ -1,11 +1,11 @@
-/** Generated from the installed pi-ai catalog. Run pnpm gen-provider-data; do not edit. */
+/** 由已安装的 pi-ai 目录生成。运行 pnpm gen-provider-data；请勿手工编辑。 */
 
 import type { BuiltinProvider } from '@earendil-works/pi-ai/providers/all'
 import type { LlmConfigurableProvider } from '@deepseek-ai/dsh-llm'
 
 type ProviderData = Pick<LlmConfigurableProvider, 'defaultBaseURL' | 'baseURLEnv'> & { env: readonly string[] }
 
-/** Catalog endpoints and environment names; no credentials are evaluated at runtime. */
+/** 各个目录端点与环境名字；运行期不解析任何凭据。 */
 export const PROVIDER_DATA: Record<BuiltinProvider, ProviderData> & Partial<Record<string, ProviderData>> = {
   'amazon-bedrock': { env: ['AWS_BEARER_TOKEN_BEDROCK', 'AWS_PROFILE', 'AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_CONTAINER_CREDENTIALS_RELATIVE_URI', 'AWS_CONTAINER_CREDENTIALS_FULL_URI', 'AWS_WEB_IDENTITY_TOKEN_FILE'], baseURLEnv: ['AWS_REGION', 'AWS_DEFAULT_REGION'] },
   'ant-ling': { env: ['ANT_LING_API_KEY'], defaultBaseURL: 'https://api.ant-ling.com/v1' },

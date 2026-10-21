@@ -1,38 +1,37 @@
 /**
- * Duplicate-install-safe nominal primitive helpers.
+ * 重复安装安全的名义原始类型辅助工具。
  *
- * A brand makes structurally identical strings or numbers non-interchangeable
- * at the type level: a `SessionId` cannot be passed where a `ToolCallId` is
- * expected, and an event sequence cannot be passed as a log offset. Comparison,
- * logging, and serialization retain the underlying primitive behavior.
+ * 品牌（brand）在类型层面使结构相同的字符串或数字不可互换：不能把
+ * `SessionId` 传给期望 `ToolCallId` 的地方，也不能把事件序号当作日志
+ * 偏移量传入。比较、日志和序列化仍保留底层原始类型的行为。
  *
- * This package owns no concrete domain value and keeps no runtime identity or mutable
- * state, so independently installed copies produce interchangeable values.
+ * 本包不拥有任何具体的领域值，也不保留运行时标识或可变的
+ * 状态，因此独立安装的多个副本产生的也是可互换的值。
  *
  * @module @deepseek-ai/dsh-brand
  */
 
 declare const BRAND: unique symbol
 
-/** A string carrying a compile-time-only brand `B`. */
+/** 携带仅编译期品牌 `B` 的字符串。 */
 export type Branded<B extends string> = string & { readonly [BRAND]: B }
 
-/** A number carrying a compile-time-only brand `B`. */
+/** 携带仅编译期品牌 `B` 的数字。 */
 export type BrandedNumber<B extends string> = number & { readonly [BRAND]: B }
 
 /**
- * Apply a compile-time string brand without changing the value.
- * @param value - string admitted by the domain that owns the target brand.
- * @returns the same string with the requested compile-time brand.
+ * 在不改变值的前提下套用编译期字符串品牌。
+ * @param value - 拥有目标品牌的领域所接纳的字符串。
+ * @returns 带有所请求编译期品牌的同一字符串。
  */
 export function brandString<T extends Branded<string>>(value: string | T): T {
   return value as T
 }
 
 /**
- * Apply a compile-time number brand without changing the value.
- * @param value - number admitted by the domain that owns the target brand.
- * @returns the same number with the requested compile-time brand.
+ * 在不改变值的前提下套用编译期数字品牌。
+ * @param value - 拥有目标品牌的领域所接纳的数字。
+ * @returns 带有所请求编译期品牌的同一数字。
  */
 export function brandNumber<T extends BrandedNumber<string>>(value: number | T): T {
   return value as T

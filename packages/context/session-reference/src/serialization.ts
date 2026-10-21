@@ -1,9 +1,9 @@
-/** Tag-safe JSON serialization for the model-visible reference envelope. */
+/** 面向模型可见引用信封的、标签安全的 JSON 序列化。 */
 
 /**
- * Serialize JSON while preventing source data from spelling an XML-like opening tag.
- * @param value - JSON-compatible reference data.
- * @returns JSON whose parse result is unchanged and whose data contains no literal `<`.
+ * 序列化 JSON，同时阻止源数据拼出一个类似 XML 的起始标签。
+ * @param value - 兼容 JSON 的引用数据。
+ * @returns 解析结果不变、且其数据不含字面量 `<` 的 JSON。
  */
 export function stringifyTagSafeJson(value: unknown): string {
   const serialized: unknown = JSON.stringify(value)

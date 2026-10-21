@@ -1,4 +1,4 @@
-/** Session-owned MCP browser processes and provider catalog activation. @module */
+/** 归属于 Session 的 MCP 浏览器进程，以及提供方目录的激活。@module */
 
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
@@ -13,32 +13,32 @@ import type {} from '@deepseek-ai/dsh-tools'
 import type {} from '@deepseek-ai/dsh-system-prompt'
 import type {} from '@deepseek-ai/dsh-working-directory'
 
-/** Browser launch settings shared by the MCP integrations. */
+/** MCP 各集成所共享的浏览器启动设置。 */
 export interface BrowserMcpLaunchConfig {
-  /** Launch a new isolated Chromium browser for each live Session. */
+  /** 为每个实时 Session 启动一个全新的、隔离的 Chromium 浏览器。 */
   mode: 'launch'
-  /** Whether Chromium runs without a visible window; defaults to true. */
+  /** Chromium 是否以无可见窗口方式运行；默认为 true。 */
   headless: boolean
-  /** Chromium executable; omission uses the upstream server's installation discovery. */
+  /** Chromium 可执行文件；省略时使用上游服务器的安装发现机制。 */
   executablePath?: string
-  /** Per-call timeout override in milliseconds; omission uses the MCP client default. */
+  /** 每次调用的超时覆盖（毫秒）；省略时使用 MCP 客户端默认值。 */
   toolCallTimeoutMs?: number
 }
 
-/** Attachment to an externally owned Chromium browser. */
+/** 对某个由外部拥有的 Chromium 浏览器的附加。 */
 export interface BrowserMcpAttachConfig {
-  /** Exclusively attach one live Session to the configured browser. */
+  /** 将一个实时 Session 独占地附加到所配置的浏览器。 */
   mode: 'attach'
-  /** HTTP(S) debugging URL or WS(S) browser debugging endpoint. */
+  /** HTTP(S) 调试 URL 或 WS(S) 浏览器调试端点。 */
   endpoint: string
-  /** Per-call timeout override in milliseconds; omission uses the MCP client default. */
+  /** 每次调用的超时覆盖（毫秒）；省略时使用 MCP 客户端默认值。 */
   toolCallTimeoutMs?: number
 }
 
-/** Fixed launch or attachment choice for one MCP browser provider. */
+/** 某一个 MCP 浏览器提供方的、固定的启动或附加选择。 */
 export type BrowserMcpConfig = BrowserMcpLaunchConfig | BrowserMcpAttachConfig
 
-/** Validate the browser mode before the provider reserves browser use. */
+/** 在提供方预留浏览器使用之前，校验浏览器模式。 */
 export const BrowserMcpConfig: Schema<BrowserMcpAttachConfig | (Omit<BrowserMcpLaunchConfig, 'headless'> & { headless?: boolean }), BrowserMcpConfig> = Schema.union([
   Schema.object({
     mode: Schema.const('launch').required(),
@@ -54,8 +54,8 @@ export const BrowserMcpConfig: Schema<BrowserMcpAttachConfig | (Omit<BrowserMcpL
 ])
 
 /**
- * Reject an invalid debugging endpoint before acquiring provider or browser resources.
- * @param config - schema-validated browser selection.
+ * 在获取提供方或浏览器资源之前，拒绝一个无效的调试端点。
+ * @param config - 经过 schema 校验的浏览器选择。
  */
 export function validateBrowserMcpConfig(config: BrowserMcpConfig): void {
   if (config.mode !== 'attach') return
@@ -70,19 +70,19 @@ export function validateBrowserMcpConfig(config: BrowserMcpConfig): void {
   }
 }
 
-/** Provider-owned connection options for one live Session. */
+/** 某一个实时 Session 的、由提供方拥有的连接选项。 */
 export interface SessionMcpOptions {
-  /** Provider identity and MCP tool namespace. */
+  /** 提供方身份与 MCP 工具命名空间。 */
   name: string
-  /** Whether another live Session must wait for the attached browser to be released. */
+  /** 另一个实时 Session 是否必须等待被附加的浏览器被释放。 */
   exclusive: boolean
-  /** Executable used to start the installed MCP server. */
+  /** 用于启动已安装 MCP 服务器的可执行文件。 */
   command: string
-  /** Arguments passed directly without a shell. */
+  /** 直接传入、不经 shell 的参数。 */
   args: string[]
-  /** Explicit overrides merged into the MCP client's scrubbed child environment. */
+  /** 显式覆盖项，会被合并进 MCP 客户端经过清理的子进程环境。 */
   env?: Record<string, string>
-  /** Per-call timeout override; omission retains the MCP client default. */
+  /** 每次调用的超时覆盖；省略时保留 MCP 客户端的默认值。 */
   toolCallTimeoutMs?: number
 }
 
@@ -92,12 +92,12 @@ interface ClientState {
 }
 
 /**
- * Await one MCP client during each future Agent's creation.
- * A busy attachment leaves that activation without browser tools; its other turns continue.
- * Calls are serialized per Session; unload closes every server before releasing registration.
- * @param ctx - provider context supplying browser use, Agents, tools, prompt assembly, and working directories.
- * @param options - provider identity, attachment exclusivity, and executable configuration.
- * @throws when the working-directory provider is absent, before browser resources are registered.
+ * 在每个未来 Agent 的创建过程中，等待一个 MCP 客户端就绪。
+ * 一次繁忙的附加会使该激活缺少浏览器工具；其其余轮次仍继续。
+ * 调用按每个 Session 串行化；卸载会在释放注册之前关闭每一个服务器。
+ * @param ctx - 提供浏览器使用、Agents、工具、提示组装与工作目录的提供方上下文。
+ * @param options - 提供方身份、附加的独占性，以及可执行文件配置。
+ * @throws 当工作目录提供方缺失时，在浏览器资源被注册之前抛出。
  */
 export function mountSessionMcp(ctx: Context, options: SessionMcpOptions): void {
   const workingDirectory = ctx.get('workingDirectory')

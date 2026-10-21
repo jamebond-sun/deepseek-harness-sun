@@ -1,8 +1,7 @@
 /**
- * Resources of Remote access control: the built-in identity-less `global`
- * resource and one resource per identity of a kind declared in
- * `TypertResourceMap`. Resources are independent: access to one resource
- * implies no access to any other.
+ * Remote 访问控制的资源：内置的无身份 `global` 资源，以及 `TypertResourceMap`
+ * 中声明的每种身份各一个资源。资源相互独立：访问某一资源并不意味着
+ * 拥有对其他任何资源的访问权。
  * @module @deepseek-ai/dsh-typert-protocol/remote-access
  */
 
@@ -16,13 +15,12 @@ import type {
   TypertResourceMap,
 } from './types.ts'
 
-/** One resource kind: the built-in `global` kind or a declared kind. */
+/** 一种资源种类：内置的 `global` 种类或某个已声明的种类。 */
 export type RemoteAccessResourceKind = 'global' | TypertResourceKind
 
 /**
- * One resource a call or forwarded event touches: `global`, or one identity
- * of a declared kind. Identities are wire values, read before any lookup
- * resolves or validates them.
+ * 一次调用或转发事件触及的一种资源：`global`，或某个已声明种类的一个身份。
+ * 身份是传输线值，在任何 lookup 解析或校验之前读取。
  */
 export type RemoteAccessResource =
   | { readonly kind: 'global' }
@@ -31,8 +29,8 @@ export type RemoteAccessResource =
   }[TypertResourceKind]
 
 /**
- * The resource variant of one kind: `{ kind: 'global' }` for `global`, else
- * that kind with its identity.
- * @template K - the resource kind to select.
+ * 某一资源种类对应的资源变体：对于 `global` 为 `{ kind: 'global' }`，否则
+ * 为该种类及其身份。
+ * @template K - 要选择的资源种类。
  */
 export type RemoteAccessResourceOf<K extends RemoteAccessResourceKind> = Extract<RemoteAccessResource, { readonly kind: K }>

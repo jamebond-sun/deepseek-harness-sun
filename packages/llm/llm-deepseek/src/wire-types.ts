@@ -1,26 +1,26 @@
-/** DeepSeek's supported subset of the Anthropic Messages request protocol. */
+/** DeepSeek 所支持的 Anthropic Messages 请求协议子集。 */
 
-/** Text and inline or file-referenced images accepted in user messages and tool results. */
+/** 用户消息与工具结果中可接受的文本，以及内联或文件引用的图像。 */
 export type WireInput =
   | { type: 'text'; text: string }
   | { type: 'image'; source: { type: 'base64'; media_type: string; data: string } }
   | { type: 'image'; source: { type: 'file'; file_id: string } }
 
-/** Content serialized into one Messages conversation turn. */
+/** 序列化进一次 Messages 对话轮次的内容。 */
 export type WireBlock = WireInput
-  /** Activates or removes a declared tool by name in conversation order. */
+  /** 按对话顺序启用或移除一个已声明的工具。 */
   | { type: 'tool_addition' | 'tool_removal'; tool: { type: 'tool_reference'; name: string } }
   | { type: 'thinking'; thinking: string; signature?: string }
   | { type: 'tool_use'; id: string; name: string; input: Record<string, unknown> }
   | { type: 'tool_result'; tool_use_id: string; content: WireInput[]; is_error?: boolean }
 
-/** Conversation turn; capable routes retain later system updates in message history. */
+/** 对话轮次；具备相应能力的路由会把较晚的系统更新保留在消息历史中。 */
 export type WireMessage = {
   role: 'user' | 'assistant' | 'system'
   content: WireBlock[]
 }
 
-/** JSON body submitted to the resolved Messages endpoint. */
+/** 提交给已解析 Messages 端点的 JSON 请求体。 */
 export type WireRequest = {
   model: string
   stream: true
@@ -35,7 +35,7 @@ export type WireRequest = {
     name: string
     description: string
     input_schema: Record<string, unknown>
-    /** Delays tool availability until a tool_addition block activates it. */
+    /** 把工具的可用性推迟到一个 tool_addition 块启用它时。 */
     defer_loading?: true
   }[]
 }

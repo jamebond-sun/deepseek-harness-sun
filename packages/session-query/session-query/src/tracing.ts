@@ -1,4 +1,4 @@
-/** One-shot session-lineage and event-relationship tracing helpers. */
+/** 一次性的会话谱系与事件关系追踪辅助函数。 */
 
 import { currentSessionMessageProjections } from '@deepseek-ai/dsh-session-format-catalog/message-projections'
 import { foldSurface, isSurfaceEvent, snapshotSessionEvent } from '@deepseek-ai/dsh-session'
@@ -25,10 +25,10 @@ interface EventLogAnalysis {
 }
 
 /**
- * Classify a raw event log with one canonical surface fold.
- * @param sessionId - owner of the event log.
- * @param events - detached raw event log.
- * @returns lightweight records in ascending log order.
+ * 用一次规范的 surface 折叠对原始事件日志分类。
+ * @param sessionId - 事件日志的属主。
+ * @param events - 分离的原始事件日志。
+ * @returns 按日志顺序（升序）排列的轻量记录。
  */
 export function eventRecords(
   sessionId: SessionId,
@@ -38,10 +38,10 @@ export function eventRecords(
 }
 
 /**
- * Fold and return the current model surface after validating the whole log.
- * @param sessionId - owner used in query diagnostics.
- * @param events - detached raw event log from one corpus observation.
- * @returns detached current surface events in folded order.
+ * 在校验完整日志之后折叠并返回当前的模型 surface。
+ * @param sessionId - 用于查询诊断信息的属主。
+ * @param events - 来自一次语料观察的分离原始事件日志。
+ * @returns 按折叠顺序排列的、分离的当前 surface 事件。
  */
 export function currentSurfaceEvents(
   sessionId: SessionId,
@@ -50,7 +50,7 @@ export function currentSurfaceEvents(
   const analysis = analyzeEventLog(sessionId, events)
   return analysis.currentSeqs.map((seq) => {
     const event = events[seq]
-    /* v8 ignore next 6 -- analyzeEventLog validated contiguous seqs and foldSurface returned only surface-event seqs. */
+    /* v8 ignore next 6 -- analyzeEventLog 已校验 seq 连续，且 foldSurface 只返回 surface 事件的 seq。 */
     if (event === undefined || event.seq !== seq || !isSurfaceEvent(event)) {
       throw new SessionQueryError(
         `invalid session surface: current node ${seq} is not a surface event`,
@@ -62,11 +62,11 @@ export function currentSurfaceEvents(
 }
 
 /**
- * Trace one target after one canonical surface fold and whole-log validation.
- * @param sessionId - owner of the event log.
- * @param events - detached raw event log.
- * @param seq - target event seq.
- * @returns direct surface replacements and relationships to cited source events.
+ * 在一次规范的 surface 折叠与全日志校验之后追踪一个目标事件。
+ * @param sessionId - 事件日志的属主。
+ * @param events - 分离的原始事件日志。
+ * @param seq - 目标事件 seq。
+ * @returns 直接的 surface 替换关系，以及与被引用的源事件之间的关系。
  */
 export function traceEvent(
   sessionId: SessionId,
@@ -96,7 +96,7 @@ export function traceEvent(
     if (eventSources(event).includes(seq)) derivedEventSeqs.push(event.seq)
   }
 
-  // The target check above proves the parallel record exists at this index.
+  // 上面的目标检查已证明该索引处的平行记录存在。
   // oxlint-disable-next-line typescript/no-non-null-assertion
   const targetRecord = analysis.records[seq]!
   const replacedBy = analysis.replacedBy.get(seq)
@@ -111,10 +111,10 @@ export function traceEvent(
 }
 
 /**
- * Trace one target's known ancestry and recursively known descendants.
- * @param records - complete logical corpus from one observation.
- * @param sessionId - target session id.
- * @returns complete or explicitly partial lineage.
+ * 追踪一个目标的已知祖先链与递归已知后代。
+ * @param records - 来自一次观察的完整逻辑语料。
+ * @param sessionId - 目标会话 id。
+ * @returns 完整的谱系，或显式标注为不完整的谱系。
  */
 export function traceSession(
   records: readonly SessionRecord[],
@@ -187,7 +187,7 @@ function analyzeEventLog(
     folded = foldSurface(events, currentSessionMessageProjections)
   } catch (error: unknown) {
     throw new SessionQueryError(
-      /* v8 ignore next -- foldSurface throws Error instances */
+      /* v8 ignore next -- foldSurface 抛出的都是 Error 实例 */
       `invalid session surface: ${error instanceof Error ? error.message : 'unknown error'}`,
       'SESSION_QUERY_INVALID_SURFACE',
       { cause: error },
@@ -230,7 +230,7 @@ function buildDescendants(
   const descendants: SessionLineageNode[] = []
   const stack = [{ sessionId, descendants }]
   while (stack.length > 0) {
-    // The length guard proves a frame exists.
+    // 长度守卫已证明存在一帧。
     // oxlint-disable-next-line typescript/no-non-null-assertion
     const frame = stack.pop()!
     const nodes: SessionLineageNode[] = []
@@ -240,7 +240,7 @@ function buildDescendants(
       frame.descendants.push(node)
     }
     for (let index = nodes.length - 1; index >= 0; index -= 1) {
-      // The loop bounds prove this indexed node exists.
+      // 循环边界已证明该索引处的节点存在。
       // oxlint-disable-next-line typescript/no-non-null-assertion
       const node = nodes[index]!
       stack.push({ sessionId: node.session.header.id, descendants: node.descendants })

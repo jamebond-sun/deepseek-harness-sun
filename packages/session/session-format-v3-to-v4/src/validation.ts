@@ -1,4 +1,4 @@
-/** Native V4 metadata and generation-owned relationship validation. */
+/** 原生 V4 元数据与代际自有关系的校验。 */
 
 import { isAbsolute } from 'node:path'
 import { SessionFormatError, SessionFormatUnsupportedMigrationError, isSessionFormatJsonObject, sessionFormatCount } from '@deepseek-ai/dsh-session-format'
@@ -13,8 +13,8 @@ import { assertV4ForkResult } from './fork-result.ts'
 import { assertV4ToolResultMessage } from './tool-role.ts'
 
 /**
- * Validate the exact native V4 logical header.
- * @param header - decoded or otherwise untrusted V4 Session header candidate.
+ * 校验精确的原生 V4 逻辑头部。
+ * @param header - 已解码或来自其它不受信任来源的 V4 Session 头部候选值。
  */
 export function assertReleasedV4Header(header: unknown): void {
   if (!isSessionFormatJsonObject(header) || header['version'] !== 4) throw new SessionFormatError('expected format v4 header')
@@ -42,12 +42,12 @@ export function assertReleasedV4Header(header: unknown): void {
 }
 
 /**
- * Validate V4 inheritance, vocabulary, native message admission, and
- * lifecycle, compaction, tool, retry, title, command, catalog, and delivery ownership.
- * Installed Session restoration owns common event envelopes and message acceptance.
- * @param artifact - complete detached V4 artifact.
- * @param knownEventTypes - event types understood by the installed Session package.
- * @returns the same validated artifact and event objects.
+ * 校验 V4 的继承、词表、原生消息接纳，以及生命周期、压缩、工具、重试、
+ * 标题、命令、目录与投递归属。
+ * 已安装的 Session 恢复机制负责通用事件信封与消息接纳。
+ * @param artifact - 完整的、已分离的 V4 制品。
+ * @param knownEventTypes - 已安装的 Session 包可理解的事件类型。
+ * @returns 同一个已校验的制品与事件对象。
  */
 export function restoreReleasedV4Artifact(artifact: SessionFormatArtifact, knownEventTypes: ReadonlySet<string>): SessionFormatArtifact {
   assertReleasedV4Header(artifact.header)
@@ -81,10 +81,10 @@ export function restoreReleasedV4Artifact(artifact: SessionFormatArtifact, known
 }
 
 /**
- * Validate delivery generation and active-generation coordinates before evaluating ownership.
- * @param event - decoded event whose delivery payload may be inspected.
- * @param currentVersion - generation whose watermark coordinates are active.
- * @returns the active delivery's nonempty Session id, or undefined for other events and generations.
+ * 在评估归属之前校验投递代际与当前代际坐标。
+ * @param event - 已解码的事件，其投递载荷可能被检查。
+ * @param currentVersion - 其水位坐标处于激活状态的代际。
+ * @returns 当前投递的非空 Session id；对其它事件与代际为 undefined。
  */
 export function validateDeliveryAccepted(event: SessionFormatEvent, currentVersion: 3 | 4): string | undefined {
   if (event.type !== 'session-log-deepseek/delivery-accepted') return undefined
@@ -100,12 +100,12 @@ export function validateDeliveryAccepted(event: SessionFormatEvent, currentVersi
 }
 
 /**
- * Validate native developer fields, message sources, lifecycle, catalog, and delivery
- * relationships without changing event vocabulary or tail recovery.
- * The owning admission stage rejects unknown required events;
- * unknown ignorable records retain their uninterpreted payloads.
- * @param artifact - decoded artifact with its final inherited cut.
- * @param knownEventTypes - installed event types whose payloads this reader interprets.
+ * 校验原生 developer 字段、消息源、生命周期、目录与投递关系，
+ * 不改变事件词表与尾部恢复行为。
+ * 所属的接纳阶段会拒绝未知的必需事件；
+ * 未知的可忽略记录保留其未被解释的载荷。
+ * @param artifact - 已解码的制品，带有其最终继承切点。
+ * @param knownEventTypes - 本读取器会解释其载荷的已安装事件类型。
  */
 export function assertReleasedV4Relationships(artifact: SessionFormatArtifact, knownEventTypes: ReadonlySet<string>): void {
   const ids = new Set<string>()

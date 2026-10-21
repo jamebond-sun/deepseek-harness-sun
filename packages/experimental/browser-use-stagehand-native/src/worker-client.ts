@@ -1,4 +1,4 @@
-/** Isolated Stagehand Workers own CDP connections; the host owns browser processes. */
+/** 隔离的 Stagehand Worker 拥有 CDP 连接；宿主则拥有浏览器进程。 */
 
 import { Worker } from 'node:worker_threads'
 import { StagehandDrainError } from './native.ts'
@@ -17,11 +17,11 @@ export async function openBrowserWorker(
 ): Promise<NativeBrowserRuntime> {
   signal.throwIfAborted()
   const entry = new URL('./worker.js', import.meta.url)
-  // Only explicit model credentials cross in workerData; ambient credentials and proxy settings stay outside.
+  // 只有显式的模型凭据会随 workerData 传入；环境凭据与代理设置留在外部。
   const env: NodeJS.ProcessEnv = {}
   if (process.env.TSX_TSCONFIG_PATH !== undefined) env.TSX_TSCONFIG_PATH = process.env.TSX_TSCONFIG_PATH
   let worker: Worker
-  /* v8 ignore next 3 -- native.e2e.ts starts the bundled Worker through a plain-Node provider fixture. */
+  /* v8 ignore next 3 -- native.e2e.ts 通过纯 Node 的提供方 fixture 启动被打包的 Worker。 */
   if (!import.meta.url.endsWith('.ts')) {
     worker = new Worker(entry, { workerData: config, execArgv: [], env })
   } else {

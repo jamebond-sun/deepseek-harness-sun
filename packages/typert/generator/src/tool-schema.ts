@@ -1,4 +1,4 @@
-/** Lossless projection into the harness tool-schema subset. */
+/** 向 harness 工具 schema 子集的无损投影。 */
 
 import type { MemberModel, TypeNodeId } from './model.ts'
 import { TypeGraphRenderer } from './renderer.ts'

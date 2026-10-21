@@ -1,5 +1,5 @@
 /**
- * Path canonicalization for workspace identity.
+ * 用于工作区身份的路径规范化。
  * @module @deepseek-ai/dsh-workspace/src/paths
  */
 
@@ -7,11 +7,11 @@ import { realpath } from 'node:fs/promises'
 import { posix, win32 } from 'node:path'
 
 /**
- * Check whether a path names one fixed Host location without process cwd or
- * current-drive resolution.
- * @param path - Candidate Workspace path.
- * @param platform - Host platform; injectable for deterministic path tests.
- * @returns Whether the path is fully qualified on that platform.
+ * 检查一个路径是否在不经过进程 cwd 或当前驱动器解析的情况下
+ * 命名一个固定的 Host 位置。
+ * @param path - 候选的工作区路径。
+ * @param platform - Host 平台；可注入以进行确定性路径测试。
+ * @returns 该路径在该平台上是否完全限定。
  */
 export function fullyQualifiedWorkspacePath(
   path: string,
@@ -23,10 +23,10 @@ export function fullyQualifiedWorkspacePath(
 }
 
 /**
- * Derive a non-empty default title from a canonical Workspace path.
- * @param path - Canonical Workspace path.
- * @param platform - Host platform; injectable for deterministic path tests.
- * @returns The final segment when present, otherwise the complete root spelling.
+ * 从规范化工作区路径派生一个非空的默认标题。
+ * @param path - 规范化工作区路径。
+ * @param platform - Host 平台；可注入以进行确定性路径测试。
+ * @returns 存在时为其最后一段，否则为完整的根拼写。
  */
 export function defaultWorkspaceTitle(
   path: string,
@@ -37,17 +37,15 @@ export function defaultWorkspaceTitle(
 }
 
 /**
- * Canonicalize a fully qualified directory path via `fs.realpath`: trailing
- * slashes, `..` segments, and symlinks are all resolved. This is the ONE
- * uniqueness canon of the package — workspace paths are stored canonicalized,
- * uniqueness is string equality of canonicalized paths (a symlink to an
- * existing workspace's directory collides), and attach-time session `cwd`
- * checks go through the same canon. Relative paths reject before `realpath` can
- * resolve them from the Host cwd or current Windows drive. A path that does not
- * exist rejects with the original `ENOENT` — this is `create`'s reject path (a
- * workspace must point at an existing directory).
- * @param path - The path to canonicalize.
- * @returns the canonical absolute path.
+ * 通过 `fs.realpath` 规范化一个完全限定的目录路径：末尾斜杠、
+ * `..` 段以及符号链接都会被解析。这是本包唯一的唯一性
+ * 规范——工作区路径以规范化形式存储，唯一性即规范化路径的
+ * 字符串相等（指向已有工作区目录的符号链接会冲突），且附加时的会话 `cwd`
+ * 检查也走同一规范。相对路径会在 `realpath` 能够从其 Host cwd 或
+ * 当前 Windows 驱动器解析它们之前被拒绝。不存在的路径会以原始的
+ * `ENOENT` 拒绝——这正是 `create` 的拒绝路径（工作区必须指向一个已存在的目录）。
+ * @param path - 要规范化的路径。
+ * @returns 规范化的绝对路径。
  */
 export async function realpathNormalize(path: string): Promise<string> {
   if (!fullyQualifiedWorkspacePath(path)) {

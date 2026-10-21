@@ -1,35 +1,33 @@
 /**
- * Lazily scanned view of one JSON object's top-level fields, built from text
- * that may still be streaming or from an already parsed object. Nothing is
- * scanned until a reader asks; the view remembers every question it answered
- * and reports changed answers when the owner refreshes for publication.
- * Used for model tool-call arguments: a row reads the fields it
- * cares about at whatever granularity it displays, at every stage of the call.
+ * 对一个 JSON 对象顶层字段的惰性扫描视图，构建自可能仍在中流的文本，或一个已解析
+ * 的对象。在读者发问之前不做任何扫描；视图记住它回答过的每个问题，并在所有者为
+ * 发布而刷新时报告已改变的答案。用于模型工具调用参数：一行按其关注的字段，以它
+ * 所显示的粒度，在调用的每个阶段读取。
  * @module @deepseek-ai/dsh-util-values/src/partial-json
  */
 import { assertNever, type JsonValue } from './index.ts'
 
-/** Granularity of a length read; a change is reported only when the rounded-up step moves. */
+/** 长度读取的粒度；仅当向上取整的步进移动时才报告变化。 */
 export interface LengthReadOptions {
-  /** Characters per step; defaults to 1 (every character counts). */
+  /** 每步的字符数；默认为 1（每个字符都计）。 */
   readonly step?: number
-  /** Completed characters included in the displayed total; affects change detection only. */
+  /** 计入显示总数的已完成字符；仅影响变化检测。 */
   readonly offset?: number
 }
 
-/** Scanner position inside the object text. */
+/** 对象文本内的扫描器位置。 */
 type Mode =
   | 'root' | 'key-or-end' | 'key-only' | 'key' | 'colon' | 'value'
   | 'string' | 'scalar' | 'nested' | 'comma-or-end' | 'closed' | 'invalid'
 
-/** A content reader advances independently of the boundary scanner. */
+/** 一个内容读取器独立于边界扫描器推进。 */
 interface StringRead {
   at: number
   length: number
   text: string
 }
 
-/** Raw ranges exclude string quotes and include a non-string value's own brackets. */
+/** 原始范围排除字符串引号，并包含一个非字符串值自身的括号。 */
 type Entry =
   | {
     readonly kind: 'string'
@@ -46,7 +44,7 @@ type Entry =
 type ReadKind = 'closed' | 'keys' | 'has' | 'complete' | 'text' | 'value'
   | `length:${number}:${number}` | `prefix:${number}` | `exceeds:${number}`
 
-/** One answered question, kept to detect whether later text changes the answer. */
+/** 一个已回答的问题，保留以检测后续文本是否改变了答案。 */
 interface Read {
   readonly completion: boolean
   readonly answer: () => unknown
@@ -68,19 +66,19 @@ function isHex(c: string): boolean {
 }
 
 /**
- * The view. A streaming instance grows through {@link PartialArguments.append};
- * {@link PartialArguments.fromText} and {@link PartialArguments.fromObject} build
- * sealed instances over a finished call. Every reader is total: an absent or
- * differently typed field answers `undefined` (or `false`), never throws.
+ * 该视图。一个流式实例通过 {@link PartialArguments.append} 增长；
+ * {@link PartialArguments.fromText} 与 {@link PartialArguments.fromObject} 在已完成的
+ * 调用之上构建封闭实例。每个读取器都是全的：缺失或类型不同的字段回答 `undefined`
+ * （或 `false`），绝不抛出。
  */
 export class PartialArguments {
-  /** The view of a call with no arguments available. */
+  /** 视图一个没有任何可用参数的调用。 */
   static readonly EMPTY: PartialArguments = PartialArguments.fromObject({})
 
   /**
-   * View finished argument text without scanning it until a reader asks.
-   * @param text - the complete argument JSON text.
-   * @returns a sealed view.
+   * 查看已完成的参数文本，在读者发问之前不扫描它。
+   * @param text - 完整的参数 JSON 文本。
+   * @returns 一个封闭的视图。
    */
   static fromText(text: string): PartialArguments {
     const view = new PartialArguments()
@@ -90,9 +88,9 @@ export class PartialArguments {
   }
 
   /**
-   * View an already parsed argument payload, such as a PTC dispatch object.
-   * @param value - the parsed argument value.
-   * @returns a sealed view; a non-object payload has no fields.
+   * 查看一个已解析的参数负载，例如一个 PTC 派发对象。
+   * @param value - 已解析的参数值。
+   * @returns 一个封闭的视图；非对象负载没有字段。
    */
   static fromObject(value: unknown): PartialArguments {
     const view = new PartialArguments()
@@ -104,14 +102,14 @@ export class PartialArguments {
   }
 
   /**
-   * The source: text so far or a parsed object, plus whether it can still grow.
-   * These are the only enumerable fields, so two views over the same source
-   * compare equal structurally however far each has been read.
+   * 来源：迄今的文本或一个已解析的对象，外加它是否还能增长。
+   * 这些是唯一可枚举的字段，因此两个基于同一来源的视图在结构上相等，无论各自
+   * 已读到多远。
    */
   private chunks: string[] = []
   private object: Readonly<Record<string, JsonValue>> | undefined
   private sealed = false
-  // Scan progress, located fields, and remembered reads are caches over the source.
+  // 扫描进度、已定位的字段，以及记住的读取，都是基于来源的缓存。
   #ends: number[] = []
   #size = 0
   #consumed = 0
@@ -129,20 +127,20 @@ export class PartialArguments {
   readonly #order: string[] = []
   readonly #reads = new Map<string, Read>()
 
-  /** Whether this view rejects further appends; does not scan text or register reads. */
+  /** 本视图是否拒绝进一步追加；不扫描文本也不注册读取。 */
   get isSealed(): boolean {
     return this.sealed
   }
 
-  /** Whether indexing or a content read found invalid JSON; unread value contents are not validated. */
+  /** 索引或内容读取是否发现了无效 JSON；未读取的值内容不会被校验。 */
   get invalid(): boolean {
     this.scan()
     return this.#mode === 'invalid' || this.#invalidValue
   }
 
   /**
-   * Retain streamed argument text without scanning or comparing observed answers.
-   * @param fragment - the text following every fragment appended before.
+   * 保留流式参数文本，不做扫描也不比较已观察到的答案。
+   * @param fragment - 在之前追加的每个分片之后的文本。
    */
   append(fragment: string): void {
     if (this.sealed) throw new Error('PartialArguments: cannot append to a sealed view')
@@ -153,9 +151,9 @@ export class PartialArguments {
   }
 
   /**
-   * Reconcile a streamed prefix with authoritative complete text without joining the fragments.
-   * @param text - the final argument text, which replaces missing or conflicting deltas.
-   * @returns this view sealed with its caches retained when every character matches; otherwise a new sealed view.
+   * 将流式前缀与权威的完整文本调和，而不拼接分片。
+   * @param text - 最终的参数文本，替换缺失或冲突的增量。
+   * @returns 当每个字符都匹配时，保留其缓存并封闭的此视图；否则一个新的封闭视图。
    */
   settle(text: string): PartialArguments {
     if (this.object !== undefined || text.length !== this.#size) return PartialArguments.fromText(text)
@@ -171,8 +169,8 @@ export class PartialArguments {
   }
 
   /**
-   * Compare observed answers and advance their publication baseline. Unread views remain unscanned.
-   * @returns whether any observed answer changed since its first read or the preceding refresh.
+   * 比较已观察到的答案并推进它们的发布基线。未读取的视图保持未扫描。
+   * @returns 自首次读取或上次刷新以来，是否有任何已观察的答案发生了变化。
    */
   refresh(): boolean {
     if (this.#reads.size === 0) return false
@@ -186,7 +184,7 @@ export class PartialArguments {
       }
       changed = this.refreshRead(read) || changed
     }
-    // Content reads can discover errors that change a field's completion answer.
+    // 内容读取可能发现会改变某个字段完成答案的错误。
     if (completions) {
       for (const read of this.#reads.values()) if (read.completion) changed = this.refreshRead(read) || changed
     }
@@ -202,44 +200,44 @@ export class PartialArguments {
   }
 
   /**
-   * Check whether no further fields can arrive.
-   * @returns whether the outer object closed, indexing failed, or the view is sealed; unread values are not validated.
+   * 检查是否不可能再有字段到达。
+   * @returns 外层对象是否已关闭、索引是否失败，或视图是否封闭；未读取的值不会被校验。
    */
   closed(): boolean {
     return this.remember('closed', '', () => this.closedNow())
   }
 
   /**
-   * List discovered fields in first-appearance order.
-   * @returns top-level keys seen so far, in first-appearance order.
+   * 按首次出现顺序列出已发现的字段。
+   * @returns 迄今可见的顶层键，按首次出现顺序。
    */
   keys(): readonly string[] {
     return this.remember('keys', '', () => this.keysNow(), keys => keys.length)
   }
 
   /**
-   * Check whether a top-level field has appeared.
-   * @param key - argument name.
-   * @returns whether the field has appeared (a string opened or another value began).
+   * 检查一个顶层字段是否已出现。
+   * @param key - 参数名。
+   * @returns 该字段是否已出现（字符串已打开或另一个值已开始）。
    */
   has(key: string): boolean {
     return this.remember('has', key, () => this.hasNow(key))
   }
 
   /**
-   * Check whether a field's closing delimiter has arrived, without validating its contents.
-   * @param key - argument name.
-   * @returns whether its delimiter arrived and no content reader has reported an error for this value.
+   * 检查一个字段的闭合分隔符是否已到达，而不校验其内容。
+   * @param key - 参数名。
+   * @returns 其分隔符是否已到达，且没有内容读取器为本值报告过错误。
    */
   complete(key: string): boolean {
     return this.remember('complete', key, () => this.completeNow(key))
   }
 
   /**
-   * Read string length without materializing its text.
-   * @param key - argument name.
-   * @param options - change granularity for a streaming string.
-   * @returns decoded UTF-16 length of the string field so far; undefined when absent or not a string.
+   * 读取字符串长度而不物化其文本。
+   * @param key - 参数名。
+   * @param options - 流式字符串的变化粒度。
+   * @returns 字符串字段迄今已解码的 UTF-16 长度；缺失或非字符串时为 undefined。
    */
   stringLength(key: string, options?: LengthReadOptions): number | undefined {
     const step = Math.max(1, Math.floor(options?.step ?? 1))
@@ -249,10 +247,10 @@ export class PartialArguments {
   }
 
   /**
-   * Check a string against a decoded UTF-16 length limit without materializing it.
-   * @param key - argument name.
-   * @param maxLength - decoded UTF-16 limit, floored to at least zero.
-   * @returns whether the string is longer than the limit; false when absent or not a string.
+   * 在不物化字符串的前提下，对照一个已解码 UTF-16 长度上限检查它。
+   * @param key - 参数名。
+   * @param maxLength - 已解码 UTF-16 上限，下取整到至少零。
+   * @returns 字符串是否长于上限；缺失或非字符串时为 false。
    */
   stringExceeds(key: string, maxLength: number): boolean {
     const limit = Math.max(0, Math.floor(maxLength))
@@ -261,19 +259,19 @@ export class PartialArguments {
   }
 
   /**
-   * Read a decoded string, including a streaming prefix.
-   * @param key - argument name.
-   * @returns the string field's decoded text so far; undefined when absent or not a string.
+   * 读取一个已解码的字符串，包括流式前缀。
+   * @param key - 参数名。
+   * @returns 字符串字段迄今已解码的文本；缺失或非字符串时为 undefined。
    */
   text(key: string): string | undefined {
     return this.remember('text', key, () => this.textNow(key))
   }
 
   /**
-   * Read at most the first decoded UTF-16 units of a string.
-   * @param key - argument name.
-   * @param maxLength - maximum decoded UTF-16 length, floored to at least one.
-   * @returns the bounded string prefix; undefined when absent or not a string.
+   * 读取一个字符串的前至多解码 UTF-16 单元。
+   * @param key - 参数名。
+   * @param maxLength - 最大已解码 UTF-16 长度，下取整到至少一。
+   * @returns 有界的字符串前缀；缺失或非字符串时为 undefined。
    */
   textPrefix(key: string, maxLength: number): string | undefined {
     const limit = Math.max(1, Math.floor(maxLength))
@@ -282,15 +280,15 @@ export class PartialArguments {
   }
 
   /**
-   * Read a completed non-string argument.
-   * @param key - argument name.
-   * @returns the parsed non-string value once it closed; undefined while open, absent, or a string.
+   * 读取一个已完成的非字符串参数。
+   * @param key - 参数名。
+   * @returns 该值关闭后已解析的非字符串值；打开中、缺失或字符串时为 undefined。
    */
   value(key: string): JsonValue | undefined {
     return this.remember('value', key, () => this.valueNow(key))
   }
 
-  /** Answer a question and, on a streaming view, remember it for change detection. */
+  /** 回答一个问题，并在流式视图上记住它以进行变化检测。 */
   private remember<T>(
     kind: ReadKind,
     key: string,
@@ -356,7 +354,7 @@ export class PartialArguments {
       try {
         text = JSON.parse(`"${this.slice(entry.start, entry.end)}"`) as string
       } catch (_error) {
-        // The incremental reader retains the valid prefix when complete text contains an invalid escape.
+        // 增量读取器在完整文本含有无效转义时保留有效前缀。
       }
       if (text !== undefined) entry.text = { at: entry.end, length: text.length, text }
     }
@@ -394,7 +392,7 @@ export class PartialArguments {
       try {
         entry.parsed = JSON.parse(this.slice(entry.start, entry.end)) as JsonValue
       } catch (_error) {
-        // Unread values retain only their ranges; a requested malformed value has no parsed result.
+        // 未读取的值仅保留其范围；一个被请求的畸形值没有已解析结果。
         entry.invalid = true
         this.#invalidValue = true
       }
@@ -413,7 +411,7 @@ export class PartialArguments {
     return low
   }
 
-  /** Materialize only a requested range, never the cumulative source. */
+  /** 仅物化被请求的范围，绝不物化累积来源。 */
   private slice(start: number, end: number): string {
     if (start >= end) return ''
     const first = this.chunkAt(start)
@@ -485,7 +483,7 @@ export class PartialArguments {
     }
   }
 
-  /** Locate new field ranges without decoding or parsing their contents. */
+  /** 定位新字段范围，而不解码或解析其内容。 */
   private scan(): void {
     if (this.object !== undefined || this.#consumed === this.#size) return
     for (let i = this.chunkAt(this.#consumed); i < this.chunks.length && this.#invalidAt === undefined; i++) {
@@ -504,7 +502,7 @@ export class PartialArguments {
     }
   }
 
-  /** Only raw quotes and their preceding backslash runs can terminate a string. */
+  /** 只有原始引号及其前导反斜杠序列可以终止一个字符串。 */
   private stringBoundary(fragment: string, start: number): number {
     let at = start
     while (true) {
@@ -565,10 +563,10 @@ export class PartialArguments {
       case 'closed':
         if (isWhitespace(c)) return
         this.fail(); return
-      /* v8 ignore next 2 -- scan() stops stepping once the view is invalid. */
+      /* v8 ignore next 2 -- scan() 一旦视图失效就停止步进。 */
       case 'invalid':
         return
-      /* v8 ignore next 2 -- Every scanner mode has a handler above. */
+      /* v8 ignore next 2 -- 每个扫描器模式在上方都有处理。 */
       default:
         assertNever(this.#mode)
     }
@@ -597,7 +595,7 @@ export class PartialArguments {
       try {
         this.#key = JSON.parse(`"${raw}"`) as string
       } catch (_error) {
-        // Invalid key escapes prevent identifying subsequent fields.
+        // 无效的键转义会阻止识别后续字段。
         this.fail()
         return
       }

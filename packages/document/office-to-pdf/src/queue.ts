@@ -1,4 +1,4 @@
-/** Bounded source admission, shared content conversion, and caller-owned PDF delivery. */
+/** 有界的源接纳、共享的内容转换，以及调用方拥有的 PDF 交付。 */
 import { createHash } from 'node:crypto'
 import { OfficeToPdfError } from './errors.ts'
 import { OfficeToPdfKey, type OfficeToPdfGeneration } from './identity.ts'
@@ -24,7 +24,7 @@ interface Job {
   state: 'queued' | 'running' | 'finished'
 }
 
-/** One converter generation owns every queued source, conversion, reader, and retained PDF. */
+/** 一个转换器生成拥有每个已排队的源、转换、读取器与保留的 PDF。 */
 export class ConversionQueue {
   private readonly ready = new Map<OfficeToPdfKey, OfficeToPdfResult>()
   private readonly aliases = new Map<string, OfficeToPdfKey>()
@@ -41,18 +41,18 @@ export class ConversionQueue {
   private disposed = false
 
   /**
-   * @param config - validated queue, source, reader, and completed-result limits.
-   * @param generation - provider lifetime; prevents reuse after engine or font replacement.
-   * @param convert - executes one admitted conversion and settles after scratch cleanup.
+   * @param config - 已校验的队列、源、读取器与已完成结果的上限。
+   * @param generation - 提供方生命周期；在引擎或字体替换之后防止复用。
+   * @param convert - 执行一次已接纳的转换，并在临时清理之后落定。
    */
   constructor(private readonly config: Config, private readonly generation: OfficeToPdfGeneration,
     private readonly convert: Convert) {}
 
   /**
-   * Admit metadata before loading source bytes and share conversion across authorized readers.
-   * @param request - already-authorized metadata and deferred bounded source read.
-   * @param signal - this reader's cancellation; the final reader cancels shared work.
-   * @returns independent PDF bytes; busy or canceled readers reject without releasing active engine capacity early.
+   * 在加载源字节之前接纳元数据，并在经授权的读取器之间共享转换。
+   * @param request - 已授权的元数据与延迟的有界源读取。
+   * @param signal - 此读取器的取消；最后一个读取器取消共享工作。
+   * @returns 独立的 PDF 字节；忙碌或已取消的读取器会拒绝，而不提前释放活跃引擎容量。
    */
   async read(request: OfficeToPdfRequest, signal?: AbortSignal): Promise<OfficeToPdfResult> {
     signal?.throwIfAborted()
@@ -94,7 +94,7 @@ export class ConversionQueue {
         const reason: unknown = signal?.reason
         reject(reason instanceof Error ? reason : new Error('Office conversion cancelled', { cause: reason }))
         if (reader.job.readers.size === 0) this.cancel(reader.job)
-        // Cancellation or demotion can unblock queued background work.
+        // 取消或降级可以解除排队中的后台工作的阻塞。
         this.drain()
       }
       const reader: Reader = { job: shared, source, priority: request.priority, resolve, reject, cleanup: () => signal?.removeEventListener('abort', abort) }
@@ -105,7 +105,7 @@ export class ConversionQueue {
     return promise
   }
 
-  /** Cancel all readers and wait until actual reads, conversions, and scratch cleanup finish. */
+  /** 取消所有读取器，并等待实际读取、转换与临时清理完成。 */
   async dispose(): Promise<void> {
     this.disposed = true
     for (const job of this.jobs) this.fail(job, this.unavailable())

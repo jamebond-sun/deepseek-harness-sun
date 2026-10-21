@@ -1,14 +1,14 @@
 /**
- * Shared cancellation helpers for the local LSP provider's host-I/O, queue, and protocol phases.
+ * 本地 LSP provider 在宿主 I/O、队列与协议阶段共用的取消辅助函数。
  * @module @deepseek-ai/dsh-lsp-stdio/abort
  */
 
 import { timeoutOf } from '@deepseek-ai/dsh-timeout'
 
 /**
- * Build an abort Error carrying the signal's reason and preserving timeout classification.
- * @param signal - the aborted signal whose reason to surface.
- * @returns the timeout reason if present, else the Error reason, else a generic aborted Error.
+ * 构造一个携带 signal 原因、并保留超时分类的中止 Error。
+ * @param signal - 已中止的 signal，其原因为要呈现的原因。
+ * @returns 存在超时原因时返回它，否则返回 Error 原因，再否则返回一个通用的已中止 Error。
  */
 export function abortError(signal: AbortSignal): Error {
   const timeout = timeoutOf(signal)
@@ -19,19 +19,19 @@ export function abortError(signal: AbortSignal): Error {
 }
 
 /**
- * Throw the signal's classified abort error when it has already fired.
- * @param signal - the optional query cancellation signal.
+ * 当 signal 已经触发时，抛出其已分类的中止错误。
+ * @param signal - 可选的查询取消 signal。
  */
 export function throwIfAborted(signal?: AbortSignal): void {
   if (signal?.aborted) throw abortError(signal)
 }
 
 /**
- * Await work while allowing a query signal to abandon its wait; the underlying work keeps its own
- * handlers and continues to its owner-defined quiescence boundary.
- * @param work - the owned asynchronous work.
- * @param signal - optional query cancellation.
- * @returns the work result, or a rejection carrying the classified abort reason.
+ * 等待一项工作，同时允许查询 signal 放弃等待；底层工作保留自己的处理器，
+ * 并继续运行到其所有者定义的静止边界。
+ * @param work - 被拥有的异步工作。
+ * @param signal - 可选的查询取消。
+ * @returns 工作结果，或一个携带已分类中止原因的拒绝。
  */
 export function abortable<T>(work: Promise<T>, signal?: AbortSignal): Promise<T> {
   if (signal === undefined) return work
@@ -40,7 +40,7 @@ export function abortable<T>(work: Promise<T>, signal?: AbortSignal): Promise<T>
   const onAbort = (): void => { canceled.reject(abortError(signal)) }
   signal.addEventListener('abort', onAbort, { once: true })
   const normalized = work.catch((error: unknown) => {
-    /* v8 ignore next -- owned LSP promises reject with Error; coercion defends the generic helper. */
+    /* v8 ignore next -- 自有的 LSP promise 都以 Error 拒绝；此处的强转是为这个通用辅助函数兜底。 */
     throw error instanceof Error ? error : new Error(String(error))
   })
   return Promise.race([normalized, canceled.promise])

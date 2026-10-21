@@ -1,7 +1,6 @@
 /**
- * Workflow seam vocabulary: the request/run/result types a workflow engine
- * consumes and produces, plus the fields in the `workflow/*` event payloads.
- * Types only (plus the id-brand factory), per the package convention.
+ * workflow seam 词汇表：一个 workflow 引擎消费与产出所需的请求/运行/结果类型，
+ * 外加 `workflow/*` 事件载荷中的字段。仅类型（外加 id 品牌工厂），遵循包约定。
  *
  * @module @deepseek-ai/dsh-workflow/types
  */
@@ -9,123 +8,118 @@
 import type { Branded } from '@deepseek-ai/dsh-brand'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 
-/** Identifies one workflow run. */
+/** 标识一次 workflow 运行。 */
 export type WorkflowRunId = Branded<'WorkflowRunId'>
 
 /**
- * Brand a string as a {@link WorkflowRunId}.
- * @param id - the raw id string (the engine mints UUIDs; tests may pass fixtures).
- * @returns the same string, branded.
+ * 将一个字符串品牌化为 {@link WorkflowRunId}。
+ * @param id - 原始 id 字符串（引擎生成 UUID；测试可能传入 fixture）。
+ * @returns 同一个被品牌化的字符串。
  */
 export function WorkflowRunId(id: string): WorkflowRunId {
   return id as WorkflowRunId
 }
 
 /**
- * One phase declared in a script's `meta.phases` (progress vocabulary only —
- * phases group agents in observers/UIs; they impose no execution structure).
+ * 一个脚本 `meta.phases` 中声明的阶段（仅进度词汇 —— 阶段在观察者/UI 中
+ * 对代理进行分组；它们不施加任何执行结构）。
  */
 export interface WorkflowPhase {
-  /** The phase title; `phase()` calls match against it by exact string. */
+  /** 阶段标题；`phase()` 调用按精确字符串与之匹配。 */
   title: string
-  /** Optional one-line description of what the phase does. */
+  /** 关于该阶段做什么的可选单行描述。 */
   detail?: string
-  /** Optional provider override this phase is expected to use (informational). */
+  /** 该阶段预期使用的可选 provider 覆盖（仅供参考）。 */
   provider?: string
-  /** Optional model override this phase is expected to use (informational). */
+  /** 该阶段预期使用的可选 model 覆盖（仅供参考）。 */
   model?: string
 }
 
 /**
- * The script's identity block, provided as plain JSON data alongside the
- * script body (the model-facing tool carries it as its `meta` parameter) and
- * validated by the engine before the body runs. `name`/`description` are
- * required; the rest is optional annotation. The field vocabulary matches the
- * Claude Code dynamic-workflows meta block.
+ * 脚本的身份块，与脚本正文一并作为纯 JSON 数据提供（模型面向的工具将其
+ * 作为 `meta` 参数携带），并在正文运行前由引擎校验。`name`/`description`
+ * 必填；其余为可选注解。字段词汇与 Claude Code 的动态 workflow meta 块一致。
  */
 export interface WorkflowMeta {
-  /** Short kebab-case workflow name (display + persistence key). */
+  /** 短横线命名的 workflow 名称（展示 + 持久化键）。 */
   name: string
-  /** One-line description of what the workflow does. */
+  /** 关于 workflow 做什么的单行描述。 */
   description: string
-  /** Optional guidance on when this workflow applies (shown in listings). */
+  /** 关于该 workflow 何时适用的可选指引（在列表中展示）。 */
   whenToUse?: string
-  /** Optional phase declarations matched by `phase()` calls. */
+  /** 由 `phase()` 调用匹配的可选阶段声明。 */
   phases?: WorkflowPhase[]
 }
 
 /**
- * Why a run settled. CLOSED union (engine-owned, consumers may exhaust):
- * `completed` = the script ran to its final `return`; `cancelled` = the run
- * was cancelled (caller `cancel()`/signal); `error` = the script threw, a
- * fatal `WorkflowError` propagated, or the result failed materialization.
+ * 运行为何结算。CLOSED 联合（引擎拥有，消费者可穷尽）：
+ * `completed` = 脚本运行至其最终的 `return`；`cancelled` = 运行被取消
+ * （调用方 `cancel()`/信号）；`error` = 脚本抛出、一个致命的 `WorkflowError`
+ * 被传播，或结果物化失败。
  */
 export type WorkflowStopReason = 'completed' | 'cancelled' | 'error'
 
 /**
- * The outcome resolved by a live workflow run. `value` is
- * the script's materialized return value (plain host-realm JSON data; `null`
- * when the script returned `undefined`) — meaningful only for `completed`.
- * A non-`completed` reason carries the failure in `error`; the consumer maps
- * it to an `isError` tool result rather than reporting partial output.
+ * 一个活跃 workflow 运行所解析出的结果。`value` 是脚本物化后的返回值
+ * （纯宿主 realm JSON 数据；脚本返回 `undefined` 时为 `null`）—— 仅对
+ * `completed` 有意义。一个非 `completed` 的原因会将失败携带在 `error` 中；
+ * 消费者将其映射为一个 `isError` 工具结果，而非报告部分输出。
  */
 export interface WorkflowResult {
-  /** The script's return value (host JSON data; `null` for no return). */
+  /** 脚本的返回值（宿主 JSON 数据；无返回时为 `null`）。 */
   value: unknown
-  /** Why the run settled. */
+  /** 运行为何结算。 */
   stopReason: WorkflowStopReason
-  /** The failure message (present iff `stopReason` is not `completed`). */
+  /** 失败消息（仅当 `stopReason` 不是 `completed` 时存在）。 */
   error?: string
   /**
-   * How many `agent()` calls the run accepted over its whole lifetime. On a
-   * graceful settlement this is the script-side count (calls still queued for
-   * a concurrency slot included); on a termination path (cancellation or
-   * process failure) it degrades to the host-observed count — calls queued
-   * inside a terminated script are unknowable then.
+   * 该运行在其整个生命周期内接受了的 `agent()` 调用数量。在优雅结算时，
+   * 这是脚本侧的计数（仍在排队等待并发槽位的调用也包括在内）；在终止路径上
+   * （取消或进程失败）它退化为宿主观测到的计数 —— 那时终止脚本内排队的
+   * 调用是不可知的。
    */
   agentsStarted: number
 }
 
-/** Identifying detail for a run, carried by every `workflow/*` event as borrowed immutable data, never the live run. */
+/** 一次运行的标识细节，由每一个 `workflow/*` 事件作为借来的不可变数据携带，绝非活跃运行本身。 */
 export interface WorkflowRunInfo {
-  /** The run's id. */
+  /** 运行的 id。 */
   id: WorkflowRunId
-  /** The run's validated meta block. */
+  /** 运行已校验的 meta 块。 */
   meta: WorkflowMeta
 }
 
-/** One `agent()` call's identity within a run (the `workflow/agent-start` payload). */
+/** 一次运行内一个 `agent()` 调用的身份（即 `workflow/agent-start` 载荷）。 */
 export interface WorkflowAgentInfo {
-  /** 1-based sequence number of this `agent()` call within the run. */
+  /** 该 `agent()` 调用在运行内的 1 基序号。 */
   seq: number
-  /** The display label (the `label` option, or a prompt snippet). */
+  /** 展示标签（`label` 选项，或提示片段）。 */
   label: string
-  /** The phase this agent belongs to (the `phase` option, else the current `phase()` title). */
+  /** 该代理所属的阶段（`phase` 选项，否则为当前 `phase()` 标题）。 */
   phase?: string
-  /** The child agent's id on the subagent seam. */
+  /** 子代理 seam 上的子代理 id。 */
   childId: SessionId
 }
 
-/** How one `agent()` call settled: clean result, child failure (script sees `null`), or run cancellation. */
+/** 一个 `agent()` 调用如何结算：干净结果、子项失败（脚本看到 `null`），或运行取消。 */
 export type WorkflowAgentOutcome = 'completed' | 'failed' | 'cancelled'
 
-/** One `agent()` call's settlement (the `workflow/agent-end` payload). */
+/** 一个 `agent()` 调用的结算（即 `workflow/agent-end` 载荷）。 */
 export interface WorkflowAgentEndInfo extends WorkflowAgentInfo {
-  /** How the call settled. */
+  /** 该调用如何结算。 */
   outcome: WorkflowAgentOutcome
 }
 
 /**
- * A settled run's outcome as event data (the `workflow/end` payload): the
- * {@link WorkflowResult} minus `value` (a listener observing outcomes must not
- * receive a mutable alias of the caller's result value; a consumer that needs
- * the value holds the run and awaits `result`).
+ * 作为事件数据的一个已结算运行的结果（即 `workflow/end` 载荷）：
+ * {@link WorkflowResult} 减去 `value`（一个观察结果的监听器不得收到对调用方
+ * 结果值的可变别名；需要该值的消费者应持有运行并 await `result`）。
  */
 export interface WorkflowResultInfo {
-  /** Why the run settled. */
+  /** 运行为何结算。 */
   stopReason: WorkflowStopReason
-  /** The failure message (present iff `stopReason` is not `completed`). */
+  /** 失败消息（仅当 `stopReason` 不是 `completed` 时存在）。 */
   error?: string
-  /** How many `agent()` calls the run accepted (see {@link WorkflowResult.agentsStarted}). */
+  /** 该运行接受了多少次 `agent()` 调用（见 {@link WorkflowResult.agentsStarted}）。 */
   agentsStarted: number
 }

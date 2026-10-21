@@ -1,7 +1,7 @@
 /**
- * Public type vocabulary of the workspace entity: the `WorkspaceId` brand and
- * the `Workspace` consumer interface. Types only — the `WorkspaceId` factory
- * lives in `index.ts` (this file carries no runtime code).
+ * 工作区实体的公共类型词汇表：`WorkspaceId` 品牌以及
+ * `Workspace` 消费者接口。仅有类型——`WorkspaceId` 工厂
+ * 位于 `index.ts`（本文件不含运行时代码）。
  * @module @deepseek-ai/dsh-workspace/src/types
  */
 
@@ -10,144 +10,136 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { TypertResource } from '@deepseek-ai/dsh-typert-protocol'
 
 /**
- * Identifies one workspace record. A generated uuid, never the path: path
- * normalization rewrites paths, and a reference anchor must stay stable.
+ * 标识一条工作区记录。是生成的 uuid，而非路径：路径
+ * 规范化会重写路径，而引用锚点必须保持稳定。
  */
 export type WorkspaceId = Branded<'WorkspaceId'>
 
 declare module '@deepseek-ai/dsh-typert-protocol' {
   interface TypertResourceMap {
-    /** One Workspace; the Workspace Controller registers its default `workspaceId` wire field. */
+    /** 一个工作区；Workspace Controller 注册其默认的 `workspaceId` 线字段。 */
     workspace: TypertResource<WorkspaceId>
   }
 
   interface RemoteErrorDetailsMap {
-    /** No registration carries that Workspace identity. */
+    /** 没有任何注册携带该工作区身份。 */
     'workspace/not-found': { readonly workspaceId: WorkspaceId }
   }
 }
 
 /**
- * Activity families a `workspace/session-activity` listener may report. This
- * package declares none: each provider merges its own key from a module both
- * its Host and Client faces import, so a consumer that renders the families
- * sees exactly the keys its program compiled and falls through to a generic
- * description for any other. The shipped providers merge `turn` (the Agent
- * registry), `job` (the job registry seam), `subagent` (the Subagent
- * runtime), and `schedule` (the Schedule plugin).
+ * 一个 `workspace/session-activity` 监听器可能报告的活动族。本包
+ * 不声明任何族：每个提供方从其 Host 与 Client 两面都导入的模块中
+ * 合并自身的键，因此渲染这些族的消费者看到的正好是其程序所编译的键，
+ * 并对任何其他键回退到通用描述。已发布的提供方合并 `turn`（Agent
+ * 注册表）、`job`（任务注册表接缝）、`subagent`（Subagent
+ * 运行时）以及 `schedule`（Schedule 插件）。
  */
 export interface SessionActivityKindMap {}
 
-/** One activity family key. */
+/** 一个活动族键。 */
 export type SessionActivityKind = keyof SessionActivityKindMap
 
-/** One active item of a family that has per-item identity. */
+/** 一个具有逐项身份的族中的一项活动。 */
 export interface SessionActivityItem {
-  /** Family-specific identity: a session id, a job id, or a schedule id. */
+  /** 族特定的身份：会话 id、任务 id 或计划 id。 */
   readonly id: string
-  /** Display label when the family carries one (a job label, a subagent label). */
+  /** 当族携带一个显示标签时的展示标签（任务标签、子代理标签）。 */
   readonly label?: string
 }
 
 /**
- * One reason a session counts as active for archive admission. Families with
- * per-item identity list their items so a caller can name what must stop.
+ * 一个会话被计为活动（可被归档接纳）的一条理由。具有逐项身份的族
+ * 会列出其条目，以便调用方指明必须停止的内容。
  */
 export interface SessionActivity {
   readonly kind: SessionActivityKind
-  /** Active items of the family; absent for a family without per-item identity (`turn`). */
+  /** 该族的活动条目；对于没有逐项身份的族（`turn`）则不存在。 */
   readonly items?: readonly SessionActivityItem[]
 }
 
 /**
- * One workspace: a stable id over an existing directory, a display title, and
- * an ordered candidate account of sessions. Membership validates header cwd
- * against the workspace path, but preserves an existing account when its
- * fully qualified cwd is missing. Consumers only see this interface; the
- * implementation stays private.
+ * 一个工作区：一个位于现有目录之上的稳定 id、一个显示标题，以及
+ * 一个有序的会话候选记账。成员资格会将头部 cwd 与
+ * 工作区路径进行校验，但当其完全限定的 cwd 缺失时保留已有的记账。
+ * 消费者只能看到此接口；实现保持私有。
  */
 export interface Workspace {
-  /** Stable record id (generated uuid). */
+  /** 稳定的记录 id（生成的 uuid）。 */
   readonly id: WorkspaceId
 
   /**
-   * Canonical directory path: the `fs.realpath` of the path given at create
-   * time (trailing slashes, `..`, and symlinks all resolved). Never rewritten
-   * afterwards, even when the directory disappears (see {@link status}).
+   * 规范化目录路径：创建时给定路径的 `fs.realpath`
+   * （末尾斜杠、`..` 以及符号链接均已被解析）。此后从不被重写，
+   * 即使目录消失也是如此（见 {@link status}）。
    */
   readonly path: string
 
-  /** Display title. Defaults to the final path segment, or a filesystem root's own spelling; duplicates are allowed. */
+  /** 显示标题。默认为路径的最后一段，或文件系统根自身的拼写；允许重复。 */
   readonly title: string
 
-  /** ISO-8601 creation instant, stamped at create and never rewritten. */
+  /** ISO-8601 创建时刻，在创建时盖戳且从不被重写。 */
   readonly createdAt: string
 
-  /** ISO-8601 instant of the last durable mutation (create counts as one). */
+  /** 最后一次持久化变更的 ISO-8601 时刻（创建也算一次）。 */
   readonly updatedAt: string
 
   /**
-   * Header-validated sessions in manually owned order: a new session is
-   * prepended at attach, explicit reordering goes through
-   * `insertSessionBefore`, and activity never reorders. The durable candidate
-   * account is filtered synchronously: missing headers, invalid cwd values,
-   * and canonical cwd mismatches are never returned. A fully qualified cwd
-   * whose realpath or directory stat fails with ENOENT preserves an existing
-   * candidate, including a dangling symlink; other filesystem failures do not.
-   * A subsequent mutation prunes filtered candidates, not missing-directory
-   * candidates. This does not admit new sessions or recreate directories.
+   * 经头部校验、按手动拥有顺序的会话：新会话在附加时被前置，
+   * 显式重排经由 `insertSessionBefore`，且活动从不重新排序。持久化的候选
+   * 记账会被同步过滤：缺失的头部、无效的 cwd 值以及规范化的 cwd
+   * 不匹配都绝不会被返回。一个完全限定的 cwd，若其 realpath 或目录
+   * stat 以 ENOENT 失败，会保留已有的候选（包括悬空的符号链接）；
+   * 其他文件系统失败则不会。后续的变更会剪枝被过滤掉的候选，
+   * 而非缺失目录的候选。这不会接纳新会话，也不会重建目录。
    */
   readonly sessionIds: readonly SessionId[]
 
   /**
-   * Replace the display title durably.
-   * @param title - New title; any string, duplicates across workspaces allowed.
-   * @returns resolution after durability.
+   * 持久化地替换显示标题。
+   * @param title - 新标题；任意字符串，允许跨工作区重复。
+   * @returns 在持久化之后的解析结果。
    */
   setTitle(title: string): Promise<void>
 
   /**
-   * Prepend a session to this workspace's candidate account. An already
-   * accounted id resolves without writing, aside from the durable
-   * filtered-candidate prune every accepted mutation performs. A new id's
-   * live or persisted
-   * header cwd must resolve to an existing directory equal to {@link path};
-   * unknown ids, missing or invalid cwd values, and mismatches reject without
-   * writing.
-   * @param sessionId - The session to record.
-   * @returns resolution after durability.
+   * 将一个会话前置到本工作区的候选记账。已计入的 id
+   * 会在不写入的情况下解析，除了每次被接受的变更都会执行的
+   * 持久化过滤候选剪枝。一个新 id 的、活动的或已持久化的
+   * 头部 cwd 必须解析为一个等于 {@link path} 的现有目录；
+   * 未知的 id、缺失或无效的 cwd 值，以及不匹配都会在不写入的情况下拒绝。
+   * @param sessionId - 要记录的会话。
+   * @returns 在持久化之后的解析结果。
    */
   attachSession(sessionId: SessionId): Promise<void>
 
   /**
-   * Move an accounted session within the manual order, DOM-insertBefore-like:
-   * with an anchor the session lands before it, without one it appends to the
-   * end. Only the moved id changes position. A session or anchor absent from
-   * the account rejects without writing; a move to the current position
-   * resolves without writing, aside from the durable filtered-candidate
-   * prune every accepted mutation performs; decided on the domain write
-   * chain.
-   * @param sessionId - The accounted session to move.
-   * @param beforeSessionId - Accounted anchor to insert before; omitted appends.
-   * @returns resolution after durability.
+   * 在手动顺序中移动一个已计入的会话，类似 DOM 的 insertBefore：
+   * 给定锚点时该会话落在其之前，未给定时追加到末尾。
+   * 只有被移动的 id 会改变位置。不在记账中的会话或锚点
+   * 会在不写入的情况下拒绝；移动到当前位置的
+   * 操作会在不写入的情况下解析，除了每次被接受的变更都会执行的
+   * 持久化过滤候选剪枝；在域写入链上决定。
+   * @param sessionId - 要移动的已计入会话。
+   * @param beforeSessionId - 要插入其前的已计入锚点；省略则追加。
+   * @returns 在持久化之后的解析结果。
    */
   insertSessionBefore(sessionId: SessionId, beforeSessionId?: SessionId): Promise<void>
 
   /**
-   * Remove a session from this workspace's account. Idempotent: an id not on
-   * the account resolves without writing, aside from the durable
-   * filtered-candidate prune every accepted mutation performs; decided on
-   * the domain write chain like attach. Never touches the session's own stored log.
-   * @param sessionId - The session to remove.
-   * @returns resolution after durability.
+   * 从本工作区的记账中移除一个会话。幂等：不在记账上的 id
+   * 会在不写入的情况下解析，除了每次被接受的变更都会执行的
+   * 持久化过滤候选剪枝；与附加一样在域写入链上决定。
+   * 从不会触碰会话自身的存储日志。
+   * @param sessionId - 要移除的会话。
+   * @returns 在持久化之后的解析结果。
    */
   detachSession(sessionId: SessionId): Promise<void>
 
   /**
-   * Live directory check, uncached: whether {@link path} currently exists and
-   * is a directory. A missing directory never mutates the record — the
-   * directory may only be temporarily moved.
-   * @returns `'ok'` when the directory exists, `'missing-dir'` otherwise.
+   * 实时的、未缓存的目录检查：{@link path} 当前是否存在且
+   * 为目录。缺失的目录从不会变更记录——目录可能只是被临时移动。
+   * @returns 目录存在时为 `'ok'`，否则为 `'missing-dir'`。
    */
   status(): Promise<'ok' | 'missing-dir'>
 }

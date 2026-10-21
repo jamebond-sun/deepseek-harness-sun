@@ -1,4 +1,4 @@
-/** Length-prefixed JSON transport with bounded input and queued writes. */
+/** 带长度前缀的 JSON 传输，输入有界、写入排队。 */
 import { Buffer } from 'node:buffer'
 import type { Duplex } from 'node:stream'
 import type { PtcJsonValue } from '@deepseek-ai/dsh-ptc-runtime'
@@ -12,7 +12,7 @@ interface PendingWrite {
   finish(error?: Error): void
 }
 
-/** One co-shipped process channel; the consumer owns frame validation and terminal outcomes. */
+/** 一条随包一起发布的进程通道；帧校验与终结结果由消费者负责。 */
 export class JsonChannel {
   private readonly stream: Duplex
   private readonly maxBytes: number
@@ -52,7 +52,7 @@ export class JsonChannel {
     if (this.closed) return
     try {
       let offset = 0
-      // receive can synchronously close the channel while dispatching a preceding frame.
+      // receive 在派发前一帧时可以同步关闭通道。
       // oxlint-disable-next-line typescript/no-unnecessary-condition
       while (offset < chunk.length && !this.closed) {
         if (this.payload === undefined) {
@@ -83,9 +83,9 @@ export class JsonChannel {
   }
 
   /**
-   * Submit a bounded frame immediately and await the stream's write receipt.
-   * @param message - JSON-only co-shipped protocol value.
-   * @returns Resolves when this frame has been written, or rejects after transport failure.
+   * 立即提交一帧有界数据，并等待流的写入回执。
+   * @param message - 随包发布的纯 JSON 协议值。
+   * @returns 本帧写入完成时决议，或在传输失败后拒绝。
    */
   send(message: unknown): Promise<void> {
     if (this.closed) return Promise.reject(new Error('control channel is closed'))
@@ -109,7 +109,7 @@ export class JsonChannel {
     }
     this.writes.add(write)
     try {
-      // Writable preserves frame order; a Promise queue would delay logs behind a model hot loop.
+      // Writable 会保持帧序；若改用 Promise 队列，日志会被模型的热循环堵在后面。
       this.stream.cork()
       this.stream.write(header)
       this.stream.write(body, (error) => { write.finish(error ?? undefined) })
@@ -124,7 +124,7 @@ export class JsonChannel {
     for (const write of this.writes) write.finish(error)
   }
 
-  /** Stop reads and close the owned endpoint; pending writes reject on closure. */
+  /** 停止读取并关闭自己持有的端点；挂起的写入在关闭时拒绝。 */
   close(): void {
     if (this.closed) return
     this.closed = true
@@ -135,6 +135,6 @@ export class JsonChannel {
     this.stream.destroy()
   }
 
-  /** Wait for accepted writes to finish or fail. */
+  /** 等待已受理的写入完成或失败。 */
   async drain(): Promise<void> { await Promise.allSettled([...this.writes].map(write => write.promise)) }
 }

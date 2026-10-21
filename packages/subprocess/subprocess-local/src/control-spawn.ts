@@ -1,13 +1,13 @@
-/** Parent-side setup for one explicitly requested inherited control pipe. */
+/** 在父进程侧为一个被显式请求的继承式控制管道做设置。 */
 
 import { SUBPROCESS_CONTROL_ENV, SUBPROCESS_CONTROL_FD } from '@deepseek-ai/dsh-subprocess/control'
 import type { Duplex, Readable, Writable } from 'node:stream'
 
 /**
- * Read the optional extra pipe from Node's stdio tuple.
- * @param child - child whose requested extra pipe was allocated by Node.
- * @param control - requested transport, or undefined when absent.
- * @returns the parent duplex endpoint, absent when not requested or native startup failed.
+ * 从 Node 的 stdio 元组中读取可选的额外管道。
+ * @param child - 由其分配了所请求额外管道的子进程。
+ * @param control - 请求的传输方式，缺省时为 undefined。
+ * @returns 父进程的双工端点；当未被请求或原生启动失败时缺失。
  */
 export function controlPipe(
   child: { readonly stdio: ReadonlyArray<Readable | Writable | null | undefined> },
@@ -19,10 +19,10 @@ export function controlPipe(
 }
 
 /**
- * Stamp the private marker on a fresh child environment after rejecting a caller override.
- * @param env - newly materialized child environment, owned by the caller.
- * @param control - requested control transport, or undefined when absent.
- * @returns the same environment with the provider-owned launch marker when requested.
+ * 在拒绝调用方覆盖之后，于一份全新的子进程环境上加盖私有标记。
+ * @param env - 新建并物化的、由调用方拥有的子进程环境。
+ * @param control - 请求的控制传输方式，缺省时为 undefined。
+ * @returns 当被请求时，附加了提供方拥有的启动标记的同一份环境。
  */
 export function controlEnvironment<T extends NodeJS.ProcessEnv>(env: T, control?: 'pipe'): T {
   for (const [key, value] of Object.entries(env)) {

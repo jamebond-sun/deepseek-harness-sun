@@ -1,4 +1,4 @@
-/** ACL/token bindings layered on the shared Win32 process owner. */
+/** 构建在共享 Win32 进程所有者之上的 ACL/令牌绑定。 */
 
 import { createLazyRequire } from '@deepseek-ai/dsh-lazy-require'
 import {
@@ -35,7 +35,7 @@ function ffiTypes(): { PVOID: Ptr; PPVOID: Ptr } {
   return cachedTypes = { PVOID, PPVOID: koffi.pointer(PVOID) }
 }
 
-/** ACL/token calls composed with the generic Win32 process binding table. */
+/** 与通用 Win32 进程绑定表组合在一起的 ACL/令牌调用。 */
 export interface Win32Bindings extends Win32ProcessBindings {
   openProcess(desiredAccess: number, inheritHandle: number, pid: number): NativePtr
   openProcessToken(process: NativePtr, desiredAccess: number, tokenHandle: NativePtr): number
@@ -111,9 +111,9 @@ export interface Win32Bindings extends Win32ProcessBindings {
 }
 
 /**
- * Return whether CreateFileW produced INVALID_HANDLE_VALUE.
- * @param handle - handle returned by CreateFileW.
- * @returns true for null, zero, or the all-bits-one sentinel.
+ * 判断 CreateFileW 是否产生了 INVALID_HANDLE_VALUE。
+ * @param handle - CreateFileW 返回的句柄。
+ * @returns 对 null、0 或全 1 哨兵值返回 true。
  */
 export function isInvalidHandle(handle: NativePtr | null | undefined): boolean {
   if (isNullPtr(handle)) return true
@@ -121,47 +121,47 @@ export function isInvalidHandle(handle: NativePtr | null | undefined): boolean {
 }
 
 /**
- * Encode a uint32 into an allocated slot.
- * @param slot - slot allocated by allocUint32.
- * @param value - unsigned value to store.
+ * 把一个 uint32 编码进一个已分配的槽位。
+ * @param slot - 由 allocUint32 分配的槽位。
+ * @param value - 要存入的无符号值。
  */
 export function encodeUint32(slot: NativePtr, value: number): void {
   requireKoffi().encode(slot, 'uint32', value)
 }
 
 /**
- * Return a Koffi pointer's numeric address for struct packing.
- * @param ptr - native pointer.
- * @returns pointer address.
+ * 返回一个 Koffi 指针的数值地址，供结构体打包使用。
+ * @param ptr - 原生指针。
+ * @returns 指针地址。
  */
 export function ptrAddress(ptr: NativePtr): bigint {
   return requireKoffi().address(ptr)
 }
 
 /**
- * Allocate a raw byte block.
- * @param length - byte count.
- * @returns allocated pointer.
+ * 分配一块原始字节内存。
+ * @param length - 字节数。
+ * @returns 已分配的指针。
  */
 export function allocBytes(length: number): NativePtr {
   return requireKoffi().alloc('uint8', length) as NativePtr
 }
 
 /**
- * Allocate one zeroed x64 OVERLAPPED record.
- * @returns allocated pointer.
- * @remarks Koffi 3.1.1 crashes when LockFileEx or UnlockFileEx receives NULL;
- * a zeroed OVERLAPPED is equivalent for the synchronous lock-file handle.
+ * 分配一个已清零的 x64 OVERLAPPED 记录。
+ * @returns 已分配的指针。
+ * @remarks 当 LockFileEx 或 UnlockFileEx 收到 NULL 时，Koffi 3.1.1 会崩溃；
+ * 对同步的锁文件句柄而言，一个清零的 OVERLAPPED 是等价的。
  */
 export function allocOverlapped(): NativePtr {
   return allocBytes(32)
 }
 
 /**
- * Decode a pointer value from a Buffer field.
- * @param buffer - encoded native record.
- * @param offset - pointer field byte offset.
- * @returns decoded pointer, or null for address zero.
+ * 从一个 Buffer 字段中解码出指针值。
+ * @param buffer - 已编码的原生记录。
+ * @param offset - 指针字段的字节偏移。
+ * @returns 解码出的指针；地址为 0 时返回 null。
  */
 export function decodePtrAt(buffer: Buffer, offset: number): NativePtr | null {
   const value = requireKoffi().decode(buffer, offset, ffiTypes().PVOID) as NativePtr | null
@@ -169,42 +169,42 @@ export function decodePtrAt(buffer: Buffer, offset: number): NativePtr | null {
 }
 
 /**
- * Decode a uint8 field at a native pointer offset.
- * @param ptr - native record pointer.
- * @param offset - field byte offset.
- * @returns decoded value.
+ * 在原生指针偏移处解码一个 uint8 字段。
+ * @param ptr - 原生记录指针。
+ * @param offset - 字段的字节偏移。
+ * @returns 解码出的值。
  */
 export function decodeUint8At(ptr: NativePtr, offset: number): number {
   return requireKoffi().decode(ptr, offset, 'uint8') as number
 }
 
 /**
- * Decode a uint16 field at a native pointer offset.
- * @param ptr - native record pointer.
- * @param offset - field byte offset.
- * @returns decoded value.
+ * 在原生指针偏移处解码一个 uint16 字段。
+ * @param ptr - 原生记录指针。
+ * @param offset - 字段的字节偏移。
+ * @returns 解码出的值。
  */
 export function decodeUint16At(ptr: NativePtr, offset: number): number {
   return requireKoffi().decode(ptr, offset, 'uint16') as number
 }
 
 /**
- * Decode a uint32 field at a native pointer offset.
- * @param ptr - native record pointer.
- * @param offset - field byte offset.
- * @returns decoded value.
+ * 在原生指针偏移处解码一个 uint32 字段。
+ * @param ptr - 原生记录指针。
+ * @param offset - 字段的字节偏移。
+ * @returns 解码出的值。
  */
 export function decodeUint32At(ptr: NativePtr, offset: number): number {
   return requireKoffi().decode(ptr, offset, 'uint32') as number
 }
 
 /**
- * Compare two in-memory SID records without allocating strings.
- * @param left - first native buffer.
- * @param leftOffset - first SID byte offset.
- * @param right - second native buffer.
- * @param rightOffset - second SID byte offset.
- * @returns true when revision, authority, and every sub-authority match.
+ * 在不分配字符串的情况下比较两条内存中的 SID 记录。
+ * @param left - 第一个原生缓冲区。
+ * @param leftOffset - 第一个 SID 的字节偏移。
+ * @param right - 第二个原生缓冲区。
+ * @param rightOffset - 第二个 SID 的字节偏移。
+ * @returns 当修订号、授权机构与每一个子授权机构都相同时返回 true。
  */
 export function sameSidAt(
   left: NativePtr,
@@ -279,25 +279,25 @@ function bindings(): Win32Bindings {
 }
 
 /**
- * Resolve the cached ACL/token binding table asynchronously.
- * @returns generic process plus ACL/token bindings.
+ * 异步解析已缓存的 ACL/令牌绑定表。
+ * @returns 通用进程绑定加上 ACL/令牌绑定。
  */
 export function win32(): Promise<Win32Bindings> {
   return Promise.resolve(bindings())
 }
 
 /**
- * Resolve the cached ACL/token binding table synchronously.
- * @returns generic process plus ACL/token bindings.
+ * 同步解析已缓存的 ACL/令牌绑定表。
+ * @returns 通用进程绑定加上 ACL/令牌绑定。
  */
 export function win32Sync(): Win32Bindings {
   return bindings()
 }
 
 /**
- * Resolve the current Windows temporary directory.
- * @param api - active ACL/token binding table.
- * @returns UTF-16 path reported by GetTempPathW.
+ * 解析当前 Windows 临时目录。
+ * @param api - 生效中的 ACL/令牌绑定表。
+ * @returns GetTempPathW 上报的 UTF-16 路径。
  */
 export function getTempPath(api: Win32Bindings): string {
   const buffer = Buffer.alloc((abi.MAX_PATH + 1) * 2)

@@ -1,10 +1,10 @@
 /**
- * Process facts the startup provider reads, kept out of the `./startup` entry
- * so substituting them in tests adds no public package API.
+ * 启动提供者所读取的进程事实，放在 `./startup` 入口之外，以便测试替换它们时不会
+ * 增加任何公开包 API。
  * @module @deepseek-ai/dsh-headless/startup-internals
  */
 
-/** Process facts the provider reads; tests substitute them. */
+/** 提供者所读取的进程事实；测试会替换它们。 */
 export const internals: {
   stdinIsTty: () => boolean
   stdout: { write(chunk: string): unknown }

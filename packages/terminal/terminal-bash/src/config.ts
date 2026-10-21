@@ -1,12 +1,12 @@
-/** Validated configuration for the local PTY backend. */
+/** 本地 PTY 后端校验后的配置。 */
 
 import z from '@deepseek-ai/schemastery'
 import { resolvePwshPath } from '@deepseek-ai/dsh-pwsh-local'
 
-/** One supported interactive shell dialect. */
+/** 一种受支持的交互式 shell 方言。 */
 export type ShellDialect = 'bash' | 'pwsh'
 
-/** Public plugin configuration. */
+/** 公共插件配置。 */
 export interface Config {
   /** Backend registry type (default: `shell`). */
   backendType?: string
@@ -52,28 +52,27 @@ export interface Config {
   disposeGraceMs?: number
 }
 
-/** Configuration after Schemastery defaults and dialect resolution. */
+/** 经过 Schemastery 默认值与方言解析后的配置。 */
 export type ResolvedConfig = Omit<Required<Config>, 'shellDialect' | 'shellPath' | 'shellArgs'> & {
   shellDialect: ShellDialect
   shellPath: string
   shellArgs: string[]
 }
 
-/** Bash dialect default executable. */
+/** Bash 方言的默认可执行文件。 */
 export const DEFAULT_BASH_SHELL = '/bin/bash'
-/** Bash dialect default arguments (interactive, profile-free). */
+/** Bash 方言的默认参数（交互式、无 profile）。 */
 export const DEFAULT_BASH_ARGS = ['--noprofile', '--norc', '-i']
-/** Pwsh dialect default arguments (interactive host, profile-free). */
+/** Pwsh 方言的默认参数（交互式宿主、无 profile）。 */
 export const DEFAULT_PWSH_ARGS = ['-NoLogo', '-NoProfile']
 
 /**
- * Resolve the effective per-dialect shell specification. Defaulting is this
- * explicit step: an unset or empty `shellPath`/`shellArgs` selects the
- * dialect's defaults, while a non-empty explicit value always wins.
- * (Schemastery materializes an absent optional array as `[]`, so emptiness —
- * not just `undefined` — means "dialect default".)
- * @param config - Schemastery-resolved plugin configuration.
- * @returns the fully resolved configuration.
+ * 解析各方言真正生效的 shell 规格。默认值设定本就是这一显式步骤：未设置或为空数组的
+ * `shellPath`/`shellArgs` 会选择该方言的默认值，而非空显式值始终优先。
+ * （Schemastery 会将缺失的可选数组物化为 `[]`，因此“为空”——不仅仅是 `undefined`——
+ * 即表示“方言默认”。）
+ * @param config - Schemastery 解析后的插件配置。
+ * @returns 完全解析后的配置。
  */
 export function resolveConfig(config: Config): ResolvedConfig {
   const shellDialect = config.shellDialect ?? 'bash'
@@ -89,7 +88,7 @@ export function resolveConfig(config: Config): ResolvedConfig {
   }
 }
 
-/** Schemastery config exposed by the plugin. */
+/** 插件暴露的 Schemastery 配置。 */
 export const Config: z<Config> = z.object({
   backendType: z.string().default('shell'),
   shellDialect: z.union(['bash', 'pwsh'] as const).default('bash'),

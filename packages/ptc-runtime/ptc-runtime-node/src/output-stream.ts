@@ -1,12 +1,12 @@
-/** Bounded drainage for raw process output after managed execution ends. */
+/** 托管执行结束之后，对原始进程输出做有界排空。 */
 import type { Readable } from 'node:stream'
 import type { SubprocessHandle } from '@deepseek-ai/dsh-subprocess'
 
 /**
- * Wait for queued bytes without letting an inherited descriptor retain a run forever.
- * @param stream - Caller-owned raw process output, when provided.
- * @param graceMs - Maximum wait after managed process termination.
- * @returns Whether the complete stream ended without a transport error.
+ * 等待已排队的字节，同时不让某个继承来的描述符把一次运行永久拖住。
+ * @param stream - 调用方持有的原始进程输出，若提供的话。
+ * @param graceMs - 托管进程终止之后的最长等待时间。
+ * @returns 该完整流是否在没有传输错误的情况下结束。
  */
 export function drainOutput(stream: Readable | undefined, graceMs: number): Promise<boolean> {
   if (stream === undefined || stream.readableEnded) return Promise.resolve(true)
@@ -30,10 +30,10 @@ export function drainOutput(stream: Readable | undefined, graceMs: number): Prom
 }
 
 /**
- * Terminate a managed process and drain its pipes, including failures before output listeners attach.
- * @param handle - Process and streams owned by the runtime.
- * @param graceMs - Maximum pipe-drain wait after managed exit.
- * @returns Whether both output streams ended cleanly.
+ * 终止一个托管进程并排空它的管道，包括输出监听器挂上之前就发生的失败。
+ * @param handle - 运行时持有的进程与流。
+ * @param graceMs - 托管进程退出之后排空管道的最长等待时间。
+ * @returns 两个输出流是否都干净地结束。
  */
 export async function terminateProcess(handle: SubprocessHandle, graceMs: number): Promise<boolean> {
   try {

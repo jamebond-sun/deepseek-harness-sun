@@ -1,7 +1,7 @@
 /**
- * Workflow VM hooks, child callbacks, ordinary concurrency limits and result serialization.
- * PTC owns process confinement and cancellation. Fatal hook and provider failures propagate
- * through combinators; ordinary child failures and stage errors become per-item nulls.
+ * workflow VM 钩子、子项回调、普通并发限额与结果序列化。
+ * PTC 拥有进程隔离与取消。致命的钩子与 provider 失败会经由组合子传播；
+ * 普通的子项失败与阶段错误则成为逐条目 null。
  * @module @deepseek-ai/dsh-workflow-ptc/runtime
  */
 
@@ -21,7 +21,7 @@ import type {
 import { materializeFromRealm, MaterializeError, renderThrown } from './realm.ts'
 import type { ChildHandle, ChildPort, WorkerLimits } from './types.ts'
 
-/** The observers the execution reports progress through (the session posts them to the host). */
+/** 执行通过其后报告进度的观察者（Session 将它们发往宿主）。 */
 export interface ExecutionObserver {
   phase(title: string): void
   log(message: string): void
@@ -29,12 +29,12 @@ export interface ExecutionObserver {
   agentEnd(info: WorkflowAgentEndInfo): void
 }
 
-/** The `agent()` options the script may pass; everything else rejects loud. */
+/** 脚本可传入的 `agent()` 选项；其余一律显式拒绝。 */
 const SUPPORTED_AGENT_OPTIONS = new Set(['label', 'phase', 'schema', 'provider', 'model'])
-/** Deferred Claude Code options we name explicitly in the rejection message. */
+/** 我们会在拒绝消息中明确点名的、已延期的 Claude Code 选项。 */
 const DEFERRED_AGENT_OPTIONS = new Set(['effort', 'isolation', 'agentType'])
 
-/** Flatten a child's final output blocks to text (the non-schema `agent()` result). */
+/** 将一个子项的最终输出块扁平化为文本（非 schema 的 `agent()` 结果）。 */
 function outputText(blocks: ContentBlock[]): string {
   return blocks
     .filter((block): block is Extract<ContentBlock, { type: 'text' }> => block.type === 'text')
@@ -42,7 +42,7 @@ function outputText(blocks: ContentBlock[]): string {
     .join('')
 }
 
-/** A short display label derived from the prompt when the script passes none. */
+/** 当脚本未传入时，从提示派生的一个简短展示标签。 */
 function defaultLabel(prompt: string): string {
   const newline = prompt.indexOf('\n')
   const line = newline === -1 ? prompt : prompt.slice(0, newline)
@@ -50,11 +50,10 @@ function defaultLabel(prompt: string): string {
 }
 
 /**
- * One script execution inside the confined Node process. The host owns
- * cancellation and cleanup of any dropped child work.
+ * 受限 Node 进程内的一次脚本执行。宿主拥有对任何被丢弃子项工作的取消与清理。
  */
 export class WorkflowExecution {
-  /** 1-based count of `agent()` calls started (the `agentsStarted` result field). */
+  /** `agent()` 调用已启动的计数（1 基；即 `agentsStarted` 结果字段）。 */
   private started = 0
   private activeSlots = 0
   private readonly slotWaiters: (() => void)[] = []
@@ -70,7 +69,7 @@ export class WorkflowExecution {
     private readonly observer: ExecutionObserver,
     private readonly children: ChildPort,
   ) {
-    // The host parses this same wrapper before publishing a run.
+    // 宿主在发布运行前也解析同一个包装器。
     try {
       this.compiled = new vm.Script(`(async () => {\n${body}\n})()`, {
         filename: `workflow:${meta.name}`,
@@ -88,19 +87,19 @@ export class WorkflowExecution {
       pipeline: (items: unknown, ...stages: unknown[]) => this.contain(this.pipeline(items, stages)),
       phase: (title: unknown) => { this.phase(title) },
       log: (message: unknown) => { this.log(message) },
-      // PTC has already copied these inputs through its JSON channel.
+      // PTC 已经通过它的 JSON 通道复制了这些输入。
       args,
     }
     for (const [key, value] of Object.entries(globals)) {
-      // Data properties on the contextified global; frozen shape not required —
-      // a script overwriting its own hooks only sabotages itself.
+      // 上下文化全局上的数据属性；冻结形态并非必需 —— 脚本覆盖它自己的
+      // 钩子只会自毁。
       ;(this.context as Record<string, unknown>)[key] = typeof value === 'function' ? Object.freeze(value) : value
     }
   }
 
   /**
-   * Run the script and materialize its JSON return value.
-   * @returns A completed or error result; script failures never reject.
+   * 运行脚本并物化其 JSON 返回值。
+   * @returns 已完成或出错的结果；脚本失败永不 reject。
    */
   async drive(): Promise<WorkflowResult> {
     try {
@@ -114,22 +113,21 @@ export class WorkflowExecution {
   }
 
   /**
-   * Attach a no-op rejection consumer WITHOUT changing what the caller
-   * receives: if the script drops the promise, a host rejection cannot become
-   * an unhandled rejection that kills the process; if
-   * the script does await it, it still observes the rejection.
+   * 附加一个无操作的拒绝消费者，而不改变调用方所收到的内容：若脚本丢弃了
+   * 该 promise，宿主的拒绝就不能变成杀死进程的未处理拒绝；若脚本确实 await
+   * 了它，它仍然会观察到该拒绝。
    */
   private contain<T>(promise: Promise<T>): Promise<T> {
-    promise.catch(() => { /* consumed: see method contract — a dropped hook promise must not surface an unhandled rejection */ })
+    promise.catch(() => { /* 已消费：见方法契约 —— 被丢弃的钩子 promise 不得浮现为未处理拒绝 */ })
     return promise
   }
 
-  /** Materialize the script's return value; violations become RESULT_UNSERIALIZABLE. */
+  /** 物化脚本的返回值；违规会变成 RESULT_UNSERIALIZABLE。 */
   private materializeResult(raw: unknown): unknown {
     try {
       return materializeFromRealm(raw, 'workflow result')
     } catch (error: unknown) {
-      /* v8 ignore next -- defensive rethrow arm: materializeFromRealm only throws MaterializeError */
+      /* v8 ignore next -- 防御性重抛分支：materializeFromRealm 只抛出 MaterializeError */
       if (!(error instanceof MaterializeError)) throw error
       throw new WorkflowError(
         `the workflow's return value is not plain JSON data — ${error.message}. Return only JSON-serializable objects/arrays/scalars.`,
@@ -139,7 +137,7 @@ export class WorkflowExecution {
     }
   }
 
-  /** Acquire one concurrency slot in FIFO order. */
+  /** 以 FIFO 顺序获取一个并发槽位。 */
   private acquireSlot(): Promise<void> {
     if (this.activeSlots < this.limits.maxConcurrentAgents) {
       this.activeSlots += 1
@@ -159,7 +157,7 @@ export class WorkflowExecution {
     if (next) next()
   }
 
-  /** The `agent(prompt, opts)` hook. */
+  /** `agent(prompt, opts)` 钩子。 */
   private async agent(rawPrompt: unknown, rawOpts: unknown): Promise<unknown> {
     if (typeof rawPrompt !== 'string' || rawPrompt.length === 0) {
       throw new WorkflowError('agent() requires a non-empty prompt string', 'INVALID_ARGUMENT')
@@ -196,18 +194,17 @@ export class WorkflowExecution {
         try {
           result = await run.result
         } catch (error: unknown) {
-          // A rejected child result is an INFRASTRUCTURE fault relayed by the
-          // host — distinct from a child that failed and resolved. Pair the
-          // lifecycle before propagating, and propagate FATAL: an ordinary
-          // throw would dissolve to a per-item null inside the combinators,
-          // and a broken provider must not read as a failed child.
+          // 一个被 reject 的子项结果是由宿主转发的 INFRASTRUCTURE 故障 ——
+          // 与“失败并解析”的子项不同。在传播前配对生命周期，并传播 FATAL：
+          // 一个普通 throw 会在组合子内部消解为一个逐条目 null，而一个坏掉的
+          // provider 绝不能读作一个失败的子项。
           this.observer.agentEnd({ ...info, outcome: 'failed' })
           throw new WorkflowError(`child agent run failed: ${renderThrown(error)}`, 'AGENT_RESULT', { cause: error })
         }
         if (result.stopReason === 'completed') {
           if (opts.schema !== undefined) {
-            // The provider honored outputSchema (capability-gated at start), so
-            // a completed run without a structured value is a child failure.
+            // provider 兑现了 outputSchema（在启动处按能力开关控制），因此
+            // 一个没有结构化值的已完成运行即为子项失败。
             if (result.structured === undefined) {
               this.observer.agentEnd({ ...info, outcome: 'failed' })
               return null
@@ -228,7 +225,7 @@ export class WorkflowExecution {
     }
   }
 
-  /** Materialize + validate the `agent()` options bag from the realm. */
+  /** 从 realm 物化并校验 `agent()` 的选项包。 */
   private readAgentOptions(rawOpts: unknown): {
     label?: string
     phase?: string
@@ -241,7 +238,7 @@ export class WorkflowExecution {
     try {
       opts = materializeFromRealm(rawOpts, 'agent() options')
     } catch (error: unknown) {
-      /* v8 ignore next -- defensive rethrow arm: materializeFromRealm only throws MaterializeError */
+      /* v8 ignore next -- 防御性重抛分支：materializeFromRealm 只抛出 MaterializeError */
       if (!(error instanceof MaterializeError)) throw error
       throw new WorkflowError(`agent() options must be plain JSON data — ${error.message}`, 'INVALID_ARGUMENT', { cause: error })
     }
@@ -267,7 +264,7 @@ export class WorkflowExecution {
         assertObjectJsonSchema(record.schema)
         schema = record.schema
       } catch (error: unknown) {
-        /* v8 ignore next -- defensive rethrow arm: assertObjectJsonSchema only throws JsonSchemaError */
+        /* v8 ignore next -- 防御性重抛分支：assertObjectJsonSchema 只抛出 JsonSchemaError */
         if (!(error instanceof JsonSchemaError)) throw error
         throw new WorkflowError(`agent() schema is outside the supported subset — ${error.message}`, 'UNSUPPORTED_SCHEMA', { cause: error })
       }
@@ -281,7 +278,7 @@ export class WorkflowExecution {
     }
   }
 
-  /** The `parallel(thunks)` hook: each thunk caught → `null`; fatal errors propagate. */
+  /** `parallel(thunks)` 钩子：每个 thunk 被捕获 → `null`；致命错误会传播。 */
   private async parallel(rawThunks: unknown): Promise<unknown[]> {
     if (!Array.isArray(rawThunks)) {
       throw new WorkflowError('parallel() requires an array of zero-argument functions', 'INVALID_ARGUMENT')
@@ -297,17 +294,16 @@ export class WorkflowExecution {
       try {
         return await thunk()
       } catch (error: unknown) {
-        // Hook failures are WorkflowErrors built OUTSIDE the script's realm;
-        // fatality is recognized by `instanceof` against this realm's class —
-        // a script-built object can never pass it, so fatality cannot be
-        // forged (nor accidentally dissolved).
+        // 钩子失败是构建在脚本 realm 之外的 WorkflowError；致命性由对本 realm
+        // 类的 `instanceof` 识别 —— 一个脚本内构建的对象永远无法通过它，因此
+        // 致命性既不能被伪造，也不会被意外消解。
         if (isFatalWorkflowError(error)) throw error
         return null
       }
     }))
   }
 
-  /** The `pipeline(items, ...stages)` hook: per-item stage chains, NO cross-stage barrier. */
+  /** `pipeline(items, ...stages)` 钩子：逐条目阶段链，阶段之间无屏障。 */
   private async pipeline(rawItems: unknown, rawStages: unknown[]): Promise<unknown[]> {
     if (!Array.isArray(rawItems)) {
       throw new WorkflowError('pipeline() requires an items array', 'INVALID_ARGUMENT')
@@ -330,9 +326,8 @@ export class WorkflowExecution {
         }
         return value
       } catch (error: unknown) {
-        // An ordinary stage throw drops the ITEM to null and skips its
-        // remaining stages; a fatal WorkflowError (see parallel()) kills the
-        // whole script.
+        // 一个普通的阶段 throw 会将该 ITEM 落为 null 并跳过其剩余阶段；而一个
+        // 致命的 WorkflowError（见 parallel()）会杀死整个脚本。
         if (isFatalWorkflowError(error)) throw error
         return null
       }
@@ -348,7 +343,7 @@ export class WorkflowExecution {
     }
   }
 
-  /** The `phase(title)` hook: sets the current label for subsequent `agent()` calls and notifies observers. */
+  /** `phase(title)` 钩子：为后续 `agent()` 调用设置当前标签，并通知观察者。 */
   private phase(title: unknown): void {
     if (typeof title !== 'string' || title.length === 0) {
       throw new WorkflowError('phase() requires a non-empty title string', 'INVALID_ARGUMENT')
@@ -357,7 +352,7 @@ export class WorkflowExecution {
     this.observer.phase(title)
   }
 
-  /** The `log(message)` hook: narration to observers. */
+  /** `log(message)` 钩子：向观察者叙述。 */
   private log(message: unknown): void {
     if (typeof message !== 'string') {
       throw new WorkflowError('log() requires a message string', 'INVALID_ARGUMENT')

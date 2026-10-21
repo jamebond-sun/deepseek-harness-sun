@@ -1,16 +1,13 @@
 /**
- * Connection supervisor: owns the MCP client/transport generations for one
- * plugin instance, keeps the harness tool registry in sync with the live
- * generation, and — when the connection drops — restarts the configured
- * server with bounded exponential backoff.
+ * 连接监督器：为一个插件实例持有 MCP 客户端/传输的世代（generation），
+ * 让 harness 工具注册表与当前活跃世代保持同步，并在连接断开时以有界的
+ * 指数退避重启已配置的服务端。
  *
- * One outage shares one attempt budget (`maxAttempts` consecutive failed
- * attempts, delays doubling from `initialDelayMs` up to `maxDelayMs`). A
- * connection that stays up past the stability window closes the outage, so
- * the next disconnect starts a fresh budget while a crash-looping server —
- * even one whose connects briefly succeed — still exhausts the cap instead of
- * restarting forever. Exhaustion unregisters the server's tools and stops;
- * disposal (including HMR) is the only way back from that state.
+ * 一次故障期共享一份尝试预算（连续失败 `maxAttempts` 次，延迟从
+ * `initialDelayMs` 起翻倍直至 `maxDelayMs`）。连接存活超过稳定窗口即视为
+ * 本次故障期结束，下一次断线重新计一份预算；而反复崩溃的服务端——即便偶尔
+ * 连接成功——仍会耗尽上限，不会无限重启。预算耗尽后注销该服务端的全部工具
+ * 并停止重连；只有销毁（含 HMR）才能从该状态恢复。
  *
  * @module
  */
@@ -25,19 +22,19 @@ import { syncTools } from './tools.ts'
 import type { ToolBridgeOptions, ToolDisposers } from './tools.ts'
 import type { Config } from './index.ts'
 
-/** Automatic reconnect policy for one MCP server connection. */
+/** 单个 MCP 服务端连接的自动重连策略。 */
 export interface ReconnectConfig {
-  /** Reconnect automatically after a lost connection (default true). */
+  /** 连接丢失后自动重连（默认 true）。 */
   enabled?: boolean
-  /** First reconnect delay in milliseconds; doubles per consecutive failed attempt (default 500). */
+  /** 首次重连延迟（毫秒）；每连续失败一次即翻倍（默认 500）。 */
   initialDelayMs?: number
-  /** Backoff ceiling in milliseconds; also the uptime after which the attempt budget resets (default 30000). */
+  /** 退避上限（毫秒）；同时也是重置尝试预算所需的存活时长（默认 30000）。 */
   maxDelayMs?: number
-  /** Consecutive failed attempts per outage before giving up for good (default 10). */
+  /** 一次故障期内连续失败多少次后彻底放弃（默认 10）。 */
   maxAttempts?: number
 }
 
-/** Defaults shared by the Config schema and {@link resolveReconnectPolicy}. */
+/** Config schema 与 {@link resolveReconnectPolicy} 共用的默认值。 */
 export const RECONNECT_DEFAULTS: Required<ReconnectConfig> = Object.freeze({
   enabled: true,
   initialDelayMs: 500,
@@ -45,26 +42,25 @@ export const RECONNECT_DEFAULTS: Required<ReconnectConfig> = Object.freeze({
   maxAttempts: 10,
 })
 
-/** Default UTF-8 byte limit for attributed server instructions. */
+/** 归集的服务端指令文本的 UTF-8 字节默认上限。 */
 export const DEFAULT_MAX_INSTRUCTION_BYTES = 32_768
 
-// The SDK's stdio transport owns two two-second termination grace periods.
-// Keep one additional second for the process-close event that proves the old
-// generation is gone; timing out fails closed instead of overlapping children.
+// SDK 的 stdio 传输自带两段两秒的终止宽限期。
+// 再多留一秒给进程关闭事件，用以确认旧世代已经消失；超时按「关闭失败」处理，
+// 以免子进程重叠。
 const GENERATION_CLOSE_TIMEOUT_MS = 5_000
 
-/** Fully resolved reconnect policy captured at plugin load. */
+/** 插件加载时捕获的、完全解析后的重连策略。 */
 export type ResolvedReconnectPolicy = Readonly<Required<ReconnectConfig>>
 
 /**
- * The one explicit resolve step from raw reconnect config to the policy the
- * supervisor runs. Programmatic construction may bypass Schemastery
- * normalization, so every default and bound is re-judged here — misconfiguration
- * fails the plugin instance at load.
+ * 从原始重连配置到监督器实际执行策略的唯一一次显式解析。
+ * 以编程方式构造插件可能绕过 Schemastery 的规范化，因此此处重新判定每一个
+ * 默认值与边界——配置错误会在加载时让该插件实例失败。
  *
- * @param config - Raw `reconnect` config; omission uses the defaults.
- * @param path - Diagnostic prefix naming the config location in thrown messages.
- * @returns The frozen resolved policy.
+ * @param config - 原始的 `reconnect` 配置；省略则使用默认值。
+ * @param path - 诊断前缀，用于在抛出的信息中标明配置位置。
+ * @returns 冻结后的已解析策略。
  */
 export function resolveReconnectPolicy(config: ReconnectConfig | undefined, path: string): ResolvedReconnectPolicy {
   if (config !== undefined) {
@@ -76,7 +72,7 @@ export function resolveReconnectPolicy(config: ReconnectConfig | undefined, path
   const initialDelayMs = config?.initialDelayMs ?? RECONNECT_DEFAULTS.initialDelayMs
   const maxDelayMs = config?.maxDelayMs ?? RECONNECT_DEFAULTS.maxDelayMs
   const maxAttempts = config?.maxAttempts ?? RECONNECT_DEFAULTS.maxAttempts
-  /* jscpd:ignore-start — domain-specific delay validation parallels llm retry-policy; not extractable */
+  /* jscpd:ignore-start — 该延迟校验属领域特定逻辑，与 llm 重试策略平行；不可抽取 */
   if (!Number.isFinite(initialDelayMs) || initialDelayMs <= 0 || initialDelayMs > MAX_TIMER_DELAY_MS) {
     throw new Error(`${path}.initialDelayMs must be a positive finite number no greater than ${MAX_TIMER_DELAY_MS}`)
   }
@@ -93,36 +89,34 @@ export function resolveReconnectPolicy(config: ReconnectConfig | undefined, path
   return Object.freeze({ enabled, initialDelayMs, maxDelayMs, maxAttempts })
 }
 
-/** Result from the initial connection attempt, for startup-await semantics. */
+/** 首次连接尝试的结果，服务于「等待启动」语义。 */
 export interface ConnectionOutcome {
-  /** If the initial connection or tool sync failed, the error; otherwise absent. */
+  /** 首次连接或工具同步失败时为对应错误；否则不存在。 */
   error?: unknown
 }
 
-/** Handle for one plugin instance's supervised connection. */
+/** 一个插件实例的受监督连接句柄。 */
 export interface ConnectionHandle extends ServerContext {
   /**
-   * Settles when the first connection attempt completes (success or failure).
-   * The supervisor enters its reconnect loop regardless; the caller decides
-   * whether a failed startup is fatal via `failOnStartupError`.
+   * 在首次连接尝试完成（成功或失败）时结算。
+   * 无论结果如何，监督器都会进入重连循环；启动失败是否致命，由调用方通过
+   * `failOnStartupError` 决定。
    */
   ready: Promise<ConnectionOutcome>
   /**
-   * Stop reconnection, close the negotiating transport or live client, wait
-   * for the in-flight attempt and queued tool syncs to quiesce, then
-   * unregister every tool this server still owns.
+   * 停止重连，关闭正在协商的传输或在线客户端，等待进行中的尝试与已排队的
+   * 工具同步归于静止，然后注销该服务端仍持有的全部工具。
    */
   dispose(): Promise<void>
 }
 
 /**
- * Start the supervised connection for one MCP server and keep it alive per
- * the reconnect policy.
+ * 为一个 MCP 服务端启动受监督连接，并按重连策略保持其存活。
  *
- * @param ctx - Cordis context providing the `tools` registry and logger.
- * @param config - Resolved plugin config selecting the transport and server identity.
- * @param policy - Resolved reconnect policy from {@link resolveReconnectPolicy}.
- * @returns Handle with a `ready` promise for startup-await and a `dispose` for teardown.
+ * @param ctx - 提供 `tools` 注册表与 logger 的 Cordis 上下文。
+ * @param config - 已解析的插件配置，决定传输方式与服务端标识。
+ * @param policy - {@link resolveReconnectPolicy} 得到的已解析重连策略。
+ * @returns 句柄：含用于等待启动的 `ready` promise 与用于拆除的 `dispose`。
  */
 export function startConnection(ctx: Context, config: Config, policy: ResolvedReconnectPolicy): ConnectionHandle {
   const label = `mcp-client(${config.serverName})`
@@ -132,9 +126,8 @@ export function startConnection(ctx: Context, config: Config, policy: ResolvedRe
     serverName: config.serverName,
     toolCallTimeoutMs: config.toolCallTimeoutMs,
   }
-  // The initial sync uses 'throw' when failOnStartupError is configured, so
-  // a registration conflict propagates to the startup-await path. Re-syncs
-  // and reconnect syncs always contain conflicts.
+  // 配置了 failOnStartupError 时，初始同步使用 'throw'，使注册冲突传播到
+  // 启动等待路径。重新同步与重连后的同步一律包容冲突。
   const startupOpts: ToolBridgeOptions = config.failOnStartupError
     ? { ...opts, registrationFailure: 'throw' }
     : opts
@@ -142,28 +135,27 @@ export function startConnection(ctx: Context, config: Config, policy: ResolvedRe
   let disposed = false
   const maxInstructionBytes = config.maxInstructionBytes ?? DEFAULT_MAX_INSTRUCTION_BYTES
   let serverInstructions = ''
-  /** Current generation: the connecting or connected client; undefined during backoff waits and after final failure. */
+  /** 当前世代：正在连接或已连接的客户端；退避等待期间与最终失败后为 undefined。 */
   let client: Client | undefined
-  /** Transport-aware close operation paired with {@link client}. */
+  /** 与 {@link client} 配对的、感知传输的关闭操作。 */
   let closeClient: (() => Promise<boolean>) | undefined
-  /** Live tool registrations owned by this server; only {@link enqueueSync} and dispose swap it. */
+  /** 本服务端持有的在线工具注册；只有 {@link enqueueSync} 与 dispose 会替换它。 */
   let disposers: ToolDisposers = new Map()
   let reconnectTimer: NodeJS.Timeout | undefined
-  /** Consecutive failed connection attempts within the current outage. */
+  /** 当前故障期内连续失败的连接尝试次数。 */
   let failedAttempts = 0
-  /** When the current generation finished connect + initial sync; undefined while down. */
+  /** 当前世代完成连接与初始同步的时刻；掉线期间为 undefined。 */
   let connectedAt: number | undefined
-  /** The real error from the first connection attempt, for startup-await diagnostics. */
+  /** 首次连接尝试的真实错误，用于启动等待的诊断。 */
   let firstAttemptError: unknown
 
-  /** A generation may act only while it is the current one on a live plugin. */
+  /** 只有当某个世代是插件存活期间的当前世代时，它才可以行动。 */
   const isCurrent = (generation: Client): boolean => !disposed && client === generation
 
   /**
-   * Serializes every syncTools call — initial syncs and notification re-syncs
-   * across all generations — so two syncs can never interleave their
-   * dispose-previous/register-next swap (which would double-dispose one
-   * generation and leak another).
+   * 将每一次 syncTools 调用串行化——包括所有世代的初始同步与通知触发的
+   * 重新同步——使两次同步的「先销毁旧的、再注册新的」切换永不交错
+   * （否则会把一个世代重复销毁，并泄漏另一个世代）。
    */
   let syncChain: Promise<void> = Promise.resolve()
   function enqueueSync(generation: Client, syncOpts: ToolBridgeOptions = opts): Promise<void> {
@@ -171,12 +163,12 @@ export function startConnection(ctx: Context, config: Config, policy: ResolvedRe
       if (!isCurrent(generation)) return
       disposers = await syncTools(generation, ctx, syncOpts, disposers)
     })
-    // The chain tail must survive a failed sync; the enqueuing caller owns reporting.
+    // 链尾必须能在某次同步失败后继续存活；报告责任归发起调用的一方。
     syncChain = run.catch(() => {})
     return run
   }
 
-  /** One disconnect decision per generation: the isCurrent guard makes racing close/error signals idempotent. */
+  /** 每个世代只做一次断线决策：isCurrent 守卫让相互竞争的关闭/错误信号保持幂等。 */
   function generationDown(generation: Client): void {
     if (!isCurrent(generation)) return
     client = undefined
@@ -184,7 +176,7 @@ export function startConnection(ctx: Context, config: Config, policy: ResolvedRe
     scheduleReconnect()
   }
 
-  /** Decide retry ownership after a failed connection's close barrier settles. */
+  /** 在失败连接的关闭屏障结算之后，决定重试归属。 */
   function settleFailedGeneration(generation: Client, quiesced: boolean): void {
     if (!isCurrent(generation)) return
     if (!quiesced) {
@@ -196,7 +188,7 @@ export function startConnection(ctx: Context, config: Config, policy: ResolvedRe
     generationDown(generation)
   }
 
-  /** Wait for the transport-owned close signal without letting a broken transport wedge teardown forever. */
+  /** 等待传输持有的关闭信号，同时不让坏掉的传输把拆除流程永久卡死。 */
   function waitForClose(closed: Promise<void>): Promise<boolean> {
     return new Promise((resolve) => {
       const timeout = setTimeout(() => { resolve(false) }, GENERATION_CLOSE_TIMEOUT_MS)
@@ -217,14 +209,14 @@ export function startConnection(ctx: Context, config: Config, policy: ResolvedRe
       ctx.logger.error(`${label}: ${message}`)
       return
     }
-    // A connection that stayed up past the stability window (= maxDelayMs, the
-    // longest backoff spacing) ended the previous outage: start a fresh budget.
+    // 存活超过稳定窗口（= maxDelayMs，即最长的退避间隔）的连接意味着上一次
+    // 故障期已经结束：重新开启一份预算。
     if (connectedAt !== undefined && Date.now() - connectedAt >= policy.maxDelayMs) failedAttempts = 0
     connectedAt = undefined
     failedAttempts += 1
     if (failedAttempts > policy.maxAttempts) {
-      // Enqueue the give-up disposal so it cannot race an in-flight sync's
-      // phase-2 swap (which checks isCurrent inside the queue).
+      // 把「放弃」时的销毁动作排入队列，以免它与进行中同步的第二阶段切换
+      // 竞争（该切换在队列内部检查 isCurrent）。
       syncChain = syncChain.then(() => {
         for (const dispose of disposers.values()) dispose()
         disposers = new Map()
@@ -240,19 +232,18 @@ export function startConnection(ctx: Context, config: Config, policy: ResolvedRe
       reconnectTimer = undefined
       settling = connectGeneration(false)
     }, delayMs)
-    // An armed reconnect timer must never hold the process open on its own.
+    // 已就绪的重连定时器绝不能凭一己之力让进程保持存活。
     reconnectTimer.unref()
   }
 
   /**
-   * One connection attempt: fresh transport + client (the MCP SDK binds a
-   * Protocol to one transport for life), connect, then queue the initial tool
-   * sync. The startup flag belongs to the attempt rather than the shared sync
-   * queue, so an early notification cannot consume strict startup semantics.
-   * Every failure funnels through {@link generationDown}; success arms the
-   * onclose-driven disconnect path. Never rejects.
+   * 一次连接尝试：新建传输 + 客户端（MCP SDK 中一个 Protocol 终生绑定一个
+   * 传输），连接，然后把初始工具同步排入队列。启动标志归属于该次尝试而非
+   * 共享同步队列，因此早期通知无法消耗严格的启动语义。
+   * 一切失败都经由 {@link generationDown} 收敛；成功则挂上由 onclose 驱动的
+   * 断线路径。永不 reject。
    *
-   * @param startup - Whether this is the plugin's activation attempt.
+   * @param startup - 是否为该插件的激活尝试。
    */
   async function connectGeneration(startup: boolean): Promise<void> {
     const generation = new Client(
@@ -279,11 +270,11 @@ export function startConnection(ctx: Context, config: Config, policy: ResolvedRe
     generation.onclose = () => {
       closeObserved = true
       closed.resolve()
-      // A failed connect owns its close barrier in the catch path below. An
-      // established generation can transition down directly from this signal.
+      // 失败的连接在下面的 catch 路径中自行持有其关闭屏障。已建立连接的
+      // 世代可以直接从该信号转入掉线状态。
       if (attemptSettled) generationDown(generation)
     }
-    /** Unattached probes close through their transport; attached clients must also report transport closure. */
+    /** 未附加的探测经由各自的传输关闭；已附加的客户端还必须报告传输已关闭。 */
     async function closeGeneration(): Promise<boolean> {
       const attached = generation.transport !== undefined
       try {
@@ -323,8 +314,8 @@ export function startConnection(ctx: Context, config: Config, policy: ResolvedRe
       await enqueueSync(generation, startup ? startupOpts : opts)
     } catch (error) {
       if (firstAttemptError === undefined) firstAttemptError = error
-      // Disposal clears current ownership before it closes the generation, so
-      // only a live supervisor reports an attempt failure.
+      // 销毁会在关闭世代之前清除当前归属，因此只有存活的监督器才会报告
+      // 一次尝试失败。
       if (isCurrent(generation)) ctx.logger.warn(`${label}: connection attempt failed: ${String(error)}`)
       const quiesced = await closeGeneration()
       attemptSettled = true
@@ -342,21 +333,20 @@ export function startConnection(ctx: Context, config: Config, policy: ResolvedRe
     if (failedAttempts > 0) ctx.logger.info(`${label}: reconnected and re-synced tools (attempt ${failedAttempts}/${policy.maxAttempts})`)
   }
 
-  /** The in-flight (or last settled) connection attempt; dispose awaits it for quiescence. */
+  /** 进行中（或最近已结算的）连接尝试；dispose 等待它以达致静止。 */
   let settling = connectGeneration(true)
 
-  // The ready promise settles when the first attempt finishes (regardless of
-  // success). If the first attempt fails and reconnect is enabled, the
-  // supervisor is already scheduling a retry — ready just reports the outcome.
+  // ready promise 在首次尝试结束（无论成败）时结算。若首次尝试失败且启用了
+  // 重连，监督器已经在安排重试——ready 只负责报告结果。
   const ready: Promise<ConnectionOutcome> = settling.then(() => {
-    // After settling: if client is set the initial connect+sync succeeded.
-    // If not, the supervisor either scheduled a retry (error logged) or gave
-    // up (error logged). Either way the outcome is reported with the real error.
-    // Note: settling.then() is a microtask; stdio onclose is a macrotask — so
-    // a server that crashes AFTER a successful initial sync cannot flip client
-    // to undefined before this continuation runs.
+    // 结算之后：若 client 已被设置，说明初始连接 + 同步成功。
+    // 否则监督器要么已安排重试（错误已记录），要么已放弃（错误已记录）。
+    // 两种情况下都会连同真实错误一起报告结果。
+    // 注意：settling.then() 是微任务，而 stdio 的 onclose 是宏任务——因此
+    // 在初始同步成功之后才崩溃的服务端，无法在该续体运行之前把 client
+    // 翻转为 undefined。
     if (client !== undefined) return {}
-    /* v8 ignore next -- defensive: firstAttemptError is always set when connect/sync fails */
+    /* v8 ignore next -- 防御性：连接/同步失败时 firstAttemptError 必定已被设置 */
     return { error: firstAttemptError ?? new Error(`${label}: initial connection failed`) }
   })
 
@@ -379,7 +369,7 @@ export function startConnection(ctx: Context, config: Config, policy: ResolvedRe
             ) as JsonValue
           case 'resources/read':
             return await generation.readResource({ uri: request.uri }, options) as JsonValue
-          /* v8 ignore next 2 -- resource requests are the closed, typed tool operation union */
+          /* v8 ignore next 2 -- 资源请求是封闭的、带类型的工具操作联合 */
           default:
             return assertNever(request)
         }
@@ -398,8 +388,8 @@ export function startConnection(ctx: Context, config: Config, policy: ResolvedRe
       if (close !== undefined && !await close()) {
         ctx.logger.error(incompleteDisposalMessage)
       }
-      // Quiesce, don't just request it: the in-flight attempt enqueues its
-      // sync before settling, so awaiting both leaves `disposers` final.
+      // 要等到真正静止，而不只是发出请求：进行中的尝试会在结算之前把同步
+      // 排入队列，因此同时等待两者之后 `disposers` 才是最终状态。
       await settling
       await syncChain
       for (const dispose of disposers.values()) dispose()

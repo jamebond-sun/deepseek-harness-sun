@@ -1,5 +1,5 @@
 /**
- * Shared path resolution and regular-file validation for model-facing read tools.
+ * 面向模型的读取工具共享的路径解析与常规文件校验。
  * @module @deepseek-ai/dsh-tool-fs/src/read-target
  */
 
@@ -10,11 +10,11 @@ import type { ToolExecution } from '@deepseek-ai/dsh-tools'
 import { sessionResolveOptions } from './session-cwd.ts'
 
 /**
- * Resolve a model-supplied path, observe absence, and require a regular file.
- * @param ctx - the plugin context providing filesystem resolution and observation events.
- * @param exec - the current tool execution, including the owning Agent and cancellation.
- * @param requestedPath - the raw path supplied to the tool.
- * @returns the resolved target and its single stat result.
+ * 解析模型提供的路径、观测其不存在的情况，并要求它是一个常规文件。
+ * @param ctx - 提供文件系统解析与观测事件的插件上下文。
+ * @param exec - 当前的工具执行，包含所属的 Agent 与取消信号。
+ * @param requestedPath - 传给工具的原始路径。
+ * @returns 已解析的目标及其唯一的 stat 结果。
  */
 export async function resolveRegularReadTarget(
   ctx: Context,

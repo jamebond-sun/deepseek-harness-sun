@@ -1,4 +1,4 @@
-/** V3 framing with hard structural admission and recoverable canonical event validation. */
+/** 具备硬性结构化接纳与可恢复规范化事件校验的 V3 分帧。 */
 
 import { SessionFormatError, isSessionFormatJsonObject, snapshotSessionFormatJson } from '@deepseek-ai/dsh-session-format'
 import type {
@@ -11,7 +11,7 @@ import { releasedV2SessionFormatCodec } from '@deepseek-ai/dsh-session-format-v1
 import { assertReleasedV3Header, assertV3EventAdmission } from './validation.ts'
 import { assertV3Event, assertV3StructuralRow } from './payload.ts'
 
-/** V3 codec validates structural rows before recovery and logical envelopes after source-event range decoding. */
+/** V3 编解码器在恢复之前校验结构行，并在源事件区间解码之后校验逻辑信封。 */
 export const releasedV3SessionFormatCodec = Object.freeze({
   version: 3,
   decodeHeader(value: unknown) {
@@ -33,7 +33,7 @@ export const releasedV3SessionFormatCodec = Object.freeze({
               try {
                 assertV3Event(event)
               } catch (error: unknown) {
-                // The frozen event validator reports every decoded JSON violation as SessionFormatError.
+                // 冻结的事件校验器将每个已解码的 JSON 违规都报告为 SessionFormatError。
                 const invalid = error as SessionFormatError
                 if (recovery === 'strict') throw invalid
                 issue = invalid

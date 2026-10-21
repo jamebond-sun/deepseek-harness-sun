@@ -1,4 +1,4 @@
-/** Bounded output tails and private spill files shared by process providers. */
+/** 由各个进程提供方共享的有界输出尾部与私有溢出文件。 */
 import { randomBytes } from 'node:crypto'
 import { closeSync, mkdtempSync, openSync, rmdirSync, unlinkSync, writeSync } from 'node:fs'
 import { join } from 'node:path'
@@ -6,22 +6,21 @@ import { tmpdir } from 'node:os'
 import type { CollectedOutput } from '@deepseek-ai/dsh-subprocess'
 
 /**
- * Receives one spill failure so the owner can log it through its own logger.
- * Called at most once per collector, after the spill has been discarded and
- * the in-memory tail has kept collecting. A reporter that throws is contained
- * and its failure written to stderr.
- * @param error - the `node:fs` failure from opening or appending the spill file.
- * @param label - the stream label of the collector that failed.
+ * 接收一次溢出失败，以便所有者通过其自身日志器记录它。
+ * 每个收集器最多调用一次，在溢出已被丢弃、且内存尾部继续收集之后。
+ * 抛出异常的记录器会被隔离，其失败被写入 stderr。
+ * @param error - 来自 `node:fs`、因打开或追加溢出文件而产生的失败。
+ * @param label - 失败收集器的流标签。
  */
 export type SpillFailureReporter = (error: unknown, label: string) => void
 
-/** Spill storage for one collected stream; `undefined` means tail-only collection. */
+/** 一条收集流的溢出存储；`undefined` 表示仅尾部收集。 */
 export interface SpillOptions {
-  /** Whole-stream byte cap beyond which an incomplete spill is discarded. */
+  /** 整流产字节上限；超过后不完整的溢出会被丢弃。 */
   maxBytes: number
-  /** Private directory receiving the spill file. */
+  /** 接收溢出文件的私有目录。 */
   dir: string
-  /** Owner-side report of a spill open or write failure. */
+  /** 所有者一侧对溢出打开或写入失败的记录。 */
   onFailure: SpillFailureReporter
 }
 
@@ -29,26 +28,22 @@ let spillCounter = 0
 let defaultSpillDir: string | undefined
 
 /**
- * The default spill location: a private (0700) per-process directory under
- * the OS tmpdir, created lazily. Predictable world-readable paths would let
- * other local users read command output or pre-create symlinks. The directory
- * is created once per process and never recreated: when an external
- * temporary-file cleaner removes it while empty, the next spill open fails and
- * the collector degrades to its in-memory tail. At a JavaScript-observable
- * process exit the directory is removed only when it holds no completed spill
- * file (spill files are retained as full-output recovery artifacts until an
- * external cleanup).
+ * 默认溢出位置：位于操作系统 tmpdir 之下、每个进程一个的私有（0700）目录，惰性创建。
+ * 可预测的全局可读路径会让其他本地用户读到命令输出，或预先创建符号链接。该目录每个
+ * 进程只创建一次且不再重建：当某个外部临时文件清理器在其为空时将其移除，下一次溢出
+ * 打开会失败，收集器退化为仅保留内存尾部。在 JavaScript 可观察的进程退出时，该目录
+ * 仅在不持有任何已完成的溢出文件时才被移除（溢出文件作为完整输出恢复产物保留，直到
+ * 外部清理为止）。
  */
 function privateSpillDir(): string {
   defaultSpillDir ??= mkdtempSync(join(tmpdir(), 'dsh-subprocess-'))
   return defaultSpillDir
 }
 
-// The per-process spill directory is removed at process exit when it holds no
-// completed spill file: a directory that never spilled is empty and is safe to
-// remove, while a directory holding completed spill files keeps them (their
-// content is retained until an external cleanup). A SIGKILLed process cannot
-// run this at all; its residue is left to OS temp hygiene.
+// 每个进程的溢出目录在进程退出时被移除，前提是它不持有任何已完成的溢出文件：从未
+// 溢出的目录为空、可安全移除；而持有已完成溢出文件的目录会保留它们（其内容保留到
+// 外部清理为止）。被 SIGKILL 的进程根本无法运行此逻辑；其残留交由操作系统的临时目录
+// 卫生机制处理。
 /* v8 ignore next 4 -- exit listeners run after the coverage dump; removal is verified by the CI /tmp residue measurement. */
 process.once('exit', () => {
   if (defaultSpillDir === undefined) return
@@ -67,12 +62,11 @@ function reportSpillFailureToStderr(error: unknown, label: string): void {
 }
 
 /**
- * Build the reporter an owner passes as {@link SpillOptions.onFailure}: one
- * error-level log line naming the owner and stream, with the failure appended
- * so its `code`, `syscall`, and `path` reach the log.
- * @param logger - the owner's plugin logger.
- * @param owner - the component named in the line.
- * @returns the reporter.
+ * 构建所有者作为 {@link SpillOptions.onFailure} 传入的记录器：一行错误级日志，
+ * 点名所有者与流，并附加上失败信息，从而将其 `code`、`syscall` 与 `path` 送达日志。
+ * @param logger - 所有者的插件日志器。
+ * @param owner - 行中所点名的组件。
+ * @returns 该记录器。
  */
 export function logSpillFailure(logger: { error(message: string, ...detail: unknown[]): void }, owner: string): SpillFailureReporter {
   return (error, label) => {
@@ -87,19 +81,18 @@ export function logSpillFailure(logger: { error(message: string, ...detail: unkn
 
 /** Inputs a managed native process needs before its output streams are bound. */
 export interface ManagedProcessBinding {
-  /** Directory receiving spill files. */
+  /** 接收溢出文件的目录。 */
   spillDir: string
-  /** Receives a spill open or write failure. */
+  /** 接收溢出打开或写入失败。 */
   onSpillFailure: SpillFailureReporter
 }
 
 /**
- * Prepare fallible output storage before starting a managed native process.
- * This is the explicit resolve step for spill inputs: the spill directory
- * defaults to the private per-process directory, and the failure reporter
- * defaults to a stderr line when the caller has no logger.
- * @param internals - optional caller-owned spill directory and failure reporter.
- * @returns binding inputs whose spill directory is ready for use.
+ * 在启动受管原生进程之前，准备好可能失败的输出存储。
+ * 这是溢出输入的显式 resolve 步骤：溢出目录默认取每个进程私有的目录，
+ * 而失败记录器在调用方没有日志器时默认为一行 stderr 输出。
+ * @param internals - 可选的、由调用方拥有的溢出目录与失败记录器。
+ * @returns 溢出目录已就绪的绑定输入。
  */
 export function prepareManagedProcessBinding(
   internals: { spillDir?: string; onSpillFailure?: SpillFailureReporter } = {},
@@ -112,19 +105,15 @@ export function prepareManagedProcessBinding(
 
 
 /**
- * Collects one stream with a bounded in-memory tail. With spill options, on
- * first overflow a spill file is created and every chunk (including those
- * already collected) is appended there while the full stream remains within
- * the cap; without them, only the in-memory tail is ever retained (the
- * diagnostic-tail shape — a language server's stderr).
+ * 以有界内存尾部收集一条流。若提供溢出选项，则在首次溢出时创建溢出文件，并将每个
+ * 分块（包括已收集的那些）追加其中，只要整条流仍在上限之内；若不提供，则只保留
+ * 内存尾部（诊断尾部形态——即语言服务器的 stderr）。
  *
- * Spilling is best-effort: a spill open or write failure discards the spill,
- * reports once through {@link SpillOptions.onFailure}, and never interrupts
- * in-memory collection, because `push()` runs inside the stream's `'data'`
- * listener where a thrown error would become an uncaught exception.
+ * 溢出是尽力而为的：溢出打开或写入失败会丢弃溢出、通过 {@link SpillOptions.onFailure}
+ * 报告一次，且从不打断内存收集，因为 `push()` 运行在流的 `'data'` 监听器内部，而在
+ * 那里抛出的错误会变成未捕获异常。
  *
- * Tail-keep rationale (pi/OpenCode): errors and final results cluster at the
- * end of command output; the spill file covers the head.
+ * 保留尾部的理由（pi/OpenCode）：错误与最终结果聚集在命令输出的末尾；溢出文件覆盖头部。
  */
 export class OutputCollector {
   private chunks: Buffer[] = []
@@ -133,13 +122,13 @@ export class OutputCollector {
   private spillFd: number | undefined
   private spillFile: string | undefined
   private spillDisabled: boolean
-  /** Total bytes ever pushed (not just retained). */
+  /** 累计推送的字节总数（不止是保留下来的）。 */
   private total = 0
 
   /**
-   * @param maxBytes - in-memory tail cap in bytes.
-   * @param label - stream label used in spill file names and failure reports.
-   * @param spill - spill storage; omit for tail-only collection.
+   * @param maxBytes - 内存尾部的字节上限。
+   * @param label - 用于溢出文件名与失败报告的流标签。
+   * @param spill - 溢出存储；省略则仅做尾部收集。
    */
   constructor(
     private readonly maxBytes: number,
@@ -150,12 +139,10 @@ export class OutputCollector {
   }
 
   /**
-   * Ingest one stream chunk, counting it toward the whole-stream total. On
-   * first overflow of the in-memory cap a spill file is opened (when spilling
-   * is enabled) and every chunk (already-collected ones included) is appended
-   * there from then on; the in-memory tail then drops whole chunks from its
-   * head (or the head of a single over-cap chunk) until it fits the cap again.
-   * @param chunk - the raw bytes from one stream 'data' event.
+   * 摄入一个流分块，并将其计入整流产总量。在内存上限首次被突破时（若启用了溢出）
+   * 打开溢出文件，此后每个分块（含已收集的）都追加其中；内存尾部随后从头部丢弃
+   * 整个分块（或单个超限分块的头部），直到重新符合上限。
+   * @param chunk - 来自某次流 'data' 事件的原始字节。
    */
   push(chunk: Buffer): void {
     this.total += chunk.length
@@ -168,13 +155,12 @@ export class OutputCollector {
       const head = this.chunks[0] as Buffer
       const excess = this.bytes - this.maxBytes
       if (head.length <= excess) {
-        // Drop the whole head chunk (length ≥ 1 is guaranteed while over cap).
+        // 丢弃整个头部分块（超限时长度 ≥ 1 必然成立）。
         this.chunks.shift()
         this.bytes -= head.length
       } else {
-        // Trim the head so the retained window is byte-exact at the cap — a
-        // diagnostic tail (an LSP server's stderr) must hold the LAST
-        // maxBytes regardless of how the stream was chunked.
+        // 裁剪头部，使保留窗口在到达上限时与字节精确对齐——诊断尾部（语言服务器的
+        // stderr）无论流如何分块，都必须保留最后的 maxBytes。
         this.chunks[0] = head.subarray(excess)
         this.bytes -= excess
       }
@@ -183,10 +169,9 @@ export class OutputCollector {
   }
 
   /**
-   * Open the spill file lazily and append `chunk` (and any prior chunks once).
-   * Runs inside the stream's `'data'` listener, so every filesystem failure is
-   * contained here: the spill is discarded, reported once, and collection
-   * continues with the in-memory tail alone.
+   * 惰性打开溢出文件并追加 `chunk`（以及一次性的此前各分块）。
+   * 运行在流的 `'data'` 监听器内部，因此每一次文件系统失败都在这里被隔离：溢出被丢弃、
+   * 报告一次，收集则仅凭内存尾部继续。
    */
   private spillAll(spill: SpillOptions, chunk: Buffer): void {
     if (this.total > spill.maxBytes) {
@@ -195,12 +180,10 @@ export class OutputCollector {
     }
     try {
       if (this.spillFd === undefined) {
-        // Random suffix + O_EXCL + no-follow-equivalent ('wx' fails on any
-        // existing path, symlink or not) + owner-only mode: defeats spill-path
-        // prediction and symlink planting in shared tmp dirs. The path is
-        // published only once the open succeeded, so a failed open (EEXIST on a
-        // planted entry included) never lets discardSpill unlink a path this
-        // process did not create.
+        // 随机后缀 + O_EXCL + 等价于不跟随链接（'wx' 在任何已存在路径上都会失败，
+        // 无论是否为符号链接）+ 仅属主模式：挫败共享临时目录中的溢出路径预测与符号
+        // 链接植入。路径只在打开成功后才公开，因此一次失败的打开（包括在被植入条目上
+        // 的 EEXIST）绝不会让 discardSpill 删除本进程未创建的路径。
         const file = join(
           spill.dir,
           `dsh-subprocess-${process.pid}-${++spillCounter}-${randomBytes(6).toString('hex')}-${this.label}.log`,
@@ -212,21 +195,20 @@ export class OutputCollector {
       }
       writeSync(this.spillFd, chunk)
     } catch (error) {
-      // ENOENT (spill directory removed by a temp cleaner), EACCES/EPERM,
-      // EMFILE, or ENOSPC: the spill file is a recovery aid, not a
-      // precondition of collection.
+      // ENOENT（溢出目录被临时清理器移除）、EACCES/EPERM、EMFILE 或 ENOSPC：溢出文件
+      // 只是恢复辅助手段，而非收集的前提条件。
       this.discardSpill()
       try {
         spill.onFailure(error, this.label)
       } catch (reporterFailure) {
-        // The reporter runs inside the stream listener too; a failing logger
-        // must not become the uncaught exception this path exists to prevent.
+        // 记录器同样运行在流监听器内部；一个失败的日志器绝不能变成本路径旨在
+        // 防止的那个未捕获异常。
         process.stderr.write(`dsh-subprocess-local: spill failure reporter threw: ${String(reporterFailure)}\n`)
       }
     }
   }
 
-  /** Stop spilling and remove the file once it can no longer hold the complete stream. */
+  /** 在文件不再能容纳完整流时，停止溢出并移除该文件。 */
   private discardSpill(): void {
     const fd = this.spillFd
     const file = this.spillFile
@@ -245,18 +227,17 @@ export class OutputCollector {
       try {
         unlinkSync(file)
       } catch {
-        // A failed unlink leaves at most maxSpillBytes behind, never an unbounded file.
+        // 一次失败的 unlink 至多留下 maxSpillBytes，绝不会留下无界文件。
       }
     }
   }
 
   /**
-   * Incremental read in whole-stream byte coordinates: returns everything
-   * pushed since `fromByte`. When `fromByte` has already slid out of the
-   * in-memory tail window, the read is `lossy` — it returns the whole
-   * retained tail and the gap is only recoverable from the spill file.
-   * @param fromByte - whole-stream offset to resume from (a prior read's `nextOffset`; 0 for the first read).
-   * @returns the delta text, the offset for the next read, the `lossy` flag, and the spill path when one was created.
+   * 以整流产字节坐标为单位的增量读取：返回自 `fromByte` 以来推送的所有内容。当
+   * `fromByte` 已滑出内存尾部窗口时，该读取为 `lossy`——它返回完整保留的尾部，
+   * 缺口只能从溢出文件恢复。
+   * @param fromByte - 续传的整流产偏移（上一次读取的 `nextOffset`；首次读取为 0）。
+   * @returns 增量文本、下一次读取的偏移、`lossy` 标志，以及（若存在）溢出文件路径。
    */
   readFrom(fromByte: number): { text: string; nextOffset: number; lossy: boolean; spillPath?: string } {
     const windowStart = this.total - this.bytes
@@ -272,35 +253,32 @@ export class OutputCollector {
   }
 
   /**
-   * Copy the retained raw tail with its position in the complete observed stream.
-   * @returns independent tail bytes and the total byte count before truncation.
+   * 复制保留下来的原始尾部，及其在完整被观察流中的位置。
+   * @returns 独立的尾部字节，以及截断前的字节总数。
    */
   snapshot(): { bytes: Buffer; totalBytes: number } {
     return { bytes: Buffer.concat(this.chunks), totalBytes: this.total }
   }
 
   /**
-   * Close the spill file once the stream has ended. A failed close (delayed
-   * writeback fault) stops advertising the spill path — the file may be
-   * missing its tail — while every in-memory read keeps working. Idempotent;
-   * the spawn path seals both collectors at settlement so reads after exit
-   * never point at a still-open file.
+   * 在流结束之后关闭溢出文件。一次失败的关闭（延迟写回故障）会停止公开溢出路径——
+   * 文件可能缺失其尾部——而所有内存读取仍可正常工作。幂等；spawn 路径在结算时封存
+   * 两个收集器，因此退出之后的读取绝不会指向一个仍打开的文件。
    */
   seal(): void {
     if (this.spillFd === undefined) return
     try {
       closeSync(this.spillFd)
     } catch {
-      // A delayed writeback failure makes the spill unreliable; keep the
-      // in-memory result but stop advertising that file.
+      // 延迟的写回失败使溢出不可靠；保留内存结果，但停止公开该文件。
       this.spillFile = undefined
     }
     this.spillFd = undefined
   }
 
   /**
-   * Seal the spill file and return the final output.
-   * @returns the final collected output: tail text, truncation flag, and the spill path when intact.
+   * 封存溢出文件并返回最终输出。
+   * @returns 最终收集输出：尾部文本、截断标志，以及（当完好时）溢出路径。
    */
   finalize(): CollectedOutput {
     this.seal()

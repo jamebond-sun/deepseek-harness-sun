@@ -1,55 +1,54 @@
 /**
- * The host's definition registry as this page last read it, owned by the
- * plugin's apply closure.
+ * 本页面上次读取到的 host 定义注册表，由插件的 apply 闭包持有。
  *
- * The panel is a frame-wide surface, so it cannot derive this from any session:
- * the registry is global and the read is a single global call. The rows are
- * re-read rather than patched, because the wire announcements
- * (`cordis/dynamic-package` / `/retract`) carry no labels and a definition
- * can appear or disappear between them — a patch-in-place cache would drift into
- * showing definitions the host no longer holds.
+ * 该面板是一个全框架表面，因此它无法从任何会话派生此内容：
+ * 注册表是全局的，而读取是一次单一的全局调用。各行被
+ * 重新读取而非打补丁，因为连线公告
+ * （`cordis/dynamic-package` / `/retract`）不携带任何标签，而一个定义
+ * 可能在它们之间出现或消失 —— 就地打补丁的缓存会漂移到
+ * 显示 host 不再持有的定义。
  *
- * Reads are single-flight: several announcements settling at once, or a badge
- * opening while a reconnect re-reads, must not multiply the call. Single-flight
- * alone would be wrong across a reconnect, though — the in-flight read belongs to
- * the previous connection, so a reset both discards its answer and frees the slot
- * for a fresh one. Without that, a reconnect either loses its re-read to the old
- * call or has the old host's rows published on top of it.
+ * 读取是单飞的：若干同时结算的公告，或一个徽标
+ * 在重连重读时打开，都不能让该调用倍增。但仅有单飞
+ * 在跨重连时仍属错误 —— 在途的读取属于
+ * 上一次连接，因此一次 reset 既丢弃其应答，又释放槽位
+ * 以进行全新的一次。否则，一次重连要么把其重读丢失给旧
+ * 调用，要么让旧 host 的行覆盖在它之上。
  */
 
 import type { HostObservable } from '@deepseek-ai/dsh-client-ui-slots'
 import type { CordisDynamicPort, CordisInventoryRow } from './dynamic-port.ts'
 import type { CordisDynamicPluginId } from './events.ts'
 
-/** What the panel reads: the rows, and whether the first read has happened. */
+/** 面板所读取的内容：各行，以及首次读取是否已发生。 */
 export interface CordisInventorySnapshot {
   readonly rows: readonly CordisInventoryRow[]
-  /** Plugins explicitly removed through this page, retained for historical cards. */
+  /** 通过本页面显式移除的 Plugin，为历史卡片保留。 */
   readonly removed: ReadonlySet<CordisDynamicPluginId>
   /**
-   * False until a read settles. The panel shows a loading line rather than an
-   * empty state, so "nothing defined yet" is never claimed before it is known.
+   * 在读取结算之前为 false。面板显示一行加载提示而非
+   * 空状态，因此在已知之前绝不声称"尚未定义任何内容"。
    */
   readonly read: boolean
-  /** Last read failure, so the panel can say why it is empty. */
+  /** 上次读取失败，以便面板说明它为何为空。 */
   readonly error?: string | undefined
 }
 
-/** Inventory source: an observable of the rows plus the read trigger. */
+/** 清单来源：各行的可观察对象，外加读取触发器。 */
 export interface CordisInventory extends HostObservable<CordisInventorySnapshot> {
-  /** Read the registry unless a read is already in flight. */
+  /** 除非已有读取在途，否则读取注册表。 */
   refresh(): void
-  /** Record an explicit remove and drop the live row immediately. */
+  /** 记录一次显式移除，并立即丢弃活动行。 */
   retire(pluginId: CordisDynamicPluginId): void
-  /** Drop what was read; the next refresh starts from nothing (a reconnect may be a new host). */
+  /** 丢弃已读取的内容；下一次刷新从零开始（重连可能是一个新的 host）。 */
   reset(): void
 }
 
 /**
- * Create the inventory source.
- * @param port - the RPC seam the read goes through.
- * @param onError - reporter for a failed read (console in production, captured in specs).
- * @returns the inventory observable and its read trigger.
+ * 创建清单来源。
+ * @param port - 读取所经由的 RPC 接缝。
+ * @param onError - 失败读取的报告器（生产环境为 console，规格中则被捕获）。
+ * @returns 清单可观察对象及其读取触发器。
  */
 export function createCordisInventory(
   port: CordisDynamicPort,
@@ -58,7 +57,7 @@ export function createCordisInventory(
   const listeners = new Set<() => void>()
   let snapshot: CordisInventorySnapshot = { rows: [], removed: new Set(), read: false }
   let inFlight: Promise<void> | undefined
-  // Bumped by reset; a read whose generation is stale publishes nothing.
+  // 由 reset 递增；代际已过期的读取不会发布任何内容。
   let generation = 0
 
   const publish = (next: CordisInventorySnapshot): void => {
@@ -88,8 +87,8 @@ export function createCordisInventory(
         (error: unknown) => {
           if (issued !== generation) return
           onError(error)
-          // A failed read keeps whatever was shown and says why: dropping the
-          // rows would turn a transient wire failure into "nothing is defined".
+          // 一次失败的读取保留已显示的内容并说明原因：丢弃
+          // 各行会把一次瞬时的连线失败变成"没有任何定义"。
           publish({
             rows: snapshot.rows,
             removed: snapshot.removed,

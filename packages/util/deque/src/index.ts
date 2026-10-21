@@ -1,28 +1,28 @@
 /**
- * Zero-dependency circular deque for queues that retain entries across asynchronous work.
+ * 零依赖的循环双端队列，用于跨异步工作保留条目的队列。
  * @module @deepseek-ai/dsh-deque
  */
 
 const MIN_CAPACITY = 16
 
 /**
- * A circular deque with amortized constant-time insertion and removal.
- * Removed entries are cleared immediately, and sparse storage shrinks after
- * the live entry count reaches one quarter of its capacity.
+ * 循环双端队列，插入与移除均为摊还常量时间。
+ * 被移除的条目会立即清除，而当活动条目数降到容量的四分之一时，
+ * 稀疏存储会收缩。
  */
 export class Deque<T> {
   private buffer = new Array<T | undefined>(MIN_CAPACITY)
   private head = 0
   private count = 0
 
-  /** Number of entries available to remove. */
+  /** 可移除的条目数量。 */
   get size(): number {
     return this.count
   }
 
   /**
-   * Append one entry after the current tail.
-   * @param value - entry to append.
+   * 在当前尾部之后追加一个条目。
+   * @param value - 待追加的条目。
    */
   pushBack(value: T): void {
     this.ensureCapacity()
@@ -32,8 +32,8 @@ export class Deque<T> {
   }
 
   /**
-   * Insert one entry before the current head.
-   * @param value - entry to prepend.
+   * 在当前头部之前插入一个条目。
+   * @param value - 待前置的条目。
    */
   pushFront(value: T): void {
     this.ensureCapacity()
@@ -43,10 +43,10 @@ export class Deque<T> {
   }
 
   /**
-   * Remove the current head entry and clear its retained reference.
-   * Callers whose element type includes `undefined` use {@link size} to
-   * distinguish an empty deque from an `undefined` entry.
-   * @returns the removed entry, or `undefined` when the deque is empty.
+   * 移除当前头部条目并清除其保留的引用。
+   * 元素类型包含 `undefined` 的调用方应使用 {@link size} 来区分空
+   * 队列与 `undefined` 条目。
+   * @returns 被移除的条目，队列为空时为 `undefined`。
    */
   popFront(): T | undefined {
     if (this.count === 0) return undefined
@@ -59,7 +59,7 @@ export class Deque<T> {
     return value
   }
 
-  /** Drop every entry and release the current backing storage. */
+  /** 丢弃所有条目并释放当前的后备存储。 */
   clear(): void {
     this.buffer = new Array<T | undefined>(MIN_CAPACITY)
     this.head = 0

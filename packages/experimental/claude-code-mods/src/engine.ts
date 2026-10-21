@@ -1,8 +1,8 @@
 /**
- * The mods engine: loaded mods and their hooks, engine-raised events, mods
- * API calls raised as events, per-session `$.state`, and the timers mods
- * start. It knows nothing of Cordis; the plugin supplies the engine behavior
- * for each mods API call and the test kit supplies stubs.
+ * mods 引擎：已加载的 mods 及其钩子、由引擎引发的事件、以事件形式抛出的
+ * mods API 调用、每个会话的 `$.state`，以及 mods 所启动的定时器。它
+ * 对 Cordis 一无所知；插件为每个 mods API 调用提供引擎行为，而测试套件
+ * 提供桩件。
  * @module
  */
 
@@ -14,18 +14,18 @@ import { messageOf, record } from './values.ts'
 import { HookRegistry, registerMod } from './module.ts'
 import type { ModDefinition, ModsApi, OpResult, ModTimer } from './types.ts'
 
-/** The engine behavior for one mods API call. */
+/** 针对某一次 mods API 调用的引擎行为。 */
 export type OpCore<B> = (input: unknown, context: OpContext<B>) => unknown
 
-/** Engine behaviors by event name, `<namespace>.<method>`. */
+/** 按事件名（`<namespace>.<method>`）索引的引擎行为。 */
 export type OpTable<B> = Readonly<Record<string, OpCore<B>>>
 
-/** Looks up the engine behavior for one mods API call; `undefined` means none is served. */
+/** 查找某一次 mods API 调用的引擎行为；`undefined` 表示没有提供服务端行为。 */
 export type OpResolver<B> = (op: string) => OpCore<B> | undefined
 
 /**
- * Thrown by an engine behavior to answer a mods API call with `{ deny }`, so
- * the calling mod's `$` call rejects with the reason.
+ * 由某个引擎行为抛出，用以携带 `{ deny }` 应答某次 mods API 调用，
+ * 从而让发起调用的 mod 的 `$` 调用以该理由拒却。
  */
 export class OpDenied extends Error {
   constructor(readonly reason: string) {
@@ -34,50 +34,50 @@ export class OpDenied extends Error {
   }
 }
 
-/** What an op core and a `$` instance know about the raising hook's surroundings. */
+/** 一次操作核心与 `$` 实例所知的、关于正在抛出的钩子环境的信息。 */
 export interface OpContext<B> {
   readonly mod: LoadedMod
-  /** The engine-specific binding of the event that is running: the plugin's agent, or the test kit's fixture. */
+  /** 正在运行的事件的、引擎特定的绑定：插件的 agent，或测试套件的 fixture。 */
   readonly binding: B
   readonly signal: AbortSignal
   readonly engine: ModsEngine<B>
 }
 
-/** Engine construction options. */
+/** 引擎的构造选项。 */
 export interface ModsEngineOptions<B> {
   /**
-   * Engine behaviors for mods API calls. The engine answers `state.*`,
-   * `clock.now`, and `clock.sleep` itself when the resolver serves none.
+   * 针对 mods API 调用的引擎行为。当解析器没有提供时，引擎自身会应答
+   * `state.*`、`clock.now` 与 `clock.sleep`。
    */
   readonly ops: OpResolver<B>
   /**
-   * The key `$.state` values and a mod's timers live under: Claude Code's "for
-   * the whole session". The empty string is the sessionless scope.
+   * `$.state` 的取值与某个 mod 的定时器所归属的键：即 Claude Code 的
+   * “面向整个会话”。空字符串代表无会话的作用域。
    */
   readonly stateKey: (binding: B) => string
-  /** A hook's own running-time limit in milliseconds. */
+  /** 某个钩子自身的运行时间上限（毫秒）。 */
   readonly budgetMs: number
-  /** A `.catch` handler's running-time limit in milliseconds. */
+  /** `.catch` 处理器的运行时间上限（毫秒）。 */
   readonly catchBudgetMs: number
-  /** Receives diagnostics: skipped hooks, failed fire-and-forget calls, timer callback errors. */
+  /** 接收诊断信息：被跳过的钩子、失败的“触发即忘”调用、定时器回调错误。 */
   readonly report: (line: string) => void
-  /** Observes `$.state` reads, by session key and `<plugin>\u0000<key>` slot, so a drawing can subscribe to what it read. */
+  /** 观察 `$.state` 的读取，按会话键与 `<plugin>\u0000<key>` 槽位，以便某次绘制可以订阅它读取过的内容。 */
   readonly onStateRead?: (key: string, slot: string) => void
-  /** Observes `$.state` writes, by session key and slot. */
+  /** 观察 `$.state` 的写入，按会话键与槽位。 */
   readonly onStateWritten?: (key: string, slot: string) => void
 }
 
-/** Options for raising one engine event. */
+/** 抛出某一个引擎事件的选项。 */
 export interface RaiseOptions<B, E = unknown> {
   readonly binding: B
   readonly signal?: AbortSignal
-  /** Checks the input a hook passes to `next`; a throw skips that hook and continues with the input it received. */
+  /** 检查某个钩子传给 `next` 的输入；一次抛出会跳过该钩子，并以它收到的输入继续。 */
   readonly validateNext?: (e: E, hook: RegisteredHook) => void
 }
 
 const NEVER_ABORTS = new AbortController().signal
 
-/** Wait `ms`, or reject with the signal's reason when the event is cancelled before or while waiting. */
+/** 等待 `ms`；若事件在等待前或等待期间被取消，则以该 signal 的理由拒却。 */
 function sleepUnless(ms: number, signal: AbortSignal): Promise<void> {
   return new Promise<void>((resolve, reject) => {
     if (signal.aborted) {
@@ -101,16 +101,16 @@ function abortReasonOf(signal: AbortSignal): Error {
   return reason instanceof Error ? reason : new Error(`$.clock.sleep cancelled: ${messageOf(reason)}`)
 }
 
-/** One named `$.state` slot: `<plugin>\u0000<key>`. */
+/** 一个具名的 `$.state` 槽位：`<plugin>\u0000<key>`。 */
 function stateSlot(plugin: unknown, key: unknown): string {
   if (typeof plugin !== 'string' || typeof key !== 'string') throw new TypeError('$.state needs { plugin, key } strings')
   return `${plugin}\u0000${key}`
 }
 
 /**
- * Timers owned by the engine on one mod's behalf. Closing cancels every
- * scheduled timer, refuses new ones, and waits for the callbacks already
- * running, so a mod cannot reschedule itself or touch the host after unload.
+ * 由引擎代表某一个 mod 所拥有的定时器。关闭会取消每一个已排程的定时器、
+ * 拒绝新的定时器，并等待已经在运行的回调完成，从而使一个 mod 在卸载后
+ * 无法重新排程自身或触碰宿主。
  */
 class TimerSet implements TimerHost {
   private readonly active = new Set<ReturnType<typeof setTimeout>>()
@@ -139,8 +139,8 @@ class TimerSet implements TimerHost {
   }
 
   /**
-   * Cancel every scheduled timer, refuse new ones, and settle once the
-   * callbacks already running have finished.
+   * 取消每一个已排程的定时器、拒绝新的定时器，并在已经在运行的回调
+   * 完成之后结算。
    */
   async close(): Promise<void> {
     this.closed = true
@@ -159,25 +159,25 @@ class TimerSet implements TimerHost {
 }
 
 /**
- * Loaded mods, their hooks, and the two ways events reach them: the engine
- * raises one through every selected hook, and a mod's `$` call raises one
- * through the mods loaded before it.
+ * 已加载的 mods、它们的钩子，以及事件抵达它们的两种途径：引擎会
+ * 经每一个被选中的钩子抛出一个事件，而某个 mod 的 `$` 调用会经在它
+ * 之前加载的 mods 抛出一个事件。
  */
 export class ModsEngine<B> {
-  /** The loaded mods and their registrations. */
+  /** 已加载的 mods 及其注册项。 */
   readonly registry = new HookRegistry()
   private readonly state = new Map<string, Map<string, unknown>>()
-  /** Timer sets by `<session key>\u0000<plugin>`: a mod's timers belong to the session whose event started them. */
+  /** 按 `<session key>\u0000<plugin>` 索引的定时器集合：某个 mod 的定时器归属于启动它们的那个会话的事件。 */
   private readonly timers = new Map<string, TimerSet>()
   private nextOrder = 0
 
   constructor(private readonly options: ModsEngineOptions<B>) {}
 
   /**
-   * Run one mod's `register` and add its hooks beneath every mod added before it.
-   * @param definition - the mod as its plugin defined it.
-   * @returns the loaded mod.
-   * @throws Error when the name is taken or invalid, or when `register` throws.
+   * 运行某个 mod 的 `register`，并将其钩子加在每一个在它之前添加的 mod 之下。
+   * @param definition - 其插件所定义的、该 mod 的形态。
+   * @returns 已加载的 mod。
+   * @throws 当名称被占用或无效，或当 `register` 抛出时。
    */
   async add(definition: ModDefinition): Promise<LoadedMod> {
     if (this.registry.list().some(loaded => loaded.name === definition.name)) {
@@ -191,28 +191,27 @@ export class ModsEngine<B> {
   }
 
   /**
-   * Raise one engine event through its hooks, outermost first.
-   * @param event - the event name.
-   * @param input - the event input; frozen before a hook sees it.
-   * @param core - the engine behavior beneath every hook.
-   * @param options - the binding events of this agent share, and its cancellation.
-   * @returns the result as the outermost hook returned it.
+   * 经其钩子抛出一个引擎事件，最外层的优先。
+   * @param event - 事件名称。
+   * @param input - 事件输入；在钩子看到它之前被冻结。
+   * @param core - 位于每个钩子之下的引擎行为。
+   * @param options - 本 agent 的各绑定事件所共享的内容，及其取消。
+   * @returns 最外层钩子所返回的结果。
    */
   raise<E, R>(event: string, input: E, core: (e: E) => Promise<R> | R, options: RaiseOptions<B, E>): Promise<R> {
     return this.raiseWith(event, this.registry.select(event), undefined, input, core, options)
   }
 
   /**
-   * Raise one event through hooks the caller already selected, attributed to
-   * the mod that caused it: the engine, or a mod whose `$` call the host turned
-   * back into this event.
-   * @param event - the event name.
-   * @param hooks - the selected hooks, outermost first.
-   * @param raisedBy - the mod the event is attributed to, or undefined for the engine.
-   * @param input - the event input; frozen before a hook sees it.
-   * @param core - the engine behavior beneath every hook.
-   * @param options - the binding events of this agent share, and its cancellation.
-   * @returns the result as the outermost hook returned it.
+   * 经调用方已经选好的钩子抛出一个事件，并将其归因为引发了它的 mod：
+   * 即引擎，或一个其 `$` 调用被宿主转回为本事件的 mod。
+   * @param event - 事件名称。
+   * @param hooks - 选中的钩子，最外层的优先。
+   * @param raisedBy - 该事件所归因到的 mod，或为引擎时的 undefined。
+   * @param input - 事件输入；在钩子看到它之前被冻结。
+   * @param core - 位于每个钩子之下的引擎行为。
+   * @param options - 本 agent 的各绑定事件所共享的内容，及其取消。
+   * @returns 最外层钩子所返回的结果。
    */
   raiseWith<E, R>(
     event: string,
@@ -239,21 +238,21 @@ export class ModsEngine<B> {
   }
 
   /**
-   * Raise one mods API call as its event through the mods loaded before the
-   * caller, then answer it with the engine behavior.
-   * @param mod - the calling mod.
-   * @param op - the event name, `<namespace>.<method>`.
-   * @param input - the call's input.
-   * @param binding - the binding of the event the caller is handling.
-   * @param signal - cancellation of that event.
-   * @returns the value the chain answered with.
-   * @throws Error with the reason when a hook or the engine answered `{ deny }`.
+   * 将某一次 mods API 调用作为同名事件，经在调用方之前加载的 mods 抛出，
+   * 然后以引擎行为应答它。
+   * @param mod - 发起调用的 mod。
+   * @param op - 事件名称，即 `<namespace>.<method>`。
+   * @param input - 该调用的输入。
+   * @param binding - 调用方正在处理的事件的绑定。
+   * @param signal - 该事件的取消信号。
+   * @returns 链所应答的值。
+   * @throws 当某个钩子或引擎以 `{ deny }` 应答时，以该理由抛出 Error。
    */
   async invoke(mod: LoadedMod, op: string, input: unknown, binding: B, signal: AbortSignal): Promise<unknown> {
     const result = await dispatch<unknown, unknown>({
       event: op,
       input,
-      // `tool.call` reaches the earlier mods once the host raises it from the tool pipeline, not here as well.
+      // `tool.call` 只在该宿主从工具流水线抛出它时才会抵达更早的 mods，此处不再重复。
       hooks: op === 'tool.call' ? [] : this.registry.select(op, mod),
       core: async (e): Promise<OpResult> => {
         try {
@@ -270,7 +269,7 @@ export class ModsEngine<B> {
       signal,
       report: this.options.report,
     })
-    // Hooks that settle with anything but an object are skipped, so the result is the core's or a hook's object — or null.
+    // 以对象之外的内容结算的钩子会被跳过，因此结果要么是核心的、要么是某个钩子的对象——或者为 null。
     const answer = result as { value?: unknown; deny?: unknown } | null
     if (answer === null || (!('value' in answer) && !('deny' in answer))) {
       throw new Error(`${op}: a hook returned neither { value } nor { deny }`)
@@ -280,12 +279,12 @@ export class ModsEngine<B> {
   }
 
   /**
-   * Build the `$` for one mod inside one event.
-   * @param mod - the mod the instance belongs to.
-   * @param clock - the running hook's clock, or undefined outside a hook.
-   * @param binding - the event's binding.
-   * @param signal - the event's cancellation.
-   * @returns the mods API.
+   * 在某一个事件内部，为某个 mod 构建 `$`。
+   * @param mod - 该实例所隶属的 mod。
+   * @param clock - 运行中的钩子的时钟，在钩子之外时为 undefined。
+   * @param binding - 该事件的绑定。
+   * @param signal - 该事件的取消信号。
+   * @returns mods API。
    */
   api(mod: LoadedMod, clock: BudgetClock | undefined, binding: B, signal: AbortSignal): ModsApi {
     return createModsApi({
@@ -298,9 +297,9 @@ export class ModsEngine<B> {
   }
 
   /**
-   * Forget one session's `$.state` values and close the timers its events started.
-   * @param key - the session key the values and timers were kept under.
-   * @returns settles once the session's timer callbacks have finished.
+   * 遗忘某个会话的 `$.state` 取值，并关闭由它的事件所启动的定时器。
+   * @param key - 这些取值与定时器所归属的会话键。
+   * @returns 在该会话的定时器回调全部完成之后结算。
    */
   async forgetSession(key: string): Promise<void> {
     this.state.delete(key)
@@ -315,19 +314,19 @@ export class ModsEngine<B> {
   }
 
   /**
-   * The `claude plugin validate` style `hooks:` line for one mod.
-   * @param mod - the loaded mod.
-   * @returns its events with matchers, comma-separated.
+   * 某个 mod 的、`claude plugin validate` 风格的 `hooks:` 行。
+   * @param mod - 已加载的 mod。
+   * @returns 它带有匹配器的事件，以逗号分隔。
    */
   describe(mod: LoadedMod): string {
     return this.registry.describe(mod)
   }
 
   /**
-   * Drop one mod: its hooks stop receiving events, its timers are cancelled,
-   * and its running timer callbacks are awaited.
-   * @param name - the plugin name.
-   * @returns settles once the mod's timer callbacks have finished.
+   * 丢弃一个 mod：它的钩子停止接收事件，它的定时器被取消，
+   * 并且它在运行的定时器回调会被等待完成。
+   * @param name - 插件名称。
+   * @returns 在该 mod 的定时器回调全部完成之后结算。
    */
   async unload(name: string): Promise<void> {
     this.registry.remove(name)
@@ -342,8 +341,8 @@ export class ModsEngine<B> {
   }
 
   /**
-   * Drop every registration and close every mod's timers.
-   * @returns settles once every timer callback has finished.
+   * 丢弃每一个注册项，并关闭每个 mod 的定时器。
+   * @returns 在每一个定时器回调都完成之后结算。
    */
   async dispose(): Promise<void> {
     await Promise.all([...this.registry.list()].map(mod => this.unload(mod.name)))

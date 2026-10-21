@@ -1,5 +1,5 @@
 /**
- * Model-visible messages owned by continuable-subagent orchestration.
+ * 由可续跑子代理编排所拥有的、模型可见的消息。
  *
  * @module @deepseek-ai/dsh-subagent/continuation-messages
  */
@@ -10,29 +10,28 @@ import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import type { SubagentResult } from './types.ts'
 
-/** Durable attribution for one model-authored message between Agents. */
+/** Agent 之间一条模型撰写消息的持久化归属。 */
 export interface AgentMessageSource {
   readonly kind: 'agent-message'
-  /** A message another agent addressed to this one (`relay` context form). */
+  /** 另一个 agent 发给本 agent 的消息（`relay` 上下文形态）。 */
   readonly form: 'relay'
-  /** Session id of the Agent whose tool call produced the message. */
+  /** 其工具调用产生该消息的 Agent 的 session id。 */
   readonly senderSessionId: SessionId
 }
 
 /**
- * Durable attribution for the runtime's own account of a continuable child
- * settling. Deliberately a different kind from
- * {@link AgentMessageSource}: an Agent message is content the sender chose,
- * while this message is the manager stating what became of the child, and a
- * transcript that merged them would credit the child with words it never wrote.
+ * 运行时对可续跑子代理结算自身陈述的持久化归属。有意与
+ * {@link AgentMessageSource} 使用不同的 kind：Agent 消息是发送方选定的内容，
+ * 而本消息是管理器陈述子代理的最终结局；若把二者合并进同一份 transcript，
+ * 会把子代理从未写下的话归到它头上。
  */
 export interface SubagentSettledMessageSource {
   readonly kind: 'subagent-settled'
-  /** A runtime account shown without expanding the row (`notice` context form). */
+  /** 不展开该行即可展示的运行时陈述（`notice` 上下文形态）。 */
   readonly form: 'notice'
-  /** One-line account of how the child ended. */
+  /** 关于子代理如何结束的一行陈述。 */
   readonly summary: string
-  /** Session id of the child that settled. */
+  /** 已结算子代理的 session id。 */
   readonly senderSessionId: SessionId
 }
 
@@ -43,7 +42,7 @@ declare module '@deepseek-ai/dsh-llm' {
   }
 }
 
-/** Build durable attribution for one adjacent-Agent message. */
+/** 为一条相邻 Agent 消息构建持久化归属。 */
 function agentMessageSource(sender: Agent): AgentMessageSource {
   return {
     kind: 'agent-message',
@@ -53,10 +52,10 @@ function agentMessageSource(sender: Agent): AgentMessageSource {
 }
 
 /**
- * Build the model-visible and durable representation of one adjacent-Agent message.
- * @param sender - exact live Agent that authored the message.
- * @param content - model-visible message blocks supplied by the sender.
- * @returns the durable user-message representation delivered to the recipient.
+ * 构建一条相邻 Agent 消息的模型可见且可持久化的表示。
+ * @param sender - 撰写该消息的精确实时 Agent。
+ * @param content - 发送方提供的、模型可见的消息块。
+ * @returns 投递给接收方的持久化 user-message 表示。
  */
 export function createAgentMessage(
   sender: Agent,
@@ -72,10 +71,10 @@ export function createAgentMessage(
 }
 
 /**
- * Append adjacent-Agent return guidance to a continuable child's initial task.
- * @param parentId - durable parent session id named in the guidance.
- * @param prompt - initial model-visible task blocks.
- * @returns task blocks followed by the continuable return guidance.
+ * 向可续跑子代理的初始任务追加相邻 Agent 的返回指引。
+ * @param parentId - 指引中所指名的持久化父 session id。
+ * @param prompt - 初始的、模型可见的任务块。
+ * @returns 任务块之后跟随可续跑返回指引。
  */
 export function withContinuableReturnGuidance(
   parentId: SessionId,
@@ -96,12 +95,11 @@ export function withContinuableReturnGuidance(
 }
 
 /**
- * One line telling a parent that a background child is finished and why, in
- * the parent's own task vocabulary.
- * @param childId - the durable child the parent knows by id.
- * @param stopReason - how the child's last ordinary turn ended.
- * @param continuable - whether the child accepts a later message.
- * @returns the model-facing opening line of the settlement notice.
+ * 用父代理自身的任务词汇，以一行告知父代理某个后台子代理已结束及其原因。
+ * @param childId - 父代理按 id 认识的持久化子代理。
+ * @param stopReason - 子代理最后一个普通轮次如何结束。
+ * @param continuable - 子代理是否接受后续消息。
+ * @returns 结算通知面向模型的开头一行。
  */
 function settlementSummary(childId: SessionId, stopReason: SubagentResult['stopReason'], continuable: boolean): string {
   const subject = `Background subagent ${childId}`
@@ -114,26 +112,25 @@ function settlementSummary(childId: SessionId, stopReason: SubagentResult['stopR
       return `${subject} was stopped before it finished.`
     case 'max-tokens':
       return `${subject} ran out of room before it finished.`
-    // A pre-step rejection — a hook deny, a policy plugin — discarded input
-    // the child had claimed, so the parent must not treat the task as done.
+    // 步骤前拒绝 —— hook deny、策略插件 —— 丢弃了子代理已认领的输入，
+    // 因此父代理不得把任务视为已完成。
     case 'refusal':
       return `${subject} declined the task.`
     case 'error':
       return `${subject} failed before it finished.`
-    /* v8 ignore next 4 -- `SubagentResult['stopReason']` is merge-extensible, so this arm
-     * needs a backend that adds a variant; an unnameable ending is reported as unfinished
-     * rather than silently as success. */
+    /* v8 ignore next 4 -- `SubagentResult['stopReason']` 是可合并扩展的，因此该分支
+     * 需要一个添加变体的后端；无法名状的结束被报告为未完成，而非静默地当作成功。 */
     default:
       return `${subject} ended abnormally (${String(stopReason)}) before it finished.`
   }
 }
 
 /**
- * Build the runtime-owned settlement notice from the child's nonempty closing text.
- * @param childId - durable child session id named in the notice.
- * @param terminal - recorded terminal state for the settled Activation.
- * @param continuable - whether the child can accept another task.
- * @returns the durable user-message representation delivered to the parent.
+ * 根据子代理非空的收尾文本构建运行时自有的结算通知。
+ * @param childId - 通知中所指名的持久化子 session id。
+ * @param terminal - 已结算 Activation 所记录的终止状态。
+ * @param continuable - 子代理能否接受另一个任务。
+ * @returns 投递给父代理的持久化 user-message 表示。
  */
 export function createSettlementMessage(
   childId: SessionId,
@@ -141,9 +138,8 @@ export function createSettlementMessage(
   continuable = true,
 ): ReturnType<typeof createUserMessage> {
   const summary = settlementSummary(childId, terminal.stopReason, continuable)
-  // Parent providers receive this notice as a user message and may reject
-  // nontext assistant blocks. Keep this conversion local so SDK/UI consumers
-  // retain the complete child output.
+  // 父提供方以 user message 形式接收该通知，可能拒绝非文本助手块。
+  // 将此转换保持在本地，使 SDK/UI 消费者保留完整的子代理输出。
   const closingText = terminal.output.flatMap(block =>
     block.type === 'text' && block.text.length > 0 ? [block] : [],
   )

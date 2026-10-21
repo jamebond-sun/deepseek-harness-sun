@@ -39,7 +39,7 @@ interface AttemptGroup {
   terminal: boolean
 }
 
-/** Adjacent migration that embeds released-v1 top-level Assistant chunks into v2 attempt events. */
+/** 将 released-v1 顶层 Assistant 分块内嵌到 v2 attempt 事件中的相邻迁移。 */
 export const sessionFormatV1ToV2 = defineSessionFormatMigration({
   name: '@deepseek-ai/dsh-session-format-v1-to-v2',
   fromVersion: 1,

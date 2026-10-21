@@ -1,4 +1,4 @@
-/** Install the inherited runtime resolution in one Harness-owned Worker. */
+/** 在一个 Harness 拥有的 Worker 中安装继承来的运行时解析。 */
 
 import { getEnvironmentData } from 'node:worker_threads'
 import { installRuntimeInterception } from './resolver.ts'

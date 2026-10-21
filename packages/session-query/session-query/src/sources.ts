@@ -1,12 +1,12 @@
-/** Shared immutable-header checks for logical session source observers. */
+/** 逻辑会话源观察者共用的不可变头部校验。 */
 
 import type { SessionHeader } from '@deepseek-ai/dsh-session'
 import { SessionQueryError } from './config.ts'
 
 /**
- * Reject incompatible observations of one logical session source.
- * @param a - first live, listed, or loaded header observation.
- * @param b - second header observation expected to identify the same source.
+ * 拒绝对同一逻辑会话源做出互不兼容的观察。
+ * @param a - 第一个 live、listed 或 loaded 的头部观察结果。
+ * @param b - 第二个头部观察结果，预期标识同一个源。
  */
 export function assertSessionHeadersCompatible(a: SessionHeader, b: SessionHeader): void {
   if (

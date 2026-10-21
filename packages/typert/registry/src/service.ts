@@ -1,7 +1,6 @@
 /**
- * Runtime registry for generated Typert reflection, Remote invocations, and
- * dependency-inverted lookup/Context providers. It performs no TypeScript
- * analysis or schema generation.
+ * 用于生成的 Typert 反射、Remote 调用，以及依赖倒置的 lookup/Context
+ * 提供方的运行时注册表。它不进行任何 TypeScript 分析或 schema 生成。
  * @module @deepseek-ai/dsh-typert-registry
  */
 
@@ -44,29 +43,29 @@ import type {
 } from './types.ts'
 
 /**
- * Compose the global key of one generated schema.
- * @param packageName - contributing npm package.
- * @param name - schema export name.
- * @returns `<package>#<name>`.
+ * 组合一个生成 schema 的全局键。
+ * @param packageName - 贡献的 npm 包。
+ * @param name - schema 导出名。
+ * @returns `<package>#<name>`。
  */
 export function typertKey(packageName: string, name: string): string {
   return `${packageName}#${name}`
 }
 
 /**
- * Compose the identity of one package-face model.
- * @param packageName - contributing npm package.
- * @param face - independently compiled face.
- * @returns `<package>#<face>`.
+ * 组合一个包端模型的身份。
+ * @param packageName - 贡献的 npm 包。
+ * @param face - 彼此独立编译的端。
+ * @returns `<package>#<face>`。
  */
 export function typertPackageKey(packageName: string, face: TypertFace): string {
   return `${packageName}#${face}`
 }
 
 /**
- * Compose the endpoint key used by local and Remote invocation registries.
- * @param descriptor - invocation whose namespace and method form the endpoint.
- * @returns `<namespace>/<method>`.
+ * 组合本地与 Remote 调用注册表所用的端点键。
+ * @param descriptor - 其命名空间与方法构成端点的调用。
+ * @returns `<namespace>/<method>`。
  */
 export function typertEndpoint(descriptor: Pick<InvocationDescriptor, 'namespace' | 'method'>): string {
   return `${descriptor.namespace}/${descriptor.method}`
@@ -156,10 +155,10 @@ class DescriptorStore {
     for (const descriptor of descriptors) {
       const endpoint = typertEndpoint(descriptor)
       const entry = this.entries.get(endpoint)
-      /* v8 ignore next -- duplicate registration is rejected, so no later owner can replace this entry before its effect disposes. */
+      /* v8 ignore next -- 重复的注册会被拒绝，因此在它的 effect 释放之前，不会有后续的属主替换这一条目。 */
       if (entry?.owner !== owner) continue
       this.entries.delete(endpoint)
-      /* v8 ignore next -- ids and endpoints are committed and withdrawn together under the same unique owner. */
+      /* v8 ignore next -- id 与端点在同一个唯一属主下一起提交与撤销。 */
       if (this.ids.get(descriptor.id) === entry) this.ids.delete(descriptor.id)
       removed.push(endpoint)
     }
@@ -209,7 +208,7 @@ class RemoteStore {
       packages.set(contribution.package, owner)
       descriptors.commit(owner, contribution.descriptors)
       yield () => {
-        /* v8 ignore else -- duplicate package registration is rejected, so this effect remains the package's unique owner. */
+        /* v8 ignore else -- 重复的包注册会被拒绝，因此这一 effect 始终是包的唯一属主。 */
         if (packages.get(contribution.package) === owner) packages.delete(contribution.package)
         descriptors.withdraw(owner, contribution.descriptors)
       }
@@ -258,7 +257,7 @@ class LookupStore {
     return {
       parameter: provider.parameter,
       wire: provider.wire,
-      // oxlint-disable-next-line typescript/no-unnecessary-condition -- domain packages merge resource kinds into TypertResourceMap.
+      // oxlint-disable-next-line typescript/no-unnecessary-condition -- 领域包会把资源种类合并进 TypertResourceMap。
       ...provider.resource === undefined ? {} : { resource: provider.resource },
       hostTypeSymbol: provider.hostTypeSymbol,
       wireTypeSymbol: provider.wireTypeSymbol,
@@ -274,8 +273,8 @@ class LookupStore {
     validateSegment('lookup key', key)
     if (this.resolvers.has(key)) throw new Error(`typert: lookup "${key}" resolver is already configured`)
     const owner = {}
-    // The map erases each merge-declared Wire type; restore it only at the
-    // typed configure() boundary so strict function variance remains sound.
+    // 该映射擦除了每个合并声明的 Wire 类型；仅在带类型的
+    // configure() 边界处恢复它，以维持严格函数变型的健全性。
     const entry: ProviderEntry<LookupResolverEntry> = {
       provider: { resolve: async id => resolver(id as Wire) },
       owner,
@@ -285,7 +284,7 @@ class LookupStore {
       resolvers.set(key, entry)
       changes.emit({ kind: 'lookup', key })
       yield () => {
-        /* v8 ignore next -- duplicate configuration is rejected, so this effect remains the key's unique owner. */
+        /* v8 ignore next -- 重复的配置会被拒绝，因此这一 effect 始终是键的唯一属主。 */
         if (resolvers.get(key) !== entry) return
         resolvers.delete(key)
         changes.emit({ kind: 'lookup', key })
@@ -319,7 +318,7 @@ class LookupStore {
       providers.set(key, entry)
       changes.emit({ kind: 'lookup', key })
       yield () => {
-        /* v8 ignore next -- duplicate registration is rejected, so this effect remains the key's unique owner. */
+        /* v8 ignore next -- 重复的注册会被拒绝，因此这一 effect 始终是键的唯一属主。 */
         if (providers.get(key) !== entry) return
         providers.delete(key)
         changes.emit({ kind: 'lookup', key })
@@ -377,7 +376,7 @@ class ContextStore {
     return {
       wire: adapter.wire,
       wireTypeSymbol: adapter.wireTypeSymbol,
-      // oxlint-disable-next-line typescript/no-unnecessary-condition -- domain packages merge resource kinds into TypertResourceMap.
+      // oxlint-disable-next-line typescript/no-unnecessary-condition -- 领域包会把资源种类合并进 TypertResourceMap。
       ...adapter.resource === undefined ? {} : { resource: adapter.resource },
       resolve: id => resolver.resolve(id),
     }
@@ -399,7 +398,7 @@ class ContextStore {
       hostResolvers.set(key, entry)
       changes.emit({ kind: 'host-context', key })
       yield () => {
-        /* v8 ignore next -- duplicate configuration is rejected, so this effect remains the key's unique owner. */
+        /* v8 ignore next -- 重复的配置会被拒绝，因此这一 effect 始终是键的唯一属主。 */
         if (hostResolvers.get(key) !== entry) return
         hostResolvers.delete(key)
         changes.emit({ kind: 'host-context', key })
@@ -433,7 +432,7 @@ class ContextStore {
       table.set(key, entry)
       changes.emit({ kind, key })
       yield () => {
-        /* v8 ignore next -- duplicate registration is rejected, so this effect remains the key's unique owner. */
+        /* v8 ignore next -- 重复的注册会被拒绝，因此这一 effect 始终是键的唯一属主。 */
         if (table.get(key) !== entry) return
         table.delete(key)
         changes.emit({ kind, key })
@@ -446,7 +445,7 @@ interface HostContextResolverEntry {
   resolve(id: unknown): Promise<Context | undefined>
 }
 
-/** The built-in identity-less resource kind; no declared resource kind may take its name. */
+/** 内置的、无身份的资源种类；任何已声明的资源种类都不得使用此名。 */
 const GLOBAL_RESOURCE_KIND = 'global' satisfies RemoteAccessResourceKind
 
 class ResourceStore {
@@ -479,7 +478,7 @@ class ResourceStore {
       declarations.set(kind, entry)
       changes.emit({ kind: 'resource', key: kind })
       yield () => {
-        /* v8 ignore next -- duplicate registration is rejected, so this effect remains the kind's unique owner. */
+        /* v8 ignore next -- 重复的注册会被拒绝，因此这一 effect 始终是种类的唯一属主。 */
         if (declarations.get(kind) !== entry) return
         declarations.delete(kind)
         changes.emit({ kind: 'resource', key: kind })
@@ -489,8 +488,7 @@ class ResourceStore {
 }
 
 /**
- * Registry of generated schemas, package reflection, invocations, and Remote
- * dependency providers.
+ * 生成 schema、包反射、调用以及 Remote 依赖提供方的注册表。
  * @typert service typert
  */
 export class TypertRegistry extends Service implements TypertRegistryContract {
@@ -515,7 +513,7 @@ export class TypertRegistry extends Service implements TypertRegistryContract {
     this.resourceStore = new ResourceStore(report)
   }
 
-  /** Current-environment invocation definitions. */
+  /** 当前环境的调用定义。 */
   get local(): TypertLocalRegistry {
     const ctx = this.ctx
     return {
@@ -526,32 +524,31 @@ export class TypertRegistry extends Service implements TypertRegistryContract {
     }
   }
 
-  /** Consumer-selected Remote definitions. */
+  /** 消费者选定的 Remote 定义。 */
   get remotes(): TypertRemoteRegistry {
     return this.remoteStore.view(this.ctx)
   }
 
-  /** Host object lookup providers. */
+  /** Host 对象 lookup 提供方。 */
   get lookups(): TypertLookupRegistry {
     return this.lookupStore.view(this.ctx)
   }
 
-  /** Host and Client Context adapters. */
+  /** Host 与 Client 的 Context 适配器。 */
   get contexts(): TypertContextRegistry {
     return this.contextStore.view(this.ctx)
   }
 
-  /** Default wire fields of resource kinds. */
+  /** 资源种类的默认传输线字段。 */
   get resources(): TypertResourceRegistry {
     return this.resourceStore.view(this.ctx)
   }
 
   /**
-   * Register one generated contribution atomically for the calling fiber.
-   * Duplicate package-face identities, schemas, invocation ids, or endpoints
-   * reject the whole batch.
-   * @param contribution - generated schemas, reflection, and Host invocations.
-   * @returns the exact effect disposer that removes this contribution.
+   * 为调用的 fiber 原子地注册一个生成的贡献。
+   * 重复的包端身份、schema、调用 id 或端点会拒绝整批。
+   * @param contribution - 生成的 schema、反射与 Host 调用。
+   * @returns 移除本贡献的确切 effect 释放器。
    */
   register(contribution: TypertContribution): TypertDisposer {
     const packageRecord = this.validatePackage(contribution)
@@ -565,10 +562,10 @@ export class TypertRegistry extends Service implements TypertRegistryContract {
       for (const record of schemaRecords) schemas.set(record.key, record)
       localStore.commit(owner, invocations)
       yield () => {
-        /* v8 ignore else -- duplicate package-face registration is rejected, so this effect remains its unique owner. */
+        /* v8 ignore else -- 重复的包端注册会被拒绝，因此这一 effect 始终是它的唯一属主。 */
         if (packages.get(packageRecord.key) === packageRecord) packages.delete(packageRecord.key)
         for (const record of schemaRecords) {
-          /* v8 ignore else -- duplicate schema registration is rejected, so this contribution remains each record's unique owner. */
+          /* v8 ignore else -- 重复的 schema 注册会被拒绝，因此这一贡献始终是每条记录的唯一属主。 */
           if (schemas.get(record.key) === record) schemas.delete(record.key)
         }
         localStore.withdraw(owner, invocations)
@@ -577,9 +574,9 @@ export class TypertRegistry extends Service implements TypertRegistryContract {
   }
 
   /**
-   * Look up one schema by `<package>#<name>`.
-   * @param key - global schema key.
-   * @returns a record containing the cached schema, or `undefined` when absent.
+   * 按 `<package>#<name>` 查找一个 schema。
+   * @param key - 全局 schema 键。
+   * @returns 包含缓存 schema 的记录，缺省时为 `undefined`。
    */
   get(key: string): TypertSchemaRecord | undefined {
     const record = this.schemas.get(key)
@@ -587,10 +584,10 @@ export class TypertRegistry extends Service implements TypertRegistryContract {
   }
 
   /**
-   * Resolve one required schema.
-   * @param key - global schema key.
-   * @returns a record containing the cached schema.
-   * @throws when the key is malformed, the package face is absent, or the schema is not contributed.
+   * 解析一个必需的 schema。
+   * @param key - 全局 schema 键。
+   * @returns 包含缓存 schema 的记录。
+   * @throws 当键格式错误、包端缺失，或 schema 未被贡献时。
    */
   resolve(key: string): TypertSchemaRecord {
     const record = this.schemas.get(key)
@@ -609,38 +606,38 @@ export class TypertRegistry extends Service implements TypertRegistryContract {
   }
 
   /**
-   * Enumerate live schemas in registration order.
-   * @param filter - optional package and face restriction.
-   * @returns matching records containing the cached schemas.
+   * 按注册顺序枚举存活的 schema。
+   * @param filter - 可选的包与端限制。
+   * @returns 包含缓存 schema 的匹配记录。
    */
   list(filter: TypertSchemaFilter = {}): TypertSchemaRecord[] {
     return [...this.schemas.values()].filter(record => matches(record, filter)).map(materializeSchema)
   }
 
   /**
-   * Look up generated reflection for one package face.
-   * @param packageName - exact npm package name.
-   * @param face - face to query; defaults to the host runtime.
-   * @returns the live package record, or `undefined` when absent.
+   * 查找一个包端生成的反射。
+   * @param packageName - 精确的 npm 包名。
+   * @param face - 要查询的端；默认为 host 运行时。
+   * @returns 存活的包记录，缺省时为 `undefined`。
    */
   getPackage(packageName: string, face: TypertFace = 'host'): TypertPackageRecord | undefined {
     return this.packages.get(typertPackageKey(packageName, face))
   }
 
   /**
-   * Enumerate generated package reflection in registration order.
-   * @param filter - optional package and face restriction.
-   * @returns matching package records.
+   * 按注册顺序枚举生成的包反射。
+   * @param filter - 可选的包与端限制。
+   * @returns 匹配的包记录。
    */
   listPackages(filter: TypertPackageFilter = {}): TypertPackageRecord[] {
     return [...this.packages.values()].filter(record => matches(record, filter))
   }
 
   /**
-   * Project a live Zod schema to JSON Schema without caching the result.
-   * @param key - global schema key.
-   * @param params - Zod projection parameters.
-   * @returns a fresh JSON Schema document.
+   * 将存活的 Zod schema 投影为 JSON Schema，且不缓存结果。
+   * @param key - 全局 schema 键。
+   * @param params - Zod 投影参数。
+   * @returns 一份全新的 JSON Schema 文档。
    */
   toJSONSchema(key: string, params?: z.core.ToJSONSchemaParams): z.core.JSONSchema.BaseSchema {
     return z.toJSONSchema(this.resolve(key).schema, params)

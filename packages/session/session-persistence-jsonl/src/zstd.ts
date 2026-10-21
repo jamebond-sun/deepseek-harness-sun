@@ -1,7 +1,6 @@
 /**
- * Zstandard frame primitives for the JSONL persistence backend. The backend
- * owns a concatenated-frame container so it can append and recover batches
- * without exposing compression mechanics through the persistence seam.
+ * JSONL 持久化后端使用的 Zstandard 帧原语。该后端自有一个拼接帧容器，
+ * 因此它能追加与恢复批次，而无需通过持久化接缝暴露压缩机制细节。
  * @module dsh-session-persistence-jsonl/zstd
  */
 
@@ -22,28 +21,28 @@ const INCOMPLETE_FRAME_OPTIONS: ZstdOptions = {
   finishFlush: constants.ZSTD_e_flush,
 }
 
-/** Byte range occupied by one structurally complete Zstandard frame. */
+/** 一个结构上完整的 Zstandard 帧所占用的字节区间。 */
 export interface ZstdFrameRange {
-  /** Inclusive frame start. */
+  /** 帧的起始位置（含）。 */
   start: number
-  /** Exclusive frame end. */
+  /** 帧的结束位置（不含）。 */
   end: number
 }
 
-/** Structural scan result for a concatenated Zstandard stream. */
+/** 一个拼接式 Zstandard 流的结构化扫描结果。 */
 export interface ZstdFrameScan {
-  /** Complete frames in file order. */
+  /** 按文件顺序排列的完整帧。 */
   frames: ZstdFrameRange[]
-  /** Start of an incomplete final frame, when EOF interrupts one. */
+  /** 当 EOF 打断了末尾帧时，该不完整末尾帧的起始位置。 */
   tornStart?: number
 }
 
 /**
- * Locate complete frames without decompressing their blocks. Invalid complete
- * structure rejects; EOF inside the final frame returns its start for repair.
- * @param buffer - complete bytes currently present in the session artifact.
- * @param maxFrames - optional complete-frame limit for metadata-only readers.
- * @returns complete frame ranges and an optional incomplete-final-frame start.
+ * 在不解压其数据块的前提下定位完整帧。结构完整但无效的内容会被拒绝；
+ * 末尾帧内部遇到 EOF 时返回其起始位置以便修复。
+ * @param buffer - 会话制品当前存在的完整字节。
+ * @param maxFrames - 可选完整帧数量上限，供只读元数据的读取方使用。
+ * @returns 完整帧区间，以及可选的末尾不完整帧起始位置。
  */
 export function scanZstdFrames(buffer: Buffer, maxFrames = Number.POSITIVE_INFINITY): ZstdFrameScan {
   const frames: ZstdFrameRange[] = []
@@ -104,52 +103,50 @@ export function scanZstdFrames(buffer: Buffer, maxFrames = Number.POSITIVE_INFIN
 }
 
 /**
- * Compress one independently decodable, checksummed Zstandard frame.
- * @param input - JSONL bytes for a header or durable event batch.
- * @returns the complete encoded frame.
+ * 压缩一个可独立解码且带校验和的 Zstandard 帧。
+ * @param input - 头部或持久事件批次的 JSONL 字节。
+ * @returns 完整的已编码帧。
  */
 export async function compressZstdFrame(input: Buffer | string): Promise<Buffer> {
   return zstdCompressAsync(input, CHECKSUM_OPTIONS)
 }
 
 /**
- * Decompress one complete frame and validate its checksum.
- * @param input - one structurally complete Zstandard frame.
- * @returns the frame plaintext.
+ * 解压一个完整帧并校验其校验和。
+ * @param input - 一个结构上完整的 Zstandard 帧。
+ * @returns 该帧的明文。
  */
 export async function decompressZstdFrame(input: Buffer): Promise<Buffer> {
   return zstdDecompressAsync(input)
 }
 
-/** Common lifecycle for interchangeable synchronous multi-frame decoders. */
+/** 可互换的同步多帧解码器共用的生命周期。 */
 export interface ZstdFrameDecoder {
   /**
-   * Decode and checksum complete frames in source order. Each yielded buffer
-   * remains valid only until the iterator advances to the next frame.
-   * @param source - concatenated Zstandard frame bytes.
-   * @param frames - structurally complete ranges within `source`.
-   * @returns one plaintext buffer per frame.
+   * 按源顺序解码并校验完整帧。每次产出的缓冲区只在迭代器前进到下一帧之前有效。
+   * @param source - 拼接在一起的 Zstandard 帧字节。
+   * @param frames - `source` 中结构上完整的区间。
+   * @returns 每帧对应一个明文缓冲区。
    */
   decode(source: Buffer, frames: readonly ZstdFrameRange[]): Generator<Buffer, void, void>
-  /** Release decoder-owned resources; repeated calls are harmless. */
+  /** 释放解码器持有的资源；重复调用无害。 */
   close(): void
 }
 
 /**
- * Select the shared private decoder when the running Node 22/24/26 shape is
- * compatible, otherwise preserve correctness with the public one-shot API.
- * @returns a synchronous decoder with an implementation-independent lifecycle.
+ * 当运行中的 Node 22/24/26 形态兼容时选用共享的私有解码器，
+ * 否则用公开的一次性 API 来保持正确性。
+ * @returns 一个生命周期与具体实现无关的同步解码器。
  */
 export function createZstdFrameDecoder(): ZstdFrameDecoder {
   return NodePrivateZstdFrameDecoder.create() ?? new PublicZstdFrameDecoder()
 }
 
 /**
- * Recover available plaintext from a structurally incomplete final frame.
- * `ZSTD_e_flush` deliberately suppresses final-frame and checksum completion;
- * callers must establish the torn frame boundary before using this helper.
- * @param input - available bytes from a known incomplete Zstandard frame.
- * @returns plaintext produced from the available input.
+ * 从结构上不完整的末尾帧中恢复可用的明文。`ZSTD_e_flush` 刻意抑制末尾帧与
+ * 校验和的补全；调用方在使用本辅助函数之前必须先确定撕裂帧的边界。
+ * @param input - 来自一个已知不完整 Zstandard 帧的可用字节。
+ * @returns 由可用输入生成的明文。
  */
 export async function decompressZstdPrefix(input: Buffer): Promise<Buffer> {
   return zstdDecompressAsync(input, INCOMPLETE_FRAME_OPTIONS)

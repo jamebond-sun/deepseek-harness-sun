@@ -1,4 +1,4 @@
-/** Browser registry for read-only Cordis capability providers. */
+/** 用于只读 Cordis 能力提供方的浏览器侧注册表。 */
 
 import type { Context } from '@deepseek-ai/cordis'
 import type {
@@ -7,27 +7,27 @@ import type {
 } from '@deepseek-ai/dsh-api-remotes/client'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 
-/** Context supplied to a Client inspect provider query. */
+/** 提供给 Client 巡检提供方查询的上下文。 */
 export interface ClientCordisInspectQueryContext {
-  /** Cancellation broadcast by the Host. */
+  /** 由 Host 广播的取消信号。 */
   signal: AbortSignal
-  /** Session whose model requested the query. */
+  /** 发起该查询的模型所属会话。 */
   sessionId: SessionId
 }
 
-/** Client provider registration retained beside its serializable manifest. */
+/** 与可序列化清单并列保留的 Client 提供方注册项。 */
 export interface ClientCordisInspectProviderRegistration {
-  /** Provider and explicit query directory. */
+  /** 提供方及其显式查询目录。 */
   manifest: CordisInspectProviderManifest
-  /** Execute one declared read-only method. */
+  /** 执行一个已声明的只读方法。 */
   query(method: string, input: JsonValue | undefined, context: ClientCordisInspectQueryContext): Promise<JsonValue>
 }
 
-/** Remote operations needed by the Client registry. */
+/** Client 注册表所需的远程操作。 */
 export interface ClientCordisInspectHost {
-  /** Replace the Host's mirrored Client manifest. */
+  /** 替换 Host 镜像的 Client 清单。 */
   sync(providers: readonly CordisInspectProviderManifest[]): Promise<void>
-  /** Submit one query result; the first accepted page wins. */
+  /** 提交一条查询结果；首个被接受的页面胜出。 */
   resolve(
     sessionId: SessionId,
     requestId: CordisInspectRequestId,
@@ -35,20 +35,20 @@ export interface ClientCordisInspectHost {
   ): Promise<void>
 }
 
-/** Client provider registry, manifest publisher, and live query dispatcher. */
+/** Client 提供方注册表、清单发布器与实时查询分发器。 */
 export class ClientCordisInspectRegistry {
   private readonly providers = new Map<string, ClientCordisInspectProviderRegistration>()
   private readonly active = new Map<CordisInspectRequestId, AbortController>()
   private publishQueued = false
   private syncChain = Promise.resolve()
 
-  /** @param host - folded manifest and query result transport. */
+  /** @param host - 折叠后的清单与查询结果传输层。 */
   constructor(private readonly host: ClientCordisInspectHost) {}
 
   /**
-   * Register one Client provider and publish a new complete manifest.
-   * @param registration - provider manifest and local handler.
-   * @returns idempotent disposer.
+   * 注册一个 Client 提供方并发布一份新的完整清单。
+   * @param registration - 提供方清单与本地处理器。
+   * @returns 幂等的释放器。
    */
   register(registration: ClientCordisInspectProviderRegistration): () => void {
     const { manifest } = registration
@@ -72,7 +72,7 @@ export class ClientCordisInspectRegistry {
     }
   }
 
-  /** Publish the current complete manifest, including after reconnect. */
+  /** 发布当前的完整清单，重连后亦如此。 */
   publish(): void {
     if (this.publishQueued) return
     this.publishQueued = true
@@ -88,9 +88,9 @@ export class ClientCordisInspectRegistry {
   }
 
   /**
-   * Execute and answer one Host-broadcast query.
-   * @param request - exact provider query and Session correlation received from Host.
-   * @returns after the first local result has been sent back to Host.
+   * 执行并应答一次 Host 广播的查询。
+   * @param request - 从 Host 收到的精确提供方查询与会话关联。
+   * @returns 在首个本地结果已回传 Host 之后。
    */
   async query(request: CordisInspectQueryRequest): Promise<void> {
     if (this.active.has(request.requestId)) return
@@ -124,8 +124,8 @@ export class ClientCordisInspectRegistry {
   }
 
   /**
-   * Cancel local work after another page answered or the Tool call ended.
-   * @param requestId - query correlation that is no longer answerable.
+   * 在另一页面已应答或 Tool 调用结束后，取消本地工作。
+   * @param requestId - 不再可应答的查询关联。
    */
   close(requestId: CordisInspectRequestId): void {
     this.active.get(requestId)?.abort()
@@ -135,15 +135,15 @@ export class ClientCordisInspectRegistry {
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
-    /** Browser registry for pre-definition Cordis capability discovery. */
+    /** 用于预定义前 Cordis 能力发现的浏览器侧注册表。 */
     cordisInspect: ClientCordisInspectRegistry
   }
 }
 
 /**
- * Provide the registry as a normal Client service.
- * @param ctx - Client Cordis context receiving the service.
- * @param registry - page-local inspect registry to publish.
+ * 将注册表作为一个普通 Client 服务提供。
+ * @param ctx - 接收该服务的 Client Cordis 上下文。
+ * @param registry - 待发布的页面本地巡检注册表。
  */
 export function provideClientCordisInspect(ctx: Context, registry: ClientCordisInspectRegistry): void {
   ctx.provide('cordisInspect', registry)

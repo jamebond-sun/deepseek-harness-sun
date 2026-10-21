@@ -1,10 +1,8 @@
 /**
- * Local Service Provider for the subprocess capability seam. Each spawn owns a
- * platform-selected managed range with the spec's per-stream stdio dispositions.
- * Normal disposal terminates and joins live ranges; Node's synchronous exit
- * phase force-stops any ranges the service still owns. It has no config: every
- * disposition and limit arrives on the spec, so deployment-varying choices
- * stay with the caller's config (the bash executor's, the LSP host's, …).
+ * subprocess 能力 seam 的本地服务提供者。每次启动都拥有一个平台选定的受管范围，
+ * 以及 spec 的逐流 stdio 处理方式。正常的释放会终止并汇入活动范围；Node 的同步退出
+ * 阶段会强制停止该服务仍拥有的任何范围。它没有配置：每一种处理方式与限制都来自
+ * spec，因此因部署而异的选择仍留在调用方的配置中（bash 执行器的、LSP 主机的……）。
  * @module @deepseek-ai/dsh-subprocess-local
  */
 
@@ -55,26 +53,25 @@ import { prepareShellActivity } from './shell-activity.ts'
 const requireNodePty = createLazyRequire<typeof NodePty>('node-pty', import.meta.url)
 
 /**
- * Local subprocess service: platform-selected managed ranges, Node-shaped stdio
- * dispositions (raw pipes, inherit, bounded tail-keep collection with spill
- * files), credential-scrubbed environment, and provider-owned range signalling.
- * POSIX paths stage TERM before KILL; Windows paths terminate immediately.
- * JavaScript-observable host exit also performs synchronous final termination.
+ * 本地 subprocess 服务：平台选定的受管范围、Node 形态的 stdio 处理方式（原始管道、
+ * 继承、带溢出文件的有限尾部保留收集）、凭据清理后的环境，以及提供方拥有的范围信令。
+ * POSIX 路径在 KILL 之前先发 TERM；Windows 路径则立即终止。JavaScript 可观察的主机
+ * 退出也会执行同步的最终终止。
  */
 export class LocalSubprocessRuntime extends SubprocessRuntime {
-  /** Live handles retained for normal disposal and synchronous host-exit finalization. */
+  /** 为正常释放与同步主机退出收尾而保留的活动句柄。 */
   private live = new Set<LocalSubprocessHandle>()
-  /** Live terminals retained through normal quiescence or host-exit finalization. */
+  /** 在正常静默或主机退出收尾期间保留的活动终端。 */
   private terminals = new Set<LocalTerminalHandle>()
-  /** Caller endpoints retained until close, independently of managed process lifetime. */
+  /** 在关闭之前保留的调用方端点，独立于受管进程的生命周期。 */
   private controlChannels = new Set<Duplex>()
-  /** Test hook: process, spill, and platform operations forwarded to spawnSubprocess. */
+  /** 测试钩子：转发给 spawnSubprocess 的进程、溢出与平台操作。 */
   internals: SpawnInternals = {}
-  /** Provider-lifetime latch suppressing repeated weaker-containment warnings. */
+  /** 提供方生命周期内的闩锁，用于抑制重复的、较弱隔离的警告。 */
   private fallbackWarningIssued = false
   /**
-   * Linux native containment decisions. Each probe is a spawnSync that blocks the event loop and forks the
-   * host, so the selector reruns it only after an event invalidates the previous verdict.
+   * Linux 原生隔离决策。每次探测都是一次会阻塞事件循环并 fork 主机的 spawnSync，
+   * 因此选择器只在某个事件使前一结论失效后才重跑它。
    */
   private readonly linuxScope = new LinuxScopeSelector({
     probe: () => probeLinuxNative(),
@@ -82,9 +79,9 @@ export class LocalSubprocessRuntime extends SubprocessRuntime {
     confirmManager: () => confirmLinuxManager(),
     launcherIdentity: () => systemdRunIdentity(),
   })
-  /** Scope decision of the launch in progress; selectContainmentMode sets it immediately before the launch reads it. */
+  /** 进行中启动的 scope 决策；selectContainmentMode 在启动读取它之前立即设置它。 */
   private linuxScopeDecision: Extract<LinuxScopeDecision, { kind: 'scope' }> | undefined
-  /** Test hook for platform process inspection; production resolves lazily on terminal spawn. */
+  /** 平台进程检查的测试钩子；生产环境在终端启动时惰性解析。 */
   terminalInspector: ProcessInspector | undefined
 
   constructor(ctx: Context) {
@@ -99,7 +96,7 @@ export class LocalSubprocessRuntime extends SubprocessRuntime {
     }, 'local subprocess teardown')
   }
 
-  /** Spill failures reach the plugin logger; the log line is the only trace of why a result has no spill path. */
+  /** 溢出失败会送达插件日志器；该日志行是“结果为何没有溢出路径”的唯一线索。 */
   private readonly reportSpillFailure = logSpillFailure(this.ctx.logger, 'subprocess-local')
 
   private terminateForHostExit(): void {
@@ -107,28 +104,27 @@ export class LocalSubprocessRuntime extends SubprocessRuntime {
       try {
         handle.terminateForHostExit()
       } catch (_ordinaryRangeTerminationFailed) {
-        // Host exit cannot await or report one target; continue with the rest.
+        // 主机退出无法等待或报告单个目标；继续处理其余部分。
       }
     }
     for (const terminal of this.terminals) {
       try {
         terminal.terminateForHostExit()
       } catch (_terminalTerminationFailed) {
-        // One terminal must not prevent final termination of another target.
+        // 一个终端不应妨碍另一个目标的最后终止。
       }
     }
   }
 
   private async disposeManagedProcesses(): Promise<void> {
-    // Request termination, then await MANAGED-RANGE exit — not just the
-    // direct command's settlement — so even a surviving descendant cannot
-    // outlive the fiber. Keep both sets authoritative while these waits are
-    // pending so a shorter process-level exit bound can still force-kill them.
+    // 请求终止，然后等待受管范围退出——而不仅仅是直接命令的结算——这样即便有幸存的
+    // 后代也无法活得比纤程更久。在这些等待挂起期间，两个集合都保持权威，以便一个更短的
+    // 进程级退出边界仍能强制杀死它们。
     const pending: Promise<unknown>[] = []
     for (const handle of this.live) {
       handle.terminate()
-      // Direct result and range observation are independent. Start both so an
-      // unreadable owner cannot hide behind a result that never settles.
+      // 直接结果与范围观察是相互独立的。两者都启动，这样不可读的拥有者就无法躲在
+      // 一个永不结算的结果背后。
       pending.push(Promise.all([
         handle.done.catch(() => {}),
         handle.waitForExit(),
@@ -217,17 +213,16 @@ export class LocalSubprocessRuntime extends SubprocessRuntime {
       this.controlChannels.add(control)
       control.once('close', () => { this.controlChannels.delete(control) })
     }
-    // Release ownership only once the whole managed range is gone, not at direct-child
-    // settlement — a TERM-trapping helper that outlives the leader must stay
-    // owned so teardown can still escalate it. For the common no-survivor
-    // case waitForExit resolves immediately after settlement.
+    // 仅在整个受管范围消失后才释放所有权，而非在直接子进程结算时——一个比领导者更长寿、
+    // 会捕获 TERM 的辅助进程必须仍被拥有，这样拆除时才能对其升级。对于常见的“无幸存者”
+    // 情形，waitForExit 会在结算后立即完成。
     const release = (): Promise<void> =>
       handle.waitForExit().then(() => { this.live.delete(handle) })
     void handle.done.then(release, release).catch(() => {})
     return handle
   }
 
-  /** Probe again before the next launch when a scope launched under generation never started its target. */
+  /** 当一次在 generation 下启动的 scope 从未启动其目标时，在下一次启动前再次探测。 */
   private watchLinuxScopeStart(done: Promise<unknown>, generation: number): void {
     void done.catch((error: unknown) => {
       if (error instanceof LinuxScopeNotStartedError) this.linuxScope.scopeNotStarted(generation)
@@ -285,7 +280,7 @@ export class LocalSubprocessRuntime extends SubprocessRuntime {
     return { platform, ...defaultShell === undefined ? {} : { defaultShell } }
   }
 
-  // Local PTY allocation is synchronous, but the provider contract permits remote asynchronous allocation.
+  // 本地 PTY 分配是同步的，但提供方契约允许远程的异步分配。
   // oxlint-disable-next-line typescript/require-await -- Preserve promise rejection semantics at the async provider contract.
   async spawnTerminal(spec: SubprocessTerminalSpawnSpec): Promise<SubprocessTerminalHandle> {
     const file = spec.argv[0]
@@ -305,10 +300,9 @@ export class LocalSubprocessRuntime extends SubprocessRuntime {
       cols: spec.cols,
       cwd: spec.cwd,
       env: { ...activity?.env ?? env, TERM: spec.terminalType },
-      // Windows' own console host (the standby pool runs Server 2022 and
-      // Windows 10 22H2) renders the persistent-pwsh prompt tail in a form the
-      // readiness path cannot match; the console host node-pty ships emits it
-      // verbatim, see [Agent Note](../../../../.agents/notes/implemented/bug-fix/2026-09-28-pty-bundled-console-host.md).
+      // Windows 自带的 console host（备用池运行 Server 2022 与 Windows 10 22H2）会把持久化
+      // pwsh 提示符尾部渲染成就绪路径无法匹配的形式；node-pty 自带的 console host 会原样
+      // 发出它，见 [Agent Note](../../../../.agents/notes/implemented/bug-fix/2026-09-28-pty-bundled-console-host.md)。
       ...(platform === 'win32' ? { useConptyDll: true } : {}),
     }
     const linuxScope = containmentMode === 'linux-scope' ? this.linuxScopeDecision : undefined
@@ -335,7 +329,7 @@ export class LocalSubprocessRuntime extends SubprocessRuntime {
     const owner = scope?.bindOwner({
       running: () => handle?.running ?? true,
       settled: directSettlement.promise,
-      // node-pty swallows signal errors; the scope owner requires their delivery result.
+      // node-pty 会吞掉信号错误；scope 所有者需要它们的投递结果。
       signal: signal => signalLinuxDirectProcess(terminal.pid, () => process.kill(terminal.pid, signal)),
     })
     handle = new LocalTerminalHandle(
@@ -352,7 +346,7 @@ export class LocalSubprocessRuntime extends SubprocessRuntime {
     this.terminals.add(handle)
     if (linuxScope !== undefined) this.watchLinuxScopeStart(handle.done, linuxScope.generation)
     const release = async (): Promise<void> => {
-      // terminate() can wait on this direct-exit promise.
+      // terminate() 可以等待这个直接退出承诺。
       directSettlement.resolve()
       if (spec.shellActivity === true) return
       await handle.terminate()
@@ -363,7 +357,7 @@ export class LocalSubprocessRuntime extends SubprocessRuntime {
   }
 }
 
-/** Read a Windows environment key using the platform's case-insensitive semantics. */
+/** 用平台的大小写不敏感语义读取一个 Windows 环境键。 */
 function environmentValue(env: NodeJS.ProcessEnv, name: 'PATH' | 'PATHEXT'): string | undefined {
   const exact = env[name]
   if (exact !== undefined || process.platform !== 'win32') return exact

@@ -1,11 +1,9 @@
 /**
- * Fresh-process SDK subagent client. Drives one child DeepSeek Harness
- * runtime over stdio JSON-RPC through `@deepseek-ai/dsh-sdk-client` and owns
- * cancellation and quiescent disposal. It publishes after the child
- * handshake, maps child failures to stop reasons, and tears down to
- * quiescence. The SDK client spawns the child rather than using
- * `ctx.subprocess` — the subprocess seam's documented exception for
- * SDK-managed transports — so this driver applies the seam's shared env scrub.
+ * 全新进程 SDK 子代理客户端。通过 `@deepseek-ai/dsh-sdk-client` 以 stdio
+ * JSON-RPC 驱动一个子 DeepSeek Harness 运行时，并拥有取消与静默处置。它在
+ * 子握手之后发布，把子失败映射为停止原因，并拆解到静默。SDK 客户端自己
+ * spawn 子进程，而不使用 `ctx.subprocess` —— 这是 subprocess 接缝为
+ * SDK 托管传输所记录的例外 —— 因此本驱动应用该接缝的共享 env 清洗。
  *
  * @module @deepseek-ai/dsh-subagent-dsh-sdk/run
  */
@@ -26,56 +24,54 @@ import type { SubagentResult, SubagentRun, SubagentStartRequest, SubagentStopRea
 import { AssistantOutputFold, settleRunResult, subprocessRunHandle } from '@deepseek-ai/dsh-subagent'
 import { scrubbedParentEnv } from '@deepseek-ai/dsh-subprocess'
 
-/** Resolved spawn spec for an SDK runtime child process (no defaults — see Config). */
+/** 一个 SDK 运行时子进程的已解析 spawn 规格（无默认值 —— 见 Config）。 */
 export interface SdkRunSpec {
-  /** Explicit dsh CLI module; omission resolves the SDK client's same-version dependency. */
+  /** 显式 dsh CLI 模块；省略则解析 SDK 客户端的同版本依赖。 */
   dshBin?: string
-  /** Named child profile. */
+  /** 具名子 profile。 */
   profile: string
-  /** Ordered per-launch profile patch files. */
+  /** 按启动顺序排列的 profile patch 文件。 */
   patches: string[]
-  /** Absolute isolated Harness home for the nested runtime. */
+  /** 嵌套运行时的绝对隔离 Harness home。 */
   dshHome: string
-  /** Absolute initial working directory selected by the delegating runtime. */
+  /** 由委托方运行时选定的绝对初始工作目录。 */
   cwd: string
-  /** Parent origin directory recorded independently of the child's effective directory. */
+  /** 独立于子代理生效目录所记录的父 origin 目录。 */
   originCwd?: string | undefined
-  /** Provider route the child runtime initializes with. */
+  /** 子运行时初始化所用的提供方路由。 */
   provider: string
-  /** Model the child runtime initializes with. */
+  /** 子运行时初始化所用的模型。 */
   model: string
-  /** Optional adapter-owned reasoning effort sent in the child runtime's initialize handshake. */
+  /** 在子运行时 initialize 握手中发送的、可选的适配器自有 reasoning effort。 */
   reasoningEffort?: ReasoningEffortId
-  /** Optional per-request output-token cap sent in the child runtime's initialize handshake. */
+  /** 在子运行时 initialize 握手中发送的、可选的按请求输出 token 上限。 */
   maxTokens?: number
   /**
-   * Extra environment variables to ADD for the child (e.g. the child
-   * runtime's own `DEEPSEEK_API_KEY`). Merged after
-   * the seam's `scrubbedParentEnv()` base, so an explicit credential or
-   * current `DSH_*` fact survives while ambient namesakes never leak.
+   * 要为子代理添加（ADD）的额外环境变量（例如子运行时的
+   * `DEEPSEEK_API_KEY`）。它们合并到接缝的 `scrubbedParentEnv()` 基之后，
+   * 因此显式的凭据或当前 `DSH_*` 事实会存活，而环境中的同名者永不泄漏。
    */
   env: Record<string, string>
-  /** Bound (ms) on the protocol `shutdown` exchange during dispose. */
+  /** 处置期间对协议 `shutdown` 交换的界限（ms）。 */
   shutdownTimeoutMs: number
-  /** Grace period (ms) for the child's EOF-driven quiesce on dispose. */
+  /** 处置时子代理由 EOF 驱动的静默宽限期（ms）。 */
   disposeEofGraceMs: number
-  /** Termination confirmation window (ms), including forced exit on every platform. */
+  /** 终止确认窗口（ms），包括每个平台上的强制退出。 */
   disposeGraceMs: number
   /**
-   * Host sink for startup, published-run, or shutdown failures. Model-visible
-   * text uses fixed safe facts, while this callback retains the original Error.
-   * A throw from the sink itself is contained.
+   * 启动、已发布运行或关停失败的宿主机汇。模型可见文本使用固定的安全事实，
+   * 而本回调保留原始 Error。汇自身的抛出被隔离。
    */
   onError?: (error: Error, stopReason: SubagentStopReason) => void
 }
 
-/** EOF grace for child flush and nested-process teardown; wider than the signal grace below. */
+/** 子刷写与嵌套进程拆解的 EOF 宽限；比下面的信号宽限更宽。 */
 export const DEFAULT_DISPOSE_EOF_GRACE_MS = 6_000
 
-/** Default POSIX grace between SIGTERM and SIGKILL on dispose (the `disposeGraceMs` config). */
+/** 处置时 POSIX 上 SIGTERM 与 SIGKILL 之间的默认宽限（`disposeGraceMs` 配置）。 */
 export const DEFAULT_DISPOSE_GRACE_MS = 3_000
 
-/** Default bound on the protocol `shutdown` exchange during dispose. */
+/** 处置期间对协议 `shutdown` 交换的默认界限。 */
 export const DEFAULT_SHUTDOWN_TIMEOUT_MS = 1_000
 
 type SdkFailureStage = 'initialize' | 'session-run' | 'shutdown'
@@ -95,7 +91,7 @@ interface SdkFailureFacts {
   readonly category: SdkFailureCategory
 }
 
-/** Fixed safe failure text derived only from provider-owned structured facts. */
+/** 仅由提供方拥有的结构化事实推导出的固定安全失败文本。 */
 function failureDiagnostic(facts: SdkFailureFacts): string {
   const fields = [
     'provider: DSH SDK',
@@ -112,21 +108,21 @@ class SdkRunFailure extends Error {
   }
 }
 
-/** Runtime constructor seam replaced only by package-local fake-runtime tests. */
+/** 运行时构造器接缝，只被包内局部的 fake-runtime 测试替换。 */
 export const internals: { createHarness(options: DeepSeekHarnessOptions): DeepSeekHarness } = {
   createHarness: options => new DeepSeekHarness(options),
 }
 
 /**
- * Hide a pre-spawn workspace/configuration failure behind fixed safe facts.
- * @param cause - original Host failure retained on the Error cause chain.
- * @returns an Error whose message contains only the fixed DSH SDK failure line.
+ * 把一个 spawn 前的工作区/配置失败隐藏在固定的安全事实之后。
+ * @param cause - 保留在 Error cause 链上的原始宿主机失败。
+ * @returns 一个其消息只包含固定 DSH SDK 失败行的 Error。
  */
 export function sdkConfigurationFailure(cause: unknown): Error {
   return new SdkRunFailure({ stage: 'initialize', category: 'configuration' }, cause)
 }
 
-/** Classify one SDK rejection without reading its message or stderr tail. */
+/** 在不读取其消息或 stderr 尾部的前提下对一个 SDK 拒绝分类。 */
 function sdkFailure(error: unknown, stage: SdkFailureStage): SdkRunFailure {
   const facts: SdkFailureFacts = error instanceof TransportClosedError
     ? { stage, category: 'transport' }
@@ -137,10 +133,10 @@ function sdkFailure(error: unknown, stage: SdkFailureStage): SdkRunFailure {
 }
 
 /**
- * Map one child terminal reason to its complete shared result outcome.
- * @param reason - the owned child run's final durable turn reason, or
- * `undefined` when it settled without running a turn.
- * @returns the shared stop reason and any additional safe diagnostic.
+ * 把一个子终止原因映射到其完整的共享结果结局。
+ * @param reason - 被拥有的子运行最终的持久化轮次原因，或当它在没有运行
+ * 轮次的情况下结算时为 `undefined`。
+ * @returns 共享的停止原因与任何额外的安全诊断。
  */
 export function sdkChildOutcome(
   reason: TurnEndReason | undefined,
@@ -179,25 +175,25 @@ export function sdkChildOutcome(
   }
 }
 
-/** Normalize an unknown thrown value to an Error (the catch binding is `unknown`). */
+/** 把未知抛出值规范化为 Error（catch 绑定是 `unknown`）。 */
 function toError(value: unknown): Error {
-  // The catch only sees rejections from the SDK client, which are always
-  // `Error`s; the `String(value)` arm is a defensive fallback for a non-Error
-  // throw that the typed surfaces cannot produce.
+  // 该 catch 只会看到来自 SDK 客户端的拒绝，它们总是 `Error`；
+  // `String(value)` 分支是针对类型化表面无法产生的非 Error 抛出的
+  // 防御性兜底。
   /* v8 ignore next */
   return value instanceof Error ? value : new Error(String(value))
 }
 
-/** Report an original Host failure without letting the observation sink replace it. */
+/** 报告一个原始宿主机失败，而不让观测汇替换它。 */
 function reportFailure(spec: SdkRunSpec, error: unknown): void {
   try {
     spec.onError?.(toError(error), 'error')
   } catch {
-    // Host diagnostic logging cannot replace the child failure.
+    // 宿主机诊断日志不能替换子代理的失败。
   }
 }
 
-/** Map an SDK-owned failed-start aggregate into safe initialize/shutdown lines. */
+/** 把一个 SDK 自有的启动失败聚合映射为安全的 initialize/shutdown 行。 */
 function sdkStartupFailure(spec: SdkRunSpec, error: unknown): Error {
   if (!(error instanceof AggregateError) || error.errors.length < 2) {
     reportFailure(spec, error)
@@ -216,22 +212,20 @@ function sdkStartupFailure(spec: SdkRunSpec, error: unknown): Error {
 }
 
 /**
- * Start and publish one SDK runtime child after its `initialize` handshake.
- * Child failures resolve through the run result. Startup rejects with fixed
- * safe facts after SDK-owned cleanup; successful cleanup proves process reap.
- * Cleanup failure preserves initialize plus shutdown for an ordinary failure,
- * or shutdown alone after cancellation, without claiming quiescence. Disposal
- * shuts the runtime down and reaps it.
- * @param request - the start request; its signal is the cancellation channel.
- * @param spec - the resolved spawn spec: profile/patches/home/cwd, the child's
- * provider/model/reasoning route, output cap, env, timeouts, and the optional
- * error sink.
- * @returns the ready run handle for the child subprocess.
+ * 在其 `initialize` 握手之后启动并发布一个 SDK 运行时子代理。
+ * 子代理的失败通过运行结果解析。启动在 SDK 自有的清理之后、以固定的
+ * 安全事实拒绝；成功的清理证明进程已被回收。清理失败会为一次普通失败
+ * 保留 initialize 加 shutdown，或在取消之后只保留 shutdown，而不声称已静默。
+ * 处置会关停运行时并回收它。
+ * @param request - 启动请求；其 signal 是取消通道。
+ * @param spec - 已解析的 spawn 规格：profile/patches/home/cwd、子代理的
+ * provider/model/reasoning 路由、输出上限、env、超时与可选的错误汇。
+ * @returns 子进程的就绪运行句柄。
  */
 export async function startSdkRun(request: SubagentStartRequest, spec: SdkRunSpec): Promise<SubagentRun> {
   if (request.signal.aborted) throw new Error('subagent request was aborted before the SDK child started')
-  // The run id lives in the parent namespace; the child runtime's session id
-  // (minted below, private to the wire) exists only inside the child process.
+  // 运行 id 位于父命名空间；子运行时的 session id（在下方铸造，对wire 私有）
+  // 只存在于子进程内部。
   const id = brandString<SessionId>(randomUUID())
 
   const harness = internals.createHarness({
@@ -251,7 +245,7 @@ export async function startSdkRun(request: SubagentStartRequest, spec: SdkRunSpe
     ...spec.maxTokens === undefined ? {} : { maxTokens: spec.maxTokens },
   })
 
-  // Cancellation settles the result without waiting for a cooperative child.
+  // 取消无需等待协作的子代理即可结算结果。
   const flags = { cancelled: false }
   let signalCancelSettled!: () => void
   const cancelSettled = new Promise<void>((resolve) => { signalCancelSettled = resolve })
@@ -264,16 +258,16 @@ export async function startSdkRun(request: SubagentStartRequest, spec: SdkRunSpe
   request.signal.addEventListener('abort', onAbort, { once: true })
   const cancelledStartup = new Error('subagent cancelled before the SDK child initialized')
 
-  // Establish the child handshake before publishing a handle. Any failure
-  // owns the still-private process and reaps it before rejecting.
+  // 在发布句柄之前建立子握手。任何失败都拥有仍是私有的进程，
+  // 并在拒绝之前回收它。
   try {
     await Promise.race([
       harness.start(),
       cancelSettled.then((): never => { throw cancelledStartup }),
     ])
-    // Defensive: an abort() is a macrotask and no user callback runs inside
-    // the microtask drain between handshake fulfillment and this continuation,
-    // so current callback ordering cannot schedule the recheck; it guards future reentrancy.
+    // 防御性：abort() 是一个宏任务，且在握手兑现与本 continuation 之间的
+    // 微任务排空中没有用户回调运行，因此当前的回调顺序无法调度该复查；
+    // 它防范未来的重入。
     /* v8 ignore next */
     if (flags.cancelled) throw cancelledStartup
   } catch (error: unknown) {
@@ -286,16 +280,16 @@ export async function startSdkRun(request: SubagentStartRequest, spec: SdkRunSpe
     } catch (cleanupError: unknown) {
       reportFailure(spec, cleanupError)
       const cleanupFailure = new SdkRunFailure({ stage: 'shutdown', category: 'unknown' }, cleanupError)
-      // Preserve failed cleanup as a failed Job; settleStart treats only an
-      // aborted non-AggregateError rejection as a cleanly killed startup.
+      // 把失败的清理保留为一个失败的 Job；settleStart 只把被中止的
+      // 非 AggregateError 拒绝视为一次被干净杀死的启动。
       throw new AggregateError([cleanupFailure], cleanupFailure.message)
     }
     throw new Error('subagent request was aborted before the SDK child started')
   }
 
   const childSessionId = `session-${randomUUID().replaceAll('-', '')}`
-  // The child's final answer under the seam's canonical selection rule
-  // (`AssistantOutputFold`); a partial answer survives cancel and error paths.
+  // 子代理在接缝规范选取规则下的最终答案（`AssistantOutputFold`）；
+  // 部分答案能挺过取消与错误路径。
   const fold = new AssistantOutputFold()
   const subscription = harness.client.subscribe(notification =>
     notification.method === 'session.event' && notification.params.sessionId === childSessionId)
@@ -318,8 +312,7 @@ export async function startSdkRun(request: SubagentStartRequest, spec: SdkRunSpe
     }
   }
 
-  // Race the child task against local cancellation; the shared settlement
-  // flattens failures under the seam's never-reject contract.
+  // 让子任务与本地取消竞速；共享结算在接缝的永不拒绝契约下扁平化失败。
   let diagnostic: string | undefined
   let accepted = false
   const result: Promise<SubagentResult> = settleRunResult({
@@ -337,8 +330,8 @@ export async function startSdkRun(request: SubagentStartRequest, spec: SdkRunSpe
             cancelSettled,
           ])
         } finally {
-          // The wait response follows committed notifications on the same pipe.
-          // Cancellation and transport failure retain every event already received.
+          // wait 响应在同一管道上跟随已提交的通知。
+          // 取消与传输失败保留每一个已收到的事件。
           if (accepted) drainNotifications()
         }
         if (flags.cancelled) return { output: collectOutput(), stopReason: 'aborted' }
@@ -363,8 +356,8 @@ export async function startSdkRun(request: SubagentStartRequest, spec: SdkRunSpe
     onAbort,
   })
 
-  // There is no wire-level prompt cancel: dispose settles the result locally,
-  // then the bounded shutdown request + dispose ladder tears the child down.
+  // 没有wire 级别的 prompt 取消：dispose 在本地结算结果，
+  // 然后有界的 shutdown 请求 + dispose 阶梯把子代理拆解掉。
   return subprocessRunHandle({
     id,
     result,

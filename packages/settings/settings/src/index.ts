@@ -1,4 +1,4 @@
-/** Config-schema projection and form edits over Cordis profile patches. */
+/** 在 Cordis profile 补丁之上进行 Config schema 投影与表单编辑。 */
 import { existsSync } from 'node:fs'
 import { readFile, rename } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -16,10 +16,10 @@ export { redactSecrets } from './redact.ts'
 export type { RedactedSecret, RedactedValue } from './redact.ts'
 export type { SettingsNamespace } from './types.ts'
 
-/** One Loader entry's live Config fields. */
+/** 单个 Loader 条目的 live Config 字段。 */
 export interface SettingsDescriptor {
   ns: SettingsNamespace
-  /** Whether the UI may generate a page when no custom page exists. */
+  /** 当不存在自定义页面时，UI 是否可以生成页面。 */
   autoGenerate: boolean
   schema: unknown
   value: unknown
@@ -30,30 +30,30 @@ export interface SettingsDescriptor {
   secrets?: RedactedSecret[]
 }
 
-/** Wire readers always request secret redaction. */
+/** 线上读取方始终请求密文脱敏。 */
 export interface SettingsDescribeOptions {
   redactSecrets?: boolean
 }
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
-    /** Schema-derived plugin configuration forms. */
+    /** 由 schema 派生的插件配置表单。 */
     settings: SettingsForms
   }
 }
-/** Refusal to overwrite configuration changed since the form was read. */
+/** 拒绝覆盖自表单读取以来已发生变更的配置。 */
 export class SettingsConflictError extends Error {
-  /** Stable machine code for wire layers mapping this to their own taxonomy. */
+  /** 稳定的机器码，供线上层映射到各自的错误分类。 */
   readonly code = 'SETTINGS_CONFLICT'
-  /** The revision the write expected. */
+  /** 写入所期望的修订号。 */
   readonly expected: number
-  /** The revision the namespace actually stands at. */
+  /** 该命名空间实际所处的修订号。 */
   readonly actual: number
 
   /**
-   * @param ns - the namespace whose write was refused.
-   * @param expected - the revision the caller sent.
-   * @param actual - the revision now stored.
+   * @param ns - 写入被拒绝的命名空间。
+   * @param expected - 调用方发送的修订号。
+   * @param actual - 当前存储的修订号。
    */
   constructor(ns: SettingsNamespace, expected: number, actual: number) {
     super(`settings namespace "${ns}" changed since it was read (expected revision ${String(expected)}, now ${String(actual)})`)
@@ -63,7 +63,7 @@ export class SettingsConflictError extends Error {
   }
 }
 
-/** Whether a value is a plain data object (not an array, null, or class instance). */
+/** 判断值是否为纯数据对象（不是数组、null 或类实例）。 */
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
   const proto: unknown = Object.getPrototypeOf(value)
@@ -71,18 +71,17 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 }
 
 /**
- * One path-addressed edit to a namespace's user section. Path mutation exists
- * for a caller holding an INCOMPLETE view of the section — a configuration UI
- * reads the redacted descriptor, which by construction never received the
- * `role('secret')` fields. Such a caller can name the field it means without
- * restating the section: a wholesale `replace` rebuilt from a redacted
- * document silently deletes every secret the wire never returned.
+ * 对某命名空间用户配置节的一次路径寻址编辑。路径变更是为只持有该配置节
+ * 不完整视图的调用方而存在的 —— 配置 UI 读取的是已脱敏的描述符，而该描述符
+ * 按构造从未收到过 `role('secret')` 字段。这样的调用方可以指明它所指的字段，
+ * 而无需重述整个配置节：若用已脱敏的文档重建后整体 `replace`，
+ * 会静默删除线上从未返回的每一个密文。
  */
 export type SettingsPathOp =
   | { op: 'set'; path: readonly string[]; value: unknown }
   | { op: 'unset'; path: readonly string[] }
 
-/** Apply one path op to a detached section, returning the next section. */
+/** 将一次路径操作应用到脱钩的配置节上，返回下一个配置节。 */
 function applyPathOp(section: Record<string, unknown>, op: SettingsPathOp, schema: z): Record<string, unknown> {
   const edit = (input: unknown, path: readonly string[], node?: z): unknown => {
     const [head, ...rest] = path
@@ -109,7 +108,7 @@ function applyPathOp(section: Record<string, unknown>, op: SettingsPathOp, schem
   return result
 }
 
-/** Human label for a value that lossless JSON cannot represent (numbers reject inline). */
+/** 为无损 JSON 无法表示的值生成人类可读的标签（数字会被就地拒绝）。 */
 function describeRejected(value: unknown): string {
   if (value === undefined) return 'undefined'
   if (typeof value === 'object' && value !== null) {
@@ -121,15 +120,14 @@ function describeRejected(value: unknown): string {
 }
 
 /**
- * Detach and validate one write input in a single walk before persistence:
- * only JSON data (plain objects, arrays, strings, finite numbers,
- * booleans, `null`) may reach a provider document. `structuredClone` alone
- * would admit Dates, Maps, BigInts, and cycles that YAML/JSON storage then
- * silently distorts on the reload round-trip. `undefined` entries in objects
- * are skipped — the same sparse-patch semantics as {@link mergeLayers} — while
- * an `undefined` array entry is rejected rather than coerced.
- * @param root - write input to validate before merging.
- * @returns the detached JSON-compatible clone.
+ * 在持久化之前以一次遍历完成写入输入的脱钩与校验：只有 JSON 数据
+ * （纯对象、数组、字符串、有限数字、布尔值、`null`）可以进入 provider 文档。
+ * 仅使用 `structuredClone` 会放行 Date、Map、BigInt 与循环引用，
+ * 而 YAML/JSON 存储在重载往返时会静默地把它们扭曲。对象中的 `undefined`
+ * 条目会被跳过 —— 与 {@link mergeLayers} 相同的稀疏补丁语义 ——
+ * 而数组中的 `undefined` 条目会被拒绝，而不是被强制转换。
+ * @param root - 合并之前需要校验的写入输入。
+ * @returns 与 JSON 兼容的脱钩副本。
  */
 function cloneJsonShaped(root: object): Record<string, unknown> {
   const reject = (label: string, path: string): TypeError => new TypeError(`Config ${path} contains ${label}`)
@@ -145,7 +143,7 @@ function cloneJsonShaped(root: object): Record<string, unknown> {
       if (visiting.has(value)) throw reject('a circular reference', path)
       visiting.add(value)
       const entries = value.map((entry, index) => clone(entry, `${path}[${index}]`))
-      // Un-mark on exit so one object referenced twice without a cycle passes.
+      // 退出时取消标记，使被引用两次但不存在循环的对象得以通过。
       visiting.delete(value)
       return entries
     }
@@ -166,11 +164,10 @@ function cloneJsonShaped(root: object): Record<string, unknown> {
 }
 
 /**
- * Layer `over` onto `under`: plain objects merge recursively, every other
- * value (arrays included) replaces the lower layer wholesale. `over` never
- * carries `undefined` entries — sections come from parsed documents and write
- * snapshots pass {@link cloneJsonShaped}, which strips them so a sparse patch
- * cannot erase lower keys.
+ * 将 `over` 叠加到 `under` 之上：纯对象递归合并，其他所有值（数组也包括在内）
+ * 都整体替换下层。`over` 永不携带 `undefined` 条目 —— 配置节来自已解析的文档，
+ * 且写入快照会经过 {@link cloneJsonShaped}，后者会剔除这些条目，
+ * 使稀疏补丁无法擦除下层已有的键。
  */
 function mergeLayers(under: unknown, over: unknown): unknown {
   if (!isPlainObject(under) || !isPlainObject(over)) return over
@@ -185,11 +182,11 @@ function mergeLayers(under: unknown, over: unknown): unknown {
 }
 
 
-/** Read one member of a plain object or array; `own` limits the read to own properties.
- * @param node Candidate container.
- * @param key Member name.
- * @param own Whether inherited members count as absent.
- * @returns The member, or undefined when the node is not a container or lacks the member.
+/** 读取纯对象或数组的某个成员；`own` 将读取限制为自有属性。
+ * @param node 候选容器。
+ * @param key 成员名。
+ * @param own 继承而来的成员是否视为不存在。
+ * @returns 该成员；当节点不是容器或缺少该成员时返回 undefined。
  */
 function member(node: unknown, key: string, own = false): unknown {
   if (!(isPlainObject(node) || Array.isArray(node)) || (own && !Object.hasOwn(node, key))) return undefined
@@ -197,29 +194,29 @@ function member(node: unknown, key: string, own = false): unknown {
   return value
 }
 
-/** Entry ids of the removed `settings.yaml` sections whose owning entry carries another id. */
+/** 已移除的 `settings.yaml` 配置节所对应的条目 id，其归属条目另有一个 id。 */
 const LEGACY_SECTION_ENTRIES: Record<string, string> = {
   'ui-developer-tools': 'ui-settings',
   'ui-onboarding': 'ui-settings-general',
-  /* v8 ignore next -- the base bundle composes one shell executor per platform */
+  /* v8 ignore next -- 基础 bundle 为每个平台组合一个 shell 执行器 */
   shell: process.platform === 'win32' ? 'pwsh-sandbox' : 'bash-sandbox',
 }
 
-/** Resolve the inherited layers alone, or keep their raw values when required fields arrive only through the profile.
- * @param runtime Plugin runtime owning the Config schema.
- * @param inherited Interpolated config beneath the profile override.
- * @returns Values the profile override sits on.
+/** 仅解析继承层；当必填字段只能由 profile 提供时，则保留其原始值。
+ * @param runtime 持有 Config schema 的插件运行时。
+ * @param inherited 位于 profile 覆盖之下的插值配置。
+ * @returns profile 覆盖所依托的值。
  */
 function inheritedConfig(runtime: Fiber['runtime'] & object, inherited: unknown): unknown {
   try {
     return resolveConfig(runtime, inherited)
   } catch (_error) {
-    // The profile override supplies fields the inherited layers lack; the form shows their raw values as the base.
+    // profile 覆盖提供了继承层所缺少的字段；表单将这些字段的原始值作为基底展示。
     return inherited
   }
 }
 
-/** Project Config schemas into forms and own optional instance-level UI policy. */
+/** 将 Config schema 投影为表单，并持有可选的实例级 UI 策略。 */
 export class SettingsForms extends Service {
   static inject = ['configEditor', 'profileContext']
   private revisions = new Map<string, { raw: string | undefined; revision: number; ns: SettingsNamespace; autoGenerate: boolean }>()
@@ -235,9 +232,9 @@ export class SettingsForms extends Service {
     void ctx.root.loader.await().then(() => this.importLegacyDocument()).catch((error: unknown) => { ctx.logger.error(error) })
   }
 
-  /** Move the sections of the removed `settings.yaml` into the active profile once the Loader has settled every entry.
-   * The document is renamed before the first write, so a partial import never repeats; a section the running
-   * composition rejects is logged and remains only in the renamed file. */
+  /** 在 Loader 稳定所有条目之后，将已移除的 `settings.yaml` 的各个配置节迁入当前 profile。
+   * 文档在首次写入之前即被重命名，因此部分导入不会重复执行；被运行中的组合拒绝的
+   * 配置节会被记录日志，并只保留在重命名后的文件中。 */
   private async importLegacyDocument(): Promise<void> {
     const profile = this.ownerContext.profileContext
     const path = join(profile.home, 'settings.yaml')
@@ -257,11 +254,11 @@ export class SettingsForms extends Service {
     this.ownerContext.logger.info('settings: imported %s into profile %s', imported, profile.name)
   }
 
-  /** Register the calling plugin instance's page policy without changing its Config.
-   * @param presentation Automatic-page policy for this instance; `auto` defaults to true.
-   * @param owner Plugin instance the policy belongs to; defaults to the calling fiber.
-   * @returns Disposer; register it with the calling plugin's effects.
-   * @throws If this instance already has a registered policy.
+  /** 注册调用方插件实例的页面策略，而不改动其 Config。
+   * @param presentation 该实例的自动页面策略；`auto` 默认为 true。
+   * @param owner 策略所属的插件实例；默认为调用方 fiber。
+   * @returns 释放函数；请将其注册到调用方插件的 effects 中。
+   * @throws 若该实例已注册过策略。
    */
   configure(presentation: { auto?: boolean }, owner: Fiber = this.ctx.fiber): () => void {
     const fiber = owner
@@ -286,18 +283,18 @@ export class SettingsForms extends Service {
     })
   }
 
-  /** Whether the active profile accepts form edits. */
+  /** 当前 profile 是否接受表单编辑。 */
   get writable(): boolean { return true }
-  /** Current profile patch shown by the native configuration editor. */
+  /** 原生配置编辑器所展示的当前 profile 补丁。 */
   get documentPath(): string { return this.ownerContext.configEditor.documentPath }
-  /** Locate the profile patch for native editing.
-   * @returns The existing profile patch path.
+  /** 定位用于原生编辑的 profile 补丁。
+   * @returns 已存在的 profile 补丁路径。
    */
   prepareDocument(): Promise<string> { return Promise.resolve(this.documentPath) }
 
-  /** Read active plugin schemas and their live values.
-   * @param options Redaction required for remote callers.
-   * @returns Forms keyed by unique profile entry ids.
+  /** 读取活动插件的 schema 及其 live 值。
+   * @param options 远程调用方所需的脱敏选项。
+   * @returns 以唯一 profile 条目 id 为键的表单。
    */
   describe(options?: SettingsDescribeOptions): SettingsDescriptor[] {
     const active = new Set<string>()
@@ -339,30 +336,30 @@ export class SettingsForms extends Service {
     return descriptors
   }
 
-  /** Merge editable fields into an entry's config.
-   * @param ns Profile entry id.
-   * @param patch Fields to merge.
-   * @param expectedRevision Revision returned by describe.
+  /** 将可编辑字段合并进某条目的 config。
+   * @param ns profile 条目 id。
+   * @param patch 待合并的字段。
+   * @param expectedRevision describe 返回的修订号。
    */
   async update(ns: string, patch: object, expectedRevision?: number): Promise<void> {
     const input = cloneJsonShaped(patch)
     await this.write(ns, current => mergeLayers(current, input) as Record<string, unknown>, expectedRevision)
   }
 
-  /** Reset all live fields, then set the supplied fields; ordinary config is preserved.
-   * @param ns Profile entry id.
-   * @param section Complete form values.
-   * @param expectedRevision Revision returned by describe.
+  /** 重置所有 live 字段，再写入所提供的字段；普通 config 予以保留。
+   * @param ns profile 条目 id。
+   * @param section 完整的表单值。
+   * @param expectedRevision describe 返回的修订号。
    */
   async replace(ns: string, section: object, expectedRevision?: number): Promise<void> {
     const input = cloneJsonShaped(section)
     await this.write(ns, (_current, base) => mergeLayers(base, input) as Record<string, unknown>, expectedRevision)
   }
 
-  /** Apply field edits without restating redacted secrets; unsetting an array index removes its element.
-   * @param ns Profile entry id.
-   * @param ops Ordered form edits.
-   * @param expectedRevision Revision returned by describe.
+  /** 应用字段编辑而无需重述已脱敏的密文；取消设置某个数组下标会移除该元素。
+   * @param ns profile 条目 id。
+   * @param ops 有序的表单编辑。
+   * @param expectedRevision describe 返回的修订号。
    */
   async mutate(ns: string, ops: readonly SettingsPathOp[], expectedRevision?: number): Promise<void> {
     await this.write(ns, (current, base, schema) => ops.reduce((value, op) => {

@@ -1,7 +1,7 @@
 /**
- * Active Loader-backed plugin package inventory for official DeepSeek requests.
- * Host entries and the requesting agent's standing preset are resolved at request time;
- * installed dependencies and plugin fibers without Loader-backed package identity are excluded.
+ * 官方 DeepSeek 请求中由 Loader 支撑的、处于激活状态的插件包清单。
+ * 宿主条目与发起请求的 agent 的固定 preset 在请求时解析；
+ * 已安装的依赖项，以及没有 Loader 支撑的包身份的插件 fiber，都会被排除。
  * @module @deepseek-ai/dsh-plugin-package-inventory-deepseek
  */
 
@@ -23,18 +23,18 @@ import type {} from './types.ts'
 
 export type * from './types.ts'
 
-/** Cordis plugin name. */
+/** Cordis 插件名。 */
 export const name = 'plugin-package-inventory-deepseek'
-/** Services required to locate host/requesting-agent entries and contribute the field. */
+/** 定位宿主/发起请求的 agent 条目并贡献该字段所需的服务。 */
 export const inject = ['agents', 'deepseekLlmApiExtensions', 'loader']
 
-/** Plugin-package request contribution configuration. */
+/** 插件包请求贡献配置。 */
 export interface Config {
-  /** Contribute `dsh_plugin_packages` to official DeepSeek requests. Defaults to `true`. */
+  /** 是否为官方 DeepSeek 请求贡献 `dsh_plugin_packages`。默认为 `true`。 */
   enabled?: boolean
 }
 
-/** Validated plugin-package request contribution configuration. */
+/** 已校验的插件包请求贡献配置。 */
 export const Config: z<Config> = z.object({
   enabled: z.boolean().default(true),
 })
@@ -47,19 +47,19 @@ interface PackageManifest {
 interface ActiveEntry {
   readonly moduleName: string
   readonly baseUrl?: string
-  /** Bare-package base used by the Loader path that activated this entry. */
+  /** 激活本条目的 Loader 路径所使用的裸包基准。 */
   readonly bareBaseUrl?: string
 }
 
-/** Parse a bare package or package-subpath specifier into its package name. */
+/** 将裸包或包子路径说明符解析为包名。 */
 function barePackageName(specifier: string): string | undefined {
   if (specifier.startsWith('.') || specifier.includes(':') || isAbsolute(specifier)) return undefined
   const [first = '', second = ''] = specifier.split('/')
-  // An active Loader entry already passed module resolution, so a scoped bare name has its package segment.
+  // 激活的 Loader 条目已经通过了模块解析，因此带作用域的裸名具备其包段。
   return first.startsWith('@') ? `${first}/${second}` : first
 }
 
-/** Read a named identity, including its version only when it is a non-blank string. */
+/** 读取一个具名身份，仅当版本是非空字符串时才附带版本。 */
 function identityFromManifest(path: string): DeepSeekPluginPackageIdentity | undefined {
   const manifest = JSON.parse(readFileSync(path, 'utf8')) as PackageManifest
   if (typeof manifest.name !== 'string' || manifest.name.trim().length === 0) return undefined
@@ -68,7 +68,7 @@ function identityFromManifest(path: string): DeepSeekPluginPackageIdentity | und
     : { name: manifest.name }
 }
 
-/** Resolve a bare package without requiring it to export `./package.json`. */
+/** 解析一个裸包，且不要求它导出 `./package.json`。 */
 function barePackageManifest(
   packageName: string, anchors: readonly string[], packages: Context['pluginPackages'] | undefined,
 ): string | undefined {
@@ -84,7 +84,7 @@ function barePackageManifest(
   return undefined
 }
 
-/** Find the nearest owning manifest for a relative or absolute plugin module. */
+/** 为相对或绝对的插件模块查找最近的宿主清单。 */
 function nearestManifest(modulePath: string): string | undefined {
   let current = dirname(modulePath)
   const root = parse(current).root
@@ -96,9 +96,9 @@ function nearestManifest(modulePath: string): string | undefined {
   }
 }
 
-/** Exact package identity resolver with immutable per-process manifest caching. */
+/** 精确的包身份解析器，带有不可变的进程内清单缓存。 */
 class PackageIdentityResolver {
-  // TODO: Invalidate manifest identities if in-process package-version replacement becomes a supported upgrade path.
+  // TODO: 若进程内的包版本替换成为一种受支持的升级路径，则需要让清单身份失效。
   private readonly cache = new Map<string, DeepSeekPluginPackageIdentity | undefined>()
 
   constructor(
@@ -106,9 +106,9 @@ class PackageIdentityResolver {
     private readonly packages: Context['pluginPackages'] | undefined,
   ) {}
 
-  /** Resolve one Loader entry's owning package, or absence for a non-package loose module. */
+  /** 解析一个 Loader 条目所属的包；对于非包的松散模块则为缺失。 */
   resolve({ moduleName, baseUrl, bareBaseUrl }: ActiveEntry): DeepSeekPluginPackageIdentity | undefined {
-    /* v8 ignore next -- Loader entry trees inherit a base URL; the fallback supports direct embedders. */
+    /* v8 ignore next -- Loader 条目树会继承一个 base URL；该回退用于直接嵌入方。 */
     const treeBase = baseUrl ?? this.hostBaseUrl
     const anchors = [...new Set([bareBaseUrl ?? treeBase, treeBase, this.hostBaseUrl, import.meta.url])]
     const key = `${anchors.join('\u0000')}\u0000${moduleName}`
@@ -133,7 +133,7 @@ class PackageIdentityResolver {
   }
 }
 
-/** Yield active, non-structural entries from one Loader tree. */
+/** 从一个 Loader 树中产出处于激活状态的非结构性条目。 */
 function activeEntries(tree: EntryTree): ActiveEntry[] {
   return [...tree.entries()]
     .filter(entry => !entry.options.group
@@ -145,12 +145,12 @@ function activeEntries(tree: EntryTree): ActiveEntry[] {
     }))
 }
 
-/** Deterministic text order independent of the host's ICU data and locale. */
+/** 与宿主的 ICU 数据与区域设置无关的稳定文本顺序。 */
 function compareWireText(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0
 }
 
-/** Collect available identities from active packages for one request. */
+/** 为一次请求收集激活包中可用的身份。 */
 function collectActivePluginPackages(
   ctx: Context,
   resolver: PackageIdentityResolver,
@@ -192,15 +192,15 @@ function collectActivePluginPackages(
 }
 
 /**
- * Register the complete `dsh_plugin_packages` request contribution when enabled.
- * @param ctx - plugin context carrying Loader entry metadata and the DeepSeek request-extension registry.
- * @param config - validated default-on configuration.
+ * 在启用时注册完整的 `dsh_plugin_packages` 请求贡献。
+ * @param ctx - 携带 Loader 条目元数据与 DeepSeek 请求扩展注册表的插件上下文。
+ * @param config - 已校验的、默认开启的配置。
  */
 export function apply(ctx: Context, config: Config): void {
   if (config.enabled === false) return
   const hostBaseUrl = ctx.baseUrl ?? import.meta.url
   const resolver = new PackageIdentityResolver(hostBaseUrl, ctx.get('pluginPackages'))
-  // Unreadable identities are re-resolved on every request; log each module once.
+  // 不可读的身份会在每次请求时重新解析；每个模块只记录一次日志。
   const unreadable = new Set<string>()
   ctx.deepseekLlmApiExtensions.register('dsh_plugin_packages', {
     prepare: (request) => {

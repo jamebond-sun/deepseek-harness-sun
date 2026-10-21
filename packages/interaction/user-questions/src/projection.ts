@@ -1,4 +1,4 @@
-/** Fold of `ask_user_question` tool events into the answerable question set, and its Session projection. */
+/** 把 `ask_user_question` 工具事件折叠为可作答问题集合，以及它的 Session 投影。 */
 import { z } from 'zod'
 import { SessionLogOffset, TOOL_OUTCOME_UNKNOWN } from '@deepseek-ai/dsh-session'
 import type { SessionEvent, SessionLogOffset as SessionLogOffsetType } from '@deepseek-ai/dsh-session'
@@ -10,28 +10,28 @@ import type { ContentBlock, ToolSchema } from '@deepseek-ai/dsh-llm'
 import type { AskUserQuestionAnswerItem, AskUserQuestionItem, AskUserQuestionOption, PendingUserQuestion, SettledUserQuestion, UserQuestionProjectionView } from './types.ts'
 
 /**
- * The pure fold state: whether the request header in effect declares the
- * timed `ask_user_question` schema, and the question view that schema's
- * calls build. Calls made under the blocking legacy schema never enter it.
+ * 纯折叠状态：当前生效的请求头是否声明了定时 `ask_user_question` schema，
+ * 以及由该 schema 的各次调用构造出的问题视图。在阻塞式 legacy schema 下发出的
+ * 调用永远不会进入其中。
  */
 export interface UserQuestionFold {
   readonly timed: boolean
   readonly questions: UserQuestionProjectionView
 }
 
-/** Host projection state; `questions` is the wire value, reused whenever an event changes nothing. */
+/** Host 投影 state；`questions` 就是 wire 值，某个事件未改变任何内容时被复用。 */
 export interface UserQuestionProjectionState extends UserQuestionFold {
   readonly inheritedEventCount: SessionLogOffsetType
 }
 
-/** Tool whose calls this projection tracks. */
+/** 本投影跟踪其调用的那个工具。 */
 export const ASK_USER_QUESTION_TOOL = 'ask_user_question'
 
 /**
- * Model-facing parameter only the timed `ask_user_question` schema declares.
- * Its presence in the logged request header is what tells the fold that the
- * `ask_user_question` calls that follow can be continued past a timeout; the
- * blocking legacy schema never declares it.
+ * 只有定时 `ask_user_question` schema 才声明的、面向模型的参数。
+ * 折叠逻辑正是通过它在已记录请求头里是否存在，来判断其后的那些
+ * `ask_user_question` 调用能否在超时之后继续作答；阻塞式 legacy schema
+ * 从不声明它。
  */
 export const TIMED_WAIT_PARAMETER = 'timeout'
 
@@ -106,10 +106,10 @@ const projectionViewSchema: z.ZodType<UserQuestionProjectionView> = z.object({
   settled: settledQuestionsSchema,
 }).strict()
 
-/** The `answers` batch as both the in-time tool result and the steered late reply spell it. */
+/** 及时的工具结果与被引流过来的迟到回复共用的同一种 `answers` 批次。 */
 const answerBatchSchema = z.object({ answers: z.array(answerSchema) }).loose()
 
-/** A Session with no timed `ask_user_question` call yet, shared so the wire value stays referentially stable. */
+/** 尚无定时 `ask_user_question` 调用的 Session 共用此视图，以保证 wire 值在引用上保持稳定。 */
 const emptyView: UserQuestionProjectionView = { active: [], settled: [] }
 
 const initialFold: UserQuestionFold = { timed: false, questions: emptyView }
@@ -119,9 +119,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /**
- * Whether one logged tool schema is the timed `ask_user_question` tool's.
- * @param tool - One entry of a request header's assembled tool schemas.
- * @returns True only for an `ask_user_question` schema whose parameters declare {@link TIMED_WAIT_PARAMETER}.
+ * 判断一条已记录的工具 schema 是否是定时 `ask_user_question` 工具的。
+ * @param tool - 请求头里已组装的工具 schema 中的一项。
+ * @returns 仅当其名为 `ask_user_question` 且参数声明了 {@link TIMED_WAIT_PARAMETER} 时为真。
  */
 export function isTimedAskUserQuestionSchema(tool: Pick<ToolSchema, 'name' | 'parameters'>): boolean {
   if (tool.name !== ASK_USER_QUESTION_TOOL) return false
@@ -130,16 +130,16 @@ export function isTimedAskUserQuestionSchema(tool: Pick<ToolSchema, 'name' | 'pa
 }
 
 /**
- * Read the question batch out of logged `ask_user_question` arguments.
- * @param argumentsText - Raw JSON arguments recorded on the `tool/call` event.
- * @returns The questions in service vocabulary, or null when the arguments are unreadable.
+ * 从已记录的 `ask_user_question` 参数里读出问题批次。
+ * @param argumentsText - `tool/call` 事件上记录的原始 JSON 参数。
+ * @returns 以服务词汇表表达的问题；参数无法解析时为 null。
  */
 export function questionsOf(argumentsText: string): readonly AskUserQuestionItem[] | null {
   let parsed: unknown
   try {
     parsed = JSON.parse(argumentsText)
   } catch (error) {
-    // Malformed model arguments never reached the tool; there is no card to show.
+    // 格式非法的模型参数从未抵达工具，因此没有卡片可展示。
     void error
     return null
   }
@@ -168,16 +168,16 @@ function isPendingResult(content: readonly ContentBlock[]): boolean {
     const parsed: unknown = JSON.parse(text.text)
     return typeof parsed === 'object' && parsed !== null && (parsed as { pending?: unknown }).pending === true
   } catch (error) {
-    // A non-JSON result text is a failure message, never the pending payload.
+    // 非 JSON 的结果文本是一条失败信息，绝不是 pending 载荷。
     void error
     return false
   }
 }
 
 /**
- * Read the answer batch out of one recorded text: a tool result or a late reply.
- * @param content - Content blocks of the recorded message.
- * @returns The batch, or null when the text carries none this reader can use.
+ * 从一段已记录的文本（工具结果或迟到回复）里读出答案批次。
+ * @param content - 该消息的 ContentBlock 列表。
+ * @returns 答案批次；当这段文本没有携带本读取方可用的批次时为 null。
  */
 function answerBatchOf(content: readonly ContentBlock[]): readonly AskUserQuestionAnswerItem[] | null {
   const text = content.find(block => block.type === 'text')
@@ -186,7 +186,7 @@ function answerBatchOf(content: readonly ContentBlock[]): readonly AskUserQuesti
   try {
     parsed = JSON.parse(text.text)
   } catch (error) {
-    // A failure result, a dismissal, and any other text that is not an answer JSON carries no batch.
+    // 失败结果、被关闭的面板，以及任何非答案 JSON 的文本都不携带批次。
     void error
     return null
   }
@@ -195,12 +195,12 @@ function answerBatchOf(content: readonly ContentBlock[]): readonly AskUserQuesti
 }
 
 /**
- * Close one answerable question and keep the answers it settled with.
- * A reply whose call is no longer answerable changes nothing.
- * @param view - Current question state.
- * @param callId - Call the result or reply named.
- * @param answers - The batch it carried; empty when a late reply carried none.
- * @returns The same view when that call was not answerable, otherwise the updated one.
+ * 关闭一个可作答的问题，并保留它最终的答案。
+ * 一条指向已不可作答调用的回复不会改变任何东西。
+ * @param view - 当前的问题状态。
+ * @param callId - 该结果或回复所指的那次调用。
+ * @param answers - 它携带的批次；迟到回复没有携带答案时为空。
+ * @returns 若该调用已不可作答则返回同一个视图，否则返回更新后的视图。
  */
 function settleQuestion(
   view: UserQuestionProjectionView,
@@ -216,28 +216,25 @@ function settleQuestion(
 }
 
 /**
- * Apply one Session event to this Session's question fold.
- * A `request/header` decides, from the assembled tool schemas it records,
- * whether the `ask_user_question` calls that follow are timed; a call made
- * under the blocking legacy schema is never tracked, so a Session that only
- * ever used that tool folds to the empty view. A tracked question stays
- * answerable as `continued` in exactly two cases: the tool returned the
- * pending payload, or Session resume repair appended the synthetic
- * `TOOL_OUTCOME_UNKNOWN` result for a call the process never finished. An
- * answer batch settles it with that batch; any failure drops it. A PTC
- * sub-call enters the fold when its recorded result is pending. A late reply
- * settles only when the agent admits its user message; queued inbox messages
- * can still be discarded before that point.
- * @param fold - Current fold state.
- * @param event - Next Session event in append order.
- * @returns The same fold when the event is unrelated, otherwise the updated one.
+ * 把一条 Session 事件应用到本 Session 的问题折叠上。
+ * 一条 `request/header` 依据自身记录下来的已组装工具 schema，判定其后的那些
+ * `ask_user_question` 调用是否为定时调用；在阻塞式 legacy schema 下发出的调用永不
+ * 被跟踪，因此一个只用过那个工具的 Session 会折叠成空视图。一个被跟踪的问题在
+ * 恰好两种情况下保持 `continued` 状态可作答：工具返回了 pending 载荷，或者 Session
+ * 恢复修复为某个进程从未执行完的调用追加了合成的 `TOOL_OUTCOME_UNKNOWN` 结果。
+ * 答案批次会以该批次使之终结；任何失败都会直接丢弃它。PTC 子调用在其记录结果为
+ * pending 时进入折叠。迟到回复只有在 agent 接纳了它的用户消息之后才使调用终结；
+ * 在此之前，排在收件箱里的消息仍可能被丢弃。
+ * @param fold - 当前的折叠状态。
+ * @param event - 按追加顺序排列的下一条 Session 事件。
+ * @returns 事件无关时返回同一个折叠，否则返回更新后的折叠。
  */
 export function applyUserQuestionEvent(fold: UserQuestionFold, event: SessionEvent): UserQuestionFold {
   const view = fold.questions
   switch (event.type) {
     case 'request/header': {
-      // The log records the exact schema list the model saw; a seeded or
-      // tool-less header carries none, which reads as the legacy tool.
+      // 日志记录的是模型看到的精确 schema 列表；被播种的或不含工具的头不携带
+      // 任何工具，读起来就像 legacy 工具。
       const tools: unknown = event.data.header.tools
       const timed = Array.isArray(tools) && tools.some((tool: unknown) =>
         isRecord(tool) && typeof tool.name === 'string' && isRecord(tool.parameters)
@@ -304,15 +301,15 @@ export function applyUserQuestionEvent(fold: UserQuestionFold, event: SessionEve
 }
 
 /**
- * Fold a whole Session log into its question state.
- * @param events - Session events in append order.
- * @returns Open and continued timed calls in ask order, and settled ones in settlement order.
+ * 把整份 Session 日志折叠为它的问题状态。
+ * @param events - 按追加顺序排列的 Session 事件。
+ * @returns 以提问顺序排列的 open 与 continued 定时调用，以及按终结顺序排列的已终结调用。
  */
 export function foldUserQuestions(events: readonly SessionEvent[]): UserQuestionProjectionView {
   return events.reduce(applyUserQuestionEvent, initialFold).questions
 }
 
-/** Session projection exposing open, continued, and settled timed questions to every Client. */
+/** 向所有 Client 暴露 open、continued 与已终结定时问题的 Session 投影。 */
 export const userQuestionProjectionDefinition = {
   key: 'userQuestions',
   stateSchema: z.object({

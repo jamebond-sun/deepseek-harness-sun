@@ -1,24 +1,20 @@
 /**
- * The `sessionStats` projection unit: a pure fold of step boundaries, stream
- * embedded streams, tool pairs, and assembled assistant messages into whole-log counts
- * and wall times.
+ * `sessionStats` 投影单元：一个纯折叠，把步骤边界、流内嵌流、工具对以及
+ * 已组装的 assistant 消息折叠成整日志的计数与墙钟时间。
  *
- * `step/end` — not `assistant/message` — is the counted step event because it
- * is the step lifecycle authority: the loop appends exactly one per entered
- * step, in a `finally`, so completed, failed, cancelled, and max-tokens steps
- * all land one. Counting assembled assistant messages instead would overcount
- * max-tokens usage-host messages (empty content, excluded from the surface)
- * and undercount cancelled steps (aborted before the message assembles).
+ * 被计数的步骤事件是 `step/end` 而非 `assistant/message`，因为它是步骤
+ * 生命周期的权威：循环在每个进入的步骤中、于 `finally` 里恰好追加一个，
+ * 因此已完成、失败、已取消与触达最大 token 的步骤都会恰好落地一个。改为
+ * 统计已组装的 assistant 消息会高估触达最大 token 用量宿主消息（内容为空、
+ * 被排除在 surface 之外），并低估已取消的步骤（在消息组装前就中止了）。
  *
- * The wall-time folds mirror the client window fold field by field
- * (`deriveStats` in dsh-client-ui-conversation, that fold's whole-window
- * fallback role): model time is `step/start` → `assistant/message`, first
- * token is the first non-empty delta chunk and survives an in-step
- * `llm/retry`, decode spans first token → assembled message on steps that
- * also report output tokens, and tool time pairs `tool/call` → `tool/result`
- * by callId. A cancelled step assembles no message, so its partial stream
- * time stays uncounted in every time figure — matching the window, which
- * renders it as an untimed interrupted node.
+ * 墙钟时间的折叠逐字段与客户端窗口折叠镜像对应（dsh-client-ui-conversation
+ * 中的 `deriveStats`，即那个折叠的整窗口回退角色）：模型时间是
+ * `step/start` → `assistant/message`，首 token 是第一个非空 delta 分块，
+ * 且能挺过步骤内的 `llm/retry`，解码跨度为首 token → 已组装消息（在那些也
+ * 上报输出 token 的步骤上），工具时间按 callId 把 `tool/call` → `tool/result`
+ * 配对。一个被取消的步骤不组装消息，因此其部分流时间在每个时间数字中都
+ * 不被计入——这与窗口一致，窗口把它渲染成一个无计时的中断节点。
  *
  * @module @deepseek-ai/dsh-session-stats/projection
  */
@@ -28,38 +24,37 @@ import { assistantStreamFirstTokenTime } from '@deepseek-ai/dsh-llm'
 import type { ProjectionDefinition } from '@deepseek-ai/dsh-session-projection'
 
 
-/** Accumulated whole-log figures (the view is exactly these totals). */
+/** 累积的整日志数字（视图恰好就是这些合计）。 */
 interface SessionStatsTotals {
-  /** Distinct turns with at least one closed step so far. */
+  /** 到目前为止、至少含一个已关闭步骤的不同回合。 */
   turns: number
-  /** Closed steps so far. */
+  /** 到目前为止的已关闭步骤。 */
   steps: number
-  /** Summed model wall time over message-assembling steps, ms. */
+  /** 在组装了消息的步骤上，模型墙钟时间合计，单位 ms。 */
   llmMs: number
-  /** Summed matched tool call→result wall time, ms. */
+  /** 已匹配的、工具调用→结果墙钟时间合计，单位 ms。 */
   toolMs: number
-  /** Summed first-token latency over `ttftSteps`, ms. */
+  /** 在 `ttftSteps` 上、首 token 延迟合计，单位 ms。 */
   ttftMs: number
-  /** Steps carrying a recorded first token. */
+  /** 携带了被记录的首 token 的步骤数。 */
   ttftSteps: number
-  /** Summed decode wall time over usage-reporting steps, ms. */
+  /** 在报告用量的步骤上，解码墙钟时间合计，单位 ms。 */
   decodeMs: number
-  /** Summed provider output tokens over the same steps. */
+  /** 在同一批步骤上、提供方输出 token 合计。 */
   decodeTokens: number
 }
 
 /**
- * Fold state: the totals plus the in-flight boundaries they accrue from.
- * Turn numbers are host-assigned and monotonic per session, so a single
- * `lastTurn` slot decides "first closed step of a new turn"; the state is
- * plain JSON per the unit contract (persisted-cache precondition).
+ * 折叠状态：合计，加上它们从中累积的、在途的边界。回合号由主机分配，
+ * 且每会话单调，因此单独一个 `lastTurn` 槽位就能决定“新回合的第一个
+ * 已关闭步骤”；按单元契约，该状态为纯 JSON（持久化缓存的前提条件）。
  */
 interface SessionStatsState extends SessionStatsTotals {
-  /** Turn of the last counted `step/end`; null before the first. */
+  /** 最后一个被计数的 `step/end` 的回合；在首个之前为 null。 */
   lastTurn: number | null
-  /** The open step's boundary facts; null outside a step or after its message assembled. */
+  /** 当前打开步骤的边界事实；在步骤之外或其消息已组装之后为 null。 */
   openStep: { turn: number; step: number; startTime: number; firstTokenTime: number | null } | null
-  /** Dispatch times of tool calls whose result has not landed, by callId. */
+  /** 结果尚未落地的工具调用的派发时间，按 callId 索引。 */
   pendingCalls: Record<string, number>
 }
 
@@ -81,10 +76,9 @@ const sessionStatsSchema = z.object({
 }).strict()
 
 /**
- * The fold state's shape (totals plus in-flight boundaries), validated on
- * persisted-cache rows after their `ver` gate — the unit's input boundary.
- * The view is a strict subset of the state, so this schema extends
- * `sessionStatsSchema` (the wire output boundary) with the boundary fields.
+ * 折叠状态的形状（合计加上在途边界），在 `ver` 闸门之后对被持久化缓存的
+ * 行做校验——即该单元的输入边界。视图是状态的严格子集，因此本 schema 在
+ * `sessionStatsSchema`（wire 输出边界）基础上扩展出边界字段。
  */
 const sessionStatsStateSchema = sessionStatsSchema.extend({
   lastTurn: z.number().int().nonnegative().nullable(),
@@ -98,10 +92,9 @@ const sessionStatsStateSchema = sessionStatsSchema.extend({
 })
 
 /**
- * Provider-reported completion tokens, guarded the way the window fold guards
- * node usage.
- * @param usage - the assistant/message event's optional usage record.
- * @returns the output-token count, or null when unreported or invalid.
+ * 提供方报告的完成 token，以窗口折叠守护节点用量的方式来守护。
+ * @param usage - assistant/message 事件的可选用量记录。
+ * @returns 输出 token 计数；当未报告或无效时为 null。
  */
 function usageOutputTokens(usage: unknown): number | null {
   if (typeof usage !== 'object' || usage === null) return null
@@ -128,7 +121,7 @@ export const sessionStatsProjectionDefinition = {
     pendingCalls: {},
   }),
   apply: (state, event) => {
-    // Every uninteresting event returns the same reference (Object.is gates the change feed).
+    // 每个无趣的事件都返回同一个引用（Object.is 把住变更流闸门）。
     switch (event.type) {
       case 'step/start':
         return {
@@ -146,8 +139,8 @@ export const sessionStatsProjectionDefinition = {
         const open = state.openStep
         if (open === null || open.turn !== event.data.turn || open.step !== event.data.step) return state
         const firstToken = open.firstTokenTime ?? assistantStreamFirstTokenTime(event.data.stream) ?? null
-        // One assembled message per step: closing the boundary means a
-        // defensive duplicate cannot accrue twice.
+        // 每个步骤只有一个已组装消息：关闭边界意味着防御性的重复不会
+        // 被计入两次。
         const next: SessionStatsState = {
           ...state,
           llmMs: state.llmMs + Math.max(0, event.time - open.startTime),
@@ -188,9 +181,8 @@ export const sessionStatsProjectionDefinition = {
           openStep: null,
         }
       case 'turn/end':
-        // A call whose result never landed belongs to a cancelled or failed
-        // turn; results always land within their turn, so drop the leftovers
-        // instead of growing persisted state forever.
+        // 一个结果从未落地的调用属于某个被取消或失败的回合；结果总是在
+        // 其回合内落地，因此丢弃这些残留，而非让持久化状态永远增长。
         return Object.keys(state.pendingCalls).length === 0 ? state : { ...state, pendingCalls: {} }
       default:
         return state

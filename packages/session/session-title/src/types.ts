@@ -1,9 +1,7 @@
 /**
- * Pure types of the title domain: the ONE home of the `title` projection-key
- * declaration, free of this package's host-side value imports (cordis
- * service, schemastery, the llm seam). Two namespace projections serve it —
- * `./types` for host consumers and `./client/types` for client aggregates —
- * with zero content duplication.
+ * 标题领域的纯类型：即 `title` 投影键声明的唯一出处，不含本包主机侧的值
+ * 导入（cordis 服务、schemastery、llm 接缝）。两个命名空间投影服务于它——
+ * 主机消费方用 `./types`，客户端聚合用 `./client/types`——且零内容重复。
  *
  * @module @deepseek-ai/dsh-session-title/types
  */
@@ -13,18 +11,18 @@ export {}
 import type { Branded } from '@deepseek-ai/dsh-brand'
 import type { OptionalSessionSeq, SessionSeq } from '@deepseek-ai/dsh-session/types'
 
-/** Identifies one session-title provider registration. */
+/** 标识一次会话标题提供方注册。 */
 export type SessionTitleProviderId = Branded<'SessionTitleProviderId'>
 
-/** Exact auxiliary model route that produced a title. */
+/** 产生某个标题的、确切的辅助模型路由。 */
 export interface SessionTitleModelIdentity {
-  /** Registered LLM provider route. */
+  /** 已注册的 LLM 提供方路由。 */
   readonly provider: string
-  /** Provider model id. */
+  /** 提供方模型 id。 */
   readonly model: string
 }
 
-/** Durable ownership record for an accepted session title. */
+/** 一个被接受的会话标题的、持久的所有权记录。 */
 export type SessionTitleSource =
   | { readonly kind: 'fallback' }
   | {
@@ -33,61 +31,61 @@ export type SessionTitleSource =
     readonly model?: SessionTitleModelIdentity
   }
   | {
-    /** Explicit user rename: pins the title — automatic generation stops scheduling. */
+    /** 显式的用户重命名：固定该标题——自动生成停止排程。 */
     readonly kind: 'user'
   }
 
-/** Payload of the log-only `session/title` event. */
+/** 仅日志的 `session/title` 事件的载荷。 */
 export interface SessionTitleEventData {
-  /** Normalized non-empty title text. */
+  /** 已归一化的非空标题文本。 */
   readonly title: string
-  /** Exact human `user/message` seqs used to derive this title; empty for an explicit user rename. */
+  /** 用于推导本标题的、确切的人类 `user/message` seq；显式用户重命名时为空。 */
   readonly messageSeqs: SessionSeq[]
-  /** Whether the built-in fallback, a registered provider, or the user supplied the title. */
+  /** 标题是由内置回退、已注册提供方，还是用户提供的。 */
   readonly source: SessionTitleSource
 }
 
-/** Latest folded title plus the title event's durable envelope facts. */
+/** 最新的已折叠标题，加上该标题事件持久的信封事实。 */
 export interface SessionTitleSnapshot extends SessionTitleEventData {
-  /** Seq of the latest `session/title` event. */
+  /** 最新的 `session/title` 事件的 seq。 */
   readonly eventSeq: SessionSeq
-  /** Timestamp of the latest `session/title` event. */
+  /** 最新的 `session/title` 事件的时间戳。 */
   readonly updatedAt: number
 }
 
-/** Host title projection value. */
+/** 主机标题投影值。 */
 export type TitleProjection = SessionTitleSnapshot
 
-/** One eligible human text message exposed to title providers. */
+/** 暴露给标题提供方的、一条合格的人类文本消息。 */
 export interface SessionTitleUserMessage {
-  /** Source `user/message` event seq. */
+  /** 源 `user/message` 事件的 seq。 */
   readonly seq: SessionSeq
-  /** Exact concatenated text-block content. */
+  /** 确切的、拼接后的文本块内容。 */
   readonly text: string
 }
 
-/** Eligible title input stored as a bounded aggregate. */
+/** 作为有界聚合存储的、合格的标题输入。 */
 export interface TitleInputState {
-  /** The oldest eligible message, or null before any. */
+  /** 最旧的合格消息，在任何消息之前为 null。 */
   readonly first: SessionTitleUserMessage | null
-  /** Total eligible messages folded so far. */
+  /** 到目前为止折叠的合格消息总数。 */
   readonly count: number
-  /** Seq of the newest eligible message, or null before any. */
+  /** 最新合格消息的 seq，在任何消息之前为 null。 */
   readonly lastSeq: OptionalSessionSeq
 }
 
 declare module '@deepseek-ai/dsh-session-projection/types' {
   interface SessionProjectionStateMap {
-    /** Latest logged title text, or null. */
+    /** 最新的已记录标题文本，或 null。 */
     title: string | null
-    /** Eligible human title input. */
+    /** 合格的人类标题输入。 */
     titleInput: TitleInputState
   }
   interface SessionProjectionMap {
     /**
-     * The session's current normalized title — the latest `session/title`
-     * event's text (last-wins), or `null` before the first title lands. A
-     * plain string: the shape the client list rows consume.
+     * 会话当前的归一化标题——即最新的 `session/title` 事件的文本
+     * （最新者胜），或在第一个标题落地之前为 `null`。一个纯字符串：
+     * 客户端列表行所消费的形状。
      */
     title: string | null
   }

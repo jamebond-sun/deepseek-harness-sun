@@ -1,4 +1,4 @@
-/** DeepSeek Files API transport. @module dsh-llm-deepseek/files-api */
+/** DeepSeek Files API 传输。 @module dsh-llm-deepseek/files-api */
 
 import { attributionHeaders, LlmError } from '@deepseek-ai/dsh-llm'
 import type { ImageMediaType } from '@deepseek-ai/dsh-attachment'
@@ -6,28 +6,28 @@ import { DeepSeekFileId } from './file-id.ts'
 import type { DeepSeekFileId as DeepSeekFileIdType } from './file-id.ts'
 import { messagesApiRoot, MESSAGES_FILES_BETA } from './messages-api.ts'
 
-/** Minimum provider-supported file lifetime. */
+/** 提供方支持的最短文件生命周期。 */
 export const MIN_FILE_EXPIRY_SECONDS = 3_600
-/** Maximum provider-supported file lifetime. */
+/** 提供方支持的最长文件生命周期。 */
 export const MAX_FILE_EXPIRY_SECONDS = 2_592_000
-/** Maximum Files API upload size. */
+/** Files API 上传大小上限。 */
 export const MAX_FILE_UPLOAD_BYTES = 128 * 1024 * 1024
-/** Current per-key file-count quota. */
+/** 当前的按密钥文件数量配额。 */
 export const MAX_STORED_FILE_COUNT = 10_000
-/** Current per-key storage quota. */
+/** 当前的按密钥存储配额。 */
 export const MAX_STORED_FILE_BYTES = 25 * 1024 * 1024 * 1024
 
-/** Validated provider file metadata. */
+/** 已校验的提供方文件元数据。 */
 export interface DeepSeekFileObject {
   id: DeepSeekFileIdType
   bytes: number
   createdAt: number
   filename: string
-  /** Upload-time reuse deadline; list and retrieve responses omit this field. */
+  /** 上传时的复用截止时刻；列举与取回响应会省略该字段。 */
   expiresAt?: number
 }
 
-/** One page returned by `GET /files`. */
+/** `GET /files` 返回的一页结果。 */
 export interface DeepSeekFilePage {
   data: DeepSeekFileObject[]
   firstId?: DeepSeekFileIdType
@@ -35,15 +35,15 @@ export interface DeepSeekFilePage {
   hasMore: boolean
 }
 
-/** Files API operation failure with its HTTP status retained for recovery policy. */
+/** Files API 操作失败，保留其 HTTP 状态码以供恢复策略使用。 */
 export class DeepSeekFilesError extends LlmError {
-  /** Parsed provider detail used only for error classification. */
+  /** 已解析的提供方细节，仅用于错误分类。 */
   readonly detail: string
 
   /**
-   * @param message - user-readable provider failure.
-   * @param status - HTTP status returned by the Files API.
-   * @param detail - provider error fields joined for classification.
+   * @param message - 面向用户的提供方失败信息。
+   * @param status - Files API 返回的 HTTP 状态码。
+   * @param detail - 为分类而拼接起来的提供方错误字段。
    */
   constructor(message: string, status: number, detail: string) {
     super(message, status === 401 || status === 403
@@ -59,9 +59,9 @@ export class DeepSeekFilesError extends LlmError {
 }
 
 /**
- * Whether an upload failure reports a provider storage or file-count quota.
- * @param error - Files API operation failure.
- * @returns whether one bounded remote cleanup and upload retry may recover.
+ * 一次上传失败是否报告了提供方的存储或文件数量配额。
+ * @param error - Files API 操作失败。
+ * @returns 一次有界的远程清理与上传重试是否可能恢复。
  */
 export function isFilesQuotaError(error: unknown): error is DeepSeekFilesError {
   return error instanceof DeepSeekFilesError
@@ -70,7 +70,7 @@ export function isFilesQuotaError(error: unknown): error is DeepSeekFilesError {
 
 interface FilesApiOptions {
   baseURL: string
-  /** Provider-resolved authentication headers for this endpoint. */
+  /** 由提供方为该端点解析出的认证头。 */
   headers: Readonly<Record<string, string>>
   fetch?: typeof fetch
 }
@@ -79,7 +79,7 @@ function invalidResponse(operation: string): LlmError {
   return new LlmError(`DeepSeek Files API returned an invalid ${operation} response.`, 'INVALID_RESPONSE')
 }
 
-/** Decode successful Files JSON with operation context; body transport and abort failures retain their identity. */
+/** 解码成功的 Files JSON 并带上操作上下文；响应体传输与中止失败保持其原有身份。 */
 async function responseJson(response: Response, operation: string): Promise<unknown> {
   try {
     return await response.json()
@@ -127,14 +127,14 @@ function providerErrorDetail(value: unknown): { message?: string; detail: string
   }
 }
 
-/** Direct Files client retaining the configured URL root and refusing redirects before credentials can leave its origin. */
+/** 直接的 Files 客户端：保留已配置的 URL 根路径，并在凭据可能离开其源之前拒绝重定向。 */
 export class DeepSeekFilesClient {
   private readonly baseURL: string
   private readonly authHeaders: Readonly<Record<string, string>>
   private readonly fetchImpl: typeof fetch
 
   /**
-   * @param options - endpoint, authentication headers, and optional test transport.
+   * @param options - 端点、认证头，以及可选的测试传输。
    */
   constructor(options: FilesApiOptions) {
     this.authHeaders = options.headers
@@ -164,7 +164,7 @@ export class DeepSeekFilesClient {
     try {
       parsed = await response.json()
     } catch {
-      // A status remains sufficient to report the provider failure.
+      // 仅凭状态码就足以报告这次提供方失败。
     }
     const { message, detail } = providerErrorDetail(parsed)
     throw new DeepSeekFilesError(
@@ -175,10 +175,10 @@ export class DeepSeekFilesClient {
   }
 
   /**
-   * Upload one image with an explicit expiry.
-   * @param input - deterministic request-version bytes, media type, filename, lifetime, and cancellation.
-   * @returns the validated file and reuse deadline. Messages omits expiry metadata;
-   *   its deadline uses upload creation plus the requested lifetime.
+   * 上传一张带有显式过期时间的图像。
+   * @param input - 确定性的请求版本字节、媒体类型、文件名、生命周期与取消信号。
+   * @returns 已校验的文件与复用截止时刻。Messages 会省略过期元数据；
+   *   它的截止时刻用上传创建时间加上所请求的生命周期。
    */
   async upload(input: {
     data: Uint8Array
@@ -205,9 +205,9 @@ export class DeepSeekFilesClient {
   }
 
   /**
-   * List one provider-ordered page of files.
-   * @param options - pagination and cancellation.
-   * @returns the validated page with null cursors omitted.
+   * 列举按提供方排序的一页文件。
+   * @param options - 分页与取消。
+   * @returns 已校验的页，其中空的游标被省略。
    */
   async list(options: {
     after?: DeepSeekFileIdType
@@ -237,10 +237,10 @@ export class DeepSeekFilesClient {
   }
 
   /**
-   * Retrieve one file object.
-   * @param fileId - provider file identifier.
-   * @param signal - request cancellation.
-   * @returns the validated file object.
+   * 取回一个文件对象。
+   * @param fileId - 提供方文件标识符。
+   * @param signal - 请求取消信号。
+   * @returns 已校验的文件对象。
    */
   async retrieve(fileId: DeepSeekFileIdType, signal?: AbortSignal): Promise<DeepSeekFileObject> {
     const response = await this.request(`/files/${encodeURIComponent(fileId)}`, { method: 'GET' }, signal)
@@ -248,9 +248,9 @@ export class DeepSeekFilesClient {
   }
 
   /**
-   * Delete one provider file.
-   * @param fileId - provider file identifier.
-   * @param signal - request cancellation.
+   * 删除一个提供方文件。
+   * @param fileId - 提供方文件标识符。
+   * @param signal - 请求取消信号。
    */
   async delete(fileId: DeepSeekFileIdType, signal?: AbortSignal): Promise<void> {
     const response = await this.request(`/files/${encodeURIComponent(fileId)}`, { method: 'DELETE' }, signal)

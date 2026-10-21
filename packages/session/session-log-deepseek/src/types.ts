@@ -1,31 +1,31 @@
-/** Wire types for lossless incremental DeepSeek session-log upload. */
+/** 用于无损增量式 DeepSeek 会话日志上传的线上类型。 */
 
 import type { SessionEvent, SurfaceEventType } from '@deepseek-ai/dsh-session'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 
-/** Session header fields serialized as raw JSON primitives on the external request wire. */
+/** 在外部请求线上以原始 JSON 原语形式序列化的会话头部字段。 */
 export interface DeepSeekSessionLogWireHeader {
   readonly version: number
   readonly id: string
   readonly createdAt: number
   readonly cwd?: string
   readonly parentSession?: string
-  /** Exact inherited prefix length; absent for an unseeded Session. */
+  /** 精确的继承前缀长度；对于未播种的会话则不存在。 */
   readonly seedLength?: number
   readonly origin?: 'subagent'
   readonly delegationDepth?: number
   readonly agentPreset?: string
 }
 
-/** Raw-number surface mutation serialized on the external request wire. */
+/** 在外部请求线上序列化的、原始数值形式的 surface 变更。 */
 export type DeepSeekSessionLogWireSurfaceOp =
   | 'append'
   | { readonly op: 'replace'; readonly startSeq: number; readonly endSeq: number }
 
 /**
- * One canonical event translated to raw JSON primitives for upload. Surface
- * events require an operation; system, user, and tool events may cite sources.
- * Assistant provider metadata is embedded in its data; log-only events carry neither field.
+ * 为上传而转换为原始 JSON 原语的一个规范事件。Surface 事件需要携带一个
+ * 操作；system、user 与 tool 事件可以引用来源。Assistant 提供方的元数据
+ * 内嵌在其 data 中；仅日志事件既不携带操作也不携带来源。
  */
 export type DeepSeekSessionLogWireEvent = {
   [K in SessionEvent['type']]: {
@@ -45,7 +45,7 @@ export type DeepSeekSessionLogWireEvent = {
     readonly sourceEventSeqs?: never
   })
 }[SessionEvent['type']] | {
-  /** Unrecognized ignorable records retain opaque metadata without surface semantics. */
+  /** 无法识别的可忽略记录保留其不透明元数据，但不具备 surface 语义。 */
   readonly type: string
   readonly seq: number
   readonly time: number
@@ -55,17 +55,17 @@ export type DeepSeekSessionLogWireEvent = {
   readonly sourceEventSeqs?: JsonValue
 }
 
-/** Versioned incremental session-log field carried by an official DeepSeek request. */
+/** 由官方 DeepSeek 请求携带的、带版本的增量会话日志字段。 */
 export interface DeepSeekSessionLogExtension {
   readonly version: 1
-  /** Session format generation represented by this suffix. */
+  /** 该后缀所代表的会话格式代际。 */
   readonly sessionFormatVersion: number
   readonly session: DeepSeekSessionLogWireHeader
-  /** Highest sequence durably recorded as accepted before this request, or `-1`. */
+  /** 本次请求之前已被持久记录为已接受的最高序号，或 `-1`。 */
   readonly afterSeq: number
-  /** Highest sequence represented by {@link events}. */
+  /** 由 {@link events} 所代表的最高序号。 */
   readonly throughSeq: number
-  /** Complete canonical event envelopes for every sequence from `afterSeq + 1` through `throughSeq`. */
+  /** 从 `afterSeq + 1` 到 `throughSeq` 的每个序号对应的完整规范事件信封。 */
   readonly events: readonly DeepSeekSessionLogWireEvent[]
 }
 
@@ -77,13 +77,13 @@ declare module '@deepseek-ai/dsh-deepseek-llm-api-extensions/types' {
 
 declare module '@deepseek-ai/dsh-session/types' {
   interface SessionEventMap {
-    /** Records that the configured endpoint accepted one delivery through `throughSeq`. */
+    /** 记录配置的端点已通过 `throughSeq` 接受的一次投递。 */
     'session-log-deepseek/delivery-accepted': {
-      /** Session identity the accepted delivery carried; inherited fork markers retain the parent's id. */
+      /** 被接受的投递所携带的会话身份；继承得到的 fork 标记保留父会话的 id。 */
       sessionId: import('@deepseek-ai/dsh-session/types').SessionId
-      /** Accepted Session format generation; absence identifies version 0. */
+      /** 被接受的会话格式代际；缺失则标识为版本 0。 */
       sessionFormatVersion?: number
-      /** Last canonical event included in the accepted request. */
+      /** 被接受的请求中包含的最后一个规范事件。 */
       throughSeq: import('@deepseek-ai/dsh-session/types').SessionSeq
     }
   }

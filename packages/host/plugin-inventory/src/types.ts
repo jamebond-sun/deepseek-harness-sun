@@ -1,10 +1,10 @@
 import type { Branded } from '@deepseek-ai/dsh-brand'
 import type { PluginLocalizedMeta } from '@deepseek-ai/dsh-package-manifest'
 
-/** Stable Loader-tree identity of one configured plugin entry. */
+/** 一条已配置插件条目在 Loader 树中的稳定身份。 */
 export type PluginEntryId = Branded<'PluginEntryId'>
 
-/** Lifecycle state of an entry's root Fiber, or null when it has no live root Fiber. */
+/** 条目根 Fiber 的生命周期状态；没有存活根 Fiber 时为 null。 */
 export type PluginFiberPhase =
   | 'pending'
   | 'loading'
@@ -13,63 +13,61 @@ export type PluginFiberPhase =
   | 'unloading'
   | null
 
-/** One non-group Loader entry exposed to trusted clients. */
+/** 暴露给受信任客户端的一条非分组 Loader 条目。 */
 export interface PluginInventoryEntry {
   readonly entryId: PluginEntryId
-  /** Exact module specifier imported by the Loader entry. */
+  /** Loader 条目所导入的确切模块说明符。 */
   readonly moduleName: string
-  /** Local package display metadata, independent of whether the entry is enabled. */
+  /** 本地包的展示元数据，与条目是否启用无关。 */
   readonly meta?: PluginLocalizedMeta
-  /** Effective Loader enablement, including disabled ancestor groups. */
+  /** Loader 的实际启用状态，包含被禁用的祖先分组。 */
   readonly enabled: boolean
   readonly fiberPhase: PluginFiberPhase
 }
 
-/** Effective enablement of one preset composition row. */
+/** 一条 preset 组合行的实际启用状态。 */
 export type PresetPluginEnablement = boolean | 'conditional'
 
-/** One plugin row an agent preset's composition names. */
+/** agent preset 组合中命名的一条插件行。 */
 export interface AgentPresetPluginRow {
-  /** Composition row id, or null when the row declares none. */
+  /** 组合行 id；该行未声明 id 时为 null。 */
   readonly entryId: string | null
-  /** Module specifier the row names. */
+  /** 该行所命名的模块说明符。 */
   readonly moduleName: string
-  /** Local package display metadata, independent of whether the preset is mounted. */
+  /** 本地包的展示元数据，与 preset 是否已挂载无关。 */
   readonly meta?: PluginLocalizedMeta
   /**
-   * Effective enablement, including disabled ancestor groups. `'conditional'`
-   * marks a `!!js` disabled expression on a composition no session has
-   * mounted, which only a Loader context can decide.
+   * 实际启用状态，包含被禁用的祖先分组。`'conditional'` 表示在一个尚无 session 挂载的
+   * 组合上存在 `!!js` disabled 表达式，这只有 Loader context 才能判定。
    */
   readonly enabled: PresetPluginEnablement
-  /** The row's own `!!js` disabled expression, when it carries one. */
+  /** 该行自身的 `!!js` disabled 表达式（若存在）。 */
   readonly condition?: string
-  /** Root-fiber phase when the composition is live; null otherwise. */
+  /** 组合处于活动状态时的根 fiber 阶段；否则为 null。 */
   readonly fiberPhase: PluginFiberPhase
 }
 
-/** One agent preset's identity and flattened composition in the inventory. */
+/** 清单中某个 agent preset 的身份及其展开后的组合。 */
 export interface AgentPresetPluginGroup {
-  /** Stable preset id. */
+  /** 稳定的 preset id。 */
   readonly id: string
-  /** Display name the preset published; a reader falls back to the id. */
+  /** preset 发布的展示名；读取方在缺失时回退到 id。 */
   readonly name?: string
-  /** Whether a session naming no preset composes this one. */
+  /** 未指定 preset 的 session 是否会组合这一个。 */
   readonly isDefault: boolean
-  /** Why this preset's composition cannot be read; absent when rows answer. */
+  /** 该 preset 的组合为何无法读取；行能给出答案时缺省。 */
   readonly broken?: string
-  /** Plugin rows in composition order; empty when the preset is broken. */
+  /** 按组合顺序排列的插件行；preset 损坏时为空。 */
   readonly rows: readonly AgentPresetPluginRow[]
 }
 
-/** Point-in-time inventory returned by the plugin inventory Remote. */
+/** 插件清单 Remote 返回的时点快照。 */
 export interface PluginInventorySnapshot {
-  /** Whether this Host exposes persistent current-profile management. */
+  /** 本宿主是否提供持久化的当前 profile 管理能力。 */
   readonly managementAvailable?: boolean
   readonly entries: readonly PluginInventoryEntry[]
   /**
-   * Per-preset compositions, present only when an agent-preset roster is
-   * composed in this deployment.
+   * 各 preset 的组合，仅当本部署中组合了 agent-preset 名册时才出现。
    */
   readonly agentPresets?: readonly AgentPresetPluginGroup[]
 }

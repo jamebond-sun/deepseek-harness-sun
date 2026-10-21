@@ -1,4 +1,4 @@
-/** Shared Team task DAG commands and runtime-enriched views. */
+/** Team 任务 DAG 命令，以及经运行时充实后的视图。 */
 
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { TeamMembership } from './roster.ts'
@@ -24,11 +24,11 @@ const TASK_GRAPH_ERROR_CODES: Record<TeamTaskGraphViolation, string> = {
   cycle: 'TEAM_TASK_DEPENDENCY_CYCLE',
 }
 
-/** Owns Team task limits, authorization, transitions, and derived views. */
+/** 持有 Team 任务上限、授权、状态迁移，以及派生的视图。 */
 export class TeamTaskBoard {
   /**
-   * @param journal - authoritative Lead-log transaction owner.
-   * @param maxTasks - maximum non-deleted tasks retained by one Team.
+   * @param journal - 权威的 Lead 日志事务持有者。
+   * @param maxTasks - 一个 Team 保留的、未删除任务的最大数量。
    */
   constructor(
     private readonly journal: TeamJournal,
@@ -36,10 +36,10 @@ export class TeamTaskBoard {
   ) {}
 
   /**
-   * Create one unowned pending task in the Team Lead log.
-   * @param membership - exact caller membership resolved by the Team roster.
-   * @param request - task text, blockers, and advisory write scopes.
-   * @returns the revision-one task view.
+   * 在 Team Lead 日志中创建一条无主的待处理任务。
+   * @param membership - 由 Team 花名册解析出的、精确的调用方成员关系。
+   * @param request - 任务文本、阻塞项，以及建议的写入作用域。
+   * @returns 修订版本一的任务视图。
    */
   async create(membership: TeamMembership, request: CreateTeamTaskRequest): Promise<TeamTaskView> {
     const { root } = membership
@@ -69,10 +69,10 @@ export class TeamTaskBoard {
   }
 
   /**
-   * Return one task, including a deleted tombstone.
-   * @param membership - exact caller membership resolved by the Team roster.
-   * @param id - Team-local task identity.
-   * @returns the latest task value and derived readiness diagnostics.
+   * 返回一条任务，包括已删除的墓碑。
+   * @param membership - 由 Team 花名册解析出的、精确的调用方成员关系。
+   * @param id - Team 本地的任务身份。
+   * @returns 最新的任务取值与派生的就绪诊断。
    */
   get(membership: TeamMembership, id: TeamTaskId): TeamTaskView {
     const { root } = membership
@@ -83,9 +83,9 @@ export class TeamTaskBoard {
   }
 
   /**
-   * List current non-deleted tasks in numeric creation order.
-   * @param membership - exact caller membership resolved by the Team roster.
-   * @returns detached current task views.
+   * 按数字创建顺序列出当前未删除的任务。
+   * @param membership - 由 Team 花名册解析出的、精确的调用方成员关系。
+   * @returns 已分离的当前任务视图。
    */
   list(membership: TeamMembership): TeamTaskView[] {
     const { root } = membership
@@ -96,11 +96,11 @@ export class TeamTaskBoard {
   }
 
   /**
-   * Compare-and-set one authorized task transition.
-   * @param caller - exact live Team member authorizing the mutation.
-   * @param membership - caller role and exact live Lead.
-   * @param request - task identity, expected revision, action, and action fields.
-   * @returns the committed next task revision.
+   * 比较并交换一次已授权的任务状态迁移。
+   * @param caller - 授权该变更的、精确的实时 Team 成员。
+   * @param membership - 调用方的角色与精确的实时 Lead。
+   * @param request - 任务身份、期望修订版本、动作，以及动作字段。
+   * @returns 已提交的下一个任务修订版本。
    */
   async update(
     caller: Agent,
@@ -196,7 +196,7 @@ export class TeamTaskBoard {
           next = { ...current, status: 'deleted' }
           break
         }
-        /* v8 ignore next 2 -- TeamTaskAction is closed and every member is handled above. */
+        /* v8 ignore next 2 -- TeamTaskAction 是封闭的，且上述已处理其每个成员。 */
         default:
           throw new TeamError(`unsupported task action ${String(request.action)}`, 'TEAM_INVALID_ARGUMENT')
       }
@@ -210,7 +210,7 @@ export class TeamTaskBoard {
     })
   }
 
-  /** Validate and de-duplicate dependency ids against the current task graph. */
+  /** 针对当前任务图，校验并去重依赖 id。 */
   private dependencies(
     values: readonly TeamTaskId[],
     state: TeamState,
@@ -231,23 +231,23 @@ export class TeamTaskBoard {
     return result
   }
 
-  /** Normalize and de-duplicate task write scopes. */
+  /** 归一化并去重任务的写入作用域。 */
   private writeScopes(values: readonly string[]): string[] {
     return [...new Set(values.map(writeScope))]
   }
 
-  /** Map shared task-graph validation onto stable command error codes. */
+  /** 将共享的任务图校验映射到稳定的命令错误码。 */
   private assertTaskGraph(state: TeamState, candidate: TeamTaskSnapshot): void {
     try {
       assertTaskGraphCandidate(state.tasks, candidate)
     } catch (error: unknown) {
-      /* v8 ignore next -- the shared validator is the only statement in the try and throws this exact error. */
+      /* v8 ignore next -- 共享校验器是 try 中唯一的语句，并抛出这一确切错误。 */
       if (!(error instanceof TeamTaskGraphError)) throw error
       throw new TeamError(error.message, TASK_GRAPH_ERROR_CODES[error.violation], { cause: error })
     }
   }
 
-  /** Remove an optional owner field under exactOptionalPropertyTypes. */
+  /** 在 exactOptionalPropertyTypes 之下，移除一个可选的 owner 字段。 */
   private withoutOwner(task: TeamTaskSnapshot): TeamTaskSnapshot {
     const { ownerId: _ownerId, ...without } = task
     return without

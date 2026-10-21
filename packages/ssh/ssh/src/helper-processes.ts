@@ -1,4 +1,4 @@
-/** Remote process ownership and separately forwarded byte streams. */
+/** 远端进程的归属管理，以及独立转发的字节流。 */
 import { randomBytes, randomUUID } from 'node:crypto'
 import { chmod, mkdir, rm } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -37,7 +37,7 @@ interface ProcessRecord {
   expiry: NodeJS.Timeout
 }
 
-/** Join TLS, underlying socket, and listener closure before removing their directory. */
+/** 删除其目录之前，先等待 TLS、底层 socket 与监听器全部关闭。 */
 async function closeEndpoint(endpoint: Endpoint): Promise<void> {
   const sockets = [...new Set([...(endpoint.socket === undefined ? [] : [endpoint.socket]), ...endpoint.pending])]
   const closed = sockets.map(socket => new Promise<void>((resolve) => {
@@ -49,7 +49,7 @@ async function closeEndpoint(endpoint: Endpoint): Promise<void> {
   await Promise.all([listenerClosed, ...closed])
 }
 
-/** Coalesce live tail updates while capture continues independently of network readers. */
+/** 合并实时的尾部输出更新，且采集过程不依赖网络读取方。 */
 class CollectedOutputForwarder {
   private readonly peer: SshRpcPeer
   private dirty = false
@@ -86,15 +86,15 @@ class CollectedOutputForwarder {
   }
 }
 
-/** Owns remote launch reservations through final process-range quiescence. */
+/** 掌管远端启动预留，直至其进程组最终完全静止。 */
 export class RemoteProcesses {
   private readonly records = new Map<SshProcessId, ProcessRecord>()
-  // Settled promises preserve the original rejection for late done requests.
+  // 已落定的 promise 会保留原始拒绝原因，以响应迟到的 done 请求。
   private readonly completed = new Map<SshProcessId, Promise<Completion>>()
   private readonly cleanups = new Set<Promise<void>>()
   private closing = false
 
-  /** Spill failures reach the helper's logger; the remote caller then receives the tail without a spill path. */
+  /** 溢出失败会上报到 helper 的日志；远端调用方随后只能拿到尾部数据而没有溢出路径。 */
   private readonly reportSpillFailure: SpillFailureReporter
 
   constructor(
@@ -105,9 +105,9 @@ export class RemoteProcesses {
   }
 
   /**
-   * Allocate private stream listeners; no target executes until start().
-   * @param raw - untrusted process request received over SSH.
-   * @returns the reservation id and authenticated stream coordinates.
+   * 分配私有流监听器；在调用 start() 之前不会执行任何目标程序。
+   * @param raw - 通过 SSH 收到的、不可信的进程请求。
+   * @returns 预留 id 与已认证的流坐标。
    */
   async prepare(raw: unknown): Promise<{ id: SshProcessId; streams: Partial<Record<Channel, SshStreamEndpoint>> }> {
     if (this.closing || this.records.size >= this.limit) throw new Error('SSH process capacity unavailable')
@@ -144,10 +144,10 @@ export class RemoteProcesses {
   }
 
   /**
-   * Start once all data channels are authenticated; duplicate starts refuse.
-   * @param id - the prepared process reservation.
-   * @param signal - cancellation of pending process publication.
-   * @returns the terminal pid when the request owns a PTY.
+   * 当所有数据通道均通过认证后启动；重复启动会被拒绝。
+   * @param id - 已准备的进程预留。
+   * @param signal - 用于取消尚未完成的进程创建。
+   * @returns 当请求持有 PTY 时返回终端 pid。
    */
   async start(id: SshProcessId, signal?: AbortSignal): Promise<{ pid?: number }> {
     const record = this.record(id)
@@ -158,7 +158,7 @@ export class RemoteProcesses {
     record.start = this.startOnce(id, record)
     try { await record.start }
     catch (error) {
-      // AbortSignal reasons need not be Errors; retain the caller's rejection.
+      // AbortSignal 的 reason 不一定是 Error；保留调用方的原始拒绝原因。
       // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
       const failed = Promise.reject<Completion>(error)
       void failed.catch(() => {})
@@ -257,7 +257,7 @@ export class RemoteProcesses {
       for (const stop of stopCapture) stop()
     }).then(async (outcome) => {
       for (const forwarder of forwarders) forwarded.push(forwarder.finish())
-      // A paused output reader may defer EOF, but must not retain the process-range owner.
+      // 暂停的输出读取方可能推迟 EOF，但不得继续占用进程组的归属者。
       await Promise.race([
         Promise.all(streams),
         new Promise<void>((resolve) => { const timer = setTimeout(resolve, request.graceMs); timer.unref() }),
@@ -283,10 +283,10 @@ export class RemoteProcesses {
   }
 
   /**
-   * Await the direct result without claiming all descendants have exited.
-   * @param id - the started process reservation.
-   * @returns the exit observation and remote spill paths.
-   * @throws the original startup or process failure while its completion is retained.
+   * 等待直接结果，而不保证所有后代进程均已退出。
+   * @param id - 已启动的进程预留。
+   * @returns 退出观察结果与远端溢出路径。
+   * @throws 原始的启动或进程失败，同时保留其完成结果。
    */
   async done(id: SshProcessId): Promise<unknown> {
     if (this.completed.has(id)) return this.completed.get(id)
@@ -297,10 +297,10 @@ export class RemoteProcesses {
   }
 
   /**
-   * Observe the native managed range used for termination.
-   * @param id - the started process reservation.
-   * @param signal - cancellation of this observation, leaving ownership intact.
-   * @returns whether the owned process range is empty.
+   * 观察用于终止进程的本地托管进程组。
+   * @param id - 已启动的进程预留。
+   * @param signal - 用于取消本次观察，不影响进程归属。
+   * @returns 所托管的进程组是否已为空。
    */
   async wait(id: SshProcessId, signal?: AbortSignal): Promise<boolean> {
     if (this.completed.has(id)) return true
@@ -312,8 +312,8 @@ export class RemoteProcesses {
   }
 
   /**
-   * Terminate and await the managed range independently of output readers.
-   * @param id - the process reservation to stop.
+   * 终止进程并等待进程组静止，不受输出读取方影响。
+   * @param id - 要停止的进程预留。
    */
   async terminate(id: SshProcessId): Promise<void> {
     if (this.completed.has(id)) return
@@ -331,11 +331,11 @@ export class RemoteProcesses {
   }
 
   /**
-   * Operate on the terminal owned by the request id.
-   * @param id - the terminal reservation.
-   * @param operation - terminal input, foreground observation, or signal delivery.
-   * @param value - input bytes as text or the signal name.
-   * @returns the operation's wire result.
+   * 对请求 id 所持有的终端执行操作。
+   * @param id - 终端预留。
+   * @param operation - 终端输入、前台观察或信号投递。
+   * @param value - 以文本形式给出的输入字节，或信号名称。
+   * @returns 该操作在线路上的返回值。
    */
   async terminal(id: SshProcessId, operation: 'write' | 'inspect' | 'activity' | 'signal', value?: string): Promise<unknown> {
     const terminal = this.record(id).terminal
@@ -347,11 +347,11 @@ export class RemoteProcesses {
   }
 
   /**
-   * Resize an allocated terminal without replacing its process.
-   * @param id - terminal reservation.
-   * @param cols - positive terminal width.
-   * @param rows - positive terminal height.
-   * @returns after the local provider accepts the dimensions.
+   * 调整已分配终端的尺寸，而不替换其进程。
+   * @param id - 终端预留。
+   * @param cols - 正的终端宽度。
+   * @param rows - 正的终端高度。
+   * @returns 在本地 provider 接受该尺寸之后返回。
    */
   async resizeTerminal(id: SshProcessId, cols: number, rows: number): Promise<void> {
     const terminal = this.record(id).terminal
@@ -359,7 +359,7 @@ export class RemoteProcesses {
     await terminal.resize(cols, rows)
   }
 
-  /** Stop every owned process on lease expiry or disconnect. */
+  /** 租约到期或连接断开时停止所有被托管的进程。 */
   async close(): Promise<void> {
     if (this.closing) return
     this.closing = true

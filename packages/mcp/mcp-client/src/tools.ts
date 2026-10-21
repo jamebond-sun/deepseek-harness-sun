@@ -1,13 +1,11 @@
 /**
- * Tool bridge: discovers MCP tools, registers them on the harness ToolRuntime
- * under deterministic server-qualified public names, and handles re-sync when
- * the server's tool list changes.
+ * 工具桥接：发现 MCP 工具，把它们以确定性的、服务端限定的公开名注册到 harness
+ * 的 ToolRuntime 上，并在服务端的工具列表变化时处理重新同步。
  *
- * Naming contract (see the mcp-client Agent Note "Naming invariants"): every MCP tool
- * has the stable identity `(serverName, rawName)`; the model-facing public name
- * is `mcp__<serverName>__<rawName>`, normalized to the DeepSeek function-name
- * constraints. The raw name is only ever sent on the wire (`tools/call`); the
- * public name is never parsed to recover it.
+ * 命名约定（见 mcp-client 的 Agent Note「Naming invariants」）：每个 MCP 工具
+ * 都有稳定身份 `(serverName, rawName)`；模型可见的公开名是
+ * `mcp__<serverName>__<rawName>`，并按 DeepSeek 函数名约束归一化。只有原始名会
+ * 出现在线路上（`tools/call`）；公开名从不被反解以还原原始名。
  *
  * @module
  */
@@ -24,36 +22,35 @@ import { assertSupportedJsonSchema } from '@deepseek-ai/dsh-tools'
 import type { JsonSchemaNode } from '@deepseek-ai/dsh-tools'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 
-/** Resolved options relevant to tool bridging. */
+/** 与工具桥接相关的、已解析的选项。 */
 export interface ToolBridgeOptions {
-  /** Whether a registry conflict is contained or rejects this synchronization. */
+  /** 注册表冲突是被包容，还是让本次同步失败。 */
   registrationFailure: 'contain' | 'throw'
   serverName: string
   toolCallTimeoutMs: number
 }
 
-/** State for one sync generation: the current set of disposers keyed by public name. */
+/** 一个同步世代的状态：按公开名索引的当前 disposer 集合。 */
 export type ToolDisposers = Map<string, () => void>
 
-/** Canonical MCP result exposed to PTC mode without discarding protocol blocks. */
+/** 暴露给 PTC 模式的规范化 MCP 结果，且不丢弃协议块。 */
 export type McpResult<Structured extends JsonValue = JsonValue> = {
   content: JsonValue[]
   structuredContent?: Structured
 }
 
 /**
- * DeepSeek function-name contract: at most 64 characters. Wire-protocol
- * constant, not configuration.
+ * DeepSeek 函数名约定：最长 64 个字符。属于线路协议常量，不是配置项。
  */
 const MAX_PUBLIC_NAME_LENGTH = 64
 
-/** DeepSeek function-name contract: only `[A-Za-z0-9_-]` is allowed. */
+/** DeepSeek 函数名约定：只允许 `[A-Za-z0-9_-]`。 */
 const INVALID_NAME_CHARS = /[^A-Za-z0-9_-]/g
 
-/** Hex chars of the SHA-256 identity hash appended on lossy normalization. */
+/** 发生有损归一化时，追加在末尾的身份 SHA-256 哈希的十六进制字符数。 */
 const HASH_LENGTH = 12
 
-/** Raster formats supported by the durable attachment vocabulary. */
+/** 持久化附件 vocabulary 所支持的位图格式。 */
 const IMAGE_MEDIA_TYPES: readonly ImageMediaType[] = [
   'image/png',
   'image/jpeg',
@@ -61,22 +58,20 @@ const IMAGE_MEDIA_TYPES: readonly ImageMediaType[] = [
   'image/gif',
 ]
 
-/** Canonical RFC 4648 base64, excluding whitespace and URL-safe aliases. */
+/** 规范的 RFC 4648 base64，不含空白字符与 URL-safe 变体。 */
 const CANONICAL_BASE64 = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/
 
 /**
- * Derive the model-facing public name for one MCP tool.
+ * 推导单个 MCP 工具的模型可见公开名。
  *
- * Deterministic pure function of `(serverName, rawName)`: the clean case is
- * `mcp__<serverName>__<rawName>` verbatim. When character replacement or
- * truncation to the DeepSeek function-name contract (64 chars,
- * `[A-Za-z0-9_-]`) changes the name, a 12-hex-char SHA-256 hash of the
- * identity is appended so distinct MCP identities never collapse into the
- * same public name.
+ * 关于 `(serverName, rawName)` 的确定性纯函数：理想情况就是原样输出的
+ * `mcp__<serverName>__<rawName>`。当字符替换或按 DeepSeek 函数名约定
+ * （64 字符、`[A-Za-z0-9_-]`）截断改变了名字时，会追加身份的 12 位十六进制
+ * SHA-256 哈希，使不同的 MCP 身份永不坍缩为同一个公开名。
  *
- * @param serverName - Stable local namespace from plugin config.
- * @param rawName - The MCP server's own tool name.
- * @returns The globally unique, model-facing ToolRuntime name.
+ * @param serverName - 来自插件配置的稳定本地命名空间。
+ * @param rawName - MCP 服务端自己的工具名。
+ * @returns 全局唯一的、模型可见的 ToolRuntime 名称。
  */
 export function publicToolName(serverName: string, rawName: string): string {
   const joined = `mcp__${serverName}__${rawName}`
@@ -87,28 +82,25 @@ export function publicToolName(serverName: string, rawName: string): string {
 }
 
 /**
- * Sync the MCP server's tool list into the harness ToolRuntime.
+ * 把 MCP 服务端的工具列表同步进 harness 的 ToolRuntime。
  *
- * Two phases keep the swap safe:
+ * 两个阶段让切换保持安全：
  *
- * 1. Fetch: let the SDK aggregate `tools/list` and build the full next
- *    generation of `ToolDefinition`s under public names. Any failure here
- *    (network error or duplicate raw name) rejects
- *    and leaves the previous generation registered untouched.
- * 2. Swap: dispose the previous generation, register the new one. A registry
- *    conflict here can only mean a foreign registration squats on this
- *    server's `mcp__<serverName>__` namespace — the partial generation is
- *    rolled back (zero tools from this server) and logged. Initial strict
- *    synchronization may propagate the conflict so its parent transaction
- *    rejects; ordinary clients and later re-syncs return an empty map.
+ * 1. 抓取：由 SDK 聚合 `tools/list`，并以公开名构建完整的下一代
+ *    `ToolDefinition`。此处任何失败（网络错误或重复的原始名）都会 reject，
+ *    并保持上一代注册原封不动。
+ * 2. 切换：销毁上一代，注册新一代。此处出现注册表冲突，只可能是外部注册占用了
+ *    本服务端的 `mcp__<serverName>__` 命名空间——部分世代会被回滚（本服务端
+ *    零个工具）并记录日志。初始的严格同步可以把冲突向上传播，让其所属事务被
+ *    拒绝；普通客户端与后续的重新同步则返回空 map。
  *
- * @param client - Connected MCP Client instance used to list and call tools.
- * @param ctx - Cordis context providing the `tools` service for registration.
- * @param opts - Bridge options: server namespace and per-call timeout.
- * @param previous - Disposer map from the prior sync generation; disposed
- *   during the swap phase (only after the fetch phase succeeded).
- * @returns A map of registered public tool names to their unregister
- *   disposers — the exact set of live registrations owned by this server.
+ * @param client - 已连接的 MCP Client 实例，用于列出并调用工具。
+ * @param ctx - 提供 `tools` 服务用于注册的 Cordis 上下文。
+ * @param opts - 桥接选项：服务端命名空间与单次调用超时。
+ * @param previous - 上一个同步世代的 disposer map；在切换阶段被销毁
+ *   （且仅在抓取阶段成功之后）。
+ * @returns 已注册的公开工具名到其注销 disposer 的映射——即本服务端持有的
+ *   在线注册的精确集合。
  */
 export async function syncTools(
   client: Client,
@@ -116,7 +108,7 @@ export async function syncTools(
   opts: ToolBridgeOptions,
   previous: ToolDisposers,
 ): Promise<ToolDisposers> {
-  // Phase 1: fetch and build the next generation without touching the registry.
+  // 阶段 1：在不触碰注册表的前提下抓取并构建下一代。
   const definitions = new Map<string, ToolDefinition>()
   const response = client.getServerCapabilities()?.tools === undefined
     ? { tools: [] }
@@ -142,7 +134,7 @@ export async function syncTools(
     }))
   }
 
-  // Phase 2: swap generations.
+  // 阶段 2：切换世代。
   for (const dispose of previous.values()) dispose()
   const disposers: ToolDisposers = new Map()
   try {
@@ -150,9 +142,9 @@ export async function syncTools(
       disposers.set(publicName, ctx.tools.register(definition))
     }
   } catch (error) {
-    // A conflict on an `mcp__<serverName>__`-qualified name means a foreign
-    // registration occupies this server's namespace. Roll back so the model
-    // sees either the full generation or none of it — never a partial set.
+    // `mcp__<serverName>__` 限定名上的冲突，意味着有外部注册占用了本服务端的
+    // 命名空间。回滚，使模型看到的要么是完整的一代，要么一个都没有——绝不
+    // 是部分集合。
     for (const dispose of disposers.values()) dispose()
     ctx.logger.error(`mcp-client(${opts.serverName}): tool registration failed, no tools registered: ${String(error)}`)
     if (opts.registrationFailure === 'throw') throw error
@@ -161,7 +153,7 @@ export async function syncTools(
   return disposers
 }
 
-/** Fields read from canonical content, including policy-owned value replacements. */
+/** 从规范化内容中读取的字段，包含由策略负责的值替换。 */
 interface McpContentBlock {
   type: string
   text?: string
@@ -171,17 +163,17 @@ interface McpContentBlock {
   uri?: string
 }
 
-/** Async rich projection staged for one exact ToolRuntime execution. */
+/** 为一次确切的 ToolRuntime 执行预备好的异步富投影。 */
 interface PreparedProjection {
-  /** Canonical MCP value returned by execute before registry materialization. */
+  /** execute 在注册表物化之前返回的规范化 MCP 值。 */
   value: McpResult
-  /** Synchronous output.render projection expected before finalization. */
+  /** 最终确定之前应有的、同步的 output.render 投影。 */
   fallback: ContentBlock[]
-  /** Image-enriched or explicit-refusal projection prepared during execute. */
+  /** 在 execute 期间预备好的、已富集图片或显式拒绝的投影。 */
   content: ContentBlock[]
 }
 
-/** Keep a supported advertised schema; unsupported MCP vocabulary falls back to JsonValue. */
+/** 保留受支持的已声明 schema；不受支持的 MCP 词汇回退为 JsonValue。 */
 function supportedOutputSchema(candidate: unknown): JsonSchemaNode | undefined {
   if (candidate === undefined) return undefined
   try {
@@ -192,35 +184,35 @@ function supportedOutputSchema(candidate: unknown): JsonSchemaNode | undefined {
   }
 }
 
-/** One upstream MCP tool and the callback that obtains its raw protocol result. */
+/** 一个上游 MCP 工具，以及获取其原始协议结果的回调。 */
 export interface McpToolDefinitionOptions {
-  /** ToolRuntime name presented to the model. */
+  /** 呈现给模型的 ToolRuntime 名称。 */
   name: string
-  /** Upstream name used in result diagnostics. */
+  /** 用于结果诊断的上游名称。 */
   rawName: string
-  /** Upstream model-facing description. */
+  /** 上游面向模型的描述。 */
   description: string
-  /** Upstream JSON input schema. */
+  /** 上游 JSON 输入 schema。 */
   inputSchema: Record<string, unknown>
-  /** Advertised structured output schema, when present. */
+  /** 已声明的结构化输出 schema（若存在）。 */
   outputSchema?: unknown
-  /** Whether the upstream tool requires the unsupported task execution extension. */
+  /** 上游工具是否要求本桥接不支持的 task 执行扩展。 */
   taskRequired?: boolean
   /**
-   * Obtain one raw MCP result from the provider.
-   * @param args - model arguments admitted by the ToolRuntime.
-   * @param execution - exact ToolRuntime invocation, including its Agent and cancellation.
-   * @returns the external result object, validated before content projection.
+   * 从提供方获取一个原始 MCP 结果。
+   * @param args - 经 ToolRuntime 准入的模型参数。
+   * @param execution - 确切的 ToolRuntime 调用，包含其 Agent 与取消信号。
+   * @returns 外部结果对象，在内容投影之前完成校验。
    */
   call(args: Record<string, unknown>, execution: ToolExecution): Promise<unknown>
 }
 
 /**
- * Adapt an upstream MCP tool to canonical values and durable image content.
- * Registration, provider lifetime, deadlines, and transport belong to the caller.
- * @param ctx - plugin context carrying optional attachment and model services.
- * @param options - upstream tool fields and its raw-result callback.
- * @returns the unregistered ToolRuntime definition.
+ * 把上游 MCP 工具适配为规范化取值与持久化图片内容。
+ * 注册、提供方生命周期、截止时间与传输都由调用方负责。
+ * @param ctx - 携带可选附件与模型服务的插件上下文。
+ * @param options - 上游工具字段及其原始结果回调。
+ * @returns 未注册的 ToolRuntime 定义。
  */
 export function createMcpToolDefinition(
   ctx: Context,
@@ -246,7 +238,7 @@ export function createMcpToolDefinition(
   }
 }
 
-/** Build the canonical result schema and existing Native text projection. */
+/** 构建规范化结果 schema 以及既有的 Native 文本投影。 */
 function createOutput(rawName: string, structuredSchema: JsonSchemaNode | undefined): ToolDefinition['output'] {
   return {
     schema: {
@@ -266,8 +258,8 @@ function createOutput(rawName: string, structuredSchema: JsonSchemaNode | undefi
 }
 
 /**
- * Invoke the caller-owned raw-result callback and prepare canonical content.
- * MCP isError results reject before image storage so ToolRuntime records failure.
+ * 调用由调用方持有的原始结果回调，并预备规范化内容。
+ * MCP 的 isError 结果会在图片存储之前 reject，以便 ToolRuntime 记录失败。
  */
 function createExecutor(
   ctx: Context,
@@ -279,10 +271,9 @@ function createExecutor(
     if (taskRequired) {
       throw new Error(`Tool "${rawName}" requires task-based execution, which this bridge does not support`)
     }
-    // The agent loop passes `JSON.parse(model_arguments)` which is usually an
-    // object, but can be any JSON value if the model misbehaves (outputs a bare
-    // string/number/null). Fallback to {} lets the MCP server produce a
-    // specific "missing required param" error the model can learn from.
+    // agent loop 传入的是 `JSON.parse(model_arguments)`，通常是对象；但如果模型
+    // 行为异常（输出裸的字符串/数字/null），它可以是任意 JSON 值。回退为 {}
+    // 能让 MCP 服务端给出具体的「缺少必填参数」错误，供模型从中学习。
     const argsObj = (typeof args === 'object' && args !== null ? args : {}) as Record<string, unknown>
     const parsed = specTypeSchemas.CallToolResult['~standard'].validate(await options.call(argsObj, exec))
     if (parsed.issues !== undefined) {
@@ -293,7 +284,7 @@ function createExecutor(
     const content = result.content as unknown as JsonValue[]
     const text = extractText(content, rawName)
 
-    // MCP isError → throw so ToolRuntime produces an isError result for the model.
+    // MCP isError → 抛错，使 ToolRuntime 为模型产出 isError 结果。
     if (result.isError === true) {
       throw new Error(text)
     }
@@ -313,22 +304,22 @@ function createExecutor(
   }
 }
 
-/** Whether an untrusted MCP content array contains a declared image block. */
+/** 一个不可信的 MCP 内容数组是否包含已声明的图片块。 */
 function containsImage(content: JsonValue[]): boolean {
   return content.some(value => isRecord(value) && value.type === 'image')
 }
 
-/** Narrow one JSON value to a string-keyed object. */
+/** 把一个 JSON 值窄化为字符串键对象。 */
 function isRecord(value: JsonValue): value is { [key: string]: JsonValue } {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-/** Narrow a declared MIME string to the durable image vocabulary. */
+/** 把已声明的 MIME 字符串窄化为持久化图片 vocabulary。 */
 function isImageMediaType(value: string): value is ImageMediaType {
   return IMAGE_MEDIA_TYPES.includes(value as ImageMediaType)
 }
 
-/** Decode one projected image without accepting base64 aliases. */
+/** 解码一张待投影的图片，不接受 base64 变体。 */
 function decodeImage(block: ImageContent): SaveImageAttachment {
   if (!isImageMediaType(block.mimeType)) {
     throw new Error('the declared media type is not PNG, JPEG, WebP, or GIF')
@@ -344,10 +335,10 @@ function decodeImage(block: ImageContent): SaveImageAttachment {
 }
 
 /**
- * Resolve the active model route and durable store for an image-bearing result.
- * @param ctx - plugin context with optional services.
- * @param exec - exact tool execution whose agent supplies the latest route.
- * @returns the attachment store after exact positive image-capability proof.
+ * 为携带图片的结果解析当前生效的模型路由与持久化存储。
+ * @param ctx - 带有可选服务的插件上下文。
+ * @param exec - 确切的工具执行，其 agent 提供最新的路由。
+ * @returns 在确切证得图片能力为正之后的附件存储。
  */
 async function resolveImageAdmission(ctx: Context, exec: ToolExecution): Promise<AttachmentStore> {
   const attachments = ctx.get('attachments')
@@ -372,16 +363,15 @@ async function resolveImageAdmission(ctx: Context, exec: ToolExecution): Promise
   return attachments
 }
 
-/** Stable diagnostic text for an image block that was not admitted. */
+/** 为未被准入的图片块生成稳定的诊断文本。 */
 function imageDiagnostic(block: McpContentBlock, reason: string): string {
   const mediaType = block.mimeType ?? 'unknown media type'
   return `[image unavailable: ${mediaType}; ${reason}; raw image data remains available to programmatic callers]`
 }
 
 /**
- * Decode, preflight, and durably save one MCP result's ordered image batch.
- * Any refusal projects every image as text while retaining the canonical raw
- * value for programmatic callers.
+ * 解码、预检并持久化保存一个 MCP 结果中按序排列的图片批次。
+ * 任何拒绝都会把每张图片投影为文本，同时为程序化调用方保留规范化的原始值。
  */
 async function prepareImageProjection(
   ctx: Context,
@@ -398,7 +388,7 @@ async function prepareImageProjection(
     try {
       decoded.push(decodeImage(value as unknown as ImageContent))
     } catch (error: unknown) {
-      // decodeImage owns every throw above and always produces Error.
+      // decodeImage 拥有上面的每一处 throw，且始终产生 Error。
       validationErrors.set(index, (error as Error).message)
     }
   }
@@ -416,7 +406,7 @@ async function prepareImageProjection(
   try {
     attachments = await resolveImageAdmission(ctx, exec)
   } catch (error: unknown) {
-    // resolveImageAdmission contains provider failures and throws Error only.
+    // resolveImageAdmission 包容提供方的失败，且只抛出 Error。
     const reason = (error as Error).message
     return projectContent(content, toolName, block => ({ type: 'text', text: imageDiagnostic(block, reason) }))
   }
@@ -440,23 +430,21 @@ async function prepareImageProjection(
 }
 
 /**
- * Extract text from an MCP content array into a single string.
- * - text blocks: join with '\n'
- * - image/audio/resource blocks: replaced with a placeholder
+ * 从一个 MCP 内容数组中把文本抽取为单个字符串。
+ * - text 块：以 '\n' 连接
+ * - image/audio/resource 块：替换为占位符
  *
- * Policy-owned canonical-value replacements may omit fields required on the MCP wire.
+ * 由策略负责的规范化值替换，可能省略 MCP 线路上必填的字段。
  */
 function extractText(mcpContent: JsonValue[], toolName: string): string {
   const content = projectContent(mcpContent, toolName)
-  // The default image projector below also returns text, so this local call
-  // cannot produce a core image block.
+  // 下面的默认图片投影器同样返回文本，因此这次本地调用不可能产出核心图片块。
   return content.map(block => (block as Extract<ContentBlock, { type: 'text' }>).text).join('\n')
 }
 
 /**
- * Project ordered MCP blocks into the core content vocabulary.
- * Text-like runs are newline-coalesced; admitted images split those runs at
- * their original position.
+ * 把按序排列的 MCP 块投影为核心内容 vocabulary。
+ * 类文本的片段按换行合并；被准入的图片会在其原始位置切分这些片段。
  */
 function projectContent(
   mcpContent: JsonValue[],

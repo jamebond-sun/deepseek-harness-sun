@@ -1,4 +1,4 @@
-# The automation-only ACP application over dsh-base. Stdout belongs to ACP.
+# 面向自动化场景的 ACP 应用，构建在 dsh-base 之上。stdout 归 ACP 所有。
 
 - id: system-prompt
   config:

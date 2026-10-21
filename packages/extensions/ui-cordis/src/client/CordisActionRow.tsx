@@ -1,4 +1,4 @@
-/** Localized cards for `cordis_stop` and `cordis_undefine`. */
+/** `cordis_stop` 与 `cordis_undefine` 的本地化卡片。 */
 
 import {
   IconInspectOutlineRegular, IconStopFillRegular, IconTrashOutlineRegular,
@@ -9,10 +9,10 @@ import { cordisActionCard } from './card-model.ts'
 import css from './CordisRunRow.module.css'
 import { CordisPreparingRow } from './CordisPreparingRow.tsx'
 
-/** Full action-card props composed by the keyed Tool slot. */
+/** 由 keyed Tool 槽位组合而成的完整动作卡片 props。 */
 export type CordisActionRowProps = ToolCallViewProps & PropsLocale<'cordis'>
 
-/** Render one Stop or Remove call with Cordis-owned localized copy. */
+/** 以 Cordis 自有的本地化文案渲染一次 Stop 或 Remove 调用。 */
 export function CordisActionRow(props: CordisActionRowProps) {
   if (props.phase === 'preparing') {
     const remove = props.toolName === 'cordis_undefine'

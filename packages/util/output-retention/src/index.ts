@@ -1,41 +1,34 @@
 /**
- * A dependency-light **retention** library: bounded model-facing output for
- * tools that must cap how much context they return. A caller feeds items or
- * text chunks into a bounded object, then gets the retained content plus exact
- * omission metadata ({@link RetainedItems} / {@link RetainedText}).
+ * 一个低依赖的**保留（retention）**库：为有界、面向模型的输出而设，适用于那些
+ * 必须限制返回上下文量的工具。调用方将条目或文本块喂入一个有界对象，然后得到
+ * 保留内容加上精确的省略元数据（{@link RetainedItems} / {@link RetainedText}）。
  *
- * The library owns ONLY the mechanical question "what did we keep, what did we
- * omit?". Tool-specific code still owns
- * business semantics: file grouping, line numbering, exit codes, provider error
- * states, per-line preview truncation, spill files, and the model-facing prose.
- * In particular {@link RetainedText.truncated}/{@link RetainedItems.truncated}
- * means "the retainer omitted otherwise-available content because of a budget" —
- * NOT "the upstream was incomplete". Permission failures, skipped binaries,
- * provider partial failures, and unreadable candidates stay in tool-domain
- * fields, never folded into `truncated`.
+ * 本库只负责一个机械性问题「我们保留了什么、省略了什么？」。工具特有的代码仍
+ * 负责业务语义：文件分组、行号、退出码、提供方错误状态、逐行预览截断、溢出文件，
+ * 以及面向模型的行文。尤其要注意，{@link RetainedText.truncated}/
+ * {@link RetainedItems.truncated} 意为「保留方因预算而省略了本可获取的内容」——
+ * 而非「上游不完整」。权限失败、跳过的二进制文件、提供方部分失败，以及不可读
+ * 的候选，仍停留在工具领域字段中，绝不会折进 `truncated`。
  *
- * This is deliberately a library, not a cordis service or plugin: it takes no
- * `ctx`, registers nothing, and emits no events. The two retainers are the only
- * stateful pieces and their state is per-instance (one accumulation), never
- * cross-call. Tool packages import it directly when they need bounded output.
+ * 这刻意是一个库，而非 cordis 服务或插件：它不接收 `ctx`、不注册任何东西、也不
+ * 发出事件。两个保留器是唯一有状态的部分，且其状态是每实例的（一次累积），绝不
+ * 跨调用。工具包在需要有限输出时直接导入它。
  *
- * The two retainers differ in resource model, which is why they are two names
- * rather than one generic collector:
- * - {@link ItemRetainer} bounds ordered logical units (paths, grep matches,
- *   search sources). `head` retention only in v1.
- * - {@link TextRetainer} bounds byte-oriented text streams (bash stdout/stderr,
- *   web bodies). `head` / `tail` / `headTail`, preserving UTF-8 boundaries at
- *   {@link TextRetainer.finish}.
+ * 两个保留器在资源模型上不同，这正是它们是两个名称而非一个通用收集器的原因：
+ * - {@link ItemRetainer} 限定有序的逻辑单元（路径、grep 匹配、搜索来源）。
+ *   v1 中仅 `head` 保留。
+ * - {@link TextRetainer} 限定面向字节的文本流（bash 的 stdout/stderr、Web 正文）。
+ *   `head` / `tail` / `headTail`，并在 {@link TextRetainer.finish} 处保留 UTF-8
+ *   边界。
  *
  * @module @deepseek-ai/dsh-output-retention
  */
 
 /**
- * How much content the retainer omitted.
+ * 保留方省略了多少内容。
  *
- * `exact` is the normal retainer shape: every unit/byte was observed, so the
- * omitted count is precise. `unknown` is reserved for a caller that omits
- * without a count; the retainers themselves never return it.
+ * `exact` 是正常的保留器形态：每个单元/字节都已被观察到，因此省略计数是精确的。
+ * `unknown` 保留给一个不带计数就省略的调用方；保留器自身永远不会返回它。
  */
 export type Omitted =
   | { kind: 'none' }
@@ -43,21 +36,20 @@ export type Omitted =
   | { kind: 'unknown' }
 
 /**
- * The caller receives this after each `push()`.
+ * 调用方在每次 `push()` 后收到这个。
  */
 export interface PushDecision {
-  /** Was this whole unit / all of this chunk's bytes retained (nothing dropped)? */
+  /** 整个单元 / 该分块的所有字节是否都被保留了（没有任何丢弃）？ */
   kept: boolean
-  /** Cumulative: has the retainer omitted anything due to the budget yet? */
+  /** 累积的：保留方是否因预算而已经省略了什么？ */
   truncated: boolean
 }
 
 /**
- * Final result for ordered logical units.
+ * 有序逻辑单元的最终结果。
  *
- * `seen` means units OBSERVED by the retainer, not necessarily the total in the
- * upstream source. `kept` is `items.length`, surfaced explicitly so a notice
- * formatter need not re-count.
+ * `seen` 指保留方 OBSERVED 到的单元，未必是上游来源中的总数。`kept` 即
+ * `items.length`，被显式暴露，以便通知格式化器无需重新计数。
  */
 export interface RetainedItems<T> {
   items: T[]
@@ -68,14 +60,12 @@ export interface RetainedItems<T> {
 }
 
 /**
- * Final result for text streams.
+ * 文本流的最终结果。
  *
- * The returned `text` is safe to hand to a formatter: the retainer adds no
- * tool-specific headers, exit markers, XML tags, or recovery instructions, and
- * `omittedBytes` counts BYTES (not characters or lines) — text retention is
- * byte-oriented for process/body safety. UTF-8 boundaries at each cut are
- * preserved, so `text` never carries a replacement char introduced by the cut
- * itself.
+ * 返回的 `text` 可安全交给格式化器：保留器不添加任何工具特有的头、退出标记、
+ * XML 标签或恢复指引，且 `omittedBytes` 计的是 BYTES（而非字符或行）——文本
+ * 保留是面向字节的，以保进程/正文安全。每次裁剪处的 UTF-8 边界都被保留，因此
+ * `text` 永远不会携带由裁剪本身引入的替换字符。
  */
 export interface RetainedText {
   text: string
@@ -83,41 +73,40 @@ export interface RetainedText {
   omittedBytes: Omitted
 }
 
-/** Item retention strategy. Only `head` in v1; windows/grouped budgets wait for a second consumer. */
+/** 条目保留策略。v1 中仅 `head`；窗口/分组预算留待第二个消费方。 */
 export type ItemRetentionStrategy = {
-  /** Keep the first `maxItems` units. Use for `glob`, `grep`, and web sources. */
+  /** 保留前 `maxItems` 个单元。用于 `glob`、`grep` 与 Web 来源。 */
   kind: 'head'
   maxItems: number
 }
 
-/** Text retention strategy: keep a prefix, a suffix, or both, counted in bytes. */
+/** 文本保留策略：保留前缀、后缀或两者，以字节计。 */
 export type TextRetentionStrategy =
   | {
-    /** Keep the first `maxBytes` bytes. */
+    /** 保留前 `maxBytes` 个字节。 */
     kind: 'head'
     maxBytes: number
   }
   | {
-    /** Keep the final `maxBytes` bytes. Requires reading to the end. */
+    /** 保留最后的 `maxBytes` 个字节。需读到末尾。 */
     kind: 'tail'
     maxBytes: number
   }
   | {
-    /** Keep a stable prefix and suffix, omitting the middle. Requires reading to the end. */
+    /** 保留稳定的前缀与后缀，省略中间。需读到末尾。 */
     kind: 'headTail'
     headBytes: number
     tailBytes: number
   }
 
 /**
- * A neutral, tool-agnostic description of one retention outcome — the input to
- * {@link formatRetentionNotice}. It carries the mechanical facts (strategy,
- * unit, limit, kept count, {@link Omitted}); the tool supplies the recovery
- * words, because only the tool knows the recovery action ("narrow the pattern",
- * "fetch a more specific URL", "read the spill file").
+ * 对一个保留结果的中立、与工具无关的描述——即 {@link formatRetentionNotice} 的
+ * 输入。它携带机械事实（策略、单元、上限、保留计数、{@link Omitted}）；工具提供
+ * 恢复措辞，因为只有工具知道恢复动作（「收窄模式」、「获取更具体的 URL」、
+ * 「读取溢出文件」）。
  */
 export interface RetentionNotice {
-  /** Tool/scope label, e.g. `grep`, `web_fetch`, `bash stdout`. */
+  /** 工具/作用域标签，例如 `grep`、`web_fetch`、`bash stdout`。 */
   scope: string
   strategy: 'head' | 'tail' | 'headTail'
   unit: 'items' | 'bytes' | 'chars' | 'lines'
@@ -126,7 +115,7 @@ export interface RetentionNotice {
   omitted: Omitted
 }
 
-/** Assert a budget field is a non-negative integer (the retainer request contract). */
+/** 断言预算字段是一个非负整数（保留器请求契约）。 */
 function assertBudget(value: number, name: string): void {
   if (!Number.isInteger(value) || value < 0) {
     throw new Error(`${name} must be a non-negative integer`)
@@ -134,14 +123,13 @@ function assertBudget(value: number, name: string): void {
 }
 
 /**
- * Bounds an ordered stream of logical units, keeping the first `maxItems`
- * ({@link ItemRetentionStrategy} `head`). `push()` reports, per unit, whether it
- * was kept and whether the retained result is now truncated.
+ * 限定一个有序的逻辑单元流，保留前 `maxItems` 个（{@link ItemRetentionStrategy}
+ * 的 `head`）。`push()` 会就每个单元报告它是否被保留，以及保留结果此刻是否已
+ * 截断。
  *
- * Grouping, sorting, path mapping, per-unit preview truncation, and any
- * `incomplete` state stay OUTSIDE the retainer: it counts and keeps, nothing
- * more. The caller pushes prepared logical units and, after {@link finish},
- * groups/sorts the retained subset itself.
+ * 分组、排序、路径映射、逐单元预览截断，以及任何 `incomplete` 状态都留在保留器
+ * 之外：它只计数与保留，仅此而已。调用方推入已准备好的逻辑单元，并在
+ * {@link finish} 之后自行对保留子集进行分组/排序。
  */
 export class ItemRetainer<T> {
   private readonly maxItems: number
@@ -149,25 +137,24 @@ export class ItemRetainer<T> {
   private seen = 0
   private omittedCount = 0
 
-  /** @param strategy Head strategy: `maxItems` (non-negative integer). */
+  /** @param strategy Head 策略：`maxItems`（非负整数）。 */
   constructor(strategy: ItemRetentionStrategy) {
     assertBudget(strategy.maxItems, 'maxItems')
     this.maxItems = strategy.maxItems
   }
 
   /**
-   * Offer one unit. Kept when the retainer is below `maxItems`; otherwise dropped
-   * and counted as omitted. Callers keep pushing all observed units, so the final
-   * {@link Omitted} count is exact.
+   * 提供一个单元。当保留器低于 `maxItems` 时保留，否则丢弃并计为省略。调用方持续
+   * 推入所有观察到的单元，因此最终的 {@link Omitted} 计数是精确的。
    *
-   * @param item The prepared logical unit (path, flat match, source).
-   * @returns The per-push {@link PushDecision}.
+   * @param item 已准备好的逻辑单元（路径、扁平匹配、来源）。
+   * @returns 每次推送的 {@link PushDecision}。
    */
   push(item: T): PushDecision {
     this.seen++
     if (this.items.length < this.maxItems) {
-      // Reached only below the cap, before any omission (items only grow, the
-      // cap is fixed), so nothing has been dropped yet: truncated is always false.
+      // 仅在低于上限、任何省略发生之前才会到达此处（条目只增不减，上限固定），
+      // 因此还没有任何东西被丢弃：truncated 始终为 false。
       this.items.push(item)
       return { kept: true, truncated: false }
     }
@@ -179,9 +166,9 @@ export class ItemRetainer<T> {
   }
 
   /**
-   * Finalize and report what was kept and omitted.
+   * 结束并报告被保留与被省略的内容。
    *
-   * @returns The {@link RetainedItems} snapshot (safe to group/sort downstream).
+   * @returns {@link RetainedItems} 快照（可安全地在下游分组/排序）。
    */
   finish(): RetainedItems<T> {
     const truncated = this.omittedCount > 0
@@ -198,51 +185,47 @@ export class ItemRetainer<T> {
 }
 
 const encoder = new TextEncoder()
-const decoder = new TextDecoder() // utf-8, non-fatal: internal malformed bytes → U+FFFD
+const decoder = new TextDecoder() // utf-8，非致命：内部畸形字节 → U+FFFD
 
 /**
- * Drop a trailing incomplete UTF-8 sequence so a prefix cut never emits a
- * replacement char at the boundary. Walks back over continuation bytes
- * (`10xxxxxx`) to the lead byte; if fewer bytes follow it than the lead byte's
- * length declares, the sequence is incomplete and is trimmed. A complete tail,
- * or a run too long/short to be a valid lead, is returned untouched (any
- * genuinely malformed interior is left for the decoder to replace).
+ * 丢弃尾部不完整的 UTF-8 序列，使前缀裁剪永远不会在边界处发出替换字符。沿续
+ * 字节（`10xxxxxx`）回退到前导字节；若其后的字节少于前导字节声明的长度，则该
+ * 序列不完整并被裁剪。完整的尾部，或一段过长/过短而不构成合法前导的，则原样
+ * 返回（任何真正畸形的内部字节留给解码器去替换）。
  */
 function trimTrailingPartialUtf8(bytes: Uint8Array): Uint8Array {
   let i = bytes.length - 1
-  // Continuation bytes are 0b10xxxxxx; scan back at most 3 (max sequence is 4).
-  // Indices are bounds-checked by the loop guard, so the reads are in range.
+  // 续字节为 0b10xxxxxx；最多回退 3（最大序列为 4）。
+  // 索引由循环守卫做边界检查，因此读操作都在范围内。
   while (i >= 0 && ((bytes[i] as number) & 0xc0) === 0x80 && bytes.length - i <= 3) i--
   if (i < 0) return bytes
   const lead = bytes[i] as number
   const expected = lead < 0x80 ? 1 : lead < 0xe0 ? 2 : lead < 0xf0 ? 3 : lead < 0xf8 ? 4 : 0
-  // expected 0 → not a lead byte (stray continuation / invalid): leave it.
+  // expected 为 0 → 不是前导字节（游离续字节 / 非法）：保留它。
   if (expected === 0) return bytes
   return bytes.length - i < expected ? bytes.subarray(0, i) : bytes
 }
 
 /**
- * Drop leading continuation bytes (`10xxxxxx`) so a suffix cut starts on a
- * lead/ASCII byte instead of mid-codepoint.
+ * 丢弃前导续字节（`10xxxxxx`），使后缀裁剪从一个前导/ASCII 字节而非码点中间开始。
  */
 function trimLeadingContinuationUtf8(bytes: Uint8Array): Uint8Array {
   let i = 0
-  // i < length guards the read.
+  // i < length 守卫读操作。
   while (i < bytes.length && ((bytes[i] as number) & 0xc0) === 0x80) i++
   return bytes.subarray(i)
 }
 
 /**
- * Bounds a byte-oriented text stream, keeping a prefix, a suffix, or both
- * ({@link TextRetentionStrategy}). All three strategies share one prefix/suffix
- * accumulator: `head` is prefix-only, `tail` is suffix-only, `headTail` is both.
+ * 限定一个面向字节的文本流，保留前缀、后缀或两者（{@link TextRetentionStrategy}）。
+ * 三种策略共享同一个前缀/后缀累加器：`head` 仅前缀，`tail` 仅后缀，`headTail`
+ * 两者皆有。
  *
- * Bytes, not characters: caps and `omittedBytes` are byte counts for process/
- * body safety. Chunks that straddle a codepoint are handled — {@link finish}
- * trims a partial codepoint at each cut so the returned text never introduces a
- * replacement char at the boundary. The retainer holds at most
- * `prefixCap + tailBytes + one chunk` in memory (old suffix chunks are dropped
- * as they slide out), so a large stream does not accumulate unbounded.
+ * 是字节，而非字符：上限与 `omittedBytes` 都是字节计数，以保进程/正文安全。
+ * 跨码点的分块会得到处理——{@link finish} 会在每次裁剪处裁掉部分码点，使返回的
+ * 文本永远不会在边界处引入替换字符。保留器在内存中至多持有
+ * `prefixCap + tailBytes + 一个分块`（旧的尾部分块滑出时即被丢弃），因此大流不会
+ * 无限累积。
  */
 export class TextRetainer {
   private readonly prefixCap: number
@@ -253,7 +236,7 @@ export class TextRetainer {
   private suffixHeld = 0
   private total = 0
 
-  /** @param strategy One {@link TextRetentionStrategy} variant; byte budgets must be non-negative integers. */
+  /** @param strategy 一个 {@link TextRetentionStrategy} 变体；字节预算必须为非负整数。 */
   constructor(strategy: TextRetentionStrategy) {
     switch (strategy.kind) {
       case 'head':
@@ -276,20 +259,19 @@ export class TextRetainer {
   }
 
   /**
-   * Offer one chunk (a `Uint8Array`, or a `string` encoded as UTF-8). Prefix
-   * bytes fill up to the prefix cap then stop; suffix bytes roll so only the
-   * last `suffixCap` bytes are retained. `kept` is `true` only when no byte of
-   * this chunk was dropped.
+   * 提供一个分块（一个 `Uint8Array`，或一个编码为 UTF-8 的 `string`）。前缀字节
+   * 填满至前缀上限后停止；后缀字节滚动，仅保留最后 `suffixCap` 个字节。`kept` 仅
+   * 当本分块没有一个字节被丢弃时才为 `true`。
    *
-   * @param chunk The next bytes of the stream (`Uint8Array` or UTF-8 `string`).
-   * @returns The per-push {@link PushDecision}.
+   * @param chunk 流的下一个字节（`Uint8Array` 或 UTF-8 `string`）。
+   * @returns 每次推送的 {@link PushDecision}。
    */
   push(chunk: Uint8Array | string): PushDecision {
     const bytes = typeof chunk === 'string' ? encoder.encode(chunk) : chunk
     const before = this.total
     this.total += bytes.length
 
-    // Prefix: take only up to the cap; the rest of this chunk is "not prefixed".
+    // 前缀：只取到上限；本分块的其余部分是「未被前缀保留」。
     const room = this.prefixCap - this.prefixHeld
     const take = Math.max(0, Math.min(room, bytes.length))
     if (take > 0) {
@@ -297,8 +279,8 @@ export class TextRetainer {
       this.prefixHeld += take
     }
 
-    // Suffix: append the whole chunk, then drop whole leading chunks that have
-    // fully slid out of the last `suffixCap` bytes (bounded memory).
+    // 后缀：追加整个分块，然后丢弃已经完全滑出最后 `suffixCap` 字节的整块前导
+    // 分块（有界内存）。
     if (this.suffixCap > 0) {
       this.suffixChunks.push(bytes)
       this.suffixHeld += bytes.length
@@ -308,14 +290,12 @@ export class TextRetainer {
         this.suffixHeld -= head.length
         head = this.suffixChunks[0]
       }
-      // The head chunk can still hold leading bytes beyond the last `suffixCap`
-      // — a single chunk LARGER than the window is retained whole by the loop
-      // above (dropping the only chunk would leave < cap). Trim those leading
-      // bytes so the accumulator (and finish()'s concat) stays bounded by
-      // `suffixCap` instead of allocating/copying the full chunk again;
-      // finish() only ever reads the last `suffixLen ≤ suffixCap` bytes, so this
-      // drops nothing it would return. (head.length > excess by the loop
-      // invariant `suffixHeld - head.length < suffixCap`, so the slice is non-empty.)
+      // 头分块仍可能持有超出最后 `suffixCap` 的前导字节——一个大于窗口的单一
+      // 分块会被上面的循环整体保留（丢弃唯一分块会少于上限）。裁掉这些前导字节，
+      // 使累加器（以及 finish() 的 concat）受 `suffixCap` 约束，而非再次分配/复制
+      // 整个分块；finish() 只读最后 `suffixLen ≤ suffixCap` 个字节，因此这不会
+      // 丢弃它会返回的任何东西。（在循环不变量 `suffixHeld - head.length <
+      // suffixCap` 下 head.length > excess，因此切片非空。）
       if (head !== undefined && this.suffixHeld > this.suffixCap) {
         const excess = this.suffixHeld - this.suffixCap
         this.suffixChunks[0] = head.subarray(excess)
@@ -323,10 +303,9 @@ export class TextRetainer {
       }
     }
 
-    // Dropped = bytes that no side can keep. Compute cumulative omission the
-    // SAME way finish() does (via omittedAt), so push and finish never disagree;
-    // per-push we only need whether THIS chunk pushed the total past what the
-    // two caps hold.
+    // 被丢弃 = 两侧都无法保留的字节。以与 finish() 相同的方式（经由 omittedAt）
+    // 计算累积省略，使 push 与 finish 永不产生分歧；每次推送我们只关心本分块是否
+    // 把总数推过了两个上限所能容纳的部分。
     const droppedThisChunk = this.omittedAt(this.total) > this.omittedAt(before)
     return {
       kept: !droppedThisChunk,
@@ -334,7 +313,7 @@ export class TextRetainer {
     }
   }
 
-  /** Bytes omitted once `total` bytes have been seen: `total − keptPrefix − keptSuffix`. */
+  /** 已观察到 `total` 字节后省略的字节数：`total − keptPrefix − keptSuffix`。 */
   private omittedAt(total: number): number {
     const prefixLen = Math.min(total, this.prefixCap)
     const suffixLen = Math.min(total - prefixLen, this.suffixCap)
@@ -342,25 +321,23 @@ export class TextRetainer {
   }
 
   /**
-   * Finalize: decode the retained prefix and suffix (each trimmed to a UTF-8
-   * boundary at its cut) and report the exact omitted byte count.
+   * 结束：解码保留的前缀与后缀（各自在裁剪处裁到 UTF-8 边界）并报告精确的省略
+   * 字节数。
    *
-   * @returns The {@link RetainedText} snapshot (safe to hand to a formatter).
+   * @returns {@link RetainedText} 快照（可安全交给格式化器）。
    */
   finish(): RetainedText {
     const prefixLen = Math.min(this.total, this.prefixCap)
     const suffixLen = Math.min(this.total - prefixLen, this.suffixCap)
 
-    const prefix = concat(this.prefixChunks) // exactly prefixLen bytes (prefixHeld === prefixLen)
+    const prefix = concat(this.prefixChunks) // 恰好 prefixLen 字节（prefixHeld === prefixLen）
     const suffix = concat(this.suffixChunks).subarray(this.suffixHeld - suffixLen)
 
-    // With nothing omitted by budget, prefix and suffix are ADJACENT slices of
-    // one stream (prefixLen + suffixLen === total), so the head|tail split is
-    // artificial: a codepoint may span it. Decode the contiguous whole as one
-    // buffer — trimming or decoding the halves separately here would corrupt a
-    // boundary-spanning codepoint though no content was dropped. Only a real
-    // omitted gap makes each side a true cut: trim each to a UTF-8 boundary and
-    // decode separately so a codepoint is never reconstructed across the gap.
+    // 当预算没有省略任何内容时，前缀与后缀是同一流的 ADJACENT 切片
+    // （prefixLen + suffixLen === total），因此 head|tail 的切分是人为的：一个码点
+    // 可能跨越它。把连续整体作为一个缓冲区解码——此处若分别裁剪或解码两半，会破坏
+    // 一个跨越边界的码点，尽管没有任何内容被丢弃。只有当真正存在省略间隔时，两侧
+    // 才是真正的切分：将各自裁到 UTF-8 边界并分别解码，使码点绝不会跨越间隔重建。
     const budgetOmitted = this.omittedAt(this.total)
     const [keptPrefix, keptSuffix] = budgetOmitted > 0
       ? [trimTrailingPartialUtf8(prefix), trimLeadingContinuationUtf8(suffix)]
@@ -369,10 +346,9 @@ export class TextRetainer {
       ? decoder.decode(keptPrefix) + decoder.decode(keptSuffix)
       : decoder.decode(concat([prefix, suffix]))
 
-    // Report omission against the bytes ACTUALLY returned, not the pre-trim
-    // budget: a boundary trim drops partial-codepoint bytes too, so an exact
-    // count derived from the budget alone would overstate the retained text (and
-    // any "Omitted N bytes" notice built from it would be a lie).
+    // 针对实际返回的字节报告省略，而非裁剪前的预算：边界裁剪也会丢弃部分码点的
+    // 字节，因此仅由预算推导出的精确计数会高估保留文本（而据此构建的任何
+    // 「已省略 N 字节」通知都将是一句谎言）。
     const omitted = this.total - keptPrefix.length - keptSuffix.length
     const truncated = omitted > 0
 
@@ -386,7 +362,7 @@ export class TextRetainer {
   }
 }
 
-/** Concatenate chunks into one contiguous buffer (their exact total length). */
+/** 将分块拼接为一个连续缓冲区（它们精确的总长度）。 */
 function concat(chunks: readonly Uint8Array[]): Uint8Array {
   let length = 0
   for (const chunk of chunks) length += chunk.length
@@ -400,14 +376,13 @@ function concat(chunks: readonly Uint8Array[]): Uint8Array {
 }
 
 /**
- * Standardized, false-precision-safe wording for one {@link Omitted} value —
- * the "may standardize omission wording" half the library owns. `exact` prints
- * the count (`Omitted 3 items`); `unknown` prints NO count because the caller
- * did not provide one. `none` is the empty string.
+ * 为一个 {@link Omitted} 值提供标准化、安全的措辞——即本库所拥有的「可能标准化
+ * 省略措辞」那一半。`exact` 打印计数（`Omitted 3 items`）；`unknown` 不打印计数，
+ * 因为调用方没有提供。`none` 为空字符串。
  *
- * @param omitted The omission metadata from a retainer result.
- * @param unit The noun for the omitted quantity (`items`, `bytes`, `chars`, `lines`).
- * @returns A neutral clause (no trailing space), or `''` when nothing was omitted.
+ * @param omitted 来自保留器结果的省略元数据。
+ * @param unit 被省略数量的名词（`items`、`bytes`、`chars`、`lines`）。
+ * @returns 一个中立的从句（无尾随空格），或当没有任何省略时为 `''`。
  */
 export function describeOmitted(omitted: Omitted, unit: RetentionNotice['unit']): string {
   switch (omitted.kind) {
@@ -421,17 +396,15 @@ export function describeOmitted(omitted: Omitted, unit: RetentionNotice['unit'])
 }
 
 /**
- * Turn a {@link RetentionNotice} into a one-line footer: the library-owned
- * standardized omission clause ({@link describeOmitted}) followed by the tool's
- * own recovery guidance. The library never owns recovery words — only the tool
- * knows the action ("narrow the pattern", "fetch a more specific URL", "read the
- * spill file") — so `recovery` supplies them and receives the full notice to
- * phrase from (`kept`, `limit`, `omitted`, …). Either half may be empty; the two
- * are joined with a single space.
+ * 将一个 {@link RetentionNotice} 变成一行脚注：先是本库所拥有的标准化省略从句
+ * （{@link describeOmitted}），随后是工具自身的恢复指引。本库永不拥有恢复措辞——
+ * 只有工具知道动作（「收窄模式」、「获取更具体的 URL」、「读取溢出文件」）——因此
+ * `recovery` 提供它们，并收到完整的通知以据此措辞（`kept`、`limit`、`omitted`……）。
+ * 任一半都可能为空；两者以单个空格连接。
  *
- * @param notice The neutral retention outcome.
- * @param recovery Tool-supplied guidance builder; receives the notice, returns a sentence (or `''`).
- * @returns The combined footer line.
+ * @param notice 中立的保留结果。
+ * @param recovery 工具提供的指引构建器；收到通知，返回一个句子（或 `''`）。
+ * @returns 合并后的脚注行。
  */
 export function formatRetentionNotice(
   notice: RetentionNotice,
@@ -443,15 +416,14 @@ export function formatRetentionNotice(
 }
 
 /**
- * Cap `text` at `maxChars` UTF-16 code units without introducing a lone high
- * surrogate: a cut that lands inside a surrogate pair drops the unpaired half,
- * so the result is one code unit shorter than the cap. An unpaired surrogate is
- * not well-formed text — a strict JSON reader rejects a durable Session log that
- * carries one. An unpaired surrogate `text` already carries is not repaired here.
+ * 将 `text` 截断到 `maxChars` 个 UTF-16 码单元，且不引入孤立的高代理项：落在代理
+ * 对内部的裁剪会丢弃未配对的一半，因此结果比上限少一个码单元。未配对的代理项
+ * 不是良构文本——严格的 JSON 读取方会拒绝携带它的持久 Session 日志。`text` 已
+ * 携带的未配对代理项不在此处修复。
  *
- * @param text The text to cap.
- * @param maxChars The maximum number of UTF-16 code units to retain.
- * @returns A prefix of `text` no longer than `maxChars`; the cut never introduces a lone high surrogate.
+ * @param text 待截断的文本。
+ * @param maxChars 待保留的最大 UTF-16 码单元数。
+ * @returns 不再长于 `maxChars` 的 `text` 前缀；裁剪绝不引入孤立的高代理项。
  */
 export function truncateWithoutSplittingSurrogatePair(text: string, maxChars: number): string {
   if (text.length <= maxChars) return text

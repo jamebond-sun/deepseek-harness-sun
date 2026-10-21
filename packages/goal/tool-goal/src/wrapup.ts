@@ -1,4 +1,4 @@
-/** Model-visible wrap-up instruction for a terminal autonomous goal update. */
+/** 终态自主目标更新时注入的模型可见收尾指令。 */
 
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 
@@ -7,12 +7,11 @@ const GROUNDING =
   + 'when a detail is not in the session, say so instead of inventing it. '
 
 /**
- * Render the closing-message instruction injected after an autonomous goal
- * round reports `complete` or `blocked`, replacing the former hard turn stop
- * so the model still addresses the user once before the turn ends.
- * @param objective - the terminal goal's objective, echoed for grounding.
- * @param blockedReason - the validated report for `blocked`; omitted for `complete`.
- * @returns a fresh one-block context for `ToolRunContext.deferContext()`.
+ * 渲染在自主 goal 轮次上报 `complete` 或 `blocked` 之后注入的收尾消息指令，
+ * 用以取代原先的硬性轮次终止，使模型在轮次结束前仍能面向用户作一次回应。
+ * @param objective - 终态目标的目标描述，回显以作事实依据。
+ * @param blockedReason - `blocked` 的已校验上报内容；`complete` 时省略。
+ * @returns 供 `ToolRunContext.deferContext()` 使用的全新单块上下文。
  */
 export function renderWrapupContext(objective: string, blockedReason?: string): ContentBlock[] {
   const heading = `Objective: ${JSON.stringify(objective)}\n`

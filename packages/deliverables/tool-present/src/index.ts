@@ -1,4 +1,4 @@
-/** Scoped tool that declares filesystem deliveries in their owning Session. */
+/** 在其所属 Session 中声明文件系统交付物的作用域工具。 */
 import type {} from '@deepseek-ai/dsh-working-directory'
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
@@ -9,27 +9,27 @@ import type {} from '@deepseek-ai/dsh-session-projection'
 import type { Session } from '@deepseek-ai/dsh-session'
 import type { PresentedFile } from './types.ts'
 
-/** Stable Loader identity. */
+/** 稳定的 Loader 标识。 */
 export const name = 'tool-present'
 
-/** Per-call delivery limit. */
+/** 每次调用的交付上限。 */
 export interface Config {
-  /** Maximum number of files in one call. */
+  /** 一次调用中文件的最大数量。 */
   maxFiles: number
 }
 
-/** Validated delivery limit. */
+/** 已校验的交付上限。 */
 export const Config: z<Config> = z.object({
   maxFiles: z.number().default(8),
 })
 
-/** Services used by the scoped delivery tool. */
+/** 该作用域交付工具所使用的服务。 */
 export const inject = ['tools', 'fs', 'sessionProjections', 'workingDirectory']
 
 /**
- * Register present with durable file references in its tool result.
- * @param ctx - agent-scoped services.
- * @param config - maximum files per call.
+ * 以持久化的文件引用在工具结果中注册 present。
+ * @param ctx - 代理作用域内的服务。
+ * @param config - 每次调用的最大文件数。
  */
 export function apply(ctx: Context, config: Config): void {
   if (!Number.isSafeInteger(config.maxFiles) || config.maxFiles < 1) {
@@ -44,7 +44,7 @@ export function apply(ctx: Context, config: Config): void {
     parameters: {
       files: {
         type: 'array', required: true,
-        // 4 is the recommended per-call count; `maxFiles` is the enforced ceiling above it.
+        // 4 是推荐的每次调用数量；`maxFiles` 是高于它的强制上限。
         description: 'Usually the 1-2 most important deliverables; at most 4 per call.',
         items: {
           type: 'object', additionalProperties: false,

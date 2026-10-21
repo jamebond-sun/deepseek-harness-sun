@@ -1,6 +1,6 @@
 import { defineConfig } from 'tsdown'
 
-/** Build the package root as a self-contained bundle. */
+/** 将包根目录构建为一个自包含 bundle。 */
 export default defineConfig([
   {
     entry: ['lib/types/index.js'],

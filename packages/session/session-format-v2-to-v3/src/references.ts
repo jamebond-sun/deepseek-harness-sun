@@ -1,15 +1,15 @@
-/** Explicit local-coordinate remapping; captured generations and owner-local counters remain opaque. */
+/** 显式的局部坐标重映射；被捕获的代际与持有者局部计数器保持不透明。 */
 
 import { SessionFormatError, sessionFormatCount } from '@deepseek-ai/dsh-session-format'
 import type { SessionFormatEvent, SessionFormatJsonObject, SessionFormatJsonValue } from '@deepseek-ai/dsh-session-format'
 import { record } from './payload.ts'
 
 /**
- * Remap only audited same-artifact references, preserving IDs and embedded model input.
- * @param event - validated source event.
- * @param seq - output event position.
- * @param mapping - earlier source positions mapped to output positions.
- * @returns the event in target coordinates.
+ * 只重映射经过审计的同制品引用，保留 ID 与内嵌的模型输入。
+ * @param event - 已校验的源事件。
+ * @param seq - 输出事件位置。
+ * @param mapping - 从较早源位置到输出位置的映射。
+ * @returns 处于目标坐标下的事件。
  */
 export function remapEvent(event: SessionFormatEvent, seq: number, mapping: readonly number[]): SessionFormatEvent {
   const one = (value: SessionFormatJsonValue | undefined): number => {
@@ -39,8 +39,8 @@ export function remapEvent(event: SessionFormatEvent, seq: number, mapping: read
     case 'session/title-llm-request':
       data = { ...data, messageSeqs: list(data['messageSeqs']) }
       break
-    // Delivery watermarks and session-reference captures identify their original generation.
-    // Workflow seq, stream block indices, turn/step, and numeric tool JSON are not Session seqs.
+    // 投递水位与会话引用捕获标识它们原本的代际。
+    // workflow seq、流块索引、turn/step 以及数值型工具 JSON 都不是 Session seq。
   }
   return {
     ...event, seq, data,

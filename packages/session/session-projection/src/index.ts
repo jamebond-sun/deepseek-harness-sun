@@ -1,18 +1,15 @@
 /**
- * Service Definition and drive registry for the session-projection capability seam: the merge-extensible state and client-view type
- * tables, the `ProjectionDefinition` state-driven computation unit contract,
- * and the `ctx.sessionProjections` registry that DRIVES every registered unit
- * forward eagerly over committed session events. Domain host plugins
- * contribute pure folds and optional client views; the framework owns the
- * subscription, the per-session watermark cache, and change notification;
- * carriers consume the snapshot read face and the change feed. Neither side
- * knows the other
- * (capability-seam three-way split). Design authority: the session-projection
- * RFC (.agents/notes/proposed/architecture/2026-07-27-session-projection-and-command-log.md).
+ * session-projection 能力接缝的服务定义与驱动注册表：可合并扩展的状态与
+ * 客户端视图类型表、`ProjectionDefinition` 状态驱动的计算单元契约，以及
+ * `ctx.sessionProjections` 注册表——它会在每次已提交会话事件上急切地向前
+ * 驱动每个已注册单元。领域主机插件贡献纯折叠与可选的客户端视图；框架
+ * 负责订阅、按会话划分的水位缓存与变更通知；载体消费快照读取面与变更流。
+ * 双方互不知道对方（能力接缝的三方分离）。设计权威：session-projection
+ * RFC（.agents/notes/proposed/architecture/2026-07-27-session-projection-and-command-log.md）。
  *
- * Whole-value event rule (load-bearing): a state-carrying log event MUST
- * carry the complete post-change state, never a bare delta — it keeps every
- * unit's transition trivially cheap and every served value self-describing.
+ * 整体值事件规则（承重约束）：携带状态的日志事件必须携带变更后的完整状态，
+ * 绝不能是裸增量——这让每个单元的转移都极其廉价，且每个被服务的值都能
+ * 自描述。
  *
  * @module @deepseek-ai/dsh-session-projection
  */
@@ -38,64 +35,61 @@ import type { SessionProjectionMap, SessionProjectionStateMap } from './types.ts
 export type { SessionProjectionMap, SessionProjectionStateMap } from './types.ts'
 
 /**
- * One domain's state-driven computation unit: a pure synchronous fold plus
- * declarations and an optional client view — never an opaque getter. The framework drives
- * `apply` on every committed session event; the domain holds no
- * subscriptions and owns only the computation. All functions MUST be
- * synchronous (an async unit would tear the carriers' consistency cut), and
- * `state` MUST be plain JSON (the persisted-cache precondition).
+ * 一个领域的状态驱动计算单元：一个纯同步折叠，加上声明与一个可选的
+ * 客户端视图——绝不是一个不透明的 getter。框架在每次已提交会话事件上驱动
+ * `apply`；领域不持有任何订阅，只拥有计算本身。所有函数都必须是同步的
+ * （异步单元会撕裂载体的一致性切面），并且 `state` 必须是纯 JSON
+ * （持久化缓存的前提条件）。
  */
 export interface ProjectionDefinition<
   K extends keyof SessionProjectionStateMap,
   S extends SessionProjectionStateMap[K] = SessionProjectionStateMap[K],
 > {
-  /** The projection key this unit owns (its `SessionProjectionStateMap` entry). */
+  /** 本单元拥有的投影键（即它在 `SessionProjectionStateMap` 中的条目）。 */
   key: K
-  /** Validates persisted state before it seeds a fold. */
+  /** 在校验折叠之前校验被持久化的状态。 */
   stateSchema: ZodType<S>
   /**
-   * State for the empty log and its immutable Session metadata.
-   * @param header - immutable metadata for the Session being projected.
-   * @param inheritedEventCount - exact fork-inherited prefix length.
-   * @returns the initial state.
+   * 空日志及其不可变会话元数据对应的状态。
+   * @param header - 被投影会话的不可变元数据。
+   * @param inheritedEventCount - 精确的 fork 继承前缀长度。
+   * @returns 初始状态。
    */
   init(header: SessionHeader, inheritedEventCount: SessionLogOffset): NoInfer<S>
   /**
-   * Pure transition: previous state + one committed event → next state. A
-   * unit uninterested in an event MUST return the same state reference — an
-   * unchanged reference (`Object.is`) produces zero downstream work.
-   * @param state - the state covering all prior events.
-   * @param event - the next committed session event.
-   * @returns the next state (same reference when the event is not the unit's).
+   * 纯转移：先前状态 + 一个已提交事件 → 下一状态。对一个事件不感兴趣的
+   * 单元必须返回同一个状态引用——未变化的引用（`Object.is`）会带来零下游
+   * 工作。
+   * @param state - 覆盖所有先前事件的状态。
+   * @param event - 下一个已提交会话事件。
+   * @returns 下一状态（当该事件不属于本单元时，为同一引用）。
    */
   apply(state: NoInfer<S>, event: SessionEvent): NoInfer<S>
-  /** Client view. Omit for host-only units. */
+  /** 客户端视图。仅主机单元可省略。 */
   wire?: K extends keyof SessionProjectionMap ? {
-    /** Validates the wire payload before it leaves the host. */
+    /** 在校验负载离开主机之前校验它。 */
     viewSchema: ZodType<SessionProjectionMap[K]>
     /**
-     * State → wire payload (the read-side projection). The live drive keeps
-     * the two latest raw results and compares them with `Object.is`; an
-     * object-valued view must reuse its reference to suppress publication
-     * across internal-only state changes.
-     * @param state - the current state.
-     * @returns the whole current value for this unit's key.
+     * 状态 → 线上负载（读取侧投影）。实时驱动保留最近两个原始结果，并用
+     * `Object.is` 比较它们；对象型视图必须复用其引用，以抑制在仅内部状态
+     * 变化时的发布。
+     * @param state - 当前状态。
+     * @returns 本单元键对应的完整当前值。
      */
     view(state: NoInfer<S>): SessionProjectionMap[K]
   } : never
   /**
-   * Persisted-cache invalidation version: bump whenever the serialized state fields or the
-   * fold semantics change, so persisted `(sessionId, key, ver, seq, val)`
-   * rows from an older unit are discarded instead of being forward-applied
-   * into garbage. Non-negative integer.
+   * 持久化缓存失效版本：只要序列化的状态字段或折叠语义发生变化就应当提升
+   * 它，这样来自较旧单元的、持久化的 `(sessionId, key, ver, seq, val)` 行
+   * 会被丢弃，而不是被前向应用成垃圾。非负整数。
    */
   stateVersion: number
 }
 
 /**
- * Change-feed listener: one unit's raw `view` result changed by `Object.is`
- * for one session. `value` is the schema-validated output; `seq` is the
- * unit's watermark at emission (the seq of the event that caused the change).
+ * 变更流监听器：某个会话某一单元的、按 `Object.is` 改变了的原始 `view`
+ * 结果。`value` 是经过 schema 校验的输出；`seq` 是该单元在发出时的水位
+ * （即导致这次变更的事件的 seq）。
  */
 export type ProjectionChangeListener = (
   session: Session,
@@ -105,38 +99,36 @@ export type ProjectionChangeListener = (
 ) => void
 
 /**
- * One consistent read cut over every registered client-visible unit for one session.
- * `asOfSeq` is the shared watermark — the seq of the last event every value
- * reflects (`-1` for an empty log).
+ * 某个会话所有已注册客户端可见单元上的一次一致性读取切面。`asOfSeq` 是
+ * 共享水位——即每个值所反映的最后一个事件的 seq（空日志为 `-1`）。
  */
 export interface ProjectionSnapshot {
-  /** Seq of the last event the values reflect; -1 for an empty log. */
+  /** 各值所反映的最后一个事件的 seq；空日志为 -1。 */
   asOfSeq: SessionSeqCursor
-  /** Whole current client value per registered key. */
+  /** 每个已注册键对应的完整当前客户端值。 */
   values: Partial<SessionProjectionMap>
 }
 
 /**
- * One unit's checkpoint: its internal state (plain JSON by the unit
- * contract), the seq of the last event folded into it, and the unit
- * `stateVersion` that produced it — the persisted projection-cache row
- * `(sessionId, key, ver, seq, val)` minus the two outer keys. A row is
- * never authoritative, only a fold shortcut: `restore` discards it on a
- * version mismatch or when it claims events past the stored log end.
+ * 一个单元的检查点：其内部状态（按单元契约为纯 JSON）、折叠进它的最后一
+ * 个事件的 seq，以及生成它的单元 `stateVersion`——即持久化的投影缓存行
+ * `(sessionId, key, ver, seq, val)` 去掉两个外层键。一行永远不是权威的，
+ * 只是一条折叠捷径：`restore` 会在版本不匹配、或它声明的事件超出已存储
+ * 日志末端时丢弃它。
  */
 export interface ProjectionCheckpointRow {
-  /** The registering unit's `stateVersion` at fold time. */
+  /** 折叠时注册单元的 `stateVersion`。 */
   ver: number
-  /** Seq of the last event folded into `val`; -1 for the empty log. */
+  /** 折叠进 `val` 的最后一个事件的 seq；空日志为 -1。 */
   seq: SessionSeqCursor
-  /** The unit's internal state — plain JSON per the unit contract. */
+  /** 单元的内部状态——按单元契约为纯 JSON。 */
   val: unknown
 }
 
-/** Checkpoint rows keyed by projection key (one session's persisted cache value). */
+/** 以投影键为索引的检查点行（一个会话的持久化缓存值）。 */
 export type ProjectionCheckpoint = Record<string, ProjectionCheckpointRow>
 
-/** Type-erased unit view the drive machinery works with (the registration contract already proved the typed form). */
+/** 驱动机制所使用的、类型擦除后的单元视图（注册契约已经证明了其带类型形式）。 */
 interface ErasedDefinition {
   key: string
   stateSchema: { parse(value: unknown): unknown }
@@ -146,63 +138,57 @@ interface ErasedDefinition {
   stateVersion: number
 }
 
-/** Per-session per-unit watermark and fixed live-drive view buffer. */
+/** 按会话、按单元的各自水位，以及固定的实时驱动视图缓冲。 */
 interface UnitCell {
   state: unknown
-  /** Seq of the last event passed through `apply` (regardless of change). */
+  /** 通过 `apply` 的最后一个事件的 seq（无论是否变化）。 */
   observedSeq: SessionSeqCursor
-  /** `[previousView, currentView]`; undefined slots mean no cached comparison. */
+  /** `[previousView, currentView]`；undefined 槽位表示没有缓存的比较对象。 */
   readonly views: [unknown, unknown]
 }
 
 /**
- * One live registration: the unit plus its per-session cells (dropped whole
- * once the last registrant releases it).
+ * 一次活跃注册：该单元加上其按会话划分的 cell（最后一个注册方释放后整体丢弃）。
  *
- * `refs` exists because one unit definition already serves every session — the
- * cells are keyed by `Session` — while registrants are per-session:
- * an agent preset mounts the same tool package once per agent, so N sessions
- * on one preset register the same key N times. Without a count the first
- * registrant would own the disposer, and its session ending would strip the
- * projection from every other live session.
+ * 之所以需要 `refs`，是因为一个单元定义已经服务于每个会话——cell 以
+ * `Session` 为键——而注册方是按会话的：一个 agent preset 会为每个 agent
+ * 挂载同一工具包一次，因此同一个 preset 上的 N 个会话会把同一个键注册
+ * N 次。如果没有计数，第一个注册方就会拥有 disposer，而它的会话一结束
+ * 就会把该投影从所有其它活跃会话上剥离。
  */
 interface Registration {
   readonly def: ErasedDefinition
   readonly cells: WeakMap<Session, UnitCell>
-  /** Live registrants sharing this unit; the last one out removes the key. */
+  /** 共享本单元的活跃注册方；最后一个退出者移除该键。 */
   refs: number
 }
 
-/** Convert a log offset to the inclusive cursor immediately before it. */
+/** 把一个日志偏移转换为它紧邻之前的那个含尾游标。 */
 function cursorBefore(offset: SessionLogOffset): SessionSeqCursor {
   return offset === 0 ? -1 : SessionSeq(offset - 1)
 }
 
 /**
- * `ctx.sessionProjections`: the projection unit table and its drive. The
- * service subscribes to `session/event` once; every committed event passes
- * every registered unit's `apply` (eager drive). A changed state reference
- * computes the next client view; the change feed is notified only when its
- * raw result changes by `Object.is`.
- * Cells build lazily — a unit registered after events flowed, or a session
- * older than the registry, folds `init` over the in-memory log on first
- * touch (event or read). Registration is an effect (disposer rides the
- * calling fiber): an unloaded domain plugin's key disappears from snapshots
- * and clients read it as capability absence. A host reader either declares
- * `sessionProjections` in its plugin `inject` or fails explicitly when the
- * registry or required key is absent. Contributors may preserve optional
- * registration through `ctx.inject(['sessionProjections'], ...)`. Registrants sharing a key
- * share one unit and are counted: the same tool package mounted in N agent
- * presets registers N times, and the key survives until the last one
- * unloads.
+ * `ctx.sessionProjections`：投影单元表及其驱动。该服务订阅一次
+ * `session/event`；每个已提交事件都会经过每个已注册单元的 `apply`（急切
+ * 驱动）。一个变化了的状态引用会计算下一个客户端视图；变更流仅在其原始
+ * 结果按 `Object.is` 改变时才被通知。cell 是惰性构建的——在某个事件
+ * 流过之后才注册的单元，或者比注册表更旧的会话，会在首次触碰（事件或
+ * 读取）时，在内存日志上折叠 `init`。注册是一种 effect（disposer 挂在
+ * 调用纤程上）：一个被卸载的领域插件的键会从快照中消失，客户端将其读取
+ * 为能力缺失。主机读取方要么在其插件 `inject` 中声明 `sessionProjections`，
+ * 要么在注册表或所需键缺失时显式失败。贡献方可以通过
+ * `ctx.inject(['sessionProjections'], ...)` 保留可选注册。共享一个键的注册方
+ * 共享同一个单元并被计数：同一个工具包挂载在 N 个 agent preset 上会注册
+ * N 次，该键会存活到最后一个被卸载为止。
  */
 export class SessionProjectionRegistry extends Service {
   private readonly registrations = new Map<string, Registration>()
   private readonly listeners = new Set<ProjectionChangeListener>()
 
   /**
-   * Create and install the registry as `ctx.sessionProjections`.
-   * @param ctx - Cordis context that owns the service.
+   * 创建并把注册表安装为 `ctx.sessionProjections`。
+   * @param ctx - 拥有该服务的 Cordis 上下文。
    */
   constructor(ctx: Context) {
     super(ctx, 'sessionProjections')
@@ -223,12 +209,11 @@ export class SessionProjectionRegistry extends Service {
   }
 
   /**
-   * Register one domain's unit. The registration is an effect on the calling
-   * context's fiber: disposing the fiber (or calling the returned disposer)
-   * removes the key — and the unit's cached cells — from subsequent drives
-   * and snapshots.
-   * @param definition - key, state schema, pure unit functions, and stateVersion.
-   * @returns the exact disposer that unregisters this unit.
+   * 注册一个领域的单元。该注册是调用上下文纤程上的一种 effect：处置该纤程
+   * （或调用返回的 disposer）会从后续驱动与快照中移除该键——以及该单元的
+   * 缓存 cell。
+   * @param definition - 键、状态 schema、纯单元函数与 stateVersion。
+   * @returns 恰好能注销本单元的 disposer。
    */
   register<
     K extends keyof SessionProjectionMap,
@@ -239,10 +224,10 @@ export class SessionProjectionRegistry extends Service {
     },
   ): () => void
   /**
-   * Register one host-only unit. Its state is omitted from client snapshots
-   * and always checkpointed like every other unit.
-   * @param definition - key, state schema, pure unit functions, and stateVersion.
-   * @returns the exact disposer that unregisters this unit.
+   * 注册一个仅主机的单元。其状态被排除在客户端快照之外，但像其它单元一样
+   * 始终被做检查点。
+   * @param definition - 键、状态 schema、纯单元函数与 stateVersion。
+   * @returns 恰好能注销本单元的 disposer。
    */
   register<
     K extends Exclude<keyof SessionProjectionStateMap, keyof SessionProjectionMap>,
@@ -283,13 +268,13 @@ export class SessionProjectionRegistry extends Service {
       }
       yield () => {
         const live = this.registrations.get(key)
-        /* v8 ignore next -- the disposer runs once per successful registration, so the entry it counted is still here */
+        /* v8 ignore next -- disposer 每次成功注册只运行一次，因此它计过数的条目仍在这里 */
         if (live === undefined) return
         live.refs -= 1
         if (live.refs === 0) this.registrations.delete(key)
       }
     }.bind(this), 'sessionProjections.register()')
-    // oxlint-disable-next-line typescript/no-misused-promises -- synchronous cleanup; keep the Cordis disposer so effects can adopt it.
+    // oxlint-disable-next-line typescript/no-misused-promises -- 同步清理；保留 Cordis disposer 以便 effect 可以接纳它。
     return dispose
   }
 
@@ -310,12 +295,11 @@ export class SessionProjectionRegistry extends Service {
   }
 
   /**
-   * Read one unit's current host state after materializing every registered
-   * unit at the Session cursor. Unrelated wire views are not produced.
-   * The returned value is live; callers must not mutate it.
-   * @param session - the session whose state is read.
-   * @param key - the registered unit key.
-   * @returns current state, or `undefined` when the key is not registered.
+   * 在会话游标处物化每个已注册单元之后，读取某个单元的当前主机状态。
+   * 不产出无关的 wire 视图。返回的值是实时的；调用方不得修改它。
+   * @param session - 被读取状态的会话。
+   * @param key - 已注册的单元键。
+   * @returns 当前状态；当该键未注册时为 `undefined`。
    */
   stateOf<K extends keyof SessionProjectionStateMap>(
     session: Session,
@@ -353,12 +337,11 @@ export class SessionProjectionRegistry extends Service {
   }
 
   /**
-   * Read only already-materialized client-visible cells without folding history.
-   * Values may trail the live Session and are therefore hints, not a complete
-   * baseline. Missing cells are omitted.
-   * @param session - attached Session whose cached cells are inspected.
-   * @param keys - optional wire keys to view.
-   * @returns the lowest common cached cut, or `undefined` when no wire cell exists.
+   * 只读取已经物化的客户端可见 cell，而不折叠历史。这些值可能落后于
+   * 实时会话，因此只是提示，而非完整基线。缺失的 cell 被略去。
+   * @param session - 被检查缓存 cell 的已挂载会话。
+   * @param keys - 可选的 wire 键。
+   * @returns 最低的公有缓存切面；当不存在任何 wire cell 时为 `undefined`。
    */
   cachedSnapshot(
     session: Session,
@@ -381,18 +364,14 @@ export class SessionProjectionRegistry extends Service {
   }
 
   /**
-   * State-level checkpoint of every persisted unit for one session, read
-   * from the watermark cache (missing cells fold lazily over the in-memory
-   * log). This is the write side of the persisted projection cache: the
-   * returned rows are the `(key → {ver, seq, val})` part of the durable
-   * `(sessionId, key, ver, seq, val)`
-   * rows. Every `val` is a DETACHED structured clone — never the live
-   * cell reference: the watermark cache is this registry's authoritative
-   * mutable state, and a caller reaching the live reference could corrupt
-   * every subsequent snapshot and frame through it (plain JSON by the unit
-   * contract, so the clone is total).
-   * @param session - the session whose unit states are checkpointed.
-   * @returns one row per registered key.
+   * 某个会话每个已持久化单元的状态级检查点，从水位缓存中读取（缺失的 cell
+   * 在内存日志上惰性折叠）。这是持久化投影缓存的写入侧：返回的行即持久化的
+   * `(sessionId, key, ver, seq, val)` 行中 `(key → {ver, seq, val})` 那部分。
+   * 每个 `val` 都是一个分离的 structured clone——绝不会是实时的 cell 引用：
+   * 水位缓存是本注册表的权威可变状态，若调用方拿到实时引用，就可能借此
+   * 破坏之后每一个快照与帧（按单元契约为纯 JSON，因此克隆是彻底的）。
+   * @param session - 其单元状态被做检查点的会话。
+   * @returns 每个已注册键一行。
    */
   checkpoint(session: Session): ProjectionCheckpoint {
     const rows: ProjectionCheckpoint = {}
@@ -408,20 +387,18 @@ export class SessionProjectionRegistry extends Service {
   }
 
   /**
-   * The stored seq a {@link restore} tail read over `checkpoint` must start
-   * at: one event BELOW the lowest usable watermark (a row is usable when
-   * its `ver` matches the live unit's `stateVersion`; an absent or mismatched row
-   * pulls the floor to `0` — that key must refold the full log). The
-   * one-below anchor is load-bearing: the tail then proves how far the
-   * stored log still extends, so {@link restore} can detect a log that
-   * shrank below a row's watermark (crash-repair truncation) instead of
-   * serving the stale row as current — an empty tail read from the anchor
-   * yields an end below every watermark and the restore rejects for a full
-   * re-read.
-   * @param checkpoint - persisted rows for one session (possibly stale or empty).
-   * @returns the offset for the stored-log suffix read (`SessionHandle.read`),
-   *   or `undefined` when no unit is registered (no read needed —
-   *   {@link restore} would serve empty values regardless).
+   * {@link restore} 在 `checkpoint` 之上所做的尾部读取必须起始于的、已存储
+   * 的 seq：即比最低可用水位低一个事件（一行在其 `ver` 匹配活动单元的
+   * `stateVersion` 时可用；缺失或不匹配的行使下限回落到 `0`——该键必须
+   * 重折整个日志）。这个“低一个”的锚点是承重设计：尾部读取由此证明了
+   * 已存储日志还延伸多远，因此 {@link restore} 能检测出一个收缩到某行水位
+   * 之下的日志（崩溃修复式截断），而不是把过时行当作当前值提供——从锚点
+   * 读到的空尾部会得到低于每个水位的一个末端，于是 restore 因要求整体
+   * 重读而拒绝。
+   * @param checkpoint - 一个会话的持久化行（可能过时或为空）。
+   * @returns 存储日志后缀读取（`SessionHandle.read`）的偏移；当没有单元
+   *   被注册时为 `undefined`（无需读取——{@link restore} 无论如何都会
+   *   提供空值）。
    */
   restoreFloor(checkpoint: ProjectionCheckpoint): SessionLogOffset | undefined {
     let floor: number | undefined
@@ -436,15 +413,14 @@ export class SessionProjectionRegistry extends Service {
   }
 
   /**
-   * View a checkpoint's rows without any log read: for every registered
-   * client-visible unit whose row's `ver` matches, serve the schema-validated
-   * `view` of the schema-validated stored state; mismatched, malformed, or absent rows leave their key
-   * absent (a cold or listing consumer treats it as not-yet-available and a
-   * fuller read path refolds it). The zero-I/O rung of the read ladder —
-   * values are as stale as their rows, never wrong.
-   * @param checkpoint - persisted rows for one session (possibly stale or empty).
-   * @param keys - optional wire keys to view.
-   * @returns whole values per key with a usable row; empty when none.
+   * 不做任何日志读取地查看一个检查点的行：对每个已注册的、其行 `ver`
+   * 匹配的客户端可见单元，提供经过 schema 校验的已存储状态的、同样经过
+   * schema 校验的 `view`；不匹配、畸形或缺失的行会使其键缺席（冷读或列举
+   * 消费方将其视为尚不可用，并由更完整的读取路径重折它）。读取阶梯上的
+   * 零 I/O 这一档——值与其行一样过时，但绝不会错误。
+   * @param checkpoint - 一个会话的持久化行（可能过时或为空）。
+   * @param keys - 可选的 wire 键。
+   * @returns 每个拥有可用行的键对应的完整值；没有时为空的。
    */
   viewCheckpoint(
     checkpoint: ProjectionCheckpoint,
@@ -470,28 +446,25 @@ export class SessionProjectionRegistry extends Service {
   }
 
   /**
-   * Cold read: fold every persisted unit over a stored log suffix, seeding
-   * each from its checkpoint row when usable — the one read recipe (cached
-   * state + forward tail replay + `view`) applied without a live `Session`.
-   * Call with the stored events at or past `restoreFloor(checkpoint)` (a
-   * `SessionHandle.read` slice) and that same floor as
-   * `baseSeq`; the floor's one-below anchor makes the supplied end honest,
-   * so a shrunk log is detected here. A row is usable iff its
-   * `ver` matches the live unit's `stateVersion`, it does not predate `baseSeq`
-   * (`seq >= baseSeq - 1`), and it does not claim events past the
-   * supplied end (`seq <= endSeq`); an unusable row is discarded
-   * and its key refolds from `init` — which is only sound over the full
-   * log, so a discarded row with `baseSeq > 0` throws (the caller re-reads
-   * from seq 0, e.g. after a crash-repair truncation shrank the log below
-   * a row's watermark).
-   * @param checkpoint - persisted rows for one session (possibly stale or empty).
-   * @param events - the stored events with `seq >= baseSeq`, in seq order.
-   * @param baseSeq - the seq `events` starts at (its first event's seq when non-empty).
-   * @param header - immutable metadata for the Session being restored.
-   * @param inheritedEventCount - exact fork-inherited prefix length supplied to unit initialization.
-   * @returns the snapshot cut at the supplied log end (`asOfSeq` is the last
-   *   supplied event's seq, `baseSeq - 1` for an empty tail) plus the
-   *   refreshed checkpoint rows at that cut, ready for a durable write-back.
+   * 冷读：在一段已存储的日志后缀上折叠每个已持久化单元，并在可用时从各自
+   * 的检查点行播种——即那一则读取配方（缓存状态 + 前向尾部重放 + `view`）
+   * 在没有实时 `Session` 的情况下被应用。请传入处于 `restoreFloor(checkpoint)`
+   * 处或其之后的已存储事件（一个 `SessionHandle.read` 切片），并以同一个
+   * 下限作为 `baseSeq`；下限“低一个”的锚点让所提供的末端是诚实的，因此
+   * 一个收缩的日志会在此处被检测到。一行当且仅当其 `ver` 匹配活动单元的
+   * `stateVersion`、它不早于 `baseSeq`（`seq >= baseSeq - 1`）、且它不声明
+   * 超出所提供末端（`seq <= endSeq`）的事件时才可用；不可用的行会被丢弃，
+   * 其键从 `init` 重折——而这只有在整个日志上才成立，因此 `baseSeq > 0` 时
+   * 一个被丢弃的行会抛出（调用方从 seq 0 重新读取，例如在一次崩溃修复式
+   * 截断把日志收缩到某行水位之下之后）。
+   * @param checkpoint - 一个会话的持久化行（可能过时或为空）。
+   * @param events - 满足 `seq >= baseSeq` 的已存储事件，按 seq 顺序。
+   * @param baseSeq - `events` 起始的 seq（非空时即其首个事件的 seq）。
+   * @param header - 正在被恢复会话的不可变元数据。
+   * @param inheritedEventCount - 提供给单元初始化的精确 fork 继承前缀长度。
+   * @returns 在所提供日志末端切出的快照（`asOfSeq` 是最后一个所提供事件的
+   *   seq，空尾部时为 `baseSeq - 1`），加上在该切面上刷新过的检查点行，
+   *   可供持久化写回。
    */
   restore(
     checkpoint: ProjectionCheckpoint,
@@ -541,14 +514,14 @@ export class SessionProjectionRegistry extends Service {
   }
 
   /**
-   * Restore an exact cut and install its states on the supplied prepared Session.
-   * A later publication reuses these cells; ordinary live reads and event drive
-   * advance any constructor-owned suffix exactly once.
-   * @param session - exact prepared Session that owns the restored log prefix.
-   * @param checkpoint - persisted rows for this Session lifecycle.
-   * @param events - exact events at the observation cut.
-   * @param baseSeq - first supplied event sequence.
-   * @returns all projection values at the supplied cut.
+   * 恢复一个精确的切面，并将其状态安装到所提供的、已准备好的会话上。稍后的
+   * 发布会复用这些 cell；普通的实时读取与事件驱动对每个由构造器拥有的
+   * 后缀恰好推进一次。
+   * @param session - 拥有被恢复日志前缀的、精确的已准备好会话。
+   * @param checkpoint - 本会话生命周期的持久化行。
+   * @param events - 观测切面上的精确事件。
+   * @param baseSeq - 首个所提供事件的序号。
+   * @returns 在所提供切面上的所有投影值。
    */
   hydrate(
     session: Session,
@@ -595,12 +568,12 @@ export class SessionProjectionRegistry extends Service {
     return restored.snapshot
   }
 
-  /** Materialize every registered unit cell at the Session's current cursor. */
+  /** 在会话的当前游标处物化每个已注册单元的 cell。 */
   private materializeCells(session: Session): void {
     for (const registration of this.registrations.values()) this.cellFor(registration, session)
   }
 
-  /** Fold one unit from init over `events`, producing a cell watermarked at the last folded event. */
+  /** 从 init 开始，在 `events` 上折叠一个单元，产生一个以最后被折事件为水位的 cell。 */
   private buildCell(
     def: ErasedDefinition,
     header: SessionHeader,
@@ -612,7 +585,7 @@ export class SessionProjectionRegistry extends Service {
     return { state, observedSeq: (events.at(-1)?.seq ?? -1), views: [undefined, undefined] }
   }
 
-  /** Read (or lazily build, folding the full in-memory log) one unit's cell. */
+  /** 读取（或惰性构建，即折叠整个内存日志）一个单元的 cell。 */
   private cellFor(registration: Registration, session: Session): UnitCell {
     let cell = registration.cells.get(session)
     if (cell === undefined) {
@@ -630,7 +603,7 @@ export class SessionProjectionRegistry extends Service {
     return cell
   }
 
-  /** Advance one existing cell through a contiguous Session prefix. */
+  /** 让一个已有 cell 经过一段连续的会话前缀而推进。 */
   private advanceCell(
     def: ErasedDefinition,
     cell: UnitCell,
@@ -654,14 +627,14 @@ export class SessionProjectionRegistry extends Service {
     }
   }
 
-  /** Eager drive: pass one committed event through every unit; notify on changed raw view references. */
+  /** 急切驱动：让一个已提交事件经过每个单元；在原始视图引用变化时通知。 */
   private drive(session: Session, event: SessionEvent): void {
     for (const registration of this.registrations.values()) {
       let cell = registration.cells.get(session)
       if (cell !== undefined && cell.observedSeq >= event.seq) continue
       if (cell === undefined) {
-        // Late build mid-stream: fold history before this event (seq = log
-        // index, so the prefix slice is exact), then take the normal gate.
+        // 流中途的迟到构建：在本事件之前折叠历史（seq = 日志索引，因此前缀
+        // 切片是精确的），再走正常的闸门。
         cell = this.buildCell(
           registration.def,
           session.header,
@@ -699,12 +672,11 @@ export class SessionProjectionRegistry extends Service {
           views[1] = undefined
         }
       }
-      // An unchanged state keeps its current view as the valid comparison
-      // value for the next state change.
+      // 一个未变化的状态保留其当前视图，作为下一次状态变化时的有效比较值。
     }
   }
 
-  /** Return one schema-validated wire value. */
+  /** 返回一个经过 schema 校验的 wire 值。 */
   private viewCell(registration: Registration, cell: UnitCell): unknown {
     const wire = registration.def.wire
     if (wire === undefined) throw new Error(`session projection ${JSON.stringify(registration.def.key)} has no wire view`)

@@ -1,6 +1,6 @@
 /**
- * Browser-facing subagent prompt and interrupt request validation plus the
- * stable prompt failure codes returned by the Remote surface.
+ * 面向浏览器的子代理 prompt 与中断请求校验，以及 Remote 面所返回的
+ * 稳定 prompt 失败码。
  *
  * @module @deepseek-ai/dsh-subagent
  */
@@ -27,11 +27,10 @@ const CONTROL_ID_SCHEMAS = {
 } as const
 
 /**
- * Apply the subagent payload checks that are stricter than generated
- * branded-string codecs.
- * @param method - method name carried in the failure message.
- * @param payload - decoded control fields to validate.
- * @throws {RemoteError} `gateway/bad-request` with the original Zod issues.
+ * 应用那些比生成的品牌字符串编解码器更严格的子代理载荷检查。
+ * @param method - 失败消息中携带的方法名。
+ * @param payload - 待校验的已解码控制字段。
+ * @throws {RemoteError} 带原始 Zod issues 的 `gateway/bad-request`。
  */
 export function validateControlRequest(
   method: keyof typeof CONTROL_ID_SCHEMAS,
@@ -44,14 +43,13 @@ export function validateControlRequest(
 }
 
 /**
- * Refuse one continuation prompt without exposing provider detail: admission
- * failures the caller can act on keep their own code, everything else is
- * internal.
- * @param error - the thrown value.
- * @param childSessionId - the addressed child.
- * @param signal - the caller's cancellation.
- * @returns Never — the refusal is thrown.
- * @throws {RemoteError} always.
+ * 在不暴露提供方细节的前提下拒绝一次续跑 prompt：调用方可据此行动的
+ * 接纳失败保留各自的错误码，其余一切视为内部错误。
+ * @param error - 被抛出的值。
+ * @param childSessionId - 所寻址的子代理。
+ * @param signal - 调用方的取消信号。
+ * @returns 永不返回 —— 该拒绝以抛出结束。
+ * @throws {RemoteError} 总是抛出。
  */
 export function rejectPrompt(error: unknown, childSessionId: SessionId, signal: AbortSignal): never {
   if (isCancellation(error, signal)) {
@@ -94,7 +92,7 @@ export function rejectPrompt(error: unknown, childSessionId: SessionId, signal: 
           { childSessionId },
           { cause: error },
         )
-      // A code outside the admission vocabulary is not the caller's move to make.
+      // 准入词汇之外的错误码不由调用方处置。
       default:
         break
     }

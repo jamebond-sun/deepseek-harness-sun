@@ -1,9 +1,8 @@
 /**
- * Durable pi-ai replay metadata and assistant-history reconstruction.
+ * 持久化的 pi-ai 回放元数据，以及助手历史的重建。
  *
- * Harness content remains the durable source for text and tool calls. This
- * module stores only the provider-native metadata needed to reconstruct a
- * pi-ai assistant message on a later request.
+ * Harness 的内容仍然是文本与工具调用的持久化来源。本模块只存储
+ * 在之后某次请求上重建一条 pi-ai 助手消息所需的、提供方原生的元数据。
  *
  * @module dsh-llm-pi-ai/replay
  */
@@ -12,35 +11,35 @@ import { LlmError } from '@deepseek-ai/dsh-llm'
 import type { AssistantMessage as HarnessAssistantMessage, ModelMessageSource, ReplayEnvelope } from '@deepseek-ai/dsh-llm'
 import type { Api, AssistantMessage, ToolCall, Usage as PiUsage } from '@earendil-works/pi-ai'
 
-/** Per-block half of the pi-ai replay envelope, one entry per content block. */
+/** pi-ai 回放信封中按块的那一半，每个内容块一个条目。 */
 export type PiAiReplayBlock =
   | { type: 'text'; textSignature?: string }
   | { type: 'reasoning'; thinkingSignature?: string; redacted?: boolean }
   | { type: 'tool-call'; thoughtSignature?: string; namespace?: string }
 
-/** Versioned response-level half of the pi-ai replay envelope. */
+/** pi-ai 回放信封中带版本号的、响应级的那一半。 */
 export interface PiAiReplayResponse {
   kind: 'pi-ai'
   version: 2
   api: Api
   provider: string
-  /** Requested model identity, matching the durable assistant source. */
+  /** 被请求的模型身份，与持久化的助手来源一致。 */
   model: string
-  /** Provider-reported model; replay retains the requested model for signature matching. */
+  /** 提供方所报告的模型；回放保留被请求的模型以匹配签名。 */
   responseModel?: string
   responseId?: string
-  /** Provider-native effort for historical replay; absence is preserved. */
+  /** 供历史回放使用的、提供方原生的强度；缺失会被保留。 */
   providerThinkingLevel?: string
   stopReason: AssistantMessage['stopReason']
 }
 
-/** The validated halves of one pi-ai replay envelope. */
+/** 一个 pi-ai 回放信封中已校验的两半。 */
 interface PiAiReplayState {
   response: PiAiReplayResponse
   blocks: PiAiReplayBlock[]
 }
 
-/** Parse tool-call argument JSON; tolerate model malformations with {}. */
+/** 解析工具调用的 JSON 参数；把模型的格式错误当作 {} 容忍下来。 */
 function parseArguments(raw: string): ToolCall['arguments'] {
   try {
     const parsed: unknown = JSON.parse(raw)
@@ -48,12 +47,12 @@ function parseArguments(raw: string): ToolCall['arguments'] {
       return parsed as ToolCall['arguments']
     }
   } catch {
-    // fall through
+    // 落到下面
   }
   return {}
 }
 
-/** Construct the zero usage value required by historical pi-ai messages. */
+/** 构造历史 pi-ai 消息所要求的那个零用量值。 */
 function emptyPiUsage(): PiUsage {
   return {
     input: 0,
@@ -66,13 +65,12 @@ function emptyPiUsage(): PiUsage {
 }
 
 /**
- * Project a successful pi-ai response into the minimal durable replay state.
- * The per-block half is index-aligned with the streamed blocks (pi-ai content
- * order), so `BlockAssembler` prunes an entry with its block whenever assembly
- * removes one.
- * @param message - completed native pi-ai assistant response.
- * @param requestedModel - request identity stored in the assistant source; defaults to the native model.
- * @returns the versioned lossless-JSON replay projection.
+ * 把一次成功的 pi-ai 响应投影为最小的持久化回放状态。
+ * 按块的那一半按索引与已流式输出的块对齐（pi-ai 的内容顺序），
+ * 因此每当装配移除一个块时，`BlockAssembler` 就会连同它剪掉一个条目。
+ * @param message - 已完成的、原生的 pi-ai 助手响应。
+ * @param requestedModel - 存放在助手来源中的请求身份；默认取原生模型。
+ * @returns 带版本号的、无损 JSON 的回放投影。
  */
 export function toPiReplayState(message: AssistantMessage, requestedModel = message.model): ReplayEnvelope {
   const response: PiAiReplayResponse = {
@@ -113,7 +111,7 @@ function invalidReplay(message: string): never {
   throw new LlmError(`invalid pi-ai replay state: ${message}`, 'INVALID_REPLAY_STATE')
 }
 
-/** Validate the durable adapter-private envelope before it reaches pi-ai. */
+/** 在持久化的、适配器私有的信封到达 pi-ai 之前校验它。 */
 function readReplayState(value: unknown): PiAiReplayState {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return invalidReplay('expected a replay envelope')
   const envelope = value as Record<string, unknown>
@@ -148,7 +146,7 @@ function readReplayState(value: unknown): PiAiReplayState {
   }
 }
 
-/** Convert provider-neutral blocks without trusting them as same-model replay. */
+/** 转换与提供方无关的块，且不把它们当作同模型回放来信任。 */
 function foreignAssistant(message: HarnessAssistantMessage): AssistantMessage {
   const source = message.source
   const content: AssistantMessage['content'] = []
@@ -165,15 +163,15 @@ function foreignAssistant(message: HarnessAssistantMessage): AssistantMessage {
       case 'image':
         throw new LlmError('pi-ai chat history cannot represent structured assistant image output', 'UNSUPPORTED_CONTENT')
       default:
-        // plugin-added block types are not representable in pi-ai.
+        // 插件新增的块类型在 pi-ai 中无法表示。
         break
     }
   }
   return {
     role: 'assistant',
     content,
-    // Deliberately never equals a catalog API: absent replay state is foreign
-    // even if source names the same provider/model as this request.
+    // 刻意永不等于任何目录 API：缺失回放状态即为外来，
+    // 即使来源指名了与本次请求相同的提供方/模型。
     api: 'dsh-foreign',
     provider: source.provider,
     model: source.model,
@@ -183,7 +181,7 @@ function foreignAssistant(message: HarnessAssistantMessage): AssistantMessage {
   }
 }
 
-/** Recombine durable Harness content with validated pi-ai replay metadata. */
+/** 把持久化的 Harness 内容与已校验的 pi-ai 回放元数据重新组合起来。 */
 function replayedAssistant(message: HarnessAssistantMessage, source: ModelMessageSource, rawState: unknown): AssistantMessage {
   const state = readReplayState(rawState)
   if (state.response.provider !== source.provider) return invalidReplay('provider does not match assistant source')
@@ -212,7 +210,7 @@ function replayedAssistant(message: HarnessAssistantMessage, source: ModelMessag
         ...replay.type === 'tool-call' && replay.thoughtSignature !== undefined ? { thoughtSignature: replay.thoughtSignature } : {},
         ...replay.type === 'tool-call' && replay.namespace !== undefined ? { namespace: replay.namespace } : {},
       }
-      /* v8 ignore next -- readReplayState rejects unknown replay tags, so an equal plugin-added Harness tag cannot reach this switch */
+      /* v8 ignore next -- readReplayState 会拒绝未知的回放标签，因此一个相等的、由插件新增的 Harness 标签无法到达这个 switch */
       default: return invalidReplay(`block ${index} has an unsupported Harness type`)
     }
   })
@@ -232,17 +230,16 @@ function replayedAssistant(message: HarnessAssistantMessage, source: ModelMessag
 }
 
 /**
- * Convert one durable Harness assistant message into pi-ai history.
+ * 把一条持久化的 Harness 助手消息转换为 pi-ai 历史。
  *
- * Durable content is the authoritative record; replay metadata only restores
- * native fidelity (ids, signatures). A replay state this build cannot use —
- * another adapter's kind, another version, a malformed value, or metadata that
- * no longer matches the content — therefore degrades the one message to
- * provider-neutral history instead of failing the request.
- * @param message - model-produced assistant content with provider, model, and optional adapter-owned replay metadata.
- * @param onDegrade - called with the diagnostic reason when an unusable replay
- *   state falls back to provider-neutral conversion.
- * @returns a native pi-ai assistant message reconstructed from durable content.
+ * 持久化的内容是权威的记录；回放元数据只用于恢复原生的保真度
+ * （id、签名）。因此一个本构建无法使用的回放状态——另一个适配器的种类、
+ * 另一个版本、一个格式错误的值，或不再与内容匹配的元数据——会让那一条
+ * 消息降级为与提供方无关的历史，而不是让这次请求失败。
+ * @param message - 由模型产出的助手内容，带有提供方、模型，以及可选的由适配器持有的回放元数据。
+ * @param onDegrade - 当一个不可用的回放状态回退为与提供方无关的转换时，
+ *   以该诊断原因被调用。
+ * @returns 由持久化内容重建出来的、原生的 pi-ai 助手消息。
  */
 export function toPiAssistant(message: HarnessAssistantMessage, onDegrade?: (reason: string) => void): AssistantMessage {
   const source = message.source
@@ -250,8 +247,8 @@ export function toPiAssistant(message: HarnessAssistantMessage, onDegrade?: (rea
   try {
     return replayedAssistant(message, source, source.replayState)
   } catch (error: unknown) {
-    /* v8 ignore next -- replayedAssistant throws only INVALID_REPLAY_STATE LlmErrors; the
-       guard keeps a future non-replay failure loud instead of silently degrading it */
+    /* v8 ignore next -- replayedAssistant 只抛出 INVALID_REPLAY_STATE 的 LlmError；
+       这个守卫让未来一次非回放的失败保持响亮，而不是被静默地降级 */
     if (!(error instanceof LlmError) || error.code !== 'INVALID_REPLAY_STATE') throw error
     onDegrade?.(error.message)
     return foreignAssistant(message)

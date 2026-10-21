@@ -1,8 +1,7 @@
 /**
- * Shared execution policy for model-backed session-title providers: route
- * preparation, input/token/time bounds, cancellation, exact auxiliary request
- * logging, and stream assembly. Title wording, length targets, reasoning
- * selection, and output interpretation belong to each provider.
+ * 由模型支撑的会话标题提供方所共用的执行策略：路由准备、输入/令牌/时间
+ * 边界、取消、精确的辅助请求记录，以及流装配。标题措辞、长度目标、推理
+ * 选择以及产出解读则归各个提供方所有。
  * @module @deepseek-ai/dsh-session-title-llm
  */
 
@@ -33,52 +32,52 @@ import type {
   SessionTitleProviderRequest,
 } from '@deepseek-ai/dsh-session-title'
 
-/** Exact model-visible request recorded before one auxiliary title dispatch. */
+/** 在一次辅助标题派发之前记录的、确切的、模型可见请求。 */
 export interface SessionTitleLlmRequestEventData {
-  /** Registered title-provider identity responsible for the request. */
+  /** 对该请求负责的、已注册的标题提供方身份。 */
   readonly titleProvider: SessionTitleProviderId
-  /** Exact human `user/message` seqs represented in `messages`. */
+  /** 在 `messages` 中表示的、确切的人类 `user/message` seq。 */
   readonly messageSeqs: SessionSeq[]
-  /** Exact auxiliary LLM route. */
+  /** 确切的辅助 LLM 路由。 */
   readonly route: SessionTitleModelIdentity
-  /** Exact auxiliary system prompt. */
+  /** 确切的辅助系统提示。 */
   readonly system: string
-  /** Exact auxiliary message list. */
+  /** 确切的辅助消息列表。 */
   readonly messages: Message[]
-  /** Exact auxiliary output-token cap. */
+  /** 确切的辅助输出令牌上限。 */
   readonly maxTokens: number
-  /** Resolved reasoning effort when recorded; older requests can omit it. */
+  /** 被记录时解析得到的推理力度；较早的请求可以省略。 */
   readonly reasoningEffort?: ReasoningEffortId
 }
 
 declare module '@deepseek-ai/dsh-session/types' {
   interface SessionEventMap {
-    /** Log-only pre-dispatch record of one session-title model request. */
+    /** 仅日志的、对某次会话标题模型请求的、派发前记录。 */
     'session/title-llm-request': SessionTitleLlmRequestEventData
   }
 }
 
-/** Capability-owned timeout reason code for auxiliary title requests. */
+/** 能力自有、用于辅助标题请求的超时原因码。 */
 export const SESSION_TITLE_TIMEOUT_CODE = 'SESSION_TITLE_TIMEOUT'
 
-/** Required execution controls for one model-backed title request. */
+/** 一次由模型支撑的标题请求所需的执行控制。 */
 export interface SessionTitleLlmConfig {
-  /** Maximum UTF-8 bytes in the provider-prepared user input. */
+  /** 提供方准备的用户输入的最大 UTF-8 字节数。 */
   readonly maxInputBytes: number
-  /** Output-token cap for the title request, independent of conversation requests. */
+  /** 标题请求的输出令牌上限，独立于对话请求。 */
   readonly maxOutputTokens: number
-  /** End-to-end auxiliary request deadline in milliseconds. */
+  /** 辅助请求的端到端截止时间，单位毫秒。 */
   readonly timeoutMs: number
-  /** Optional explicit provider route; must be paired with `model`. */
+  /** 可选的显式提供方路由；必须与 `model` 成对出现。 */
   readonly provider?: string
-  /** Optional explicit model id; must be paired with `provider`. */
+  /** 可选的显式模型 id；必须与 `provider` 成对出现。 */
   readonly model?: string
 }
 
-/** Validated immutable execution controls. */
+/** 已校验的不可变执行控制。 */
 export interface ResolvedSessionTitleLlmConfig extends SessionTitleLlmConfig {}
 
-/** Shared Loader field schemas with no library defaults. */
+/** 没有库默认值的、共享的 Loader 字段 schema。 */
 export const SessionTitleLlmConfigFields = {
   maxInputBytes: z.number().step(1).min(1).required(),
   maxOutputTokens: z.number().step(1).min(1).required(),
@@ -87,10 +86,10 @@ export const SessionTitleLlmConfigFields = {
   model: z.string(),
 }
 
-/** Shared Loader schema with no library defaults. */
+/** 没有库默认值的、共享的 Loader schema。 */
 export const SessionTitleLlmConfigSchema: z<SessionTitleLlmConfig> = z.object(SessionTitleLlmConfigFields)
 
-/** Complete execution-control key set for direct construction validation. */
+/** 用于直接构造校验的完整执行控制键集合。 */
 const CONFIG_KEYS: ReadonlySet<string> = new Set([
   'maxInputBytes',
   'maxOutputTokens',
@@ -99,7 +98,7 @@ const CONFIG_KEYS: ReadonlySet<string> = new Set([
   'model',
 ])
 
-/** Validate one positive integer limit. */
+/** 校验一个正整数上限。 */
 function assertPositiveInteger(name: string, value: number): void {
   if (!Number.isInteger(value) || value <= 0) {
     throw new Error(`session-title-llm: ${name} must be a positive integer`)
@@ -107,9 +106,9 @@ function assertPositiveInteger(name: string, value: number): void {
 }
 
 /**
- * Validate and detach required execution controls.
- * @param config - untrusted execution configuration.
- * @returns immutable controls with optional route absence preserved.
+ * 校验并分离出所需的执行控制。
+ * @param config - 不受信任的执行配置。
+ * @returns 不可变的控制，并保留可选的路由缺失状态。
  */
 export function resolveSessionTitleLlmConfig(
   config: SessionTitleLlmConfig,
@@ -142,39 +141,39 @@ export function resolveSessionTitleLlmConfig(
 }
 
 /**
- * Provider-prepared model input, source-message attribution, and the
- * provider-owned reasoning selector forwarded to `ctx.llm.prepareCall`.
+ * 由提供方准备的模型输入、源消息归属，以及转发给 `ctx.llm.prepareCall` 的、
+ * 提供方自有的推理选择器。
  */
 export interface SessionTitleLlmPreparedRequest {
-  /** Exact system prompt supplied by the provider. */
+  /** 由提供方提供的确切系统提示。 */
   readonly system: string
-  /** Exact user message text supplied by the provider, including any framing. */
+  /** 由提供方提供的确切用户消息文本，包括任何框架化内容。 */
   readonly input: string
-  /** Exact human `user/message` seqs represented by `input`, in log order. */
+  /** 由 `input` 表示的、确切的人类 `user/message` seq，按日志顺序。 */
   readonly messageSeqs: readonly SessionSeq[]
   /**
-   * Provider-owned reasoning selection for the captured route. The execution
-   * module combines only the returned effort with its fixed output-token cap.
-   * @param model - detached, deeply frozen metadata from the captured adapter generation.
-   * @returns a supported effort id, or `undefined` to use the route's normal default.
+   * 针对所捕获路由、由提供方自有的推理选择。执行模块只把返回的力度与
+   * 其固定的输出令牌上限结合起来。
+   * @param model - 从所捕获的适配器代际中得到的、已分离、深度冻结的元数据。
+   * @returns 一个受支持的力度 id，或 `undefined` 以使用该路由的常规默认。
    */
   readonly selectReasoningEffort: (model: Readonly<LlmResolvedModelInfo>) => ReasoningEffortId | undefined
 }
 
-/** Terminal finish kinds forwarded to a provider for its own interpretation. */
+/** 转发给提供方、由其自行解读的、终结性的结束类型。 */
 export type SessionTitleLlmFinish = Extract<FinishReason, { kind: 'stop' | 'tool-calls' | 'max-tokens' }>
 
-/** Assembled auxiliary model response for one provider to interpret. */
+/** 供某个提供方解读的、已装配的辅助模型响应。 */
 export interface SessionTitleLlmResponse {
-  /** Assembled content blocks in stream order; the provider rejects unwanted block types. */
+  /** 按流顺序装配的内容块；提供方会拒绝不想要的内容块类型。 */
   readonly blocks: readonly ContentBlock[]
-  /** Terminal finish reason forwarded without title-output interpretation. */
+  /** 转发过来的、终结性的结束原因，不做标题产出解读。 */
   readonly finish: SessionTitleLlmFinish
-  /** Exact auxiliary model route that produced the response. */
+  /** 产生该响应的、确切的辅助模型路由。 */
   readonly model: SessionTitleModelIdentity
 }
 
-/** Resolve the explicit pair or the exact route captured from `request/header`. */
+/** 解析显式成对路由，或从容器的 `request/header` 捕获的精确路由。 */
 function resolveRoute(
   config: ResolvedSessionTitleLlmConfig,
   request: SessionTitleProviderRequest,
@@ -189,11 +188,11 @@ function resolveRoute(
 }
 
 /**
- * Classify one terminal finish reason. Operational failures throw; every other
- * terminal kind is returned for the provider to accept or reject.
- * @param finish - terminal finish reason from the assembled stream.
- * @returns the provider-facing finish reason.
- * @throws {Error} on a provider or caller abort, or an impossible finish variant.
+ * 对一种终结性的结束原因分类。操作失败会抛出；其它每个终结类型都被返回，
+ * 由提供方接受或拒绝。
+ * @param finish - 来自已装配流的、终结性的结束原因。
+ * @returns 面向提供方的结束原因。
+ * @throws {Error} 当提供方或调用方中止，或出现不可能的结束变体时。
  */
 function terminalFinish(finish: FinishReason): SessionTitleLlmFinish {
   switch (finish.kind) {
@@ -207,25 +206,25 @@ function terminalFinish(finish: FinishReason): SessionTitleLlmFinish {
       error.code = finish.failure.code
       throw error
     }
-    /* v8 ignore next -- closed FinishReason union exhaustiveness guard */
+    /* v8 ignore next -- 封闭的 FinishReason 联合穷尽性守卫 */
     default: return assertNever(finish, 'FinishReason')
   }
 }
 
 /**
- * Execute one prepared auxiliary title request.
+ * 执行一次已准备好的辅助标题请求。
  *
- * The provider owns the system prompt, user input, reasoning selection, and
- * output interpretation. This function owns route preparation, the final input
- * byte limit, the output-token cap, the end-to-end deadline, cancellation, the
- * exact `session/title-llm-request` record, and stream assembly.
- * @param ctx - context exposing the registered LLM service.
- * @param config - validated execution controls.
- * @param request - service-owned session, route, message snapshot, current title, and cancellation.
- * @param titleProvider - registered title-provider identity recorded with the request.
- * @param prepared - provider system prompt, input, source-message seqs, and reasoning selector.
- * @returns assembled response blocks, terminal finish, and the exact route used.
- * @throws {Error} when input bounds, route preparation, the deadline, cancellation, or an operational finish failure occurs.
+ * 提供方拥有系统提示、用户输入、推理选择与产出解读。本函数拥有路由准备、
+ * 最终的输入字节上限、输出令牌上限、端到端截止时间、取消、精确的
+ * `session/title-llm-request` 记录，以及流装配。
+ * @param ctx - 暴露了已注册 LLM 服务的上下文。
+ * @param config - 已校验的执行控制。
+ * @param request - 服务自有的会话、路由、消息快照、当前标题与取消信号。
+ * @param titleProvider - 随请求一并记录的、已注册的标题提供方身份。
+ * @param prepared - 提供方的系统提示、输入、源消息 seq 与推理选择器。
+ * @returns 装配好的响应块、终结性的结束原因，以及所使用过的精确路由。
+ * @throws {Error} 当输入边界、路由准备、截止时间、取消或一次操作性的
+ *   结束失败发生时。
  */
 export async function executeSessionTitleLlm(
   ctx: Context,

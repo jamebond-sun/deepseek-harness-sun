@@ -1,34 +1,31 @@
-/** Cross-platform native single-directory chooser behind the native backend's capability. */
+/** 原生后端能力背后的跨平台原生单目录选择器。 */
 
 import { runNativeCommand, type NativeCommandRunner } from '@deepseek-ai/dsh-native-command'
 import { pickWin32Directory } from './win32-dialog.ts'
 
-/** Testable command boundary; native implementations never invoke a shell. */
+/** 可测试的命令边界；原生实现从不经由 shell 调用。 */
 export type DirectoryPickerRunner = NativeCommandRunner
 
-/** Injectable platform facts for deterministic adapter tests. */
+/** 为确定性适配器测试注入的平台事实。 */
 export interface DirectoryPickerInternals {
   platform?: NodeJS.Platform
   run?: DirectoryPickerRunner
-  /** Replaces the in-process Win32 dialog (`pickWin32Directory`) for deterministic tests. */
+  /** 替换进程内的 Win32 对话框（`pickWin32Directory`），便于确定性测试。 */
   pickWin32Dialog?: (signal: AbortSignal) => Promise<string | null>
 }
 
-/** The prompt every native chooser shows. */
+/** 每个原生选择器都显示的提示语。 */
 const DIALOG_TITLE = 'Select Workspace Directory'
 
 /**
- * macOS panel source, run by the system JXA host (`osascript -l JavaScript`).
+ * macOS 面板源码，由系统 JXA 宿主执行（`osascript -l JavaScript`）。
  *
- * A native panel resolves ⌘C/⌘V/⌘A/⌘X as main-menu key equivalents rather than
- * as focused-field behavior, so the script installs that menu before opening
- * `NSOpenPanel`; AppleScript's `choose folder` runs in a helper that has no
- * menu, which leaves every text field of its panel (Go to Folder, Search,
- * Tags) un-pastable. Menu items stay untargeted, so AppKit enables them
- * against the responder chain that owns the panel's field editor. The prompt
- * arrives as argv, never as executable source, and a cancel prints an empty
- * line instead of failing. A cancelled panel still reports its highlighted or
- * current directory in `URLs`, so only an OK response reads the selection.
+ * 原生面板会把 ⌘C/⌘V/⌘A/⌘X 当作主菜单快捷键处理，而非当作焦点字段的行为，因此脚本在
+ * 打开 `NSOpenPanel` 之前先装上该菜单；AppleScript 的 `choose folder` 运行在一个没有菜单
+ * 的辅助程序中，导致其面板的每个文本框（前往文件夹、搜索、标签）都无法粘贴。菜单项保持
+ * 无 target 状态，这样 AppKit 会针对持有面板字段编辑器的响应者链来启用它们。提示语通过
+ * argv 传入，绝不作为可执行源码；取消时打印一个空行而不是失败。被取消的面板仍会在
+ * `URLs` 中报告其高亮或当前目录，因此只有 OK 响应才读取选择结果。
  */
 const MAC_PANEL = `
 ObjC.import('AppKit');
@@ -81,10 +78,10 @@ function rethrowIfAborted(signal: AbortSignal, error: unknown): void {
 }
 
 /**
- * Open the platform directory picker.
- * @param signal - caller/connection lifetime; abort terminates the native command.
- * @param internals - Platform and runner hooks for deterministic tests.
- * @returns the selected path, or null when the user cancels.
+ * 打开平台目录选择器。
+ * @param signal - 调用方/连接生命周期；终止信号会结束原生命令。
+ * @param internals - 供确定性测试注入的平台与运行器钩子。
+ * @returns 选中的路径；用户取消时为 null。
  */
 export async function pickNativeDirectory(
   signal: AbortSignal,
@@ -99,11 +96,10 @@ export async function pickNativeDirectory(
   }
 
   if (platform === 'win32') {
-    // The koffi-backed IFileOpenDialog child process — the modern picker with
-    // per-monitor-v2 DPI and abort support. koffi is a packaged dependency
-    // whose availability the install guarantees, so there is no fallback
-    // tier: any failure surfaces as-is (no PowerShell fallback tier; see
-    // .agents/notes/archived/simplification/2026-08-04-drop-windows-powershell-picker-fallback.md).
+    // 由 koffi 驱动的 IFileOpenDialog 子进程——支持 per-monitor-v2 DPI 与中止的现代选择器。
+    // koffi 是打包依赖，安装即保证其可用，因此没有回退层：任何失败都原样暴露（不再有
+    // PowerShell 回退层；见
+    // .agents/notes/archived/simplification/2026-08-04-drop-windows-powershell-picker-fallback.md）。
     const pickDialog = internals.pickWin32Dialog ?? pickWin32Directory
     return await pickDialog(signal)
   }

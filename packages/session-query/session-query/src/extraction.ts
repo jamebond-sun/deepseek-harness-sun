@@ -1,16 +1,15 @@
-/** First-party semantic text extraction for session-query consumers. */
+/** 面向 session-query 使用方的第一方语义文本抽取。 */
 
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
-// Type-only: includes the first-party todo event consumed below.
+// 仅类型：包含下面消费到的第一方 todo 事件。
 import type {} from '@deepseek-ai/dsh-tool-todo'
 
 /**
- * Extract searchable semantic text from one first-party session event.
+ * 从一个第一方会话事件中抽取可搜索的语义文本。
  *
- * Structural boundaries, embedded raw streams, request envelopes, and unknown
- * declaration-merged events contribute no text.
- * @param event - event to inspect.
- * @returns newline-joined semantic text, or an empty string when non-searchable.
+ * 结构性边界、内嵌的原始流、请求信封以及未知的声明合并事件都不贡献文本。
+ * @param event - 要检查的事件。
+ * @returns 以换行连接的语义文本；不可搜索时返回空字符串。
  */
 export function extractSessionEventText(event: SessionEvent): string {
   switch (event.type) {
@@ -36,8 +35,8 @@ export function extractSessionEventText(event: SessionEvent): string {
     case 'assistant/attempt':
     case 'request/header':
       return ''
-    // SessionEventMap is merge-extensible. Unknown events remain
-    // non-searchable until a concrete first-party consumer defines semantics.
+    // SessionEventMap 是可合并扩展的。在具体的第一方消费方定义语义之前，
+    // 未知事件保持不可搜索。
     default:
       return ''
   }
@@ -54,8 +53,8 @@ function turnEndText(reason: SessionEvent<'turn/end'>['data']['reason']): string
       return reason.kind
     case 'completed':
       return ''
-    // TurnEndReasonMap is merge-extensible. Unknown outcomes stay out until
-    // their owner defines which detail is semantic rather than structural.
+    // TurnEndReasonMap 是可合并扩展的。在其属主定义哪一部分细节属于语义而非结构之前，
+    // 未知结果不参与抽取。
     default:
       return ''
   }
@@ -75,8 +74,8 @@ function blockText(block: SessionContentBlock): string[] {
       return []
     case 'tool-call':
       return [block.name, block.arguments]
-    // ContentBlockMap is merge-extensible. Unknown blocks do not become
-    // searchable merely because their payload happens to contain strings.
+    // ContentBlockMap 是可合并扩展的。未知分块不会因为其载荷恰好含有字符串
+    // 就变成可搜索内容。
     default:
       return []
   }

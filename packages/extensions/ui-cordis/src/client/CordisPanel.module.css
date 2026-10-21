@@ -1,4 +1,4 @@
-/* Sidebar-foot Cordis action and the fixed list it opens above the footer. */
+/* Sidebar 页脚的 Cordis 操作，以及它在页脚上方展开的、固定定位的列表。 */
 
 .layer {
   position: relative;
@@ -79,8 +79,8 @@
   gap: 2px;
 }
 
-/* Fixed so the sidebar's overflow clip cannot cut the 420px surface; the
-   left/bottom offsets are measured from the trigger before paint. */
+/* 固定定位，以便 sidebar 的溢出裁剪不会切掉 420px 的表面；
+   左/下偏移在绘制前从触发器测得。 */
 .panel {
   position: fixed;
   isolation: isolate;
@@ -95,7 +95,7 @@
   border-radius: 12px;
   --dsw-elevation-stroke-color: var(--dsw-alias-border-l1);
   box-shadow: var(--dsw-elevation-prominent);
-  /* Only `.body` scrolls; the header remains fixed above it. */
+  /* 只有 `.body` 滚动；header 在其上方保持固定。 */
   --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
   --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
 }
@@ -147,7 +147,7 @@
   color: var(--dsw-alias-state-error-primary);
 }
 
-/* Session headings replace per-row ownership markers. */
+/* 会话标题替换逐行的归属标记。 */
 .group {
   margin: 8px 0 8px;
   font-size: 11px;
@@ -311,8 +311,8 @@
   line-height: 16px;
 }
 
-/* Matches GoalBar's action controls: compact circular icons whose visible copy
-   lives in a tooltip and accessible name. */
+/* 与 GoalBar 的操作控件一致：紧凑的圆形图标，其可见文案
+   存于 tooltip 与可访问名称中。 */
 .actionButton {
   display: inline-flex;
   align-items: center;

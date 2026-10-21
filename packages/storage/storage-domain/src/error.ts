@@ -1,9 +1,9 @@
 /**
- * Error vocabulary of the domain data form.
+ * 领域数据形式的错误概念词汇。
  * @module @deepseek-ai/dsh-storage-domain/src/error
  */
 
-/** Discriminant codes carried by every {@link DomainError}. */
+/** 每个 {@link DomainError} 携带的判别码。 */
 export type DomainErrorCode =
   | 'already-open'
   | 'facet-unsupported'
@@ -11,36 +11,34 @@ export type DomainErrorCode =
   | 'missing-key'
   | 'closed'
 
-/** Location of the record that failed schema validation at the durable boundary. */
+/** 在持久化边界处 schema 校验失败的记录位置。 */
 export interface InvalidRecordDetail {
-  /** Table holding the rejected record; `''` for the global singleton. */
+  /** 持有被拒记录的表；全局单例为 `''`。 */
   readonly table: string
-  /** Key of the rejected record; `''` for the global singleton. */
+  /** 被拒记录的键；全局单例为 `''`。 */
   readonly key: string
 }
 
-/** Construction options: standard `cause` plus the `invalid-record` location. */
+/** 构造选项：标准 `cause` 外加 `invalid-record` 的位置。 */
 export interface DomainErrorOptions extends ErrorOptions {
-  /** Present exactly when `code` is `invalid-record`. */
+  /** 仅当 `code` 为 `invalid-record` 时存在。 */
   readonly detail?: InvalidRecordDetail
 }
 
 /**
- * Error thrown by the domain layer. The `code` is the stable contract
- * consumers may switch on; `message` is diagnostic prose. Backend failures
- * (`backend-not-found`, `version-mismatch`, …) pass through as
- * `StorageError` — the domain layer does not rewrap them.
+ * 由领域层抛出的错误。`code` 是消费者可据此分支判断的稳定契约，`message` 为诊断性叙述。
+ * 后端失败（`backend-not-found`、`version-mismatch` 等）作为 `StorageError` 透传——领域层不会重新包装它们。
  */
 export class DomainError extends Error {
   override readonly name = 'DomainError'
 
-  /** Present exactly when `code` is `invalid-record`. */
+  /** 仅当 `code` 为 `invalid-record` 时存在。 */
   readonly detail?: InvalidRecordDetail
 
   /**
-   * @param code - Stable discriminant for the failure class.
-   * @param message - Human-readable diagnostic detail.
-   * @param options - Standard error options plus the `invalid-record` location.
+   * @param code - 失败类别的稳定判别码。
+   * @param message - 人类可读的诊断细节。
+   * @param options - 标准错误选项外加 `invalid-record` 的位置。
    */
   constructor(
     readonly code: DomainErrorCode,

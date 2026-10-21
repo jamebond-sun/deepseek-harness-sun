@@ -13,7 +13,7 @@ const retained = Object.fromEntries(
   )),
 )
 
-/** Exact top-level event and payload-member inventory frozen for released v2. */
+/** 为已发布 v2 冻结的精确顶层事件与载荷成员清单。 */
 export const RELEASED_V2_EVENT_DISPOSITIONS: Readonly<Record<string, ReleasedV0PayloadDisposition>> = Object.freeze({
   ...retained,
   'assistant/attempt': defineReleasedPayloadDisposition(['turn', 'step', 'stream']),
@@ -28,7 +28,7 @@ export const RELEASED_V2_EVENT_DISPOSITIONS: Readonly<Record<string, ReleasedV0P
   'session/end-seed': defineReleasedPayloadDisposition([], ['inherited']),
 })
 
-/** Stable sorted released-v2 event inventory. */
+/** 稳定排序的已发布 v2 事件清单。 */
 export const RELEASED_V2_EVENT_TYPES: readonly string[] = Object.freeze(
   Object.keys(RELEASED_V2_EVENT_DISPOSITIONS).sort((left, right) => left.localeCompare(right, 'en')),
 )

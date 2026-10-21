@@ -1,4 +1,4 @@
-/** Windows parent-side launch and ownership for the private Job runner. */
+/** 针对私有 Job runner 的 Windows 父进程侧启动与所有权。 */
 
 import { controlPipe } from './control-spawn.ts'
 import { spawn } from 'node:child_process'
@@ -26,7 +26,7 @@ import {
 } from './runner-launch.ts'
 import type { RunnerInvocation } from './runner-launch.ts'
 
-/** Test seams for runner launch and dynamic capability checks. */
+/** 用于 runner 启动与动态能力检查的测试 seam。 */
 export interface WindowsJobInternals {
   spawn?: typeof spawn
   runnerInvocation?: RunnerInvocation
@@ -50,9 +50,9 @@ function isWindowsStartCancellationError(error: SerializedRunnerError): boolean 
 }
 
 /**
- * Re-check the runner entry, bindings, and current Job capability for every spawn.
- * @param internals - optional runner and Win32 capability seams used by tests.
- * @returns whether the Windows native containment path is currently available.
+ * 为每一次启动重新检查 runner 入口、绑定与当前的 Job 能力。
+ * @param internals - 由测试使用的、可选的 runner 与 Win32 能力 seam。
+ * @returns Windows 原生隔离路径当前是否可用。
  */
 export function probeWindowsJob(internals: WindowsJobInternals = {}): boolean {
   try {
@@ -111,16 +111,16 @@ class WindowsJobOwner implements BoundProcessOwner {
   }
 
   terminateForHostExit(): void {
-    try { this.runner.kill('SIGKILL') } catch { /* Host exit continues with other live runners. */ }
+    try { this.runner.kill('SIGKILL') } catch { /* 主机退出会继续处理其他存活的 runner。 */ }
   }
 }
 
 /**
- * Launch one target through a runner that uniquely owns its Job handle.
- * @param spec - ordinary target request.
- * @param targetEnv - validated complete target environment.
- * @param internals - optional runner launch seams used by tests.
- * @returns direct streams, result, and runner-owned managed range.
+ * 通过一个唯一拥有其 Job 句柄的 runner 启动一个目标。
+ * @param spec - 普通目标请求。
+ * @param targetEnv - 经过校验的完整目标环境。
+ * @param internals - 由测试使用的、可选的 runner 启动 seam。
+ * @returns 直接流、结果，以及由 runner 拥有的受管范围。
  */
 export function launchWindowsJob(
   spec: SubprocessSpawnSpec,
@@ -165,7 +165,7 @@ export function launchWindowsJob(
         rangeExit.resolve()
         return
       }
-      // The private IPC result may arrive after the process-exit notification.
+      // 私有的 IPC 结果可能在进程退出通知之后才到达。
       if (!ipcDisconnected) return
     }
     const status = signal !== null

@@ -22,7 +22,7 @@ const PHYSICAL_HEADER_REQUIRED = ['type', 'version', 'id', 'createdAt', 'delegat
 const PHYSICAL_HEADER_OPTIONAL = ['cwd', 'parentSession', 'seedLength', 'origin', 'agentPreset'] as const
 const PACKED_TAGS = new Set(['text-chunks', 'reasoning-chunks', 'tool-call-chunks'])
 
-/** A released packed Assistant row retained until v1-to-v2 embeds its compact stream. */
+/** 一条已发布的打包 Assistant 行，保留到 v1→v2 将其紧凑流内嵌为止。 */
 export interface ReleasedAssistantChunkRun extends SessionFormatEventRun {
   readonly runType: 'released-assistant-chunks'
   readonly turn: number
@@ -33,18 +33,18 @@ export interface ReleasedAssistantChunkRun extends SessionFormatEventRun {
 }
 
 /**
- * Test whether a compact migration item is a released packed Assistant row.
- * @param run - compact migration item to classify.
- * @returns whether the item carries the released Assistant chunk representation.
+ * 判断一个紧凑迁移项是否为已发布的打包 Assistant 行。
+ * @param run - 待分类的紧凑迁移项。
+ * @returns 该项是否带有已发布的 Assistant 分块表示。
  */
 export function isReleasedAssistantChunkRun(run: SessionFormatEventRun): run is ReleasedAssistantChunkRun {
   return run.runType === 'released-assistant-chunks'
 }
 
-/** Frozen physical JSON codec for the released v0 layout. */
+/** 已发布的 v0 布局所使用的冻结物理 JSON 编解码器。 */
 export const releasedV0SessionFormatCodec = createReleasedCodec(0)
 
-/** Frozen physical JSON codec for the shared-layout released v1 format. */
+/** 共享布局的已发布 v1 格式所使用的冻结物理 JSON 编解码器。 */
 export const releasedV1SessionFormatCodec = createReleasedCodec(1)
 
 function createReleasedCodec(version: 0 | 1) {

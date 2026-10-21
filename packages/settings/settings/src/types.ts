@@ -1,75 +1,72 @@
-/** Client-safe configuration form views and change notifications. */
+/** 客户端安全的配置表单视图与变更通知。 */
 
 import type { Branded } from '@deepseek-ai/dsh-brand'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 
-/** Nominal id of one profile plugin entry. */
+/** 单个 profile 插件条目的名义 id。 */
 export type SettingsNamespace = Branded<'SettingsNamespace'>
 
-/** One schema-declared secret slot inside a redacted namespace value. */
+/** 已脱敏的命名空间值中一个由 schema 声明的密文槽位。 */
 export interface SettingsSecretView {
-  /** Path from the section root to the removed field. */
+  /** 从配置节根到被移除字段的路径。 */
   path: string[]
-  /** Whether the slot currently holds a value; the value itself never rides. */
+  /** 该槽位当前是否持有值；值本身永不随行传输。 */
   set: boolean
 }
 
 /**
- * Wire view of one profile plugin entry, always read under `redactSecrets`. The
- * JSON-valued fields are `JsonValue` rather than the descriptor's `unknown`
- * because the Remote boundary admits no unconstrained data.
+ * 单个 profile 插件条目的线上视图，始终在 `redactSecrets` 下读取。JSON 值字段采用
+ * `JsonValue` 而非描述符的 `unknown`，因为 Remote 边界不接受无约束数据。
  */
 export interface SettingsNamespaceView {
-  /** Generate a page if no custom page is registered for this instance. */
+  /** 未为该实例注册自定义页面时，是否自动生成页面。 */
   autoGenerate: boolean
-  /** Namespace key (`llm-deepseek`, `llm-pi-ai`, …). */
+  /** 命名空间键（`llm-deepseek`、`llm-pi-ai` 等）。 */
   ns: string
-  /** Serialized schemastery schema envelope (`schema.toJSON()`); rehydrate with `new Schema(json)`. */
+  /** 序列化的 schemastery schema 信封（`schema.toJSON()`）；用 `new Schema(json)` 复原。 */
   schema: JsonValue
-  /** Redacted resolved value (schema defaults → composition base → user layer). */
+  /** 已脱敏的解析值（schema 默认值 → 组合基底层 → 用户层）。 */
   value: JsonValue
-  /** Redacted composition base layer, with defaults resolved. */
+  /** 已脱敏的组合基底层，默认值已解析。 */
   base?: JsonValue
-  /** Redacted raw user section, when one exists; a field's presence here marks it user-overridden. */
+  /** 已脱敏的原始用户配置节（若存在）；字段在此出现即表示已被用户覆盖。 */
   user?: JsonValue
-  /** When the owner applies changes. */
+  /** 所有者应用变更的时机。 */
   applies: 'live'
-  /** Every schema-declared secret slot with its configured state. */
+  /** 所有由 schema 声明的密文槽位及其配置状态。 */
   secrets: SettingsSecretView[]
   /**
-   * Monotonic revision of the raw entry configuration this view was read at. Send it
-   * back as `expectedRevision` on a write so a stale editor is refused rather
-   * than silently overwriting a concurrent change.
+   * 读取该视图时原始条目配置的单调修订号。写入时将其作为 `expectedRevision` 回传，
+   * 以便拒绝过期的编辑器，而不是静默覆盖并发变更。
    */
   revision: number
 }
 
 /**
- * One path-addressed edit carried by a remote settings write. `set` writes the
- * value at the path, creating intermediate objects; `unset` removes it. The
- * empty path addresses the section root.
+ * 一次远程设置写入所携带的路径寻址编辑。`set` 在路径处写入值并创建中间对象；
+ * `unset` 将其移除。空路径寻址配置节根。
  */
 export type SettingsPathOpView =
   | { op: 'set'; path: string[]; value: JsonValue }
   | { op: 'unset'; path: string[] }
 
-/** Every profile plugin entry with the deployment facts a configuration page renders around them. */
+/** 所有 profile 插件条目，以及配置页面围绕其渲染的部署事实。 */
 export interface SettingsDescribeValue {
-  /** Whether the profile accepts writes; `false` disables every write control. */
+  /** profile 是否接受写入；`false` 会禁用所有写入控件。 */
   writable: boolean
-  /** Whether the configuration editor owns a local document, without exposing its Host path. */
+  /** 配置编辑器是否拥有本地文档，但不暴露其 Host 路径。 */
   hasDocument: boolean
-  /** One view per profile plugin entry. */
+  /** 每个 profile 插件条目一个视图。 */
   namespaces: SettingsNamespaceView[]
 }
 
 declare module '@deepseek-ai/cordis' {
   interface Events {
     /**
-     * One profile entry's form values, availability, or page policy changed.
-     * Form clients re-read its schema, resolved values, and revision.
-     * @param ns Profile entry id.
-     * @param revision The entry's new revision.
+     * 某个 profile 条目的表单值、可用性或页面策略发生变化。
+     * 表单客户端需重新读取其 schema、解析值与修订号。
+     * @param ns profile 条目 id。
+     * @param revision 该条目的新修订号。
      * @mode emit
      */
     'settings/document-updated'(ns: SettingsNamespace, revision: number): void

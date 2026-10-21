@@ -1,4 +1,4 @@
-/** Model-facing discovery of LLM routes available to child Agents. */
+/** 面向模型的、对子 Agents 可用 LLM 路由的发现。 */
 
 import type { Context } from '@deepseek-ai/cordis'
 import type LlmRuntime from '@deepseek-ai/dsh-llm'
@@ -11,7 +11,7 @@ interface ListSubagentModelsRequest {
   readonly model?: string
 }
 
-/** Resolve one registered provider with a model-correctable diagnostic. */
+/** 解析一个已注册的提供方，并带有一条可纠正模型的诊断。 */
 function registeredProvider(
   llm: LlmRuntime,
   policy: ModelSelectionPolicy,
@@ -27,12 +27,12 @@ function registeredProvider(
   throw new Error(`LLM provider "${providerId}" is not registered; available providers: ${available}`)
 }
 
-/** Render one advertised or resolved model. */
+/** 渲染一个已声明或已解析的模型。 */
 function modelLine(provider: string, model: { id: string; name: string; description?: string }): string {
   return `${provider}/${model.id} — ${model.name}${model.description === undefined ? '' : `: ${model.description}`}`
 }
 
-/** Read the requested provider, advertised models, or exact-model efforts. */
+/** 读取所请求的提供方、已声明的模型，或精确模型的 efforts。 */
 async function listSubagentModels(
   ctx: Context,
   policy: ModelSelectionPolicy,
@@ -79,9 +79,9 @@ async function listSubagentModels(
 }
 
 /**
- * Register `list_subagent_models` for one owning delegation-tool instance.
- * @param ctx - Context whose tool registry owns the fixed discovery definition.
- * @param policy - Route policy captured for this Session.
+ * 为一个所属的委托工具实例注册 `list_subagent_models`。
+ * @param ctx - 其工具注册表拥有该固定发现定义的 Context。
+ * @param policy - 为本次 Session 捕获的路由策略。
  */
 export function registerListSubagentModels(ctx: Context, policy: ModelSelectionPolicy): void {
   ctx.tools.register(defineTool({

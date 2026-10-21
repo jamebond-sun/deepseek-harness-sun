@@ -1,7 +1,6 @@
 /**
- * Model-facing full-file write. It obtains an optional intent from the single policy slot, calls
- * `ctx.fs.writeText` without a stat, then records the resulting version; no policy means an
- * unconditional atomic create-or-overwrite.
+ * 面向模型的整文件写入。它从唯一的策略槽获取可选意图，不做 stat 直接调用
+ * `ctx.fs.writeText`，然后记录产生的版本；没有策略时就是一次无条件的原子创建或覆盖。
  * @module @deepseek-ai/dsh-tool-fs/src/write
  */
 
@@ -17,10 +16,10 @@ import { sessionResolveOptions } from './session-cwd.ts'
 import type { FsSandboxController } from './sandbox.ts'
 
 /**
- * Validate value constraints the schema DSL can't express: only a non-blank
- * `file_path` — an empty `content` is legitimate (it writes an empty file).
- * @param args - the schema-validated raw tool arguments.
- * @returns the camelCased input; `content` passes through untouched.
+ * 校验模式 DSL 无法表达的值约束：只要求 `file_path` 非空白 ——
+ * 空的 `content` 是合法的（它会写出一个空文件）。
+ * @param args - 经模式校验过的原始工具参数。
+ * @returns 驼峰化的输入；`content` 原样透传。
  */
 export function parseWriteArgs(args: { file_path: string; content: string }): { filePath: string; content: string } {
   if (args.file_path.trim().length === 0) throw new Error('file_path must be a non-empty string')
@@ -28,10 +27,10 @@ export function parseWriteArgs(args: { file_path: string; content: string }): { 
 }
 
 /**
- * Format a write outcome as one model-facing text block body.
- * @param displayPath - the backend-resolved path rendered in the envelope's `<path>` element.
- * @param outcome - the write outcome; its `operation` selects the Created/Updated wording.
- * @returns the model-facing confirmation envelope (no file content is echoed back).
+ * 把一次写入结果格式化为一个面向模型的文本块正文。
+ * @param displayPath - 由后端解析、渲染在信封 `<path>` 元素中的路径。
+ * @param outcome - 写入结果；其 `operation` 决定使用 Created 还是 Updated 措辞。
+ * @returns 面向模型的确认信封（不回显文件内容）。
  */
 export function formatWriteOutput(displayPath: string, outcome: Pick<FsWriteOutcome, 'operation'>): string {
   const verb = outcome.operation === 'create' ? 'Created' : 'Updated'
@@ -43,9 +42,8 @@ ${verb} file
 }
 
 /**
- * The `write` tool's validated arguments: the base parameters plus the
- * two escalation fields, advertised only under a confining `ctx.fs` (absent
- * from the schema otherwise, so the validator rejects them before `execute`).
+ * `write` 工具已校验的参数：基础参数外加两个提级字段，仅在会做隔离的 `ctx.fs` 下才宣示
+ * （否则它们不出现在模式里，校验器会在 `execute` 之前就拒绝）。
  */
 interface WriteToolArgs {
   file_path: string
@@ -55,9 +53,9 @@ interface WriteToolArgs {
 }
 
 /**
- * Register the `write` tool and its scope-aware system-prompt guidance.
- * @param ctx - the plugin context; registrations are effects scoped to it, and execution uses its `fs` service.
- * @param sandbox - the shared sandbox-escalation API (advertisement, mode stamping, denial mapping).
+ * 注册 `write` 工具及其随作用域变化的系统提示语。
+ * @param ctx - 插件上下文；所有注册都是以它为作用域的 effect，执行时使用它的 `fs` 服务。
+ * @param sandbox - 共享的沙箱提级 API（宣示、模式标记、拒绝映射）。
  */
 export function applyWriteTool(ctx: Context, sandbox: FsSandboxController): void {
   ctx.systemPrompt.section({
@@ -111,27 +109,25 @@ export function applyWriteTool(ctx: Context, sandbox: FsSandboxController): void
     },
     async execute(args: WriteToolArgs, exec) {
       const input = parseWriteArgs(args)
-      // Resolve the per-call sandbox policy (approved mode > session override
-      // > backend default, plus the session cwd root) BEFORE anything executes;
-      // an escalating call throws its distinct text on any non-grant.
+      // 在执行任何东西之前先解析本次调用的沙箱策略（已批准模式 > 会话覆写 > 后端默认，
+      // 外加会话的 cwd 根目录）；提级调用在任何非授权情况下抛出其特有的文案。
       const sandboxPolicy = await sandbox.resolvePolicy('write', args, exec)
       const target = await ctx.fs.resolve(input.filePath, await sessionResolveOptions(ctx, exec))
-      // Single-slot decision: the policy plugin produces createIfAbsent/
-      // replaceIfVersion; the bare default is undefined (unconditional). No stat.
+      // 单槽决策：策略插件产出 createIfAbsent/replaceIfVersion；裸默认值是 undefined
+      //（无条件写入）。不做 stat。
       const intent = await ctx.waterfall('fs/write-intent', target, exec, () => undefined)
       let outcome: FsWriteOutcome
       try {
         outcome = await ctx.fs.writeText(target, input.content, intent, exec.signal, sandboxPolicy)
       } catch (error: unknown) {
-        // A sandbox denial becomes the shared [sandbox: …] marker (the model
-        // recognizes it from bash); guarded mutation failures receive their
-        // stable model-facing diagnostic; anything else passes through.
+        // 沙箱拒绝会变成共享的 [sandbox: …] 标记（模型从 bash 那里认识它）；
+        // 受守卫的修改失败会得到稳定的面向模型诊断；其他情况原样透传。
         throw remediateFsError(sandbox.mapError(error, sandboxPolicy), target.displayPath)
       }
       return mutationResult(ctx, target, outcome, exec)
     },
-    // Pure display: a diff card. A call-time presenter has no access to prior
-    // file content, so `oldText: null` also represents an overwrite here.
+    // 纯展示：一张 diff 卡片。调用时刻的展示层拿不到此前的文件内容，
+    // 所以这里的 `oldText: null` 同样表示一次覆盖。
     presentCall(args): DiffCallView {
       return {
         card: 'diff',
@@ -140,9 +136,8 @@ export function applyWriteTool(ctx: Context, sandbox: FsSandboxController): void
         locations: [{ path: args.file_path }],
       }
     },
-    // Result-time display repeats the diff because completed views replace the
-    // pending view. Overwrites use applied metadata; creates and identical
-    // overwrites use the replay-safe args fallback.
+    // 结果时刻的展示重复这张 diff，因为已完成视图会替换掉进行中的视图。
+    // 覆盖使用已应用的元数据；创建与内容相同的覆盖则使用可重放的 args 回退方案。
     presentResult(args, result: ToolResult): DiffResultView | undefined {
       if (result.isError) return undefined
       const diffs = diffsFromMeta(result.meta)

@@ -1,6 +1,5 @@
 /**
- * Compiler-independent Typert protocol shared by business packages, generated
- * Remote artifacts, the Host Gateway, and Client API implementations.
+ * 业务包、生成的 Remote 产物、Host Gateway 与 Client API 实现共享的、与编译器无关的 Typert 协议。
  * @module @deepseek-ai/dsh-typert-protocol/types
  */
 
@@ -14,45 +13,45 @@ declare const LOOKUP_WIRE: unique symbol
 declare const CONTEXT_WIRE: unique symbol
 declare const RESOURCE_ID: unique symbol
 
-/** Type-level association between a Host object and its wire identity. */
+/** Host 对象与其传输线身份之间的类型级关联。 */
 export interface TypertLookup<Host, Wire> {
   readonly [LOOKUP_HOST]: Host
   readonly [LOOKUP_WIRE]: Wire
 }
 
-/** Extract the Host object associated with one lookup declaration. */
+/** 提取某一 lookup 声明关联的 Host 对象。 */
 export type TypertLookupHost<Lookup> = Lookup extends TypertLookup<infer Host, infer _Wire> ? Host : never
 
-/** Extract the wire identity associated with one lookup declaration. */
+/** 提取某一 lookup 声明关联的传输线身份。 */
 export type TypertLookupWire<Lookup> = Lookup extends TypertLookup<infer _Host, infer Wire> ? Wire : never
 
-/** Type-level association between a scoped Context kind and its wire identity. */
+/** 某个限定 Context 种类与其传输线身份之间的类型级关联。 */
 export interface TypertContext<Wire> {
   readonly [CONTEXT_WIRE]: Wire
 }
 
-/** Extract the wire identity associated with one scoped Context declaration. */
+/** 提取某一限定 Context 声明关联的传输线身份。 */
 export type TypertContextWire<ContextType> = ContextType extends TypertContext<infer Wire> ? Wire : never
 
-/** Merge-extensible Host object lookup declarations. */
+/** 可合并扩展的 Host 对象 lookup 声明。 */
 export interface TypertLookupMap {}
 
-/** Merge-extensible scoped Context declarations. */
+/** 可合并扩展的限定 Context 声明。 */
 export interface TypertContextMap {}
 
-/** Type-level association between a resource kind and its identity type. */
+/** 资源种类与其身份类型之间的类型级关联。 */
 export interface TypertResource<Id> {
   readonly [RESOURCE_ID]: Id
 }
 
-/** Extract the identity type associated with one resource declaration. */
+/** 提取某一资源声明关联的身份类型。 */
 export type TypertResourceId<Resource> = Resource extends TypertResource<infer Id> ? Id : never
 
 /**
- * Merge-extensible resource kinds whose identities a Remote call or forwarded
- * event may carry. The package that owns an identity type declares its kind;
- * the value is that kind's identity type, a string type such as a branded id.
- * `global` names the built-in identity-less resource and is never a kind here.
+ * 可合并扩展的资源种类，其身份可由一次 Remote 调用或转发的事件携带。
+ * 拥有某身份类型的包声明其种类；该值为该种类的身份类型，例如
+ * 一个 branded id 这样的字符串类型。`global` 指代内置的无身份资源，
+ * 在此处从不是一种种类。
  */
 export interface TypertResourceMap {}
 
@@ -60,10 +59,9 @@ export interface TypertResourceMap {}
 export type TypertResourceKind = Extract<keyof TypertResourceMap, string>
 
 /**
- * Per-kind resource readers called with one argument tuple spread
- * positionally: plain reads returning one identity, several, or `undefined`
- * for none.
- * @template Args - the argument tuple the readers receive as parameters.
+ * 各按种类调用的资源读取器，以一个参数元组按位置展开传入：执行普通读取，
+ * 返回一个身份、多个身份，或表示无的 `undefined`。
+ * @template Args - 读取器作为形参接收的参数元组。
  */
 export type TypertResourceReaders<Args extends readonly unknown[]> = {
   readonly [Kind in TypertResourceKind]?: (...args: Args) =>
@@ -73,9 +71,8 @@ export type TypertResourceReaders<Args extends readonly unknown[]> = {
 }
 
 /**
- * Type-erased resource reader as runtime carriers store it; callers spread
- * the argument tuple into it and validate its result. Declared through a
- * method so a reader typed by its own parameters is assignable without a cast.
+ * 运行时载体所存的类型擦除资源读取器；调用方将参数元组展开传入并校验其结果。
+ * 通过方法声明，使按自身形参类型化的读取器无需强制转换即可赋值。
  */
 export type TypertResourceReader = { read(...args: readonly unknown[]): unknown }['read']
 
@@ -84,48 +81,46 @@ type TypertWireForHost<Value, Entry> = Entry extends unknown
   ? Value extends TypertLookupHost<Entry> ? TypertLookupWire<Entry> : never
   : never
 
-/** A method parameter as it arrives on the wire: a lookup's Host object becomes its wire identity. */
+/** 方法参数抵达传输线时的形态：lookup 的 Host 对象变为其传输线身份。 */
 export type RemoteWireValue<Value> = Value extends TypertLookupHost<TypertLookupEntry>
   ? TypertWireForHost<Value, TypertLookupEntry>
   : Value
 
-/** A method's positional parameters as the wire carries them. */
+/** 方法的位置参数在传输线上承载的形态。 */
 export type RemoteWireArgs<Args extends unknown[]> = { [Index in keyof Args]: RemoteWireValue<Args[Index]> }
 
-/** Merge-extensible direct Remote method signatures generated for consumers. */
+/** 为消费者生成的可合并扩展的直连 Remote 方法签名。 */
 export interface TypertRemoteMap {}
 
 /**
- * Merge-extensible Remote failure vocabulary: this package declares the
- * universal carrier codes once; the Gateway merges its infrastructure codes
- * and every owner merges its domain codes next to the throwing code.
+ * 可合并扩展的 Remote 失败词表：本包一次性声明通用的载体码；Gateway 合并
+ * 其基础设施码，每个所有者在其抛出码旁合并其领域码。
  */
 export interface RemoteErrorDetailsMap {
-  /** Owner-side business validation refused the request; `issues` carries codec output when one produced it. */
+  /** 所有者侧业务校验拒绝了请求；当某个校验器产出时，`issues` 携带其输出。 */
   'gateway/bad-request': { readonly issues?: readonly object[] }
-  /** The call was cancelled by the carrier signal or the backend. */
+  /** 调用被载体信号或后端取消。 */
   'gateway/cancelled': {}
-  /** Carrier, dispatch, or unclassified Host failure. */
+  /** 载体、分发或未分类的 Host 失败。 */
   'gateway/internal': {}
 }
 
-/** Every declared Remote failure code. */
+/** 所有已声明的 Remote 失败码。 */
 export type RemoteErrorCode = keyof RemoteErrorDetailsMap
 
 /**
- * One Remote call's failure: the code-discriminated union of RemoteError
- * instances, so a `code` branch narrows `details` with no cast.
+ * 一次 Remote 调用的失败：RemoteError 实例按 code 区分的联合，因此
+ * 一个 `code` 分支可在无强制转换的情况下收窄 `details`。
  */
 export type RemoteFailure = {
   [Code in RemoteErrorCode]: import('./remote-error.ts').RemoteError<Code>
 }[RemoteErrorCode]
 
 /**
- * What every generated Remote method resolves to. The Remote face itself folds
- * carrier failures into the error branch, so no consumer wraps a call to
- * recover one; only assembly faults (arity, an unmounted method, a missing
- * Context adapter) still reject.
- * @template T - the Host method's business result.
+ * 每个生成的 Remote 方法所解析出的结果。Remote 端自身将载体失败折叠进
+ * 错误分支，因此没有消费者需要包裹一次调用以恢复其中之一；只有装配故障
+ * （参数个数、未挂载的方法、缺失的 Context 适配器）仍会 reject。
+ * @template T - Host 方法的业务结果。
  */
 export type RemoteResult<T> =
   | { readonly ok: true; readonly value: T }
@@ -134,50 +129,42 @@ export type RemoteResult<T> =
 declare const STREAM_UPLINK: unique symbol
 
 /**
- * One Remote stream as a Host method returns it: the items it yields to the
- * Client, iterated as a plain `AsyncIterable<Out>`. `In` is the type of the
- * items the Client may send back on the same logical stream, read through
- * `RemoteInvocation.uplink()`; it is carried only as a type-level marker. The
- * default `never` declares a method that reads none, and its descriptor
- * carries no uplink codec. A generated Client stream method returns the same
- * stream as a `RemoteStreamHandle<Out, In>`.
- * @template Out - item type the Host method yields.
- * @template In - item type the Client may send; `never` when the method reads none.
+ * 一个 Host 方法返回的 Remote 流：它向 Client 产出的项，作为普通的
+ * `AsyncIterable<Out>` 迭代。`In` 是 Client 可在同一逻辑流上回送的项类型，
+ * 通过 `RemoteInvocation.uplink()` 读取；它仅作为类型级标记携带。默认的
+ * `never` 声明一个不读取任何项的方法，其描述符不携带上行编解码器。一个
+ * 生成的 Client 流方法以 `RemoteStreamHandle<Out, In>` 形式返回同一流。
+ * @template Out - Host 方法产出的项类型。
+ * @template In - Client 可发送的项类型；不读取时为 `never`。
  */
 export type RemoteStream<Out, In = never> = AsyncIterable<Out> & { readonly [STREAM_UPLINK]?: In }
 
 /**
- * One open Remote stream as the Client holds it: the downlink items as an
- * `AsyncIterable`, plus the uplink and cancellation of the same logical
- * stream. A generated Client stream method returns it, and calling that
- * method opens the stream: a holder that neither iterates nor disposes the
- * handle keeps the Host stream alive. A handle stands for one generation:
- * when the carrier is lost, iteration fails with the carrier error and the
- * handle is finished.
- * @template Out - item type the Host method yields.
- * @template In - item type the Client may send; `never` when the method reads none.
+ * Client 持有的一个已开启 Remote 流：下行项作为 `AsyncIterable`，外加同一
+ * 逻辑流的上行与取消。生成的 Client 流方法返回它，调用该方法即开启流：
+ * 既未迭代也未释放句柄的持有者会让 Host 流保持存活。句柄代表一代：当载体
+ * 丢失时，迭代以载体错误失败，句柄结束。
+ * @template Out - Host 方法产出的项类型。
+ * @template In - Client 可发送的项类型；不读取时为 `never`。
  */
 export interface RemoteStreamHandle<Out, In> extends AsyncIterable<Out> {
   /**
-   * Send one uplink item. Items sent before the stream has opened are queued
-   * and sent once the `open` frame is on the wire. A top-level `undefined`
-   * travels as an `item` frame without `value`.
-   * @param item - item the Host validates against the method's uplink codec.
-   * @throws {Error} when the item is not a lossless JSON value, when `end()`
-   * was called, or once the stream has terminated.
+   * 发送一个上行项。在流开启前发送的项会排队，待 `open` 帧进入传输线后发送。
+   * 顶层的 `undefined` 以不含 `value` 的 `item` 帧传输。
+   * @param item - Host 依据方法上行编解码器校验的项。
+   * @throws {Error} 当该项不是无损 JSON 值、当已调用 `end()`，或流已终止时。
    */
   send(item: In): void
   /** Half-close the uplink: the Host's `uplink()` iteration ends. Idempotent; ignored after termination. */
   end(): void
   /**
-   * Cancel the logical stream: send `cancel` unless a terminal frame has
-   * arrived, and end the downlink iterator quietly. Breaking out of
-   * `for await` early does the same.
+   * 取消逻辑流：除非已收到终止帧，否则发送 `cancel`，并安静地结束下行迭代器。
+   * 提前跳出 `for await` 效果相同。
    */
   dispose(): void
 }
 
-/** Merge-extensible scoped Remote method signatures generated for consumers. */
+/** 为消费者生成的可合并扩展的限定 Remote 方法签名。 */
 export interface TypertRemoteScopeMap {}
 
 type TypertEventParameters<Event extends keyof Events> =
@@ -215,20 +202,18 @@ type TypertForwardingMode<Event extends keyof Events> =
     : TypertWaterfallEvent<Event> extends never ? never : 'waterfall'
 
 /**
- * Cordis event names the Remote Event carrier can preserve without a second
- * signature declaration: unscoped `void` notifications and scoped async
- * waterfalls whose final parameter is their same-result `next()` callback.
+ * Remote Event 载体可在无需第二份签名声明的情况下保留的 Cordis 事件名：
+ * 无作用域的 `void` 通知，以及最终的形参为其同结果 `next()` 回调的限定异步
+ * 瀑布。
  */
 export type TypertForwardableEvent = {
   [Event in keyof Events]: TypertForwardingMode<Event> extends never ? never : Event
 }[keyof Events]
 
 /**
- * Event and dispatch mode accepted by the Remote Event source. An `emit` entry
- * may declare readers of the resources its payload carries; an
- * entry without `resources` touches the built-in `global` resource. A
- * non-owner Peer receives an `emit` notification only after an access
- * decision and never receives a `waterfall`.
+ * Remote Event 源接受的事件与分发模式。`emit` 条目可声明其负载携带的
+ * 资源读取器；不带 `resources` 的条目触及内置的 `global` 资源。非所有者
+ * Peer 仅在经过访问决策后收到 `emit` 通知，且绝不会收到 `waterfall`。
  */
 export type TypertForwardableEventEntry = {
   [Event in keyof Events]: TypertForwardingMode<Event> extends infer Mode
@@ -244,10 +229,10 @@ export type TypertForwardableEventEntry = {
     : never
 }[keyof Events]
 
-/** Merge-extensible forwarding selection declared once by the Host assembly. */
+/** 由 Host 装配一次性声明的可合并扩展转发选择。 */
 export interface TypertRemoteEventSelection {}
 
-/** Legal `$on` keys selected from the carrier-compatible Cordis event declarations. */
+/** 从兼容载体的 Cordis 事件声明中选出的合法 `$on` 键。 */
 export type TypertRemoteEvent = Extract<TypertForwardableEvent, keyof TypertRemoteEventSelection>
 
 type TypertClientAgent<Value> =
@@ -269,10 +254,9 @@ type TypertScopedClientEventListener<Event extends TypertRemoteEvent> =
     : never
 
 /**
- * Listener derived from one selected Cordis event declaration. Scoped Host
- * subjects become the resolved Client `Context`; one-way notifications retain
- * their declaration unchanged.
- * @template Event - selected Remote Event name.
+ * 由一个选定的 Cordis 事件声明派生的监听器。限定的 Host 主体变为已解析的
+ * Client `Context`；单向通知保持其声明不变。
+ * @template Event - 选定的 Remote Event 名称。
  */
 export type TypertClientEventListener<Event extends TypertRemoteEvent> =
   unknown extends ThisParameterType<Events[Event]>
@@ -280,8 +264,8 @@ export type TypertClientEventListener<Event extends TypertRemoteEvent> =
     : TypertScopedClientEventListener<Event>
 
 /**
- * Resolve one direct Remote namespace from the generated flat endpoint map.
- * @template Namespace - wire namespace before the endpoint slash.
+ * 从生成的扁平端点映射解析一个直连 Remote 命名空间。
+ * @template Namespace - 端点斜杠之前的传输线命名空间。
  */
 export type TypertRemoteNamespace<Namespace extends string> = {
   [Endpoint in keyof TypertRemoteMap as Endpoint extends `${Namespace}/${infer Method}`
@@ -308,51 +292,51 @@ type TypertRemoteScopeNamespaceKey<
   Endpoint = keyof TypertRemoteScopeMap,
 > = Endpoint extends `${ContextKey}:${infer Namespace}/${string}` ? Namespace : never
 
-/** Generated scoped Remote namespaces available to one Context kind. */
+/** 某一 Context 种类可用的、生成的限定 Remote 命名空间。 */
 export type TypertRemoteScopeApi<ContextKey extends string> = {
   [Namespace in TypertRemoteScopeNamespaceKey<ContextKey>]:
   TypertRemoteScopeNamespace<Namespace, ContextKey>
 }
 
-/** Merge-extensible direct namespace surface generated for Client Remote services. */
+/** 为 Client Remote 服务生成的可合并扩展的直连命名空间表面。 */
 export interface TypertRemoteNamespaceMap {}
 
-/** Awaitable disposer returned by Cordis-owned Typert registrations. */
+/** Cordis 所有的 Typert 注册所返回的、可等待的释放器。 */
 export type TypertDisposer = () => Promise<void>
 
 type StringKeyOf<Value> = Extract<keyof Value, string>
 
-/** Minimal runtime-schema capability carried by strict generated codecs. */
+/** 严格生成的编解码器携带的最简运行时 schema 能力。 */
 export interface TypertSchema<Output = unknown> {
   /**
-   * Parse and validate one boundary value.
-   * @param value - untrusted boundary value.
-   * @returns the validated value.
+   * 解析并校验一个边界值。
+   * @param value - 不受信任的边界值。
+   * @returns 校验后的值。
    */
   parse(value: unknown): Output
 }
 
-/** Native byte views reconstructed by a Remote carrier have ordinary ArrayBuffer backing. */
+/** Remote 载体重建的原生字节视图拥有普通的 ArrayBuffer 后备。 */
 export type RemoteDecoded<Value> = Value extends Uint8Array ? Uint8Array<ArrayBuffer>
   : Value extends string | number | boolean | bigint | symbol ? Value
     : Value extends object ? { [Key in keyof Value]: RemoteDecoded<Value[Key]> } : Value
 
-/** Codec attached to one invocation parameter or result. */
+/** 附加在一个调用参数或结果上的编解码器。 */
 export type TypertCodec<Value = unknown> =
   | TypertRemoteValue<Value> & {
     readonly mode: 'strict'
     readonly typeSymbol: string
     /**
-     * Decode a unary result whose fields require type-specific handling.
-     * @param value - result reconstructed by the RPC carrier.
-     * @returns the validated result, retaining native byte views.
+     * 解码一个其字段需要类型特定处理的单值结果。
+     * @param value - RPC 载体重建的结果。
+     * @returns 校验后的结果，保留原生字节视图。
      */
     readonly decode?: ((value: unknown) => unknown) | undefined
     /**
-     * Project typed binary fields into RPC result attachments.
-     * @param value - native unary result.
-     * @param writeBytes - records a byte view at its result-relative path and returns its JSON placeholder.
-     * @returns JSON metadata with untouched JSON subtrees retained.
+     * 将类型化的二进制字段投影进 RPC 结果附件。
+     * @param value - 原生单值结果。
+     * @param writeBytes - 在相对于结果的位置记录一个字节视图并返回其 JSON 占位符。
+     * @returns 保留未触及 JSON 子树的 JSON 元数据。
      */
     readonly encode?: ((value: unknown, writeBytes: (bytes: Uint8Array, path: readonly (string | number)[]) => null) => unknown) | undefined
   }
@@ -360,7 +344,7 @@ export type TypertCodec<Value = unknown> =
     readonly mode: 'src-json'
   }
 
-/** One ordered business parameter in a Remote invocation. */
+/** 一次 Remote 调用中的一个有序业务参数。 */
 export interface InvocationParameterDescriptor {
   /** Source-level parameter name. */
   readonly name: string
@@ -378,14 +362,14 @@ export interface InvocationParameterDescriptor {
   readonly acceptsUndefined?: true
 }
 
-/** Source position retained for diagnostics from generated definitions. */
+/** 从生成定义保留、用于诊断的源位置。 */
 export interface InvocationSourceLocation {
   readonly file: string
   readonly line: number
   readonly column: number
 }
 
-/** Carrier-independent description of one exported method invocation. */
+/** 与载体无关的、对一个已导出方法调用的描述。 */
 export interface InvocationDescriptor {
   /** Globally stable generated identity. */
   readonly id: string
@@ -408,92 +392,88 @@ export interface InvocationDescriptor {
       readonly wire: string
       readonly codec: TypertCodec
     }
-  /** Optional consuming-Context projection for one direct lookup parameter. */
+  /** 为一个直连 lookup 参数的可选消费端 Context 投影。 */
   readonly scope?: {
-    /** Context kind whose Client adapter supplies the identity. */
+    /** 由 Client 适配器提供身份的 Context 种类。 */
     readonly context: string
-    /** Lookup parameter wire field replaced by the Context identity. */
+    /** 被 Context 身份替换的 lookup 参数传输线字段。 */
     readonly wire: string
   }
-  /** Ordered business parameters. */
+  /** 有序业务参数。 */
   readonly parameters: readonly InvocationParameterDescriptor[]
   /**
-   * Client-to-Host items of the same logical stream, generated from the `In`
-   * type argument of the method's `RemoteStream<Out, In>` return type; absent
-   * when `In` is `never`. The method reads the items through
-   * `RemoteInvocation.uplink()`, so nothing enters the parameter list.
+   * 与本方法 `RemoteStream<Out, In>` 返回类型的 `In` 类型实参生成的、
+   * 同一逻辑流的 Client 到 Host 项；当 `In` 为 `never` 时缺省。方法通过
+   * `RemoteInvocation.uplink()` 读取这些项，因此没有任何内容进入参数列表。
    */
   readonly uplink?: {
-    /** Codec validating every uplink item before `uplink()` delivers it. */
+    /** 在 `uplink()` 交付前校验每个上行项的编解码器。 */
     readonly codec: TypertCodec
   }
-  /** Transport cancellation injected after business parameters instead of entering wire args. */
+  /** 在业务参数之后注入的传输取消，而非进入传输线参数。 */
   readonly cancellation?: {
-    /** Reserved final Host method parameter. */
+    /** 预留的最后的 Host 方法参数。 */
     readonly parameter: 'signal'
   }
-  /** Codec for the unary result or each yielded stream item. */
+  /** 一元结果或每个产出的流项的编解码器。 */
   readonly result: TypertCodec
-  /** Source-owned method documentation; ordinary methods need not have JSDoc. */
+  /** 源拥有的方法文档；普通方法不必有 JSDoc。 */
   readonly description?: string
-  /** Source declaration used only for diagnostics. */
+  /** 仅用于诊断的源声明。 */
   readonly sourceLocation?: InvocationSourceLocation
 }
 
 /**
- * Opaque identity of one Peer: a party admitted to this Host by the connection
- * layer. "Peer" is a connection-layer word; the browser application keeps the
- * word "Client".
+ * 一个 Peer 的不透明身份：由连接层准许进入此 Host 的一方。"Peer" 是
+ * 连接层的用语；浏览器应用保留 "Client" 一词。
  */
 export type PeerId = Branded<'PeerId'>
 
 /**
- * Merge-extensible caller identities. Each driver declares its own entry.
- * Every entry is a JSON value with a unique literal `kind`, carries no
- * credential, and is safe to persist in a Session log.
+ * 可合并扩展的调用方身份。每个驱动声明各自的条目。每个条目是一个带有
+ * 唯一字面量 `kind` 的 JSON 值，不携带任何凭据，且可安全持久化进 Session 日志。
  */
 export interface PrincipalMap {
-  /** The local user who owns this Host. */
+  /** 拥有此 Host 的本地用户。 */
   owner: { readonly kind: 'owner' }
 }
 
-/** One caller identity; the authorization layer reads only this. */
+/** 一个调用方身份；授权层只读此。 */
 export type Principal = PrincipalMap[keyof PrincipalMap]
 
 /**
- * One Peer's session on this Host. Its creator owns it: `ctx` is the Cordis
- * scope that owns connection-lifetime registrations and is disposed with the
- * Peer, and `principal` is the caller identity fixed when the Peer was created.
+ * 一个 Peer 在此 Host 上的会话。其创建者拥有它：`ctx` 是拥有连接生命周期
+ * 注册、并随 Peer 一起释放的 Cordis 作用域，而 `principal` 是 Peer 创建时
+ * 固定的调用方身份。
  */
 export interface PeerScope {
   readonly id: PeerId
-  /** Connection-lifetime registrations; disposed with the Peer. */
+  /** 连接生命周期注册；随 Peer 一起释放。 */
   readonly ctx: Context
-  /** Caller identity fixed at creation by in-process Host code; no wire field can set it. */
+  /** 由进程内 Host 代码在创建时固定、传输线上任何字段都无法设置的调用方身份。 */
   readonly principal: Principal
-  /** Aborted once the Peer is disposed; Remote streams that speak for the Peer end with it. */
+  /** Peer 被释放后立即中止；代表该 Peer 的 Remote 流随之结束。 */
   readonly signal: AbortSignal
-  /** Whether the Peer may open a forwarded-event stream; this does not grant business permissions. */
+  /** Peer 是否能开启转发事件流；这不授予业务权限。 */
   readonly interactions: 'answer' | 'none'
   /**
-   * Tear down every registration made through `ctx`.
-   * @returns settles once the scope has quiesced; racing calls share one completion.
+   * 拆除通过 `ctx` 完成的所有注册。
+   * @returns 在作用域静止后结算；竞态调用共享一次完成。
    */
   dispose(): Promise<void>
 }
 
-/** Carrier capacity for buffered uplink frames of one logical stream. */
+/** 一个逻辑流缓冲上行帧的载体容量。 */
 export interface RemoteUplinkWindow {
-  /** Maximum complete encoded frame bytes waiting for the Host consumer. */
+  /** 等待 Host 消费者的最大完整编码帧字节数。 */
   readonly maxBytes: number
-  /** UTF-8 envelope bytes added to a compact JSON item with a present value field. */
+  /** 为带有 present value 字段的紧凑 JSON 项添加的 UTF-8 信封字节数。 */
   readonly frameOverheadBytes: number
 }
 
 /**
- * The context of one Remote call, reachable inside the receiving method as
- * `this.ctx.invocation`. The Gateway derives the receiver from a Context that
- * carries it, so no parameter is injected and nothing crosses the wire.
+ * 一次 Remote 调用的上下文，可在接收方法内部作为 `this.ctx.invocation` 访问。
+ * Gateway 从携带它的 Context 派生接收方，因此不注入任何参数，也没有任何内容穿越传输线。
  */
 export interface RemoteInvocation {
   readonly request: {
@@ -501,81 +481,79 @@ export interface RemoteInvocation {
     readonly method: string
     readonly args: Readonly<Record<string, unknown>>
   }
-  /** Cordis service key of the receiving Service. */
+  /** 接收服务的 Cordis 服务键。 */
   readonly service: string
-  /** Peer the call speaks for; every carrier names it explicitly. */
+  /** 调用所代表的 Peer；每个载体都显式命名它。 */
   readonly peer: PeerScope
-  /** Carrier cancellation: Client cancel, socket close, or an uplink failure. */
+  /** 载体取消：Client 取消、套接字关闭或上行失败。 */
   readonly signal: AbortSignal
-  /** Carrier frame capacity; absent when the carrier imposes no encoded-frame inbox limit. */
+  /** 载体帧容量；当载体不施加编码帧收件箱限制时缺省。 */
   readonly uplinkWindow?: RemoteUplinkWindow | undefined
   /**
-   * The Client's uplink items for this call. Available once; a second call
-   * throws. With an uplink codec on the descriptor every item is decoded to
-   * `In`; without one items arrive as `unknown` after a JSON-safety check.
-   * Iteration ends when the Client ends its uplink; when the method finishes
-   * its downlink the Gateway calls the iterator's `return()` and unread items
-   * are dropped. `In` is the caller's assertion: the runtime decodes by the
-   * descriptor and does not cross-check it.
-   * @template In - item type the caller reads; the descriptor codec decides what arrives.
-   * @returns the single-consumer uplink iterable.
+   * 本次调用的 Client 上行项。仅可用一次；第二次调用会抛出。当描述符上带有
+   * 上行编解码器时，每个项都被解码为 `In`；否则在经过 JSON 安全性检查后
+   * 以 `unknown` 形式到达。迭代在 Client 结束其上行时结束；当方法完成其下行时，
+   * Gateway 调用迭代器的 `return()`，未读项被丢弃。`In` 是调用方的断言：
+   * 运行时按描述符解码，并不交叉校验它。
+   * @template In - 调用方读取的项类型；由描述符编解码器决定实际到达的内容。
+   * @returns 单消费者上行可迭代对象。
    */
   uplink<In = unknown>(): AsyncIterable<In>
 }
 
-/** Generated Host contract selected explicitly by a Client assembly. */
+/** 由 Client 装配显式选定的、生成的 Host 契约。 */
 export interface TypertRemoteContribution {
-  /** npm package that owns the Remote methods. */
+  /** 拥有 Remote 方法的 npm 包。 */
   readonly package: string
-  /** Consumer-side invocation descriptors generated from that package. */
+  /** 从该包生成的、消费端调用描述符。 */
   readonly descriptors: readonly InvocationDescriptor[]
 }
 
-/** Generated parser and optional lossless tool-schema projection of one Remote value. */
+/** 一个 Remote 值的、生成的解析器与可选的无损工具 schema 投影。 */
 export interface TypertRemoteValue<Value = unknown> {
-  /** Materialize the generated parser without loading the owning Service. */
+  /** 在不加载拥有服务的情况下实例化生成的解析器。 */
   readonly create: () => TypertSchema<Value>
-  /** Source-owned value documentation, independent of tool projection support. */
+  /** 源拥有的取值文档，独立于工具投影支持。 */
   readonly description?: string | undefined
-  /** Present when the value is representable in the tool-schema subset without losing constraints; may be derived lazily. */
+  /** 当该值可在不丢失约束的情况下表示于工具 schema 子集时存在；可惰性派生。 */
   readonly jsonSchema?: Readonly<Record<string, unknown>> | undefined
-  /** Projection failure for consumers that require JSON Schema; parsing remains available. */
+  /** 需要 JSON Schema 的消费者遇到的投影失败；解析仍可用。 */
   readonly jsonSchemaError?: string | undefined
 }
 
-/** Consumer-owned input validation; never changes Host dispatch or the business method declaration. */
+/** 消费者拥有的输入校验；从不改变 Host 分发或业务方法声明。 */
 export interface TypertRemoteInputOptions {
-  /** Reject undeclared fields in input objects; explicit dictionaries and JSON values remain open. */
+  /** 拒绝输入对象中未声明的字段；显式字典与 JSON 值仍保持开放。 */
   readonly strict?: boolean
 }
 
-/** A direct descriptor; DecodedOutput differs from its parser output only for carrier-reconstructed unary bytes. */
+/** 一个直连描述符；DecodedOutput 与解析器输出仅在载体重建的一元字节上不同。 */
 export type TypertRemoteMethod<Input extends object, Output, Mode extends 'unary' | 'stream' = 'unary', Uplink = never, DecodedOutput = Output> =
   Omit<InvocationDescriptor, 'mode' | 'invocation' | 'result'>
   & (Mode extends 'stream' ? { readonly mode: 'stream' } : { readonly mode?: never }) & {
     /** Named invocation selects a direct Service method, not a Context receiver. */
     readonly invocation: { readonly kind: 'direct' }
     /**
-     * Select matching named-input parsing and tool-schema projection without changing dispatch.
-     * @param options - consumer-owned strictness; omission preserves ordinary Remote object handling.
-     * @returns the cached view for this policy; its parser and projection remain lazy.
+     * 在不改变分发的前提下，选择匹配的具名输入解析与工具 schema 投影。
+     * @param options - 消费者拥有的严格度；缺省时保持普通 Remote 对象处理。
+     * @returns 本策略的缓存视图；其解析器与投影仍保持惰性。
      */
     input(options?: TypertRemoteInputOptions): TypertRemoteValue<Input>
-    /** The descriptor's result or stream-item parser; parsing alone does not normalize native byte backing. */
+    /** 描述符的一元结果或流项解析器；仅解析不会规范化原生字节后备。 */
     readonly result: Extract<TypertCodec<Output>, { readonly mode: 'strict' }>
     /**
-     * Invoke the mounted namespace method with named wire arguments.
-     * @param remote - caller-owned, unscoped Client Remote service; its mount owns availability.
-     * @param input - decoded named wire arguments.
-     * @param signal - caller-owned invocation lifetime.
-     * @returns the carrier-decoded unary result or complete stream handle, including uplink and disposal.
+     * 以具名传输线参数调用已挂载的命名空间方法。
+     * @param remote - 调用方拥有的、无作用域的 Client Remote 服务；其挂载决定可用性。
+     * @param input - 已解码的具名传输线参数。
+     * @param signal - 调用方拥有的调用生命周期。
+     * @returns 载体解码的一元结果或完整的流句柄，包括上行与释放。
      */
     invoke(remote: TypertClientRemote, input: Input, signal?: AbortSignal): Mode extends 'stream'
       ? RemoteStreamHandle<Output, Uplink>
       : Promise<RemoteResult<DecodedOutput>>
   }
 
-/** Ordinary contribution whose method index references its direct invocation descriptors. */
+/** 普通贡献，其方法索引引用其直连调用描述符。 */
 export interface TypertRemoteInfo<Methods extends Readonly<Record<string,
   TypertRemoteMethod<object, unknown> | TypertRemoteMethod<object, unknown, 'stream', unknown>
 >> = Readonly<Record<string, TypertRemoteMethod<object, unknown> | TypertRemoteMethod<object, unknown, 'stream', unknown>>>>
@@ -584,13 +562,13 @@ export interface TypertRemoteInfo<Methods extends Readonly<Record<string,
   readonly methods: Methods
 }
 
-/** Generated Zod factory and optional tool projection for one invocation value. */
+/** 一个调用值的、生成的 Zod 工厂与可选工具投影。 */
 export interface TypertRemoteCodecSpec extends Omit<Extract<TypertCodec, { readonly mode: 'strict' }>, 'create'> {
-  /** Materialize the generated Zod schema only when a parser is requested. */
+  /** 仅在请求解析器时实例化生成的 Zod schema。 */
   readonly create: () => ZodType
 }
 
-/** One ordered parameter; omitted wire names resolve to the source parameter name. */
+/** 一个有序参数；省略的传输线名解析为源参数名。 */
 export interface TypertRemoteParameterSpec extends Omit<InvocationParameterDescriptor, 'wire' | 'codec'> {
   /** Explicit wire alias, notably for a Host lookup identity. */
   readonly wire?: string
@@ -600,7 +578,7 @@ export interface TypertRemoteParameterSpec extends Omit<InvocationParameterDescr
   readonly strictCodec: TypertRemoteCodecSpec
 }
 
-/** Static method facts; endpoint identity and named-call helpers are derived by the runtime factory. */
+/** 静态方法事实；端点身份与具名调用辅助由运行时工厂派生。 */
 export interface TypertRemoteMethodSpec extends Omit<InvocationDescriptor, 'id' | 'namespace' | 'method' | 'parameters' | 'result'> {
   /** Ordered Host parameters, including their wire representations. */
   readonly parameters: readonly TypertRemoteParameterSpec[]
@@ -608,7 +586,7 @@ export interface TypertRemoteMethodSpec extends Omit<InvocationDescriptor, 'id' 
   readonly result: TypertRemoteCodecSpec
 }
 
-/** Compiler-produced method definitions, independent of services, registration, and transport. */
+/** 由编译器产出、与服务、注册和传输无关的方法定义。 */
 export interface TypertRemoteSpec {
   /** Package owning these methods. */
   readonly package: string
@@ -616,22 +594,21 @@ export interface TypertRemoteSpec {
   readonly methods: Readonly<Record<`${string}/${string}`, TypertRemoteMethodSpec>>
 }
 
-/** Client Remote capability implemented by the Gateway and consumed by Remote assemblies. */
+/** 由 Gateway 实现、并被 Remote 装配消费的 Client Remote 能力。 */
 export interface TypertClientRemote extends TypertRemoteNamespaceMap {
   /**
-   * Mount one generated Host-for-Client contribution in the caller's fiber.
-   * @param contribution - explicitly selected Remote package artifact.
-   * @returns disposer after namespace services and concrete methods are ready.
+   * 在调用方的 fiber 中挂载一个生成的、面向 Client 的 Host 贡献。
+   * @param contribution - 显式选定的 Remote 包产物。
+   * @returns 命名空间服务与具体方法就绪后的释放器。
    */
   $mount(contribution: TypertRemoteContribution): Promise<TypertDisposer>
   /**
-   * Subscribe to one forwarded Host event. Notifications run in registration
-   * order and isolate failures; scoped waterfalls return, delegate through
-   * `next()`, or reject the Host dispatch.
-   * @template Event - forwarded event name selected by the Host assembly.
-   * @param event - forwarded Host event name, unchanged on the wire.
-   * @param listener - receives the Client projection of the Cordis `Events` declaration.
-   * @returns disposer owned by the calling fiber.
+   * 订阅一个转发的 Host 事件。通知按注册顺序运行并隔离失败；限定的瀑布
+   * 返回、通过 `next()` 委托，或 reject Host 分发。
+   * @template Event - 由 Host 装配选定的转发事件名。
+   * @param event - 转发的 Host 事件名，在传输线上不变。
+   * @param listener - 接收 Cordis `Events` 声明的 Client 投影。
+   * @returns 由调用 fiber 拥有的释放器。
    */
   $on<Event extends TypertRemoteEvent>(event: Event, listener: TypertClientEventListener<Event>): () => void
 }
@@ -645,146 +622,146 @@ export type TypertLookupResolver<Host = unknown, Wire = unknown> = (
   id: Wire,
 ) => Host | undefined | Promise<Host | undefined>
 
-/** Resource kinds whose identity type is a wire identity; every kind for a type-erased provider. */
+/** 身份类型为传输线身份的资源种类；对类型擦除的提供方则为每一种类。 */
 type TypertResourceKindFor<Wire> = unknown extends Wire
   ? TypertResourceKind
   : { [Kind in TypertResourceKind]: [Wire] extends [TypertResourceId<TypertResourceMap[Kind]>] ? Kind : never }[TypertResourceKind]
 
-/** Runtime provider for one declared Host object lookup. */
+/** 一个已声明 Host 对象 lookup 的运行时提供方。 */
 export interface TypertLookupProvider<Host = unknown, Wire = unknown> {
-  /** Source parameter name recognized by the SRC weak parser. */
+  /** SRC 弱解析器识别的源参数名。 */
   readonly parameter: string
-  /** Wire field replacing the Host object parameter. */
+  /** 替换 Host 对象参数的传输线字段。 */
   readonly wire: string
-  /** Resource kind the wire identity names; a parameter of this lookup carries that resource. */
+  /** 传输线身份命名的资源种类；此 lookup 的一个参数携带该资源。 */
   readonly resource?: TypertResourceKindFor<Wire>
-  /** Canonical Host type symbol used by strict generation. */
+  /** 严格生成使用的规范 Host 类型符号。 */
   readonly hostTypeSymbol: string
-  /** Canonical wire type symbol used by strict generation. */
+  /** 严格生成使用的规范传输线类型符号。 */
   readonly wireTypeSymbol: string
   /**
-   * Resolve a wire identity through the provider's default policy.
-   * @param id - validated wire identity.
-   * @returns the object, `undefined` when unavailable, or either asynchronously.
+   * 通过提供方的默认策略解析一个传输线身份。
+   * @param id - 已校验的传输线身份。
+   * @returns 对象，不可用时为 `undefined`，或异步地返回其中之一。
    */
   resolve(id: Wire): Host | undefined | Promise<Host | undefined>
 }
 
-/** Stable wire declaration retained after a lookup provider unloads. */
+/** 在 lookup 提供方卸载后保留的稳定传输线声明。 */
 export interface TypertLookupDefinition {
-  /** Merge-declared lookup key. */
+  /** 合并声明的 lookup 键。 */
   readonly key: string
-  /** Source parameter name recognized by the SRC weak parser. */
+  /** SRC 弱解析器识别的源参数名。 */
   readonly parameter: string
-  /** Wire field replacing the Host object parameter. */
+  /** 替换 Host 对象参数的传输线字段。 */
   readonly wire: string
-  /** Canonical Host type symbol used by strict generation. */
+  /** 严格生成使用的规范 Host 类型符号。 */
   readonly hostTypeSymbol: string
-  /** Canonical wire type symbol used by strict generation. */
+  /** 严格生成使用的规范传输线类型符号。 */
   readonly wireTypeSymbol: string
 }
 
-/** Host wire-to-Context resolver plus the declaration used by strict Remote methods. */
+/** 用于严格 Remote 方法的、Host 传输线到 Context 的解析器与声明。 */
 export interface TypertHostContextAdapter<Wire = unknown> {
-  /** Wire field carrying the Context identity. */
+  /** 携带 Context 身份的传输线字段。 */
   readonly wire: string
-  /** Canonical wire type symbol used by strict generation. */
+  /** 严格生成使用的规范传输线类型符号。 */
   readonly wireTypeSymbol: string
-  /** Resource kind the wire identity names; a call scoped to this Context carries that resource. */
+  /** 传输线身份命名的资源种类；限定到该 Context 的调用携带该资源。 */
   readonly resource?: TypertResourceKindFor<Wire>
   /**
-   * Resolve a validated wire identity to a live Host Context.
-   * @param id - validated wire identity.
-   * @returns the Context, or `undefined` when it is unavailable.
+   * 将一个已校验的传输线身份解析为存活的 Host Context。
+   * @param id - 已校验的传输线身份。
+   * @returns Context，不可用时为 `undefined`。
    */
   resolve(id: Wire): Context | undefined | Promise<Context | undefined>
 }
 
-/** Composition-owned resolver replacing one Host Context adapter's default lookup policy. */
+/** 替换某个 Host Context 适配器默认 lookup 策略的、组合拥有的解析器。 */
 export type TypertHostContextResolver<Wire = unknown> = (
   id: Wire,
 ) => Context | undefined | Promise<Context | undefined>
 
-/** Client-side bidirectional Context adapter. */
+/** 客户端双向 Context 适配器。 */
 export interface TypertClientContextAdapter<Wire = unknown> {
   /**
-   * Read the identity represented by a live Client Context.
-   * @param ctx - Client Context inspected by a scoped Remote caller.
-   * @returns the wire identity, or `undefined` for another Context kind.
+   * 读取一个存活 Client Context 所代表的身份。
+   * @param ctx - 由限定 Remote 调用方检查的 Client Context。
+   * @returns 传输线身份，或为另一个 Context 种类的 `undefined`。
    */
   identity(ctx: Context): Wire | undefined
   /**
-   * Resolve a validated identity synchronously for one Client invocation.
-   * @param id - validated wire identity.
-   * @returns a borrowed or invocation-owned Client Context, or undefined when unavailable.
+   * 为一次 Client 调用同步解析一个已校验的身份。
+   * @param id - 已校验的传输线身份。
+   * @returns 借用的或调用拥有的 Client Context，不可用时为 undefined。
    */
   resolve(id: Wire): Context | TypertOwnedValue<Context> | undefined
 }
 
-/** Notification emitted after a Typert runtime registry changes. */
+/** Typert 运行时注册发生变化后发出的通知。 */
 export interface TypertRegistryChange {
   readonly kind: 'local' | 'remote' | 'lookup' | 'host-context' | 'client-context' | 'resource'
   readonly key: string
 }
 
-/** Listener for one Typert runtime registry. */
+/** 一个 Typert 运行时注册表的监听器。 */
 export type TypertRegistryListener = (change: TypertRegistryChange) => void
 
-/** Current-environment invocation definitions. */
+/** 当前环境的调用定义。 */
 export interface TypertLocalRegistry {
   /**
-   * Look up one invocation by `<namespace>/<method>`.
-   * @param endpoint - canonical endpoint.
-   * @returns the live descriptor, or `undefined` when absent.
+   * 按 `<namespace>/<method>` 查找一个调用。
+   * @param endpoint - 规范端点。
+   * @returns 存活的描述符，缺省时为 `undefined`。
    */
   get(endpoint: string): InvocationDescriptor | undefined
   /**
-   * Report whether a strict definition has existed during this Typert Service lifetime.
-   * @param endpoint - canonical endpoint.
-   * @returns `true` after the endpoint has been registered at least once, even if withdrawn.
+   * 报告在当前 Typert Service 生命周期内是否曾存在某个严格定义。
+   * @param endpoint - 规范端点。
+   * @returns 端点至少注册过一次（即便已撤回）后为 `true`。
    */
   hasSeen(endpoint: string): boolean
-  /** @returns a registration-order snapshot of local descriptors. */
+  /** @returns 本地描述符的注册顺序快照。 */
   list(): readonly InvocationDescriptor[]
   /**
-   * Observe later local-definition changes.
-   * @param listener - synchronous contained observer.
-   * @returns disposer for this subscription.
+   * 观察后续的本地定义变化。
+   * @param listener - 同步的、受控的观测者。
+   * @returns 本订阅的释放器。
    */
   subscribe(listener: TypertRegistryListener): TypertDisposer
 }
 
-/** Consumer-selected Remote contribution registry. */
+/** 消费者选定的 Remote 贡献注册表。 */
 export interface TypertRemoteRegistry {
   /**
-   * Register one generated contribution for the calling Cordis fiber.
-   * @param contribution - generated Remote descriptors.
-   * @returns disposer withdrawing the exact contribution.
+   * 为调用的 Cordis fiber 注册一个生成的贡献。
+   * @param contribution - 生成的 Remote 描述符。
+   * @returns 撤回该确切贡献的释放器。
    */
   register(contribution: TypertRemoteContribution): TypertDisposer
   /**
-   * Look up one Remote descriptor by endpoint.
-   * @param endpoint - canonical endpoint.
-   * @returns the descriptor, or `undefined` when unmounted.
+   * 按端点查找一个 Remote 描述符。
+   * @param endpoint - 规范端点。
+   * @returns 描述符，未挂载时为 `undefined`。
    */
   get(endpoint: string): InvocationDescriptor | undefined
-  /** @returns a registration-order snapshot of Remote descriptors. */
+  /** @returns Remote 描述符的注册顺序快照。 */
   list(): readonly InvocationDescriptor[]
   /**
-   * Observe later Remote contribution changes.
-   * @param listener - synchronous contained observer.
-   * @returns disposer for this subscription.
+   * 观察后续的 Remote 贡献变化。
+   * @param listener - 同步的、受控的观测者。
+   * @returns 本订阅的释放器。
    */
   subscribe(listener: TypertRegistryListener): TypertDisposer
 }
 
-/** Runtime registry for Host object lookup providers. */
+/** Host 对象 lookup 提供方的运行时注册表。 */
 export interface TypertLookupRegistry {
   /**
-   * Register one provider under its merge-declared key.
-   * @param key - lookup key.
-   * @param provider - owning package's live resolver.
-   * @returns disposer withdrawing the exact provider.
+   * 在其合并声明的键下注册一个提供方。
+   * @param key - lookup 键。
+   * @param provider - 拥有包的活动解析器。
+   * @returns 撤回该确切提供方的释放器。
    */
   register<K extends StringKeyOf<TypertLookupMap>>(
     key: K,
@@ -794,11 +771,11 @@ export interface TypertLookupRegistry {
     >,
   ): TypertDisposer
   /**
-   * Replace one provider's default resolution policy while this contribution is active.
-   * Configuration may precede provider registration; without a live provider, `get()` remains unavailable.
-   * @param key - lookup key whose wire declaration remains provider-owned.
-   * @param resolver - composition-owned resolver used by every lookup of this key.
-   * @returns disposer restoring the provider's default resolver.
+   * 在本贡献处于活动期间，替换某个提供方的默认解析策略。
+   * 配置可能先于提供方注册；没有活动提供方时 `get()` 仍不可用。
+   * @param key - 其传输线声明仍由提供方拥有的 lookup 键。
+   * @param resolver - 被该键的每次 lookup 使用的、组合拥有的解析器。
+   * @returns 恢复提供方默认解析器的释放器。
    */
   configure<K extends StringKeyOf<TypertLookupMap>>(
     key: K,
@@ -808,116 +785,116 @@ export interface TypertLookupRegistry {
     >,
   ): TypertDisposer
   /**
-   * Look up one provider by runtime key.
-   * @param key - descriptor lookup key.
-   * @returns the live provider, or `undefined` when absent.
+   * 按运行时键查找一个提供方。
+   * @param key - 描述符 lookup 键。
+   * @returns 活动的提供方，缺省时为 `undefined`。
    */
   get(key: string): TypertLookupProvider | undefined
-  /** @returns lookup declarations observed during this Typert Service lifetime. */
+  /** @returns 在当前 Typert Service 生命周期内观察到的 lookup 声明。 */
   definitions(): readonly TypertLookupDefinition[]
-  /** @returns a snapshot of registered provider keys. */
+  /** @returns 已注册提供方键的快照。 */
   keys(): readonly string[]
   /**
-   * Observe later lookup changes.
-   * @param listener - synchronous contained observer.
-   * @returns disposer for this subscription.
+   * 观察后续的 lookup 变化。
+   * @param listener - 同步的、受控的观测者。
+   * @returns 本订阅的释放器。
    */
   subscribe(listener: TypertRegistryListener): TypertDisposer
 }
 
-/** Runtime registry for the Host and Client adapters of each Context kind. */
+/** 每个 Context 种类的 Host 与 Client 适配器的运行时注册表。 */
 export interface TypertContextRegistry {
   /**
-   * Register a Host Context adapter.
-   * @param key - merge-declared Context key.
-   * @param adapter - owning package's Host resolver and wire declaration.
-   * @returns disposer withdrawing the exact adapter.
+   * 注册一个 Host Context 适配器。
+   * @param key - 合并声明的 Context 键。
+   * @param adapter - 拥有包的 Host 解析器与传输线声明。
+   * @returns 撤回该确切适配器的释放器。
    */
   registerHost<K extends StringKeyOf<TypertContextMap>>(
     key: K,
     adapter: TypertHostContextAdapter<TypertContextWire<TypertContextMap[K]>>,
   ): TypertDisposer
   /**
-   * Override one Host Context key's resolution policy for the calling fiber.
-   * Configuration may precede provider registration and restores the provider's default resolver on disposal.
-   * @param key - merge-declared Context key.
-   * @param resolver - composition-owned resolver used by every Host Context lookup of this key.
-   * @returns disposer restoring the provider's default resolver.
+   * 为调用的 fiber 覆盖某个 Host Context 键的解析策略。
+   * 配置可先于提供方注册，并在释放时恢复提供方的默认解析器。
+   * @param key - 合并声明的 Context 键。
+   * @param resolver - 被该键的每次 Host Context lookup 使用的、组合拥有的解析器。
+   * @returns 恢复提供方默认解析器的释放器。
    */
   configureHost<K extends StringKeyOf<TypertContextMap>>(
     key: K,
     resolver: TypertHostContextResolver<TypertContextWire<TypertContextMap[K]>>,
   ): TypertDisposer
   /**
-   * Register a Client Context adapter.
-   * @param key - merge-declared Context key.
-   * @param adapter - owning package's bidirectional Client projection.
-   * @returns disposer withdrawing the exact adapter.
+   * 注册一个 Client Context 适配器。
+   * @param key - 合并声明的 Context 键。
+   * @param adapter - 拥有包的双向 Client 投影。
+   * @returns 撤回该确切适配器的释放器。
    */
   registerClient<K extends StringKeyOf<TypertContextMap>>(
     key: K,
     adapter: TypertClientContextAdapter<TypertContextWire<TypertContextMap[K]>>,
   ): TypertDisposer
   /**
-   * Look up a Host Context adapter; a configured resolver keeps the adapter's declaration and `resource`.
-   * @param key - descriptor Context key.
-   * @returns the adapter, or `undefined` when absent.
+   * 查找一个 Host Context 适配器；已配置的解析器保留适配器的声明与 `resource`。
+   * @param key - 描述符 Context 键。
+   * @returns 适配器，缺省时为 `undefined`。
    */
   getHost(key: string): TypertHostContextAdapter | undefined
   /**
-   * Look up a Client Context adapter.
-   * @param key - descriptor Context key.
-   * @returns the adapter, or `undefined` when absent.
+   * 查找一个 Client Context 适配器。
+   * @param key - 描述符 Context 键。
+   * @returns 适配器，缺省时为 `undefined`。
    */
   getClient(key: string): TypertClientContextAdapter | undefined
   /**
-   * Observe later Context adapter changes.
-   * @param listener - synchronous contained observer.
-   * @returns disposer for this subscription.
+   * 观察后续的 Context 适配器变化。
+   * @param listener - 同步的、受控的观测者。
+   * @returns 本订阅的释放器。
    */
   subscribe(listener: TypertRegistryListener): TypertDisposer
 }
 
-/** Default wire field of one resource kind. */
+/** 一个资源种类的默认传输线字段。 */
 export interface TypertResourceDeclaration {
-  /** Top-level or first-object wire field holding one identity of the kind. */
+  /** 持有该种类一个身份的最顶层或首个对象传输线字段。 */
   readonly field: string
 }
 
-/** One registered resource kind with its default wire field. */
+/** 一个已注册的资源种类及其默认传输线字段。 */
 export interface TypertResourceEntry extends TypertResourceDeclaration {
-  /** Registered resource kind. */
+  /** 已注册的资源种类。 */
   readonly kind: string
 }
 
-/** Runtime registry of resource kinds' default wire fields. */
+/** 资源种类默认传输线字段的运行时注册表。 */
 export interface TypertResourceRegistry {
   /**
-   * Register one kind's default wire field for the calling fiber. Only the
-   * domain that owns the kind registers it.
-   * @param kind - merge-declared resource kind.
-   * @param declaration - the kind's default wire field.
-   * @returns disposer withdrawing the exact registration.
-   * @throws Error when the kind is already registered or is `global`, the built-in resource kind.
+   * 为调用的 fiber 注册一个种类的默认传输线字段。只有拥有该种类的
+   * 领域才会注册它。
+   * @param kind - 合并声明的资源种类。
+   * @param declaration - 该种类的默认传输线字段。
+   * @returns 撤回该确切注册的释放器。
+   * @throws Error 当该种类已注册或是内置资源种类 `global` 时。
    */
   register(kind: TypertResourceKind, declaration: TypertResourceDeclaration): TypertDisposer
   /**
-   * Look up one kind's declaration.
-   * @param kind - resource kind.
-   * @returns the live declaration, or `undefined` when unregistered.
+   * 查找一个种类的声明。
+   * @param kind - 资源种类。
+   * @returns 活动的声明，未注册时为 `undefined`。
    */
   get(kind: string): TypertResourceDeclaration | undefined
-  /** @returns a registration-order snapshot of registered kinds with their fields. */
+  /** @returns 已注册种类及其字段的注册顺序快照。 */
   entries(): readonly TypertResourceEntry[]
   /**
-   * Observe later resource-kind changes.
-   * @param listener - synchronous contained observer.
-   * @returns disposer for this subscription.
+   * 观察后续的资源种类变化。
+   * @param listener - 同步的、受控的观测者。
+   * @returns 本订阅的释放器。
    */
   subscribe(listener: TypertRegistryListener): TypertDisposer
 }
 
-/** Minimal Typert runtime consumed through dependency inversion. */
+/** 通过依赖倒置消费的最简 Typert 运行时。 */
 export interface TypertRegistryContract {
   readonly local: TypertLocalRegistry
   readonly remotes: TypertRemoteRegistry
@@ -930,9 +907,8 @@ declare module '@deepseek-ai/cordis' {
   interface Context {
     typert: TypertRegistryContract
     /**
-     * The Remote call this Context was derived for, or `undefined` on a
-     * Context no Remote call derived. A Service method reads it as
-     * `this.ctx.invocation`.
+     * 此 Context 为之派生的 Remote 调用，或未被任何 Remote 调用派生时的
+     * `undefined`。服务方法将其读作 `this.ctx.invocation`。
      */
     readonly invocation: RemoteInvocation | undefined
   }

@@ -1,10 +1,9 @@
 /**
- * Workspace instruction loader for AGENTS.md-compatible files.
+ * 面向 AGENTS.md 兼容文件的、工作区指令加载器。
  *
- * Baseline instructions enter durable context before the first request; successful fs
- * tool touches project nested, changed, and removed instructions into the inbox.
- * Plugin lifecycle reads use the optional `ctx.fs` provider, so providerless products
- * mount it as a no-op.
+ * 基线指令在第一条请求之前进入持久化上下文；成功的 fs 工具会将项目内
+ * 嵌套、变更与被删除的指令触碰进收件箱。插件的生命周期读取使用可选的
+ * `ctx.fs` 提供方，因此无提供方的产品会将其挂载为无操作。
  *
  * @module @deepseek-ai/dsh-agent-instructions
  */
@@ -32,7 +31,7 @@ import {
 import { instructionCandidateGroup, instructionScopeKey, scopeForDisplayPath, type AgentInstructionChange } from './render.ts'
 
 export { Config, name }
-/** Services required by workspace instruction projection. */
+/** 工作区指令投影所需的服务。 */
 export const inject = ['sessionProjections', 'workingDirectory']
 export {
   discoverBaselineInstructionFiles,
@@ -55,7 +54,7 @@ function visibleBaselineSource(
     }
   }
   for (const seq of agent.session.surface.nodes.toReversed()) {
-    // oxlint-disable-next-line typescript/no-deprecated -- Existing Session history read; migration deferred.
+    // oxlint-disable-next-line typescript/no-deprecated -- 既有 Session 历史读取；迁移暂缓。
     const event = agent.session.eventAt(seq)
     if (event?.type === 'user/message'
       && event.data.source.kind === 'agent-instructions'
@@ -100,11 +99,11 @@ export function apply(ctx: Context, config: Config): void {
     },
     'agent-instructions.projectionLifecycle',
   )
-  // Emit listeners are not awaited, so each projection must compose against the
-  // inbox produced by earlier file results for the same agent.
+  // Emit 监听器不会被等待，因此每次投影都必须针对同一代理、由更早的文件结果
+  // 所产生的收件箱进行组合。
   const projectionTails = new WeakMap<Agent, Promise<void>>()
-  // Execution ancestry and the enclosing durable step are the two commit
-  // boundaries before an asynchronous projection may mutate the agent inbox.
+  // 执行祖先链与所包含持久化步骤，是异步投影可能修改代理收件箱之前的
+  // 两个提交边界。
   const stepTouches = new WeakMap<Session, ProjectionTouch[]>()
 
   const compose = async (
@@ -161,8 +160,8 @@ export function apply(ctx: Context, config: Config): void {
         digests.add(trimmedInstructionDigest(file.content))
         includedDigestsByGroup.set(group, digests)
       }
-      // A duplicate inherits its winner's budget omission. Only duplicates of
-      // represented content remain eligible for promotion during reconciliation.
+      // 重复项继承其胜出者的预算省略。只有被代表内容的重复项
+      // 在对账期间才有资格被提升。
       const excludedScopes = new Set(observedBaseline.changes.keys())
       for (const scope of baseline.changes.keys()) excludedScopes.delete(scope)
       for (const file of instructions?.deduped ?? []) {
@@ -248,7 +247,7 @@ export function apply(ctx: Context, config: Config): void {
     const alreadySupplied = desired !== undefined && (
       claimed.some(message => sameContextPayload(message, desired))
       || agent.session.surface.nodes.some((seq) => {
-        // oxlint-disable-next-line typescript/no-deprecated -- Existing Session history read; migration deferred.
+        // oxlint-disable-next-line typescript/no-deprecated -- 既有 Session 历史读取；迁移暂缓。
         const event = agent.session.eventAt(seq)
         return event?.type === 'user/message' && sameContextPayload(event.data, desired)
       })
@@ -340,20 +339,20 @@ export function apply(ctx: Context, config: Config): void {
     const pending = agent.inbox.nextStep.filter(isAgentInstructionsMessage)
     const desired = await compose(agent, signal, messages, pending)
     signal.throwIfAborted()
-    // An empty first entry owns a no-step turn; keep context pending instead
-    // of turning it into a standalone request. Later entries may be tool continuations.
+    // 一个空的首条目拥有一个无步骤轮次；保留上下文为待定状态，
+    // 而不是将其变成一次独立请求。后续条目可能是工具延续。
     if (decision.kind === 'reject' || (step === 1 && decision.messages.length === 0)) {
       syncInbox(agent, messages, desired)
       return decision
     }
-    // A proceeding step settles the pending context: it either enters below as
-    // `desired`, or its payload is already covered by the batch, so nothing stays pending.
+    // 一个继续的步骤会结算待定上下文：它要么作为 `desired` 进入下方，
+    // 要么其载荷已被该批次覆盖，因此不会留下待定项。
     for (const message of pending) agent.inbox.remove(message.id)
     if (desired === undefined || decision.messages.some(message => sameContextPayload(message, desired))) {
       return decision
     }
-    // Fold the context right after the claimed batch, so the direct prompt
-    // precedes it and the driver-appended runtime context follows it.
+    // 将上下文折叠到被认领的批次之后，使直接提示位于其前，
+    // 而驱动方追加的运行时上下文位于其后。
     const lastClaimedIndex = decision.messages.findLastIndex(message => messages.includes(message))
     const entered = decision.messages.toSpliced(lastClaimedIndex + 1, 0, desired)
     return { ...decision, messages: entered }

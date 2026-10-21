@@ -1,4 +1,4 @@
-/** Cordis dynamic-plugin cards, inventory panel, business-view host. */
+/** Cordis 动态插件卡片、清单面板、业务视图宿主。 */
 
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
@@ -33,12 +33,12 @@ export type {
 } from './events.ts'
 export type { CordisKey } from './locales.ts'
 
-/** Required services for historical cards, the panel, and Remote lifecycle actions. */
+/** 历史卡片、面板与 Remote 生命周期操作所需的服务。 */
 export const inject = [
   'slots', 'locale', 'remote', 'remote.dynamicCordisRunner', 'dynamicCordisRunner',
 ]
 
-/** Mount every Cordis browser surface over the shared Host inventory. */
+/** 在共享 Host 清单之上挂载每一个 Cordis 浏览器表面。 */
 export function apply(ctx: ClientContext): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-cordis: dictionaries')
 

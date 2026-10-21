@@ -1,6 +1,5 @@
-# Standalone minimal SDK application. Unlike the ordinary SDK profile, this
-# bundle does not layer over dsh-base: this insert is the complete Cordis tree.
-# User profile, home, and invocation patches still apply above it.
+# 独立的最小 SDK 应用。与普通的 SDK profile 不同，本 bundle 不叠加在 dsh-base 之上：
+# 这段 insert 就是完整的 Cordis 树。用户 profile、home 与调用补丁仍作用于它之上。
 
 - insert:
     - id: sdk-app-startup
@@ -33,8 +32,8 @@
     - id: sandbox
       name: '@deepseek-ai/dsh-sandbox-local'
 
-    # Shared projection registry: sandbox-policy and terminal-bash fold
-    # sandbox-mode state through its units and require it as a hard injection.
+    # 共享的投影注册表：sandbox-policy 与 terminal-bash 通过它的单元折叠 sandbox
+    # 模式状态，并将其作为硬性注入要求。
     - id: filesystem
       name: '@deepseek-ai/dsh-fs-local'
 
@@ -92,8 +91,8 @@
         shellDialect: pwsh
         timeoutMs: 300000
 
-    # Keep the minimal agent kernel explicit: unlike dsh-base, this profile
-    # owns each service row and omits every optional producer it does not use.
+    # 保持最小 agent 内核的显式性：与 dsh-base 不同，本 profile 自己持有每个服务行，
+    # 并省略它不使用的所有可选生产者。
     - id: timer
       name: '@deepseek-ai/cordis-plugin-timer'
 

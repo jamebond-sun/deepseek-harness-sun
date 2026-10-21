@@ -1,4 +1,4 @@
-/** DeepSeek Files API upload reuse, invalidation, and quota recovery. @module dsh-llm-deepseek/file-store */
+/** DeepSeek Files API 的上传复用、失效与配额恢复。 @module dsh-llm-deepseek/file-store */
 
 import type { RequestImageAttachment } from '@deepseek-ai/dsh-attachment'
 import { LlmError } from '@deepseek-ai/dsh-llm'
@@ -8,25 +8,25 @@ import { messagesApiRoot } from './messages-api.ts'
 import { deepSeekFileScope, DeepSeekUploadIndex } from './upload-index.ts'
 import type { DeepSeekUploadRecord } from './upload-index.ts'
 
-/** Shared Files-store limit for each request image, including file-id references. */
+/** 每张请求图像（含文件 id 引用）共享的 Files 存储上限。 */
 export const MAX_IMAGE_BYTES = 32 * 1024 * 1024
 const OWNED_FILE_PREFIX = 'dsh-'
 
-/** Resolved file-store policy from the plugin configuration. */
+/** 由插件配置解析出的 Files 存储策略。 */
 export interface DeepSeekFilePolicy {
   expiresAfterSeconds: number
   refreshMarginSeconds: number
   quotaCleanupBatch: number
 }
 
-/** Connection facts needed by file operations. */
+/** 文件操作所需的连接事实。 */
 export interface DeepSeekFileConnection {
   baseURL: string
-  /** Provider-resolved authentication headers for this endpoint. */
+  /** 由提供方为该端点解析出的认证头。 */
   headers: Readonly<Record<string, string>>
 }
 
-/** Result of one file-id resolution. */
+/** 一次文件 id 解析的结果。 */
 export interface DeepSeekFileReference {
   record: DeepSeekUploadRecord
   uploaded: boolean
@@ -45,7 +45,7 @@ interface SharedUpload {
   waiters: number
 }
 
-/** The Files resource's parent URL identifies the upload namespace. */
+/** Files 资源的父 URL 标识了上传命名空间。 */
 function fileScope(connection: DeepSeekFileConnection) {
   return deepSeekFileScope(
     messagesApiRoot(connection.baseURL),
@@ -117,7 +117,7 @@ function filename(version: RequestImageAttachment): string {
   return `${OWNED_FILE_PREFIX}${attachment}-${variant}.${extension(version.mediaType)}`
 }
 
-/** User-scoped durable file-id reuse for the DeepSeek route. */
+/** DeepSeek 路由上按用户范围隔离的、持久化的文件 id 复用。 */
 export class DeepSeekFileStore {
   private readonly index: DeepSeekUploadIndex
   private readonly now: () => number
@@ -125,7 +125,7 @@ export class DeepSeekFileStore {
   private readonly inflight = new Map<string, SharedUpload>()
 
   /**
-   * @param options - testable index, clock, and transport boundaries.
+   * @param options - 可测试的索引、时钟与传输边界。
    */
   constructor(options: FileStoreOptions = {}) {
     this.index = options.index ?? new DeepSeekUploadIndex()
@@ -142,12 +142,12 @@ export class DeepSeekFileStore {
   }
 
   /**
-   * Resolve or upload one deterministic request image. Concurrent calls share one upload while retaining independent waits.
-   * @param version - deterministic model-request bytes and complete transformation identity.
-   * @param connection - endpoint and API-key snapshot.
-   * @param policy - expiry and quota-recovery policy.
-   * @param signal - cancellation of this wait; shared transport stops when no waiter remains.
-   * @returns a reusable file id and whether this call published a new upload.
+   * 解析或上传一张确定性的请求图像。并发调用共享同一次上传，同时各自保留独立的等待。
+   * @param version - 确定性的模型请求字节与完整的转换身份。
+   * @param connection - 端点与 API 密钥快照。
+   * @param policy - 过期与配额恢复策略。
+   * @param signal - 本次等待的取消信号；当没有等待者时，共享传输会停止。
+   * @returns 可复用的文件 id，以及本次调用是否发布了一次新的上传。
    */
   ensureUploaded(
     version: RequestImageAttachment,
@@ -237,16 +237,16 @@ export class DeepSeekFileStore {
       try {
         await client.delete(candidate.fileId, signal)
       } catch {
-        // The winning mapping is durable. A failed duplicate cleanup affects quota only and is retried by recovery.
+        // 胜出的映射是持久化的。一次失败的重复清理只影响配额，并会由恢复机制重试。
       }
     }
     return { record: committed.record, uploaded: committed.accepted }
   }
 
   /**
-   * Invalidate exact local mappings in one index update after a model request rejects their remote ids.
-   * @param generations - request-image variants with the exact file id the request used for each.
-   * @param connection - endpoint and API-key snapshot.
+   * 在一次模型请求拒绝了它们的远端 id 之后，通过一次索引更新让精确的本地映射失效。
+   * @param generations - 请求图像变体，以及每次请求为它所使用的精确文件 id。
+   * @param connection - 端点与 API 密钥快照。
    */
   async invalidate(
     generations: readonly Pick<DeepSeekUploadRecord, 'variantId' | 'fileId'>[],
@@ -256,12 +256,12 @@ export class DeepSeekFileStore {
   }
 
   /**
-   * Delete the indexed remote file for one attachment and remove its local mapping.
-   * @param version - exact request-image version to release.
-   * @param connection - endpoint and API-key snapshot.
-   * @param policy - expiry policy used to locate a reusable mapping.
-   * @param signal - request cancellation.
-   * @returns whether an indexed file existed and was deleted.
+   * 删除某个附件在索引中的远端文件，并移除它的本地映射。
+   * @param version - 要释放的精确请求图像版本。
+   * @param connection - 端点与 API 密钥快照。
+   * @param policy - 用于定位可复用映射的过期策略。
+   * @param signal - 请求取消信号。
+   * @returns 是否存在一个已索引的文件并被删除。
    */
   async release(
     version: RequestImageAttachment,
@@ -283,11 +283,11 @@ export class DeepSeekFileStore {
   }
 
   /**
-   * Delete the oldest provider files whose names identify harness ownership.
-   * @param connection - endpoint and API-key snapshot.
-   * @param count - positive maximum number of files to delete.
-   * @param signal - request cancellation.
-   * @returns number of successfully deleted files.
+   * 删除名称能标识 harness 归属的、最早的提供方文件。
+   * @param connection - 端点与 API 密钥快照。
+   * @param count - 要删除的文件数量的正值上限。
+   * @param signal - 请求取消信号。
+   * @returns 成功删除的文件数量。
    */
   async reclaimOldestOwned(
     connection: DeepSeekFileConnection,
@@ -307,7 +307,7 @@ export class DeepSeekFileStore {
         if (!file.filename.startsWith(OWNED_FILE_PREFIX)) continue
         owned.push({ id: file.id, createdAt: file.createdAt })
       }
-      // The API offers no ascending-order query; retain the oldest candidates across every page.
+      // 该 API 不提供升序查询；跨所有分页保留最早的候选。
       owned.sort((left, right) => left.createdAt - right.createdAt)
       owned.splice(count)
       if (!page.hasMore || page.lastId === undefined || page.lastId === after) break
@@ -318,10 +318,10 @@ export class DeepSeekFileStore {
   }
 
   /**
-   * Delete every remote harness-owned file in the active API-key namespace and clear its index.
-   * @param connection - endpoint and API-key snapshot.
-   * @param signal - request cancellation.
-   * @returns number of deleted files.
+   * 删除当前 API 密钥命名空间中所有由 harness 持有的远端文件，并清空其索引。
+   * @param connection - 端点与 API 密钥快照。
+   * @param signal - 请求取消信号。
+   * @returns 已删除的文件数量。
    */
   async releaseAll(connection: DeepSeekFileConnection, signal?: AbortSignal): Promise<number> {
     let total = 0

@@ -1,4 +1,4 @@
-/** Native V3 system-head validation with a private view for frozen non-system relationships. */
+/** 原生 V3 system-head 校验，并为冻结的非 system 关系提供私有视图。 */
 
 import { SessionFormatError, SessionFormatUnsupportedMigrationError } from '@deepseek-ai/dsh-session-format'
 import type { SessionFormatArtifact, SessionFormatEvent, SessionFormatHeader } from '@deepseek-ai/dsh-session-format'
@@ -6,8 +6,8 @@ import { assertReleasedV2Header, restoreReleasedV2Artifact } from '@deepseek-ai/
 import { assertV3Event, isRepairIdentity, record, SURFACE_TYPES } from './payload.ts'
 
 /**
- * Validate v3 logical metadata with the released-v2 fields.
- * @param header - decoded v3 Session header.
+ * 使用 released-v2 字段校验 v3 逻辑元数据。
+ * @param header - 已解码的 v3 Session 头部。
  */
 export function assertReleasedV3Header(header: SessionFormatHeader): void {
   if (header.version !== 3) throw new SessionFormatError('expected format v3 header')
@@ -15,11 +15,11 @@ export function assertReleasedV3Header(header: SessionFormatHeader): void {
 }
 
 /**
- * Validate system ownership, protected-head operations, ordinary relationships, and inherited cut.
- * The private relationship view never escapes; the returned artifact and its messages are unchanged.
- * @param artifact - detached v3 artifact.
- * @param knownEventTypes - event types understood by the installed Session package.
- * @returns the same validated artifact.
+ * 校验系统归属、受保护 head 操作、普通关系与继承切点。
+ * 私有关系视图永不外泄；返回的制品及其消息保持不变。
+ * @param artifact - 已分离的 v3 制品。
+ * @param knownEventTypes - 已安装的 Session 包可理解的事件类型。
+ * @returns 同一个已校验的制品。
  */
 export function restoreReleasedV3Artifact(artifact: SessionFormatArtifact, knownEventTypes: ReadonlySet<string>): SessionFormatArtifact {
   assertReleasedV3Header(artifact.header)
@@ -67,7 +67,7 @@ export function restoreReleasedV3Artifact(artifact: SessionFormatArtifact, known
     const projected = relationshipEvent(event)
     if (!SURFACE_TYPES.has(event.type) || event['surfaceOp'] === 'append') return projected
     const replacement = event['surfaceOp'] as { readonly startSeq: number; readonly endSeq: number }
-    // Only the frozen relationship view uses released endpoint names.
+    // 只有冻结的关系视图使用已发布的端点名。
     return { ...projected, surfaceOp: { op: 'replace', start: replacement.startSeq, end: replacement.endSeq } }
   })
   restoreReleasedV2Artifact({ ...artifact, header: { ...artifact.header, version: 2 }, events }, knownEventTypes, 3)
@@ -75,8 +75,8 @@ export function restoreReleasedV3Artifact(artifact: SessionFormatArtifact, known
 }
 
 /**
- * Refuse required predecessor PTC tags without interpreting native extension payloads.
- * @param event - event envelope whose type and ignorable admission markers are available.
+ * 拒绝必需的前驱 PTC 标签，但不解释原生扩展载荷。
+ * @param event - 其类型与可忽略接纳标记均已可用的事件信封。
  */
 export function assertV3EventAdmission(event: SessionFormatEvent): void {
   if ((event.type === 'tool/code-dispatch-start' || event.type === 'tool/code-dispatch')
@@ -96,12 +96,12 @@ function relationshipEvent(event: SessionFormatEvent): SessionFormatEvent {
     case 'tool/code-dispatch-start':
     case 'tool/code-dispatch':
       assertV3EventAdmission(event)
-      // Obsolete ignorable events do not participate in released PTC lifecycle validation.
+      // 已过时的可忽略事件不参与已发布的 PTC 生命周期校验。
       return { ...event, type: 'v3/opaque-released-event' }
   }
   if (event.type === 'system/message') {
     const message = record(record(event.data, 'system data')['message'], 'system message')
-    // The frozen validator needs a surface-eligible event, not a model-visible substitute.
+    // 冻结的校验器需要一个符合表层条件的事件，而非模型可见的替代品。
     return { ...event, type: 'user/message', data: { ...message, role: 'user' } }
   }
   if (event.type !== 'tool/result') return event
@@ -115,6 +115,6 @@ function relationshipEvent(event: SessionFormatEvent): SessionFormatEvent {
   const id = message['id']
   if (!isRepairIdentity(id, callId)) return event
   const prefix = 'interrupted-tool-result-' + callId + '-'
-  // Message identity survives promotion; only this private frozen repair check uses target seq.
+  // 消息身份在提升中保留；只有这个私有的冻结修复检查会用到目标 seq。
   return { ...event, data: { ...data, message: { ...message, id: `${prefix}${event.seq}` } } }
 }

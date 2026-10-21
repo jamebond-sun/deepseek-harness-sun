@@ -1,5 +1,5 @@
 /**
- * Internal platform-profile builders for the local sandbox provider.
+ * 本地沙箱提供者内部使用的各平台配置构建器。
  *
  * @module @deepseek-ai/dsh-sandbox-local/profiles
  */
@@ -9,9 +9,9 @@ import { writableRoots } from '@deepseek-ai/dsh-sandbox'
 import type { SandboxPolicy } from '@deepseek-ai/dsh-sandbox'
 
 /**
- * Build the bwrap profile arguments for one file-effect policy.
- * @param policy - file-effect policy to express as bwrap mounts.
- * @returns profile arguments before the trailing separator and command argv.
+ * 为一份文件效应策略构建 bwrap 配置参数。
+ * @param policy - 要表达为 bwrap 挂载的文件效应策略。
+ * @returns 位于尾部分隔符与命令 argv 之前的配置参数。
  */
 export function bwrapProfileArgs(policy: SandboxPolicy): string[] {
   const args = ['--ro-bind', '/', '/', '--dev', '/dev', '--unshare-pid', '--proc', '/proc', '--die-with-parent']
@@ -23,9 +23,9 @@ export function bwrapProfileArgs(policy: SandboxPolicy): string[] {
 }
 
 /**
- * Build the Landlock launcher grants for one file-effect policy.
- * @param policy - file-effect policy to express as Landlock allow-list grants.
- * @returns launcher grant arguments before the trailing separator and command argv.
+ * 为一份文件效应策略构建 Landlock 启动器的授予项。
+ * @param policy - 要表达为 Landlock 允许列表授予项的文件效应策略。
+ * @returns 位于尾部分隔符与命令 argv 之前的启动器授予参数。
  */
 export function landlockProfileArgs(policy: SandboxPolicy): string[] {
   const readWrite = ['/dev/null']
@@ -35,18 +35,17 @@ export function landlockProfileArgs(policy: SandboxPolicy): string[] {
   return landlockGrantArgs({ readOnly: ['/'], readWrite })
 }
 
-/** Quote one path as an SBPL string literal. */
+/** 把一个路径引用为 SBPL 字符串字面量。 */
 function sbplString(path: string): string {
   return `"${path.replaceAll('\\', String.raw`\\`).replaceAll('"', String.raw`\"`)}"`
 }
 
 /**
- * Build the sandbox-exec arguments and SBPL profile for one policy. The
- * writable roots come from the shared {@link writableRoots} helper (canonical,
- * deduplicated) so the Seatbelt grant and the in-process fs fence
- * (`@deepseek-ai/dsh-fs-sandbox`) can never drift apart.
- * @param policy - file-effect policy to express as an SBPL profile.
- * @returns sandbox-exec arguments before the trailing separator and command argv.
+ * 为一份策略构建 sandbox-exec 参数与 SBPL 配置。可写根来自共用的
+ * {@link writableRoots} 辅助函数（规范化、已去重），因此 Seatbelt 的授予
+ * 与进程内 fs 围栏（`@deepseek-ai/dsh-fs-sandbox`）永远不会彼此漂移。
+ * @param policy - 要表达为 SBPL 配置的文件效应策略。
+ * @returns 位于尾部分隔符与命令 argv 之前的 sandbox-exec 参数。
  */
 export function seatbeltProfileArgs(policy: SandboxPolicy): string[] {
   const forms = ['(version 1)', '(allow default)', '(deny file-write*)', `(allow file-write* (literal ${sbplString('/dev/null')}))`]

@@ -1,4 +1,4 @@
-/** Shared event metadata and semantic-document projection. */
+/** 共享的事件元数据与语义文档投影。 */
 
 import { currentSessionMessageProjections } from '@deepseek-ai/dsh-session-format-catalog/message-projections'
 import { foldSurface } from '@deepseek-ai/dsh-session'
@@ -8,10 +8,10 @@ import { SessionQueryError } from './config.ts'
 import { extractSessionEventText } from './extraction.ts'
 
 /**
- * Project a raw log into lightweight surface-aware event records.
- * @param sessionId - session that owns the log.
- * @param events - complete contiguous raw event log.
- * @returns one record per event in ascending seq order.
+ * 把原始日志投影为轻量、可感知 surface 的事件记录。
+ * @param sessionId - 拥有该日志的会话。
+ * @param events - 完整连续的原始事件日志。
+ * @returns 按 seq 升序排列的、每个事件一条的记录。
  */
 export function buildSessionEventRecords(
   sessionId: SessionId,
@@ -28,10 +28,10 @@ export function buildSessionEventRecords(
 }
 
 /**
- * Build first-party semantic documents for one complete raw event log.
- * @param sessionId - session that owns the log.
- * @param events - complete contiguous raw event log.
- * @returns searchable documents in ascending seq order; structural events are omitted.
+ * 为一份完整的原始事件日志构建第一方语义文档。
+ * @param sessionId - 拥有该日志的会话。
+ * @param events - 完整连续的原始事件日志。
+ * @returns 按 seq 升序排列的可搜索文档；结构性事件被省略。
  */
 export function buildSessionEventSearchDocuments(
   sessionId: SessionId,
@@ -60,7 +60,7 @@ function classifySurface(events: readonly SessionEvent[]): Map<SessionSeq, Sessi
     folded = foldSurface(events, currentSessionMessageProjections)
   } catch (error: unknown) {
     throw new SessionQueryError(
-      /* v8 ignore next -- foldSurface throws Error instances */
+      /* v8 ignore next -- foldSurface 抛出的都是 Error 实例 */
       `invalid session surface: ${error instanceof Error ? error.message : 'unknown error'}`,
       'SESSION_QUERY_INVALID_SURFACE',
       { cause: error },

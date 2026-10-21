@@ -1,10 +1,10 @@
-/** Windows Shell association queries and invocation; paths are encoded data, never PowerShell expressions. */
+/** Windows Shell 关联查询与调用；路径是编码后的数据，绝不可能是 PowerShell 表达式。 */
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { NativeCommandRunner } from './runner.ts'
 
-/** Shell interfaces are declared in their native vtable order; Invoke preserves packaged-app and DDE handling. */
+/** Shell 接口按其原生 vtable 顺序声明；Invoke 保留打包应用与 DDE 处理。 */
 const WINDOWS_ASSOCIATIONS = String.raw`
 using System;
 using System.Collections.Generic;
@@ -236,13 +236,13 @@ public static class DshFileAssociations {
 }`
 
 /**
- * Execute the Windows Shell adapter in a Unicode STA PowerShell process; the adapter
- * source is a private temporary script file, removed once the call settles.
- * @param path - Windows file path, translated by the caller for WSL.
- * @param application - registered handler to invoke; null requests the application list.
- * @param signal - caller cancellation.
- * @param run - native command runner.
- * @returns adapter output; query mode emits a JSON array.
+ * 在 Unicode STA PowerShell 进程中执行 Windows Shell 适配器；适配器源码是私有的
+ * 临时脚本文件，调用结束后即被删除。
+ * @param path - 由调用方为 WSL 翻译过的 Windows 文件路径。
+ * @param application - 待调用的已注册处理程序；null 表示请求应用列表。
+ * @param signal - 调用方取消。
+ * @param run - 原生命令运行器。
+ * @returns 适配器输出；查询模式发出一个 JSON 数组。
  */
 export async function windowsFileApplications(
   path: string, application: string | null, signal: AbortSignal, run: NativeCommandRunner,
@@ -258,10 +258,9 @@ $path = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${encodedPa
 $application = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${encodedApplication}'))
 ${application === null ? 'ConvertTo-Json -InputObject @([DshFileAssociations]::List($path)) -Depth 4 -Compress' : '[DshFileAssociations]::Open($path, $application)'}
 `
-  // The script travels as a file, not as command-line data: -EncodedCommand grew with the
-  // embedded C# and overflowed the 32767-character CreateProcess limit for long paths.
-  // PowerShell 5.1 decodes a -File script as ANSI unless it carries a BOM; the BOM keeps
-  // the embedded UTF-8 source intact.
+  // 脚本以文件形式传递，而非命令行数据：-EncodedCommand 随内嵌 C# 增长并超出了
+  // 长路径的 32767 字符 CreateProcess 限制。
+  // PowerShell 5.1 会将 -File 脚本解码为 ANSI，除非携带 BOM；BOM 使内嵌的 UTF-8 源码完好无损。
   const directory = await mkdtemp(join(tmpdir(), 'dsh-native-command-'))
   const scriptPath = join(directory, 'associations.ps1')
   try {

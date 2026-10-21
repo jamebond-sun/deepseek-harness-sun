@@ -1,7 +1,6 @@
 /**
- * Types shared by job producers, the registry, and its consumers. The
- * client-safe projection vocabulary lives in `./view.ts`; the service
- * implementation lives in `./index.ts`.
+ * 任务生产者、注册表与其消费者共用的类型。客户端安全的投影词汇在 `./view.ts`；
+ * 服务实现在 `./index.ts`。
  * @module @deepseek-ai/dsh-jobs/types
  */
 
@@ -12,249 +11,227 @@ import type { JobChannel, JobChunk, JobKind, JobView } from './view.ts'
 export { JobId } from './brand.ts'
 export type { JobChannel, JobChunk, JobKind, JobKindMap, JobStatus, JobView } from './view.ts'
 
-/** Tool dispatch that created a job; nested calls retain their root invocation. */
+/** 创建该任务的工具分发；嵌套调用保留其根调用。 */
 export interface JobToolCall {
-  /** Exact invocation, including a PTC sub-call when applicable. */
+  /** 确切的那次调用，适用时包含 PTC 子调用。 */
   readonly callId: SessionEventMap['tool/call']['callId']
-  /** Root model-requested invocation owning this execution. */
+  /** 拥有本次执行的、由模型请求的根调用。 */
   readonly rootCallId: SessionEventMap['tool/call']['callId']
 }
 
-/** Durable identity and registration time of one owned job execution. */
+/** 一次自有任务执行的持久身份与注册时间。 */
 export interface JobRegisteredData {
-  /** Unique execution id accepted by job controls and retained in Session history. */
+  /** 任务控制接受、并保留在 Session 历史中的唯一执行 id。 */
   readonly jobId: JobId
-  /** Original owner; copied history does not transfer execution ownership. */
+  /** 原始所有者；复制来的历史不会转移执行所有权。 */
   readonly owner: SessionId
-  /** Producer kind. */
+  /** 生产者类型。 */
   readonly kind: string
-  /** Producer-supplied label. */
+  /** 生产者提供的标签。 */
   readonly label: string
-  /** Unix epoch milliseconds when registration committed. */
+  /** 注册提交时的 Unix 纪元毫秒。 */
   readonly startedAt: number
-  /** Creating tool invocation, when the producer was called through a tool. */
+  /** 当生产者是通过某个工具被调用时，创建它的那次工具调用。 */
   readonly toolCall?: JobToolCall
 }
 
-/** Registry settlement, including whether the producer reported a terminal outcome. */
+/** 注册表的结算，包括生产者是否报告了终态结果。 */
 export interface JobSettledData extends JobRegisteredData {
-  /** Unix epoch milliseconds when the registry committed the terminal record. */
+  /** 注册表提交终态记录时的 Unix 纪元毫秒。 */
   readonly finishedAt: number
-  /** Recorded terminal outcome. */
+  /** 记录的终态结果。 */
   readonly status: JobOutcome['status']
-  /** Source of the termination request, or producer completion. */
+  /** 终止请求的来源，或生产者自行完成。 */
   readonly cause: JobSettleCause
-  /** True when done fulfilled; false for rejection or forced failure. Does not certify resource release. */
+  /** `done` 兑现时为 true；被拒绝或被强制失败时为 false。不证明资源已释放。 */
   readonly producerReported: boolean
-  /** Terminal reason, including a recorded kill reason when applicable. */
+  /** 终态原因，适用时包含已记录的 kill 原因。 */
   readonly detail?: string
 }
 
 declare module '@deepseek-ai/dsh-session/types' {
   interface SessionEventMap {
     /**
-     * Log-only job registration; model output collection is not required.
-     * @param data - Execution identity, original owner, registration time, and creating tool call.
+     * 仅用于记录的注册事件；不要求模型采集输出。
+     * @param data - 执行身份、原始所有者、注册时间以及创建它的工具调用。
      */
     'job/registered': JobRegisteredData
     /**
-     * Log-only terminal record, paired by the same unique jobId used for live control.
-     * @param data - Registration facts plus settlement time, outcome, and producer acknowledgement.
+     * 仅用于记录的终态记录，由与实时控制相同的唯一 jobId 配对。
+     * @param data - 注册事实，加上结算时间、结果以及生产者的确认。
      */
     'job/settled': JobSettledData
   }
 }
 
-/** Terminal result supplied by a producer through {@link JobHooks.done}. */
+/** 生产者通过 {@link JobHooks.done} 提供的终态结果。 */
 export interface JobOutcome {
-  /** How the job ended: finished (`completed`), cancelled (`killed`), or broke (`failed`). */
+  /** 任务如何结束：完成（`completed`）、被取消（`killed`）或出错（`failed`）。 */
   status: 'completed' | 'killed' | 'failed'
   /**
-   * Terminal reason rendered into status lines (`exit code: 3`, `max-tokens`).
-   * When the job settles `killed` after a {@link JobRegistry.kill} with a
-   * reason, the registry appends that reason.
+   * 渲染进状态行的终态原因（`exit code: 3`、`max-tokens`）。
+   * 当任务在带原因的 {@link JobRegistry.kill} 之后以 `killed` 结算时，注册表会追加该原因。
    */
   detail?: string
   /**
-   * Return value for jobs whose result is a value rather than a stream (a
-   * workflow's rendered result, a subagent's report). The output ring carries
-   * the stream; this is handed out once by the model's next {@link JobRegistry.read}.
+   * 对结果是一个值而非流的任务（一个 workflow 渲染出的结果、一个 subagent 的报告）而言的返回值。
+   * 流走输出环形缓冲区；这个值由模型下一次 {@link JobRegistry.read} 一次性交出。
    */
   result?: string
 }
 
-/** One incremental read from a {@link JobOutputSource}. */
+/** 从某个 {@link JobOutputSource} 的一次增量读取。 */
 export interface JobSourceRead {
-  /** Text captured since the requested offset (the whole retained tail when lossy). */
+  /** 自请求偏移以来捕获到的文本（有损时为整个保留下来的尾部）。 */
   text: string
-  /** Whole-stream offset to resume from on the next read. */
+  /** 下次读取续读用的整流偏移。 */
   nextOffset: number
-  /** True when the requested offset slid out of the source's retained window. */
+  /** 请求的偏移是否已滑出该源保留的窗口。 */
   lossy: boolean
   /**
-   * Host path of a file holding the complete stream, when the source
-   * currently keeps an intact one. Reported on every read, so the registry
-   * tracks it as source metadata: a later read without it withdraws the file.
+   * 当该源当前保存着一份完整流时，持有它的文件的宿主路径。每次读取都会上报，
+   * 因此注册表把它当作源的元数据来跟踪：之后某次读取不再带它就意味着文件被撤回。
    */
   spillPath?: string
 }
 
 /**
- * A pull source the registry pumps into the job's output ring — the subprocess
- * `readFrom` family. The registry owns the cadence and drains every source one
- * last time before settlement closes the ring, so a producer folds nothing
- * into its `done`.
+ * 注册表泵入任务输出环形缓冲区的一个拉取源——子进程的 `readFrom` 家族。
+ * 注册表掌握节奏，并在结算关闭环形缓冲区之前把每个源最后排空一次，因此生产者
+ * 不需要把任何东西折叠进自己的 `done`。
  */
 export interface JobOutputSource {
-  /** Stream label attached to every chunk this source yields. */
+  /** 附在该源产出的每个块上的流标签。 */
   channel?: JobChannel
   /**
-   * Read everything captured since `fromByte` without consuming it.
-   * @param fromByte - whole-stream offset to resume from (a prior read's `nextOffset`; 0 first).
-   * @returns the delta text, the next offset, the lossy flag, and the spill path the source currently keeps.
+   * 读取自 `fromByte` 以来捕获到的全部内容，且不消费它。
+   * @param fromByte - 续读用的整流偏移（上一次读取的 `nextOffset`；首次为 0）。
+   * @returns 增量文本、下一个偏移、有损标志，以及该源当前保留的溢出文件路径。
    */
   read(fromByte: number): JobSourceRead
 }
 
-/** Options for one {@link JobHandle.append}. */
+/** 一次 {@link JobHandle.append} 的选项。 */
 export interface JobAppendOptions {
-  /** Stream label for the chunk; omitted for producers without distinct streams. */
+  /** 该块的流标签；对没有区分流生产者的省略。 */
   channel?: JobChannel
   /**
-   * Marks that producer-side bytes between the previous chunk and this one
-   * were lost, so an observer can render the discontinuity instead of a
-   * silent splice.
+   * 标记上一个块与本块之间生产者侧的字节已丢失，这样观察者可以渲染出这个断点，
+   * 而不是一次静默的拼接。
    */
   gapBefore?: true
 }
 
 /**
- * Producer face of one registered job, handed to {@link JobSpec.run} and
- * valid for the job's whole life. All methods are synchronous. Writes staged
- * inside the starter call are retained and become visible with the
- * registration commit; after settlement — the producer's own outcome, a kill,
- * or a registry-forced teardown end — writes log and drop instead of
- * throwing, so a producer's trailing flush cannot break its own teardown path.
+ * 一个已注册任务的生产者接口，交给 {@link JobSpec.run}，在任务的整个生命周期内有效。
+ * 所有方法都是同步的。在启动器调用内暂存的写入会被保留，并随注册提交一起变得可见；
+ * 结算之后——生产者自己的结果、一次 kill，或注册表强制的销毁结束——写入会被记日志并丢弃
+ * 而不是抛出，这样生产者的收尾冲刷不会打断它自己的销毁路径。
  */
 export interface JobHandle {
-  /** The registry-issued id (`<kind>-<short-uuid>`). */
+  /** 注册表签发的 id（`<kind>-<short-uuid>`）。 */
   readonly id: JobId
   /**
-   * Append one chunk to the output ring. Offsets advance by the chunk's UTF-8
-   * byte length; an empty chunk is dropped without waking observers.
-   * @param text - the chunk text, exactly as produced.
-   * @param options - stream label and gap marker.
+   * 向输出环形缓冲区追加一个块。偏移按该块的 UTF-8 字节长度推进；空块会被丢弃且
+   * 不会唤醒观察者。
+   * @param text - 块的文本，与产出完全一致。
+   * @param options - 流标签与断点标记。
    */
   append(text: string, options?: JobAppendOptions): void
   /**
-   * Replace the live progress line (`3/10`, the current phase). Settlement
-   * clears it; the terminal reason travels in {@link JobOutcome.detail}.
-   * @param line - the new progress line.
+   * 替换实时的进度行（`3/10`、当前阶段）。结算会清空它；终态原因走 {@link JobOutcome.detail}。
+   * @param line - 新的进度行。
    */
   updateProgress(line: string): void
 }
 
-/** Hooks through which the runtime controls and observes producer work. */
+/** 运行时控制与观察生产者工作的钩子。 */
 export interface JobHooks {
   /**
-   * Request termination. Must be synchronous, idempotent, and eventually settle
-   * {@link done}; throws propagate. The optional reason is forwarded verbatim.
+   * 请求终止。必须是同步的、幂等的，并最终结算 {@link done}；抛出会向上传播。
+   * 可选原因原样转发。
    */
   cancel(reason?: string): void
   /**
-   * Resolves after the producer releases its resources, not merely when work
-   * finishes. Must not reject; the runtime converts a rejection to `failed`.
-   * If teardown cancellation throws, the runtime may force-fail only the
-   * registry record without claiming that the work stopped.
+   * 在生产者释放其资源之后才兑现，而不仅仅是工作完成时。不得拒绝；运行时会把拒绝转成
+   * `failed`。如果销毁期间的取消抛出，运行时可以只强制失败注册表记录，而不声称工作已停止。
    */
   done: Promise<JobOutcome>
 }
 
 /**
- * Producer declaration passed to {@link JobRegistry.start}. The runtime
- * preflights access and cleanup before invoking {@link run}; the producer owns
- * execution resources while the runtime owns identity, lifecycle state, and
- * the output ring.
+ * 传给 {@link JobRegistry.start} 的生产者声明。运行时在调用 {@link run} 之前做访问与清理预检；
+ * 生产者拥有执行资源，而运行时拥有身份、生命周期状态以及输出环形缓冲区。
  */
 export interface JobSpec {
-  /** Producer kind — also the id prefix (`bash`, …). */
+  /** 生产者类型——同时也是 id 的前缀（`bash` 等）。 */
   kind: JobKind
-  /** One-line model-facing label (the command; the delegation description). */
+  /** 面向模型的一行标签（命令；委派描述）。 */
   label: string
   /**
-   * Owning session. Access is fenced by it, and the owner's live Agent must be
-   * the one currently registered under that id: its disposal cancels and
-   * awaits the job. Omitting the owner creates an unowned job, open to any
-   * caller until service disposal.
+   * 所属会话。访问以它为界，且该所有者当前的活体 Agent 必须是此刻注册在该 id 下的那个：
+   * 它的销毁会取消并等待该任务。省略所有者会创建一个无主任务，直到服务销毁前对任何调用方开放。
    */
   owner?: SessionId
-  /** Creating tool invocation, retained in the durable lifecycle records. */
+  /** 创建它的工具调用，保留在持久的生命周期记录中。 */
   toolCall?: JobToolCall
   /**
-   * Optional UTF-8 byte cap for each complete model-facing completion notice or
-   * output read, including controller status metadata. Independent of ring
-   * retention: it bounds the consuming model surface, never observers.
+   * 每条完整的面向模型的完成通知或输出读取的可选 UTF-8 字节上限，含控制器状态元数据。
+   * 与环形缓冲区保留无关：它约束的是消费侧的模型界面，从不约束观察者。
    */
   outputLimitBytes?: number
   /**
-   * Pull sources the registry pumps into the ring at its own cadence.
-   * Producers that narrate their own progress use {@link JobHandle.append}
-   * instead; a job may use both.
+   * 注册表以自身节奏泵入环形缓冲区的拉取源。自行叙述进度的生产者改用
+   * {@link JobHandle.append}；一个任务也可以两者都用。
    */
   output?: readonly JobOutputSource[]
   /**
-   * Start the work after preflight and synchronously return its hooks. Called
-   * once with the job's producer face; a throw leaves nothing registered (the
-   * spent ordinal is skipped), and the producer must clean up any partially
-   * started resources.
-   * @param job - the issued id plus the ring append and progress writers.
+   * 在预检之后启动工作，并同步返回其钩子。带着任务的生产者接口调用一次；抛出则什么都不
+   * 注册（已消耗的序号被跳过），且生产者必须清理任何部分启动的资源。
+   * @param job - 签发的 id，加上环形缓冲区追加与进度写入器。
    */
   run(job: JobHandle): JobHooks
 }
 
-/** Output and post-read state returned by the consuming {@link JobRegistry.read}. */
+/** 消费型 {@link JobRegistry.read} 返回的输出与读后状态。 */
 export interface JobRead {
-  /** Ring chunks appended since the model cursor, in offset order; every channel included. */
+  /** 自模型游标以来追加的环形缓冲区块，按偏移顺序；包含所有通道。 */
   chunks: readonly JobChunk[]
-  /** True when the cursor fell below the oldest retained byte, so bytes are missing before `chunks`. */
+  /** 游标是否落到了最老的保留字节之下，即 `chunks` 之前是否有字节缺失。 */
   lossy: boolean
-  /** The producer's {@link JobOutcome.result}, handed out by the first read after settlement only. */
+  /** 生产者的 {@link JobOutcome.result}，只在结算后的首次读取时交出。 */
   result?: string
-  /** The job's state at read time. */
+  /** 读取时刻的任务状态。 */
   job: JobView
 }
 
-/** Result of one non-consuming {@link JobRegistry.readAt}. */
+/** 一次非消费型 {@link JobRegistry.readAt} 的结果。 */
 export interface JobOutputRead {
-  /** Retained chunks overlapping `[from, total)`, in offset order. */
+  /** 与 `[from, total)` 相交的保留块，按偏移顺序。 */
   chunks: readonly JobChunk[]
   /**
-   * Offset to resume from — the ring's current `total`. Always a chunk
-   * boundary: appends land whole and trimming only advances chunk starts, and
-   * consumers concatenate `chunks` under that assumption, so a provider
-   * serving partial chunks would silently duplicate text.
+   * 续读偏移——环形缓冲区当前的 `total`。它总是块边界：追加整块落地，裁剪只会推进块的起点，
+   * 而消费者正是在这一假设下拼接 `chunks`，所以提供方若给出半个块就会静默地重复文本。
    */
   next: number
-  /** True when `from` fell below the oldest retained byte, so bytes are missing before `chunks`. */
+  /** `from` 是否落到了最老的保留字节之下，即 `chunks` 之前是否有字节缺失。 */
   lossy: boolean
 }
 
 /**
- * Why a job settled: its producer finished (`producer`), a
- * {@link JobRegistry.kill} ran first (`kill`), or owner or service teardown
- * cancelled it (`teardown`) — a settlement whose owner has no reader left.
+ * 一个任务为什么结算：它的生产者自己结束（`producer`）、一次 {@link JobRegistry.kill}
+ * 抢先发生（`kill`），或所有者/服务销毁取消了它（`teardown`）——后者的所有者已经没有读者了。
  */
 export type JobSettleCause = 'producer' | 'kill' | 'teardown'
 
 /**
- * One lifecycle or output event. Lifecycle events carry the job's projection
- * after the commit they announce; `output` carries only the id and the new
- * total, so an observer schedules a {@link JobRegistry.readAt} from its own
- * cursor and the registry never pushes payloads.
+ * 一个生命周期或输出事件。生命周期事件携带任务在所宣告的提交之后的投影；`output`
+ * 只携带 id 与新的总长，这样观察者可以据自己的游标安排一次 {@link JobRegistry.readAt}，
+ * 而注册表从不推送载荷。
  */
 export type JobEvent =
   | {
-    /** Registration commit, progress line change, stopping transition, or removal from the visible set. */
+    /** 注册提交、进度行变更、stopping 转换，或从可见集合中被移除。 */
     readonly type: 'registered' | 'progress' | 'stopping' | 'removed'
     readonly job: JobView
   }
@@ -263,47 +240,42 @@ export type JobEvent =
     readonly job: JobView
     readonly cause: JobSettleCause
     /**
-     * Whether this settlement released a live {@link JobRegistry.wait}. That
-     * waiter's caller receives the terminal projection as its own result, so
-     * a completion reporter treats an awaited settlement as already delivered
-     * and reports only the unawaited ones. A wait that timed out or was
-     * aborted before the settlement does not count.
+     * 本次结算是否释放了一个在世的 {@link JobRegistry.wait}。那个等待者的调用方会把终态
+     * 投影当作自己的结果拿到，所以完成上报方把已被等待的结算视为已投递，只上报未被等待的那些。
+     * 在结算之前就已超时或被中止的等待不算数。
      */
     readonly awaited: boolean
   }
   | {
     readonly type: 'output'
     readonly id: JobId
-    /** Owning session, absent for an unowned job. */
+    /** 所属会话；无主任务没有。 */
     readonly owner?: SessionId
-    /** The ring's total after the append (or at settlement, which ends the stream). */
+    /** 追加之后（或结算时，即流结束时）环形缓冲区的总长。 */
     readonly total: number
   }
 
 /**
- * Who a subscription hears about. `{ owner }` delivers that session's jobs
- * plus every unowned job (the set that session can see). `{ owners: 'scope' }`
- * delivers the owners composed under the subscribing context — one registry
- * serves every composition in the process, and a mount under one preset must
- * not hear another preset's agents. `{ owners: 'all' }` delivers everything.
+ * 一个订阅能听到谁。`{ owner }` 投递该会话的任务加上每一个无主任务（即该会话能看到的集合）。
+ * `{ owners: 'scope' }` 投递订阅上下文之下组合出的那些所有者——一个注册表服务进程内的每种
+ * 组合，挂载在某个 preset 下的订阅不应听到另一个 preset 的 agent。`{ owners: 'all' }` 投递一切。
  */
 export type JobEventFilter =
   | { readonly owner: SessionId }
   | { readonly owners: 'all' | 'scope' }
 
-/** Event callback; contained by the registry, never awaited. */
+/** 事件回调；由注册表做隔离，从不被 await。 */
 export type JobEventListener = (event: JobEvent) => void
 
-/** The registry's event stream. */
+/** 注册表的事件流。 */
 export interface JobEvents {
   /**
-   * Register an effect-scoped listener. Events are dispatched synchronously
-   * after the commit they announce; a job's first event is `registered`, and
-   * a `settled` event follows the release of every waiter. No listener runs
-   * after service disposal.
-   * @param filter - which owners' events to deliver.
-   * @param listener - receives each matching event.
-   * @returns disposer that unregisters the listener.
+   * 注册一个随 effect 作用域生效的监听器。事件在所宣告的提交之后同步派发；一个任务的
+   * 第一个事件是 `registered`，而 `settled` 事件在释放每个等待者之后发出。服务销毁之后
+   * 不会再有监听器运行。
+   * @param filter - 投递哪些所有者的事件。
+   * @param listener - 接收每个匹配的事件。
+   * @returns 注销该监听器的 disposer。
    */
   subscribe(filter: JobEventFilter, listener: JobEventListener): () => void
 }

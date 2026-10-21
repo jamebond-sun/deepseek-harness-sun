@@ -1,8 +1,6 @@
 /**
- * JSON storage backend: one human-readable document per unit under a
- * configured root — a whole-unit file (`single` layout) or one document per
- * record (`per-record` layout), published by atomic rewrite. Registers as
- * backend `json` on the storage hub.
+ * JSON 存储后端：在配置根目录下每个单元一个人类可读文档——整体单元文件（`single` 布局）或每条记录一个文档
+ * （`per-record` 布局），通过原子重写发布。在存储中枢上注册为后端 `json`。
  * @module @deepseek-ai/dsh-storage-json
  */
 
@@ -14,45 +12,42 @@ import type { KvFacet, KvUnit, KvUnitDescriptor, StorageBackend } from '@deepsee
 import { openSingleUnit } from './single-unit.ts'
 import { openPerRecordUnit } from './per-record-unit.ts'
 
-/** Cordis plugin name. */
+/** Cordis 插件名称。 */
 export const name = 'storage-json'
-/** The hub must exist before the backend can register. */
+/** 在后端可注册之前，中枢必须存在。 */
 export const inject = ['storage']
 
 /**
- * Plugin configuration.
- * `root` has NO default on purpose: a `process.cwd()` fallback would scatter
- * unit files wherever the process happens to start; assemblies state the
- * location explicitly.
+ * 插件配置。
+ * `root` 刻意不设默认值：若回退为 `process.cwd()`，单元文件会散布到进程恰好启动的任何位置；
+ * 装配件需显式声明位置。
  */
 export interface Config {
-  /** Directory holding one `<unit>.json` file (or `<unit>/` tree) per unit. */
+  /** 持有每个单元一个 `<unit>.json` 文件（或 `<unit>/` 树）的目录。 */
   root: string
 }
 
-/** Config schema. */
+/** 配置 schema。 */
 export const Config: z<Config> = z.object({
   root: z.string().required(),
 })
 
-/** JSON backend: owns the file-tree root and serves the `kv` facet. */
+/** JSON 后端：拥有文件树根目录并服务 `kv` facet。 */
 export class JsonStorageBackend implements StorageBackend {
   private readonly open = new Map<string, KvUnit>()
-  // Reserved synchronously at open() entry so a concurrent open of the same
-  // unit fails, and close() can await opens still in flight.
+  // 在 open() 入口同步保留，以便同一单元的并发打开失败，且 close() 能等待仍在途的打开。
   private readonly opening = new Map<string, Promise<KvUnit>>()
   private closed = false
 
   constructor(private readonly root: string) {}
 
   readonly kv: KvFacet = {
-    // The body up to the first await runs synchronously, so the opening-slot
-    // reservation below still excludes a concurrent open of the same unit.
+    // 首个 await 之前的主体同步运行，因此下方的 opening 槽位保留仍能排除同一单元的并发打开。
     open: async (descriptor: KvUnitDescriptor): Promise<KvUnit> => {
       if (this.closed) throw new StorageError('closed', 'json backend is closed')
       validateDescriptor(descriptor)
       if (this.open.has(descriptor.name) || this.opening.has(descriptor.name)) {
-        // Double-open is a caller bug, not a medium condition.
+        // 双重打开属于调用方错误，而非介质状况。
         throw new Error(`unit '${descriptor.name}' is already open; a unit has exactly one live handle`)
       }
       const opening = this.openUnit(descriptor)
@@ -63,15 +58,13 @@ export class JsonStorageBackend implements StorageBackend {
 
   private async openUnit(descriptor: KvUnitDescriptor): Promise<KvUnit> {
     await mkdir(this.root, { recursive: true, mode: 0o700 })
-    // The two layouts differ in medium shape only; each opener owns its own
-    // path convention under the shared root.
+    // 两种布局仅在介质形态上有别；各自打开者拥有其在共享根目录下的路径约定。
     const onClose = () => this.open.delete(descriptor.name)
     const unit = descriptor.layout === 'per-record'
       ? await openPerRecordUnit(descriptor, this.root, onClose)
       : await openSingleUnit(descriptor, this.root, onClose)
     if (this.closed) {
-      // The backend closed while this open was in flight: do not hand out a
-      // live unit past close().
+      // 打开进行期间后端已关闭：不得在 close() 之后交出存活单元。
       await unit.close()
       throw new StorageError('closed', 'json backend is closed')
     }
@@ -102,9 +95,9 @@ function validateDescriptor(descriptor: KvUnitDescriptor): void {
 }
 
 /**
- * Register the `json` backend on the storage hub.
- * @param ctx - Plugin context.
- * @param config - Validated configuration.
+ * 在存储中枢上注册 `json` 后端。
+ * @param ctx - 插件 Context。
+ * @param config - 已校验的配置。
  */
 export function apply(ctx: Context, config: Config) {
   const backend = new JsonStorageBackend(config.root)

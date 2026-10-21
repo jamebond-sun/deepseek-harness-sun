@@ -1,13 +1,13 @@
 /**
- * Public file-reference discovery records. This module contains types only so
- * generated Remote clients can consume it without Host runtime code.
+ * 公开的文件引用发现记录。本模块仅包含类型，以便生成的 Remote 客户端
+ * 无需 Host 运行时代码即可消费它。
  * @module @deepseek-ai/dsh-file-reference/types
  */
 
-/** One path-only completion candidate inside the target session cwd. */
+/** 目标会话 cwd 内、仅含路径的一个补全候选。 */
 export interface FileReferenceCandidate {
-  /** User-facing path accepted by normal prompts and filesystem tools. */
+  /** 被普通提示与文件系统工具所接受的、面向用户的路径。 */
   path: string
-  /** Directories keep completion open; files finish the mention. */
+  /** 目录保持补全打开；文件则结束该提及。 */
   kind: 'file' | 'directory'
 }

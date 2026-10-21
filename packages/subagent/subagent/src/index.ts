@@ -1,29 +1,24 @@
 /**
- * Service Definition for the subagent capability seam (`ctx.subagents`): a named-provider registry plus a
- * capability-validating asynchronous start API. Providers establish a
- * child before returning its run, so fulfillment is the single publication and
- * ownership-transfer boundary.
+ * 子代理能力接缝（`ctx.subagents`）的 Service Definition：一个具名提供方注册表
+ * 加上一个校验能力的异步启动 API。提供方在返回其运行之前先建立子代理，
+ * 因此兑现是唯一的发布与所有权转移边界。
  *
- * Multiple providers coexist: each registers under a unique name and callers
- * select one by name.
+ * 多个提供方共存：各自以唯一名称注册，调用方按名称选择其一。
  *
- * This package owns the Service Definition role of the capability seam. Service Providers
- * (`@deepseek-ai/dsh-subagent-spawn-in-process`, `-fork`, `-acp`) and the model-facing
- * consumer (`@deepseek-ai/dsh-tool-subagent`) are separate packages.
+ * 本包拥有该能力接缝的 Service Definition 角色。Service Providers
+ * （`@deepseek-ai/dsh-subagent-spawn-in-process`、`-fork`、`-acp`）与面向模型的
+ * 消费者（`@deepseek-ai/dsh-tool-subagent`）是独立的包。
  *
- * `startActivation` establishes every child under the activation manager, which
- * owns execution, result delivery, and resource release. Local providers seed
- * resumable Agents; external providers return a single execution handle.
- * `sendMessage` steers between adjacent local Agents without exposing
- * whether a child is resident. Discovery combines real child Sessions with
- * parent-owned records for external executions.
- * Direct discovery reads parent catalogs; descendants recursively read reachable
- * child catalogs. External entries are leaves without local Sessions.
+ * `startActivation` 在激活管理器之下建立每个子代理，后者拥有执行、结果投递
+ * 与资源释放。本地提供方播种可恢复的 Agents；外部提供方返回单个执行句柄。
+ * `sendMessage` 在相邻的本地 Agents 之间转向，而不暴露子代理是否驻留。
+ * 发现把真实子 Session 与用于外部执行的父自有记录结合起来。
+ * 直接发现读取父目录；后代递归地读取可达的子目录。外部条目是没有本地
+ * Session 的叶子。
  *
- * Same-process providers are trusted typed collaborators. Requests, provider
- * descriptors, results, and lifecycle payloads are borrowed immutable values;
- * serialization and hostile-input validation belong at real process, worker,
- * persistence, and model boundaries.
+ * 同进程提供方是受信任的类型化协作者。请求、提供方描述符、结果与生命周期
+ * 载荷都是借用的不可变值；序列化与敌意输入校验属于真实的进程、worker、
+ * 持久化与模型边界。
  *
  * @module @deepseek-ai/dsh-subagent
  */
@@ -135,32 +130,30 @@ declare module '@deepseek-ai/cordis' {
 
   interface Events {
     /**
-     * A provider became resolvable in the registry.
-     * @param provider - the registered provider.
+     * 一个提供方在注册表中变为可解析。
+     * @param provider - 已注册的提供方。
      * @mode emit
      */
     'subagent/provider-added'(provider: SubagentProvider): void
     /**
-     * A provider left the registry. Accepted runs remain holder-owned.
-     * @param name - the provider name that no longer resolves.
+     * 一个提供方离开了注册表。已被接受的运行仍由持有者拥有。
+     * @param name - 不再可解析的提供方名称。
      * @mode emit
      */
     'subagent/provider-removed'(name: string): void
     /**
-     * A provider established a published child. For in-process providers,
-     * `ctx.agents.get(info.id)` resolves during this notification.
-     * Scope-filtered dispatch keys the carrier by the delegating parent, so a
-     * parent-scoped listener observes only its own delegations. Paired with
-     * `subagent/end`.
-     * @param info - the provider and published child identity.
+     * 一个提供方建立了一个已发布的子代理。对进程内提供方而言，
+     * `ctx.agents.get(info.id)` 在本通知期间可解析。
+     * 作用域过滤分派以委托方父代理为键控载体，因此一个父作用域监听器
+     * 只观测其自身的委托。与 `subagent/end` 配对。
+     * @param info - 提供方与已发布子代理的身份。
      * @mode emit
      */
     'subagent/start'(this: Scoped<SubagentRuntime>, info: SubagentRunInfo): void
     /**
-     * A published child settled. Scope-filtered dispatch uses the same delegating
-     * parent carrier as `subagent/start`, so the lifecycle pair reaches the
-     * same scoped audience.
-     * @param info - the run identity and terminal outcome.
+     * 一个已发布子代理已结算。作用域过滤分派使用与 `subagent/start` 相同的
+     * 委托方父代理载体，因此该生命周期对到达同一个作用域受众。
+     * @param info - 运行身份与终止结果。
      * @mode emit
      */
     'subagent/end'(this: Scoped<SubagentRuntime>, info: SubagentRunEndInfo): void
@@ -168,29 +161,28 @@ declare module '@deepseek-ai/cordis' {
 }
 
 /**
- * Durable attribution of one browser-authored follow-up. The Session
- * Controller declares this `user-rpc` message source and depends on this
- * package, so the fields are spelled here: `MessageSource`'s `user` member
- * accepts the record and the correlation id rides the durable message the
- * Client reconciles its optimistic prompt against.
+ * 一条浏览器撰写后续消息的持久化归属。Session Controller 声明这个
+ * `user-rpc` 消息来源并依赖本包，因此字段在此处拼写：`MessageSource` 的
+ * `user` 成员接受该记录，而关联 id 搭载在客户端用以对账其乐观 prompt 的
+ * 持久化消息上。
  */
 interface BrowserPromptSource {
   readonly kind: 'user'
   readonly rpcId: SubagentPromptRequestId
   readonly clientTimeZone?: string
-  /** Caller that submitted this follow-up, written only when it is not the owner; absent means the owner. */
+  /** 提交本条后续消息的调用方，仅当其不是所有者时写入；缺省表示所有者。 */
   readonly principal?: Principal
 }
 
-/** Host configuration for continuable subagent capacity. */
+/** 可续跑子代理容量的宿主配置。 */
 export interface Config {
-  /** Maximum live children sharing uninterrupted continuable parent links; defaults to 8. */
+  /** 共享未被打断的可续跑父链接的最大活跃子代理数；默认为 8。 */
   maxActiveSubagents: Volatile<number>
-  /** Default delegation depth for tools without an explicit limit; defaults to 1. */
+  /** 未显式设限的工具的默认委托深度；默认为 1。 */
   maxDepth: Volatile<number>
 }
 
-/** Named provider registry with managed activations, durable discovery, and local child messaging. */
+/** 带有受管理激活、持久化发现与本地子消息传递的具名提供方注册表。 */
 export class SubagentRuntime extends TypertRemoteService {
   static Config = z.object({
     maxDepth: z.number().step(1).min(0).max(Number.MAX_SAFE_INTEGER).default(1).volatile(),
@@ -200,9 +192,8 @@ export class SubagentRuntime extends TypertRemoteService {
   private providers = new Map<string, SubagentProvider>()
   private manager: SubagentManager | undefined
   /**
-   * The contained lifecycle-edge publisher. Built here because scoped dispatch
-   * keys its carrier by this exact service instance, whose own context filter
-   * composes into the carrier.
+   * 带隔离的生命周期边发布器。在此处构建，因为作用域分派以这个精确的
+   * service 实例为其载体键，而该实例自身的上下文过滤器会组合进载体。
    */
   private readonly emitLifecycle: LifecycleEmitter
 
@@ -220,7 +211,7 @@ export class SubagentRuntime extends TypertRemoteService {
       }, () => this.config.maxActiveSubagents.get())
       this.manager = manager
       childCtx.effect(() => () => {
-        /* v8 ignore else -- one injected binding owns the slot until its fiber disposes. */
+        /* v8 ignore else -- 一个被注入的绑定拥有该槽位，直到其 fiber 被处置。 */
         if (this.manager === manager) this.manager = undefined
       }, 'subagents.managerBinding()')
     })
@@ -229,15 +220,15 @@ export class SubagentRuntime extends TypertRemoteService {
       projectionCtx.sessionProjections.register(subagentTimingProjectionDefinition)
       projectionCtx.sessionProjections.register(subagentIdentityProjectionDefinition)
     })
-    // Archive admission: this runtime is the owner that knows which live
-    // children descend from a Session and how a parent stops them.
+    // 归档准入：本运行时是知道哪些活着的子代理派生自某个 Session、
+    // 以及父代理如何停止它们的属主。
     ctx.inject(['agents'], (agentsCtx: Context) => { installSubagentArchiveAdmission(agentsCtx) })
   }
 
   /**
-   * Resolve a delegation tool's depth policy against the current user setting.
-   * @param configured - Explicit tool limit, or provider-managed for external delegation.
-   * @returns The numeric limit, or undefined when the provider owns depth enforcement.
+   * 针对当前用户设置解析一个委托工具的深度策略。
+   * @param configured - 显式工具限制，或对外部委托而言由提供方管理。
+   * @returns 数值限制，或当提供方自己负责深度强制时为 undefined。
    */
   resolveMaxDepth(configured?: number | 'provider-managed'): number | undefined {
     if (configured === 'provider-managed') return undefined
@@ -248,23 +239,23 @@ export class SubagentRuntime extends TypertRemoteService {
   }
 
   /**
-   * Start a local child under its reserved identity.
-   * @param spec - local task, reserved child id, and result recipient.
-   * @returns activation with its accepted initial message id.
+   * 在其预留身份下启动一个本地子代理。
+   * @param spec - 本地任务、预留子 id 与结果接收方。
+   * @returns 带有其已接受初始消息 id 的激活。
    */
   startActivation(spec: SubagentActivationSpec & { readonly childId: SessionId }):
   Promise<SubagentActivation & { readonly messageId: MessageId }>
   /**
-   * Start a local or external child.
-   * @param spec - task, backend, and result recipient.
-   * @returns activation with a message id only for local children.
+   * 启动一个本地或外部子代理。
+   * @param spec - 任务、后端与结果接收方。
+   * @returns 激活，仅对本地子代理带有消息 id。
    */
   startActivation(spec: SubagentActivationSpec): Promise<SubagentActivation>
   /**
-   * Establish a managed child with backend-specific execution capabilities.
-   * @param spec - task, backend, and result recipient.
-   * @returns identities, execution result, and exact-activation disposal. A reserved
-   * childId requires a local backend and guarantees an accepted messageId.
+   * 以特定于后端的执行能力建立一个受管理的子代理。
+   * @param spec - 任务、后端与结果接收方。
+   * @returns 身份、执行结果与精确激活的处置。预留的 childId 需要一个本地
+   * 后端，并保证有一个已接受的 messageId。
    */
   async startActivation(spec: SubagentActivationSpec): Promise<SubagentActivation> {
     const provider = this.expectProvider(spec.provider)
@@ -284,28 +275,26 @@ export class SubagentRuntime extends TypertRemoteService {
   }
 
   /**
-   * Join progressing descendants without cancelling them. Idle descendants whose
-   * inboxes require a later wake stay resident and do not delay host completion.
-   * @param parent - the exact parent whose descendant work is observed.
-   * @returns whether work was joined; hosts recheck parent idle after true.
+   * 汇合正在推进的后代而不取消它们。收件箱需要之后唤醒的空闲后代保持
+   * 驻留，且不延迟宿主的完成。
+   * @param parent - 观测其后继工作的精确父代理。
+   * @returns 是否汇合了工作；为 true 时宿主会重新检查父代理空闲。
    */
   async waitForChildren(parent: Agent): Promise<boolean> {
     return this.manager?.waitForChildren(parent) ?? false
   }
 
   /**
-   * Steer one model-authored message to the sender's direct parent or direct
-   * continuable child. A running target admits it at the nearest step boundary;
-   * an idle target starts a turn, and an absent direct child cold-resumes from
-   * persistence. The service derives durable sender attribution from the exact
-   * live sender. Caller cancellation stops only pre-acceptance work.
-   * @param sender - exact live Agent authorizing and originating the message.
-   * @param targetId - durable direct-parent or direct-child session id.
-   * @param content - model-authored content to deliver.
-   * @param options - caller cancellation before inbox acceptance.
-   * @returns the accepted message's inbox id.
-   * @throws when continuation services are unavailable, adjacency is rejected,
-   *   or the message was not admitted.
+   * 把一条模型撰写的消息转向发送方的直接父代理或直接可续跑子代理。
+   * 运行中的目标在最近的步骤边界接纳它；空闲目标开启一个轮次，而缺席的
+   * 直接子代理从持久化冷恢复。service 从精确的实时发送方推导持久化发送方
+   * 归属。调用方取消只停止接受之前的工作。
+   * @param sender - 授权并发起该消息的精确实时 Agent。
+   * @param targetId - 持久化的直接父或直接子 session id。
+   * @param content - 待投递的模型撰写内容。
+   * @param options - 在收件箱接受之前的调用方取消。
+   * @returns 被接受消息的收件箱 id。
+   * @throws 当续跑服务不可用、邻接被拒绝，或消息未被接纳时。
    */
   async sendMessage(
     sender: Agent,
@@ -317,16 +306,16 @@ export class SubagentRuntime extends TypertRemoteService {
   }
 
   /**
-   * Deliver one host-protocol message to a direct continuable child.
-   * Symbol-keyed so host adapters can preserve their own source descriptors without
-   * widening the public Service Definition or impersonating an Agent sender.
-   * @param parent - exact live direct parent authorizing delivery.
-   * @param childId - durable direct-child session id.
-   * @param content - host-authored content to deliver.
-   * @param source - durable host-protocol source descriptor.
-   * @param signal - caller cancellation before inbox acceptance.
-   * @param delivery - Queue as a distinct turn or Steer at the nearest step.
-   * @returns the accepted message's inbox id.
+   * 向一个直接可续跑子代理投递一条宿主协议消息。
+   * 以 symbol 为键，使宿主适配器能保留自己的来源描述符，而无需拓宽公开的
+   * Service Definition 或冒充一个 Agent 发送方。
+   * @param parent - 授权该投递的精确实时直接父代理。
+   * @param childId - 持久化的直接子 session id。
+   * @param content - 待投递的宿主撰写内容。
+   * @param source - 持久化宿主协议来源描述符。
+   * @param signal - 在收件箱接受之前的调用方取消。
+   * @param delivery - 作为独立轮次排队，或在最近的步骤转向。
+   * @returns 被接受消息的收件箱 id。
    */
   private [deliverSubagentPrompt](
     parent: Agent,
@@ -342,50 +331,44 @@ export class SubagentRuntime extends TypertRemoteService {
   }
 
   /**
-   * Interrupt one live child's current execution under a human parent
-   * address or an exact live ancestor Agent. Fire-and-return: the cancel
-   * signal is issued before this returns, but the target may keep running
-   * until it observes the signal. Unclaimed pending inbox work, the Activation,
-   * and published descendants are preserved; claimed work is not requeued.
-   * Once the interrupted Agent is idle, a waking send resumes the parked FIFO
-   * queue. External backends stop their single execution. An absent target
-   * is an accepted no-op, as is a manager-less composition, which cannot own a
-   * live Activation.
-   * @param targetSessionId - the durable child session id to interrupt.
-   * @param authority - the human parent address or exact live ancestor Agent.
-   * @throws {SubagentError} `UNAUTHORIZED` when the authority does not own the
-   *   live target.
+   * 在人类父地址或一个精确的实时祖先 Agent 之下中断一个活着的子代理的
+   * 当前执行。发后即忘：取消信号在本方法返回之前就已发出，但目标可能
+   * 继续运行直到它观测到该信号。未被认领的待处理收件箱工作、该 Activation
+   * 与已发布的后代都被保留；已认领的工作不会重新排队。一旦被中断的 Agent
+   * 空闲，一次唤醒发送会恢复被挂起的 FIFO 队列。外部后端停止其单次执行。
+   * 缺席的目标是已被接受的无操作，没有管理器的组合同样如此，它无法拥有
+   * 一个活着的 Activation。
+   * @param targetSessionId - 要中断的持久化子 session id。
+   * @param authority - 人类父地址或精确的实时祖先 Agent。
+   * @throws {SubagentError} 当该授权不拥有活着的目标时抛 `UNAUTHORIZED`。
    */
   interrupt(targetSessionId: SessionId, authority: SubagentInterruptAuthority): void {
     this.manager?.interrupt(targetSessionId, authority)
   }
 
   /**
-   * Close subagent admission below exact live parent Agents, stop only their
-   * visible descendant Activations synchronously, then await admitted scoped
-   * materializations and release those forests child-first. The scoped cutoff
-   * lasts until each exact parent leaves the registry; unrelated parent trees
-   * remain live.
-   * @param parents - exact host-owned parent Agents entering teardown.
-   * @returns once every retained descendant activation released its execution handle.
-   * @throws an aggregate error after all branches settle when any failed.
+   * 关闭精确实时父 Agents 之下子代理的准入，同步停止仅它们可见的后代
+   * Activation，然后等待已被接纳的作用域具现，并以子优先释放那些森林。
+   * 作用域切断持续到每个精确父代理离开注册表为止；无关的父树保持存活。
+   * @param parents - 进入拆解的、宿主拥有的精确父 Agents。
+   * @returns 在每个被保留的后代激活释放其执行句柄之后返回。
+   * @throws 当任一失败时，在所有分支结算之后抛出一个聚合错误。
    */
   async drainDescendants(parents: readonly Agent[]): Promise<void> {
     const manager = this.manager
-    // An absent activation manager cannot own materialized children.
+    // 缺席的激活管理器无法拥有已具现的子代理。
     if (manager === undefined) return
     await manager.drainDescendants(parents)
   }
 
   /**
-   * Release selected resident direct children of one exact live
-   * parent. Other children of the same parent remain admitted and resident.
-   * Absent targets and a manager-less composition are accepted no-ops.
-   * @param parent - exact live direct parent authorizing the selected release.
-   * @param childIds - durable direct-child ids to release when resident.
-   * @returns once every selected activation released its execution handle.
-   * @throws {SubagentError} `UNAUTHORIZED` when a resident target belongs to a
-   *   different parent or the supplied parent identity is stale.
+   * 释放一个精确实时父代理所选定的驻留直接子代理。同一父代理的其他子代理
+   * 保持被接纳与驻留。缺席的目标与没有管理器的组合都是已被接受的无操作。
+   * @param parent - 授权此次选择性释放的精确实时直接父代理。
+   * @param childIds - 驻留时要释放的持久化直接子 id。
+   * @returns 在每个被选中的激活释放其执行句柄之后返回。
+   * @throws {SubagentError} 当某个驻留目标属于不同的父代理或所提供的父
+   *   身份已陈旧时抛 `UNAUTHORIZED`。
    */
   async drainChildren(parent: Agent, childIds: readonly SessionId[]): Promise<void> {
     const manager = this.manager
@@ -394,55 +377,50 @@ export class SubagentRuntime extends TypertRemoteService {
   }
 
   /**
-   * Read the parent's durable direct-child catalog without loading or resuming an Agent.
-   * The service owns and releases the live-preferred Session observation.
-   * @param parentSessionId - parent whose direct children are requested.
-   * @param signal - cancellation forwarded to the Session query.
-   * @returns catalog children in parent event order.
-   * @throws {@link SubagentError} when query or catalog projection is unavailable.
-   * @throws SessionQueryError when the parent cannot be read or the query is cancelled.
+   * 读取父代理的持久化直接子目录，而不加载或恢复 Agent。
+   * service 拥有并释放该实时优先的 Session 观测。
+   * @param parentSessionId - 请求其直接子代理的父代理。
+   * @param signal - 转发给 Session 查询的取消信号。
+   * @returns 按父事件顺序排列的目录子代理。
+   * @throws {@link SubagentError} 当查询或目录投影不可用时。
+   * @throws SessionQueryError 当父代理无法被读取或查询被取消时。
    */
   listChildren(parentSessionId: SessionId, signal?: AbortSignal): Promise<SubagentCatalogEntry[]> {
     return listSubagentChildren(this.ctx, parentSessionId, signal)
   }
 
   /**
-   * Recursively list reachable parent catalogs in stable pre-order, preserving
-   * each catalog's event order. Each row carries its catalog parent and depth;
-   * external children are leaves; one-shot and unknown-mode children remain
-   * traversal nodes. Unknown modes
-   * produce unsupported diagnostics. Unreadable child catalogs produce corrupt
-   * or unavailable diagnostics and stop only that branch. Root read failures,
-   * missing services or projections, and cancellation reject the whole listing.
-   * Each catalog is observed once and released before the next read. No Agent
-   * is loaded or resumed; Sessions absent from reachable catalogs are omitted.
-   * @param rootSessionId - session whose catalog starts descendant discovery.
-   * @param signal - cancellation forwarded to and checked around each catalog read.
-   * @returns children and branch diagnostics in parent-catalog pre-order.
-   * @throws {@link SubagentError} when listing dependencies are unavailable or the caller cancels.
-   * @throws SessionQueryError when the root catalog cannot be read.
+   * 以稳定的前序递归列举可达的父目录，保留每个目录的事件顺序。每一行
+   * 携带其目录父代理与深度；外部子代理是叶子；一次性与 unknown 模式子代理
+   * 仍是遍历节点。未知模式产生 unsupported 诊断。不可读的子目录产生
+   * corrupt 或 unavailable 诊断，并只停止该分支。根读取失败、缺失服务或
+   * 投影、以及取消会拒绝整个列举。每个目录只被观测一次，并在下一次读取
+   * 之前释放。不加载或恢复任何 Agent；可达目录中缺席的 Session 被省略。
+   * @param rootSessionId - 以其目录开始后代发现的 session。
+   * @param signal - 转发给每次目录读取并在其前后检查的取消信号。
+   * @returns 按父目录前序排列的子代理与分支诊断。
+   * @throws {@link SubagentError} 当列举依赖不可用或调用方取消时。
+   * @throws SessionQueryError 当根目录无法被读取时。
    */
   listDescendants(rootSessionId: SessionId, signal?: AbortSignal): Promise<SubagentDescendantListEntry[]> {
     return listSubagentDescendants(this.ctx, rootSessionId, signal)
   }
 
   /**
-   * Deliver one browser-authored message to a continuable child through the
-   * exact live direct parent, retaining the caller-minted request identity and
-   * validated browser zone on the accepted message. Success identifies the
-   * message the child's inbox accepted; later execution is independent of this
-   * call. Queue delivery targets a later turn; steer delivery targets the
-   * nearest step and retains the Agent loop's best-effort fallback semantics.
-   * Image parts are admitted and persisted through the attachment store
-   * before delivery, and the child's model must accept image input.
-   * Cold resume at capacity rejects with `subagent/delivery-unavailable`.
-   * @param request - durable address, delivery, minted identity, content, and optional browser zone.
-   * @param signal - carrier cancellation, owning the call until inbox acceptance.
-   * @returns the accepted message's inbox identity.
-   * @throws {RemoteError} `gateway/bad-request`, `subagent/attachment-invalid`,
-   *   `subagent/invalid-time-zone`, `subagent/parent-unavailable`,
-   *   `subagent/not-resumable`, `subagent/unauthorized`,
-   *   `subagent/delivery-unavailable`, `gateway/cancelled`, or `gateway/internal`.
+   * 通过精确的实时直接父代理把一条浏览器撰写的消息投递给可续跑子代理，
+   * 并在被接受的消息上保留调用方铸造的请求身份与已校验的浏览器时区。
+   * 成功标识的是子代理收件箱所接受的那条消息；之后的执行独立于本次调用。
+   * 排队投递针对之后的轮次；转向投递针对最近的步骤，并保留 Agent 循环的
+   * 尽力而为兜底语义。图片片段在投递之前经由附件存储被接纳并持久化，
+   * 且子代理的模型必须接受图片输入。容量已满时的冷恢复以
+   * `subagent/delivery-unavailable` 拒绝。
+   * @param request - 持久化地址、投递方式、铸造的身份、内容与可选的浏览器时区。
+   * @param signal - 载体取消，在收件箱接受之前拥有该调用。
+   * @returns 被接受消息的收件箱身份。
+   * @throws {RemoteError} `gateway/bad-request`、`subagent/attachment-invalid`、
+   *   `subagent/invalid-time-zone`、`subagent/parent-unavailable`、
+   *   `subagent/not-resumable`、`subagent/unauthorized`、
+   *   `subagent/delivery-unavailable`、`gateway/cancelled` 或 `gateway/internal`。
    */
   @Remote('prompt')
   async prompt(request: SubagentPromptRequest, signal: AbortSignal): Promise<SubagentPromptReceipt> {
@@ -474,8 +452,8 @@ export class SubagentRuntime extends TypertRemoteService {
       ...(principal === undefined ? {} : { principal }),
     }
     try {
-      // Admission precedes delivery: image parts become durable references
-      // here, so the child inbox only ever accepts Host-persisted attachments.
+      // 准入先于投递：图片片段在此处变成持久化引用，因此子收件箱
+      // 只会接受由宿主持久化的附件。
       let content: ContentBlock[]
       if (request.content.every((part): part is { readonly type: 'text'; readonly text: string } => part.type === 'text')) {
         content = request.content.map(part => ({ type: 'text', text: part.text }))
@@ -500,18 +478,17 @@ export class SubagentRuntime extends TypertRemoteService {
   }
 
   /**
-   * Remote face of {@link interrupt} under one durable parent address. No
-   * catalog, history, persistence, or parent Agent lookup runs: the core
-   * primitive alone authorizes the address against the live Activation, which
-   * is what keeps a live child interruptible while its parent Agent is offline.
-   * Absent, idle, and already-completed targets are accepted no-ops there.
-   * @param childSessionId - durable child session id to interrupt.
-   * @param parentSessionId - durable direct parent whose authority is claimed.
-   * @param mode - required continuable-address discriminator.
-   * @returns acknowledgement that the cancel signal was admitted, not that the target is quiescent.
-   * @throws {RemoteError} `gateway/bad-request` for an empty id,
-   *   `subagent/unauthorized` when the address does not own the live target,
-   *   otherwise `gateway/internal`.
+   * {@link interrupt} 在一个持久化父地址之下的 Remote 外观。不运行任何
+   * 目录、历史、持久化或父 Agent 查找：仅由核心原语针对活着的 Activation
+   * 校验该地址的授权，这正是让一个活着的子代理在其父 Agent 离线时仍可
+   * 被中断的原因。缺席、空闲与已完成的目標在那里都是已被接受的无操作。
+   * @param childSessionId - 要中断的持久化子 session id。
+   * @param parentSessionId - 被声称拥有授权的持久化直接父代理。
+   * @param mode - 必需的续跑地址判别式。
+   * @returns 确认取消信号已被接纳，而非确认目标已静默。
+   * @throws {RemoteError} 空 id 时为 `gateway/bad-request`；
+   *   当该地址不拥有活着的目标时为 `subagent/unauthorized`；
+   *   否则为 `gateway/internal`。
    */
   @Remote('interruptByParent')
   interruptByParent(
@@ -537,19 +514,18 @@ export class SubagentRuntime extends TypertRemoteService {
   }
 
   /**
-   * Register a provider under its name. Registration is effect-scoped and HMR
-   * safe; removing a provider blocks new starts but does not revoke runs that
-   * were already returned to their holders. Providers without either execution
-   * method are rejected with UNSUPPORTED_CAPABILITY before registration.
-   * @param provider - the trusted provider implementation.
-   * @returns the exact Cordis effect disposer.
+   * 以其名称注册一个提供方。注册是 effect 作用域的且对 HMR 安全；移除一个
+   * 提供方会阻止新的启动，但不会撤销已返回给其持有者的运行。没有任何执行
+   * 方法的提供方在注册之前会以 UNSUPPORTED_CAPABILITY 被拒绝。
+   * @param provider - 受信任的提供方实现。
+   * @returns 精确的 Cordis effect disposer。
    */
   registerProvider(provider: SubagentProvider): () => void {
     const name = provider.name
     if (provider.start === undefined && provider.prepareContinuable === undefined) {
       throw new SubagentError(`subagent provider "${name}" must implement start or prepareContinuable`, 'UNSUPPORTED_CAPABILITY')
     }
-    // oxlint-disable-next-line typescript/no-misused-promises -- synchronous disposer
+    // oxlint-disable-next-line typescript/no-misused-promises -- 同步 disposer
     return this.ctx.effect(function* (this: SubagentRuntime) {
       if (this.providers.has(name)) {
         throw new SubagentError(`a subagent provider named "${name}" is already registered`, 'DUPLICATE_PROVIDER')
@@ -559,33 +535,32 @@ export class SubagentRuntime extends TypertRemoteService {
         this.providers.delete(name)
         this.emitLifecycle('subagent/provider-removed', name)
       }
-      // A throwing added-listener unwinds the yielded rollback, matching the
-      // repository's fail-loud registration semantics.
+      // 抛出的 added 监听器会回滚已 yield 的清理，与本仓库的
+      // 失败即响亮（fail-loud）注册语义一致。
       this.ctx.emit('subagent/provider-added', provider)
     }.bind(this), 'subagents.registerProvider()')
   }
 
   /**
-   * Look up a provider by name.
-   * @param name - the provider name.
-   * @returns the provider, or undefined when absent.
+   * 按名称查找一个提供方。
+   * @param name - 提供方名称。
+   * @returns 该提供方，缺席时为 undefined。
    */
   getProvider(name: string): SubagentProvider | undefined {
     return this.providers.get(name)
   }
 
   /**
-   * List registered provider names in insertion order.
-   * @returns the registered names.
+   * 按插入顺序列出已注册的提供方名称。
+   * @returns 已注册的名称。
    */
   list(): string[] {
     return [...this.providers.keys()]
   }
 
   /**
-   * Resolve one provider's detached continuable-creation contribution. Method
-   * presence on the provider IS the capability, so a provider without it is
-   * rejected before the manager reserves any child resources.
+   * 解析一个提供方的、已分离的可续跑创建贡献。提供方上方法是否存在本身就是
+   * 能力，因此没有它的提供方会在管理器预留任何子资源之前被拒绝。
    */
   private async prepareContinuable(
     name: string,
@@ -595,7 +570,7 @@ export class SubagentRuntime extends TypertRemoteService {
     return provider.prepareContinuable(request)
   }
 
-  /** Look up a provider for dispatch or fail loud. */
+  /** 查找用于分派的提供方，否则响亮失败。 */
   private expectProvider(name: string): SubagentProvider {
     const provider = this.providers.get(name)
     if (provider === undefined) {
@@ -604,7 +579,7 @@ export class SubagentRuntime extends TypertRemoteService {
     return provider
   }
 
-  /** Resolve the subagent manager or fail loud. */
+  /** 解析子代理管理器，否则响亮失败。 */
   private requireManager(): SubagentManager {
     if (this.manager === undefined) {
       throw new SubagentError(
@@ -616,8 +591,8 @@ export class SubagentRuntime extends TypertRemoteService {
   }
 
   /**
-   * Build the lifecycle observer for one continuable Activation's residency
-   * epoch, so the manager publishes its edges without owning event dispatch.
+   * 为一次可续跑 Activation 的驻留周期构建生命周期观察者，使管理器发布
+   * 其边而无需拥有事件分派。
    */
   private observeActivation(
     provider: string,
@@ -627,7 +602,7 @@ export class SubagentRuntime extends TypertRemoteService {
     return createActivationObserver(this.emitLifecycle, provider, childId, parent)
   }
 
-  /** Reject the first requested capability that the provider lacks. */
+  /** 拒绝提供方所缺乏的第一个被请求能力。 */
   private assertCapabilities(provider: SubagentProvider, request: SubagentStartRequest): void {
     if (request.agentPreset !== undefined && (!provider.capabilities.agentPreset || provider.inheritsParentContext)) {
       throw new SubagentError(

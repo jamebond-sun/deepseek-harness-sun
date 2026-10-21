@@ -1,43 +1,43 @@
-/** Child LLM route selection for the subagent tool. */
+/** 子代理工具的子 LLM 路由选择。 */
 
 import { ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import type { LlmRuntime } from '@deepseek-ai/dsh-llm'
 import type { AgentOptions } from '@deepseek-ai/dsh-agent'
 import z from '@deepseek-ai/schemastery'
 
-/** One exact child LLM route authorized by a user setting. */
+/** 由一项用户设置授权的一个精确子 LLM 路由。 */
 export interface AllowedModelRoute {
-  /** Registered LLM provider id. */
+  /** 已注册的 LLM 提供方 id。 */
   readonly provider: string
-  /** Provider-owned exact model id. */
+  /** 由提供方拥有的精确模型 id。 */
   readonly model: string
 }
 
-/** Schema shared by the Host setting and its deployment base. */
+/** 由宿主设置与其部署基线共享的模式。 */
 export const AllowedModelRouteSchema: z<AllowedModelRoute> = z.object({
   provider: z.string().min(1).required(),
   model: z.string().min(1).required(),
 })
 
-/** Route-selection authority captured by one delegation definition. */
+/** 由一个委托定义所捕获的路由选择权威。 */
 export interface ModelSelectionPolicy {
-  /** Exact provider/model routes authorized for explicit selection. */
+  /** 被授权用于显式选择的精确 provider/model 路由。 */
   readonly routes: readonly AllowedModelRoute[]
 }
 
 /**
- * Stable identity for one provider/model pair.
- * @param route - Exact provider/model route.
- * @returns Opaque key for equality checks.
+ * 一个 provider/model 对的稳定身份。
+ * @param route - 精确的 provider/model 路由。
+ * @returns 用于相等性检查的不透明键。
  */
 export function modelRouteKey(route: AllowedModelRoute): string {
   return `${route.provider}\0${route.model}`
 }
 
 /**
- * Reject malformed or duplicate route policy entries at a durable or configuration boundary.
- * @param routes - Candidate exact routes to validate.
- * @returns an assertion that the candidate is a validated exact-route array.
+ * 在持久化或配置边界处拒收畸形或重复的路由策略条目。
+ * @param routes - 待校验的候选精确路由。
+ * @returns 一个断言：候选者是一个已校验的精确路由数组。
  */
 export function assertAllowedModelRoutes(routes: unknown): asserts routes is readonly AllowedModelRoute[] {
   if (!Array.isArray(routes)) {
@@ -61,7 +61,7 @@ export function assertAllowedModelRoutes(routes: unknown): asserts routes is rea
   }
 }
 
-/** Model-facing child LLM route fields. */
+/** 面向模型的子 LLM 路由字段。 */
 export interface DelegationModelRequest {
   readonly provider?: string
   readonly model?: string
@@ -69,9 +69,9 @@ export interface DelegationModelRequest {
 }
 
 /**
- * Whether a call explicitly selects any child LLM value.
- * @param request - Model-facing route fields from the tool call.
- * @returns Whether at least one route or effort field is present.
+ * 一次调用是否显式选择了任何子 LLM 值。
+ * @param request - 来自工具调用的、面向模型的路由字段。
+ * @returns 是否至少存在一个路由或 effort 字段。
  */
 export function hasDelegationModelRequest(request: DelegationModelRequest): boolean {
   return request.provider !== undefined
@@ -79,7 +79,7 @@ export function hasDelegationModelRequest(request: DelegationModelRequest): bool
     || request.reasoning_effort !== undefined
 }
 
-/** Reject an empty model-facing route value at the tool JSON boundary. */
+/** 在工具 JSON 边界处拒收一个空的、面向模型的路由值。 */
 function assertNonEmpty(value: string | undefined, field: keyof DelegationModelRequest): void {
   if (value !== undefined && value.length === 0) {
     throw new Error(`child LLM \`${field}\` must be non-empty`)
@@ -87,14 +87,14 @@ function assertNonEmpty(value: string | undefined, field: keyof DelegationModelR
 }
 
 /**
- * Merge model-supplied selection fields over configured child defaults.
- * Provider and model form one route and must be supplied together. Changing
- * that route without an effort clears the configured route-owned effort.
- * @param parentOptions - Current parent values that supply missing child values.
- * @param configured - Tool-instance child defaults.
- * @param request - Model-facing route override.
- * @param enabled - Whether this tool instance permits model-facing selection.
- * @returns Child Agent options, preserving omission when no layer contributes one.
+ * 把模型提供的选择字段合并覆盖到已配置的子默认值之上。
+ * Provider 与 model 构成一个路由，必须一起提供。在没有 effort 的情况下
+ * 更改该路由会清除已配置的、由路由拥有的 effort。
+ * @param parentOptions - 提供缺失子值的当前父值。
+ * @param configured - 工具实例的子默认值。
+ * @param request - 面向模型的路由覆盖项。
+ * @param enabled - 本工具实例是否允许面向模型的选择。
+ * @returns 子 Agent 选项；当没有层贡献某个值时保留省略。
  */
 export function requestedAgentOptions(
   parentOptions: AgentOptions,
@@ -128,13 +128,13 @@ export function requestedAgentOptions(
 }
 
 /**
- * Enforce a settings-owned route list at the operation that creates the child.
- * Pure inheritance remains outside this policy because no model-facing choice
- * occurred; any explicit route or effort field must resolve to an allowed route.
- * @param policy - Selection authority captured for this Session.
- * @param parentOptions - Current parent values that supply missing child values.
- * @param requested - Effective child options after request/config merging.
- * @param request - Model-facing selection fields from the tool call.
+ * 在创建子代理的那个操作上强制一份由设置拥有的路由列表。
+ * 纯继承不在本策略之内，因为没有发生任何面向模型的选择；任何显式的路由
+ * 或 effort 字段都必须解析为一个被允许的路由。
+ * @param policy - 为本次 Session 捕获的选择权威。
+ * @param parentOptions - 提供缺失子值的当前父值。
+ * @param requested - 请求/配置合并之后生效的子选项。
+ * @param request - 来自工具调用的、面向模型的选择字段。
  */
 export function assertAllowedModelSelection(
   policy: ModelSelectionPolicy | undefined,
@@ -153,9 +153,9 @@ export function assertAllowedModelSelection(
 }
 
 /**
- * Whether configured Agent options require route validation before delegation.
- * @param options - Tool-instance child defaults.
- * @returns Whether configured provider, model, or effort values must be resolved.
+ * 已配置的 Agent 选项在委托之前是否需要路由校验。
+ * @param options - 工具实例的子默认值。
+ * @returns 是否必须解析已配置的 provider、model 或 effort 值。
  */
 export function hasConfiguredLlmSelection(options: AgentOptions | undefined): boolean {
   return options?.provider !== undefined
@@ -164,14 +164,13 @@ export function hasConfiguredLlmSelection(options: AgentOptions | undefined): bo
 }
 
 /**
- * Resolve an effective child route through its live adapter before the child is
- * created. The LLM runtime owns provider lookup, exact-model metadata, effort
- * validation, and adapter defaults.
- * @param llm - Live LLM runtime.
- * @param parentOptions - Current parent values whose compatible fields the child inherits.
- * @param requested - Per-child options after request/config merging.
- * @param signal - Tool-call cancellation signal.
- * @param inheritParentReasoningEffort - Whether an omitted effort may inherit from the parent route.
+ * 在创建子代理之前通过其实时适配器解析一个生效的子路由。LLM 运行时拥有
+ * 提供方查找、精确模型元数据、effort 校验与适配器默认值。
+ * @param llm - 实时的 LLM 运行时。
+ * @param parentOptions - 子代理继承其兼容字段的当前父值。
+ * @param requested - 请求/配置合并之后的按子选项。
+ * @param signal - 工具调用的取消信号。
+ * @param inheritParentReasoningEffort - 被省略的 effort 是否可以从父路由继承。
  */
 export async function preflightChildLlmRoute(
   llm: LlmRuntime,

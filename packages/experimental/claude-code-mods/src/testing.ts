@@ -1,9 +1,8 @@
 /**
- * A test kit in the shape of `claude-code/testing`: load mods, register
- * stubs that answer in the engine's place beneath every mod, raise events
- * through the mods' hooks, and mount a surface to assert what a mod draws —
- * no session, agent, or harness service involved. This repository's test
- * setup wraps it as `claude-code/testing` for the example mods' own tests.
+ * 形似 `claude-code/testing` 的测试套件：加载 mod、注册在各 mod 之下代替引擎
+ * 应答的桩、经由 mod 的钩子触发事件，并挂载一个表面来断言某个 mod 绘制了什么 ——
+ * 不涉及会话、代理或任何 harness 服务。本仓库的测试装置把它包装成
+ * `claude-code/testing`，供示例 mod 自身的测试使用。
  * @module
  */
 
@@ -20,59 +19,58 @@ import type {
 } from './types.ts'
 
 /**
- * A stub answering one event in the engine's place. For an engine event it
- * returns that event's result; for a mods API call it returns `{ value }` or
- * `{ deny }`, and `undefined` from either reads as "not answered".
+ * 代替引擎应答单个事件的桩。对于引擎事件它返回该事件的结果；对于 mods API
+ * 调用它返回 `{ value }` 或 `{ deny }`，二者均返回 `undefined` 时读作"未应答"。
  */
 export type StubHook = ($: ModsApi, e: never) => unknown
 
-/** Test kit construction options. */
+/** 测试套件的构造选项。 */
 export interface ModTestKitOptions {
-  /** Mods to load, in chain order: definitions or the plugins `defineMod` made. */
+  /** 要加载的 mod，按链接顺序：可以是定义，也可以是 `defineMod` 制作的插件。 */
   readonly mods?: readonly (ModDefinition | ModPlugin)[]
-  /** `register` option values by plugin name, overlaid on each mod's own options. */
+  /** 按插件名的 `register` 选项值，叠加在每个 mod 各自的选项之上。 */
   readonly options?: Readonly<Record<string, ModDefinition['options']>>
-  /** A hook's own running-time limit in milliseconds; defaults to 5 seconds, Claude Code's test limit. */
+  /** 钩子自身的运行时间上限，单位毫秒；默认为 5 秒，即 Claude Code 的测试上限。 */
   readonly budgetMs?: number
 }
 
-/** What `$.ui.mount` takes: the surface to draw and the props the host would pass. */
+/** `$.ui.mount` 所接收的内容：要绘制的表面，以及宿主会传入的 props。 */
 export interface MountArgs {
-  /** The plugin under test; accepted for source compatibility, every loaded mod's `ui.render` hooks run in chain order. */
+  /** 受测插件；为源码兼容而保留，每个已加载 mod 的 `ui.render` 钩子都按链接顺序运行。 */
   readonly plugin?: string
-  /** The drawing surface's name (`terminal`, `desktop`); accepted for source compatibility. */
+  /** 绘制表面的名称（`terminal`、`desktop`）；为源码兼容而保留。 */
   readonly surface?: string
   readonly component: UiRenderInput['component']
-  /** The pane id a `Pane` was opened with; the band has none. */
+  /** `Pane` 被打开时使用的窗格 id；横幅没有此值。 */
   readonly requestId?: string
   readonly props?: Readonly<Record<string, unknown>>
 }
 
-/** A found element with the actions a test takes on it. */
+/** 一个被找到的元素，以及测试可对其施加的动作。 */
 export interface MountedElement {
   readonly element: UiElement
-  /** The element's type. */
+  /** 元素的类型。 */
   readonly type: UiElement['type']
-  /** The text the element draws, descendants included. */
+  /** 元素绘制的文本，包含其后代。 */
   readonly text: string
-  /** Run a Button's `onPress` and redraw. */
+  /** 运行 Button 的 `onPress` 并重绘。 */
   press(): Promise<void>
 }
 
-/** A mounted surface: every read renders afresh through the mods' `ui.render` hooks. */
+/** 一个已挂载的表面：每次读取都经由 mod 的 `ui.render` 钩子重新渲染。 */
 export interface MountedSurface {
-  /** The current tree, as the hooks returned it. */
+  /** 当前的树，即钩子返回的结果。 */
   tree(): Promise<UiNode>
-  /** The drawn text, one line per top-level node. */
+  /** 绘制的文本，每个顶层节点一行。 */
   text(): Promise<string>
-  /** The first element matching the pattern, or undefined. */
+  /** 第一个匹配模式的元素，或 undefined。 */
   find(pattern: TreePattern): Promise<MountedElement | undefined>
-  /** Every element matching the pattern, in drawing order. */
+  /** 所有匹配模式的元素，按绘制顺序。 */
   findAll(pattern: TreePattern): Promise<MountedElement[]>
   unmount(): Promise<void>
 }
 
-/** The engine's own `$`-shaped raisers: each sends its event through the mods and resolves to the result. */
+/** 引擎自身 `$` 形态的触发函数：每一个都把事件经 mod 送出，并解析为结果。 */
 export interface TestKitRaisers {
   readonly tool: { call(input: Omit<ToolCallInput, 'tool_use_id'> & { tool_use_id?: string }): Promise<ToolCallResult> }
   readonly command: { run(input: Pick<CommandRunInput, 'command' | 'args'>): Promise<CommandRunResult> }
@@ -86,12 +84,12 @@ export interface TestKitRaisers {
     complete(input?: Partial<TurnCompleteInput>): Promise<TurnCompleteResult>
   }
   readonly ui: {
-    /** Mount one surface: it renders through the mods' `ui.render` hooks on every read. */
+    /** 挂载一个表面：每次读取都经由 mod 的 `ui.render` 钩子渲染。 */
     mount(args: MountArgs): Promise<MountedSurface>
   }
 }
 
-/** The engine events the kit raises, with their inputs, so a typed stub reads `e` without a cast. */
+/** 该套件触发的引擎事件及其输入，使类型化桩无需转型即可读取 `e`。 */
 export interface KitEventInputs {
   'session.start': SessionStartInput
   'session.end': SessionEndInput
@@ -103,40 +101,40 @@ export interface KitEventInputs {
   'ui.render': UiRenderInput
 }
 
-/** The kit's `on`: registers a stub that answers one event beneath every mod; name a mods API call without the `$.`. */
+/** 套件的 `on`：注册一个在各 mod 之下应答单个事件的桩；命名 mods API 调用时省略 `$.`。 */
 export interface KitOn {
-  /** A stub for one engine event, with the event's typed input. */
+  /** 针对单个引擎事件的桩，带有该事件的类型化输入。 */
   <K extends keyof KitEventInputs>(event: K, stub: ($: ModsApi, e: KitEventInputs[K]) => unknown): void
-  /** A stub for any event or mods API call. */
+  /** 针对任意事件或 mods API 调用的桩。 */
   (event: string, stub: StubHook): void
 }
 
-/** A loaded test kit. */
+/** 一个已加载的测试套件。 */
 export interface ModTestKit {
-  /** Register a stub that answers `event` beneath every mod; name a mods API call without the `$.`. */
+  /** 注册一个在各 mod 之下应答 `event` 的桩；命名 mods API 调用时省略 `$.`。 */
   readonly on: KitOn
-  /** Raise any event through the mods; a stub, a built-in default, or `no implementation for <event>` answers at the bottom. */
+  /** 经 mod 触发任意事件；最底层由桩、内置默认值，或 `no implementation for <event>` 应答。 */
   raise<R>(event: string, input: unknown): Promise<R>
-  /** Typed raisers for the events this bridge sends from the harness, plus `ui.mount`. */
+  /** 本桥接从 harness 送出的各事件的类型化触发函数，外加 `ui.mount`。 */
   readonly $: TestKitRaisers
-  /** Diagnostic lines the engine reported: skipped hooks, failed fire-and-forget calls, timer errors. */
+  /** 引擎上报的诊断行：被跳过的钩子、失败的即发即弃调用、定时器错误。 */
   readonly reports: string[]
-  /** The loaded mods in chain order. */
+  /** 按链接顺序的已加载 mod。 */
   readonly mods: readonly LoadedMod[]
   /**
-   * Drop every registration and close every mod timer.
-   * @returns settles once running timer callbacks have finished.
+   * 丢弃所有注册并关闭所有 mod 定时器。
+   * @returns 运行中的定时器回调完成后结束。
    */
   dispose(): Promise<void>
 }
 
-/** Stubs that answer a whole namespace from memory. */
+/** 从内存中应答整个命名空间的桩。 */
 export const mock = Object.freeze({
   /**
-   * Answer `$.store` from an in-memory map.
-   * @param on - the kit's `on`.
-   * @param initial - entries the store starts with.
-   * @returns the live map, to read what the mod saved.
+   * 从一个内存映射中应答 `$.store`。
+   * @param on - 套件的 `on`。
+   * @param initial - 存储起步时带有的条目。
+   * @returns 实时映射，可读取 mod 保存的内容。
    */
   store(on: ModTestKit['on'], initial: Readonly<Record<string, unknown>> = {}): Map<string, unknown> {
     const saved = new Map(Object.entries(initial))
@@ -153,10 +151,10 @@ export const mock = Object.freeze({
     return saved
   },
   /**
-   * Answer `$.env.get` from fixed variables and record `$.env.set` writes.
-   * @param on - the kit's `on`.
-   * @param variables - the environment the mod sees.
-   * @returns the live record, to read what the mod set.
+   * 从固定变量中应答 `$.env.get`，并记录 `$.env.set` 的写入。
+   * @param on - 套件的 `on`。
+   * @param variables - mod 所见的环境。
+   * @returns 实时记录，可读取 mod 设置的内容。
    */
   env(on: ModTestKit['on'], variables: Readonly<Record<string, string>> = {}): Record<string, string | undefined> {
     const env: Record<string, string | undefined> = { ...variables }
@@ -168,10 +166,10 @@ export const mock = Object.freeze({
     return env
   },
   /**
-   * Answer `$.clock.now` from a settable instant and `$.clock.sleep` at once, advancing it.
-   * @param on - the kit's `on`.
-   * @param startAt - the first `now()`, in epoch milliseconds.
-   * @returns the clock, to read or advance `now`.
+   * 从一个可设置的瞬时应答 `$.clock.now`，并立即应答 `$.clock.sleep`，同时推进它。
+   * @param on - 套件的 `on`。
+   * @param startAt - 第一个 `now()`，为纪元毫秒。
+   * @returns 时钟，可读取或推进 `now`。
    */
   clock(on: ModTestKit['on'], startAt = 0): { now: number; advance(ms: number): void } {
     const clock = {
@@ -187,7 +185,7 @@ export const mock = Object.freeze({
   },
 })
 
-/** Engine events whose default answer mirrors Claude Code's test-kit table when no stub is registered. */
+/** 未注册桩时，默认答案与 Claude Code 测试套件表格相符的引擎事件。 */
 const DEFAULT_ENGINE_ANSWERS: Readonly<Record<string, (e: never) => unknown>> = {
   'session.start': (e: SessionStartInput) => ({ cwd: e.cwd }),
   'session.end': (e: SessionEndInput) => ({ sessionId: e.sessionId }),
@@ -198,7 +196,7 @@ const DEFAULT_ENGINE_ANSWERS: Readonly<Record<string, (e: never) => unknown>> = 
   'ui.render': () => null,
 }
 
-/** Mods API calls the kit answers itself, as Claude Code's kit does. */
+/** 套件自身应答的 mods API 调用，如同 Claude Code 的套件那样。 */
 const DEFAULT_OP_ANSWERS: Readonly<Record<string, StubHook>> = {
   'ui.invalidate': () => ({ value: undefined }),
   'ui.open': (_$, e: { id: string }) => ({ value: { id: e.id, isPlaced: false } }),
@@ -210,9 +208,9 @@ function definitionOf(mod: ModDefinition | ModPlugin): ModDefinition {
 }
 
 /**
- * Load mods for a test and return the kit.
- * @param options - the mods to load and the hook time limit.
- * @returns the kit, with every mod's `register` already run.
+ * 为测试加载 mod 并返回套件。
+ * @param options - 要加载的 mod 与钩子时间上限。
+ * @returns 套件，其中每个 mod 的 `register` 都已运行。
  */
 export async function createModTestKit(options: ModTestKitOptions = {}): Promise<ModTestKit> {
   const reports: string[] = []

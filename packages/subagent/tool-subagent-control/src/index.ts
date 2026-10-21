@@ -1,11 +1,10 @@
 /**
- * The globally named `send_message` and `interrupt_agent` tools: thin
- * model-facing adapters over `ctx.subagents.sendMessage()` and
- * `ctx.subagents.interrupt()`. They perform no lifecycle routing of their own —
- * residency, cold resume, and interrupt authorization belong to the subagent
- * service — and they live apart from the provider-bound
- * `@deepseek-ai/dsh-tool-subagent` instances so multiple delegation tools share
- * one control API.
+ * 全局命名的 `send_message` 与 `interrupt_agent` 工具：对
+ * `ctx.subagents.sendMessage()` 与 `ctx.subagents.interrupt()` 的、面向模型的
+ * 薄适配器。它们自身不执行任何生命周期路由 —— 驻留、冷恢复与中断授权属于
+ * 子代理 service —— 并且它们与绑定于提供方的
+ * `@deepseek-ai/dsh-tool-subagent` 实例分开存在，以便多个委托工具共享一个
+ * 控制 API。
  * @module @deepseek-ai/dsh-tool-subagent-control
  */
 
@@ -21,8 +20,8 @@ export const name = 'tool-subagent-control'
 export const inject = ['tools', 'subagents']
 
 /**
- * Register the `send_message` and `interrupt_agent` tools.
- * @param ctx - context carrying the tool registry and subagent service.
+ * 注册 `send_message` 与 `interrupt_agent` 工具。
+ * @param ctx - 承载工具注册表与子代理 service 的上下文。
  */
 export function apply(ctx: Context): void {
   ctx.tools.register(markAdjacentAgentSendMessageTool(defineTool({
@@ -100,11 +99,11 @@ export function apply(ctx: Context): void {
     execute(args, exec) {
       const caller = exec.agent
       if (!caller) {
-        // Ancestor authority requires an exact live calling agent.
+        // 祖先授权需要一个精确的实时调用方 agent。
         throw new Error('interrupt_agent requires a calling agent (exec.agent was undefined)')
       }
-      // The service authorizes the exact live caller against the target's
-      // recorded lineage; the tool adds no authority of its own.
+      // service 针对目标所记录的血缘授权该精确的实时调用方；
+      // 本工具不添加任何自身的权限。
       ctx.subagents.interrupt(brandString<SessionId>(args.agent_id), { kind: 'ancestor', agent: caller })
       return Promise.resolve({ accepted: true })
     },

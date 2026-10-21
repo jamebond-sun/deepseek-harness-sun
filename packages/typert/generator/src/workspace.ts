@@ -11,7 +11,7 @@ import { FaceModelEmitter } from './emitter.ts'
 import type { ModelEmitResult } from './emitter.ts'
 import type { TypertFace } from './model.ts'
 
-/** One emitted artifact paired with its source package root. */
+/** 一个发射产物与其源包根配对。 */
 export interface WorkspaceEmitResult extends ModelEmitResult {
   readonly packageRoot: string
 }
@@ -35,15 +35,15 @@ export interface WorkspaceTypertGeneratorOptions {
   readonly rejectBuildOutputs?: boolean
 }
 
-/** Discover, analyze, and emit package reflection from independent faces. */
+/** 发现、分析并从独立的端发射包反射。 */
 export class WorkspaceTypertGenerator {
-  /** Parsed-config and program-host state shared by every analyzer this generator creates. */
+  /** 本生成器创建的每个分析器所共享的、已解析配置与程序宿主状态。 */
   private readonly caches = new WorkspaceCaches()
 
   /**
-   * Bind generation to one workspace root.
-   * @param root - directory containing face aggregate tsconfigs.
-   * @param options - behavior switches applied to every pass of this generator.
+   * 将生成绑定到某个 workspace 根。
+   * @param root - 包含端聚合 tsconfig 的目录。
+   * @param options - 应用于本生成器每次通过的、行为开关。
    */
   constructor(
     private readonly root: string,
@@ -51,11 +51,10 @@ export class WorkspaceTypertGenerator {
   ) {}
 
   /**
-   * Find public package faces that contribute Cordis services/events or
-   * explicitly tagged Typert roots.
-   * @param faces - optional independent program faces to inspect.
-   * @param includeManifest - optional `package.json` predicate; a rejected package's sources and project config are not read.
-   * @returns discovered packages in stable package-name order.
+   * 发现贡献 Cordis 服务/事件或显式标记 Typert 根的公共包端。
+   * @param faces - 可选的、要检查的独立程序端。
+   * @param includeManifest - 可选的 `package.json` 谓词；被拒绝的包的源码与项目配置不会被读取。
+   * @returns 按稳定的包名顺序排列的已发现包。
    */
   discover(
     faces?: readonly TypertFace[],
@@ -69,10 +68,10 @@ export class WorkspaceTypertGenerator {
   }
 
   /**
-   * Generate all discovered contributors, or an explicit package subset.
-   * @param packages - optional exact package names to emit; every pass includes the same face-wide declaration merges.
-   * @param faces - optional independent program faces to analyze.
-   * @returns one artifact per package face.
+   * 生成所有已发现的贡献者，或一个显式的包子集。
+   * @param packages - 可选的、要发射的精确包名；每次通过都包含同样的、端级声明合并。
+   * @param faces - 可选的、要分析的独立程序端。
+   * @returns 每个包端一个产物。
    */
   generate(packages?: readonly string[], faces?: readonly TypertFace[]): WorkspaceEmitResult[] {
     const contributors = this.discover(faces).map(candidate => candidate.package)
@@ -102,10 +101,10 @@ export class WorkspaceTypertGenerator {
   }
 
   /**
-   * Generate every explicit contributor: a package whose manifest declares a
-   * Typert artifact export and whose public graph has a Typert surface.
-   * @param faces - optional independent program faces to analyze.
-   * @returns one artifact per contributor face.
+   * 生成每个显式贡献者：其 manifest 声明了 Typert 产物导出、且其公共图拥有
+   * Typert 表面的包。
+   * @param faces - 可选的、要分析的独立程序端。
+   * @returns 每个贡献者端一个产物。
    */
   generateContributors(faces?: readonly TypertFace[]): WorkspaceEmitResult[] {
     const packages = this.discover(faces, manifest => hasTypertExport(manifest.exports))
@@ -146,9 +145,8 @@ export class WorkspaceTypertGenerator {
     const remoteActual = manifest.exports !== null && typeof manifest.exports === 'object'
       ? (manifest.exports as Record<string, unknown>)['./remote']
       : undefined
-    // The declaration map is emitted beside these two but never published: it
-    // serves editor navigation in the workspace, where the package link
-    // resolves its source.
+    // 声明映射与这两个文件一同发出，但从不发布：它服务于 workspace 中
+    // 的编辑器导航，包的链接在那里解析其源码。
     const remoteFiles = [
       'lib/typert.remote-client.js',
       'lib/typert.remote-client.d.ts',
@@ -175,13 +173,12 @@ export class WorkspaceTypertGenerator {
 }
 
 /**
- * Find the workspace root that Typert generation runs against: the nearest
- * directory at or above `start` that holds both `tsconfig.host.json` and
- * `packages/`. The analyzer registers projects under `<root>/packages`, so a
- * package's own `tsconfig.host.json` face leaf does not qualify.
- * @param start - directory to search from, such as a bundle output or a working directory.
- * @returns the absolute workspace root.
- * @throws If no ancestor of `start` qualifies.
+ * 找到 Typert 生成所针对的 workspace 根：在 `start` 处或其上方、同时持有
+ * `tsconfig.host.json` 与 `packages/` 的最近目录。分析器在 `<root>/packages`
+ * 下注册工程，因此某个包自身 `tsconfig.host.json` 端叶子不符合条件。
+ * @param start - 要从中搜索的目录，例如 bundle 输出或工作目录。
+ * @returns 绝对的 workspace 根。
+ * @throws 当 `start` 的任一祖先都不符合条件时。
  */
 export function findWorkspaceRoot(start: string): string {
   let current = resolve(start)
@@ -194,10 +191,10 @@ export function findWorkspaceRoot(start: string): string {
 }
 
 /**
- * Whether a `package.json#exports` field declares a Typert artifact subpath
- * (`./typert`, `./client/typert`, or `./remote`).
- * @param exportsField - the manifest's `exports` value.
- * @returns true when the package opts in to Typert publication.
+ * 一个 `package.json#exports` 字段是否声明了 Typert 产物子路径
+ * （`./typert`、`./client/typert`，或 `./remote`）。
+ * @param exportsField - manifest 的 `exports` 值。
+ * @returns 当包选择加入 Typert 发布时为 true。
  */
 export function hasTypertExport(exportsField: unknown): boolean {
   if (exportsField === null || typeof exportsField !== 'object' || Array.isArray(exportsField)) return false

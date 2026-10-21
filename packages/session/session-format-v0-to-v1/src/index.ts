@@ -1,4 +1,4 @@
-/** Frozen released-v0 physical codec and identity migration into shared-layout v1. */
+/** 已冻结的 released-v0 物理编解码器，以及到共享布局 v1 的恒等迁移。 */
 
 export * from './codec.ts'
 export * from './dispositions.ts'

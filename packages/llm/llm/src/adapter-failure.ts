@@ -1,5 +1,5 @@
 /**
- * Normalization for values thrown by a final LLM adapter boundary.
+ * 对最终 LLM 适配器边界所抛出的值进行规范化。
  *
  * @module @deepseek-ai/dsh-llm/adapter-failure
  */
@@ -8,17 +8,17 @@ import { HarnessError } from './error.ts'
 import type { LlmFailure } from './types.ts'
 
 /**
- * Detach serializable provider facts from a value thrown by an adapter.
- * @param value - arbitrary value thrown during adapter dispatch or iteration.
- * @returns immutable provider-neutral facts suitable for a terminal finish chunk.
+ * 从一个适配器抛出的值中分离出可序列化的提供方事实。
+ * @param value - 在适配器分发或迭代期间抛出的任意值。
+ * @returns 适合作为终止性 finish 块的、不可变的、与提供方无关的事实。
  * @internal
  */
 export function normalizeLlmFailure(value: unknown): LlmFailure {
   const error = value instanceof Error
     ? value
     : new HarnessError(thrownMessage(value), 'UNKNOWN', { cause: value })
-  // Cross-package copies preserve own data but not class identity. Trust the
-  // carried facts only when both own properties agree after validation.
+  // 跨包的副本保留自有数据，但不保留类的身份。
+  // 只有在校验之后两边自有属性一致时，才信任所携带的事实。
   const carried = ownFailureSnapshot(error)
   if (carried !== undefined && carried.code === ownErrorCode(error)) return carried
   return Object.freeze({
@@ -27,7 +27,7 @@ export function normalizeLlmFailure(value: unknown): LlmFailure {
   })
 }
 
-/** Render a non-Error throw without letting hostile coercion escape normalization. */
+/** 渲染一个非 Error 的抛出值，且不让恶意的类型强制逃出规范化。 */
 function thrownMessage(value: unknown): string {
   try {
     const message = String(value)
@@ -37,7 +37,7 @@ function thrownMessage(value: unknown): string {
   }
 }
 
-/** Read a foreign error's own data-backed `code` without invoking accessors. */
+/** 读取一个外部错误的、由自有数据支撑的 `code`，且不调用访问器。 */
 function ownErrorCode(error: Error): unknown {
   try {
     const descriptor = Object.getOwnPropertyDescriptor(error, 'code')
@@ -47,7 +47,7 @@ function ownErrorCode(error: Error): unknown {
   }
 }
 
-/** Snapshot an own data property without invoking an SDK-defined accessor. */
+/** 快照一个自有数据属性，且不调用 SDK 定义的访问器。 */
 function ownFailureSnapshot(error: Error): LlmFailure | undefined {
   try {
     const descriptor = Object.getOwnPropertyDescriptor(error, 'failure')
@@ -59,7 +59,7 @@ function ownFailureSnapshot(error: Error): LlmFailure | undefined {
   }
 }
 
-/** Validate and detach an arbitrary serializable failure payload. */
+/** 校验并分离一个任意的可序列化失败载荷。 */
 function failureSnapshot(value: unknown): LlmFailure | undefined {
   if (typeof value !== 'object' || value === null) return undefined
   try {
@@ -90,18 +90,18 @@ function failureSnapshot(value: unknown): LlmFailure | undefined {
   }
 }
 
-/** Read an SDK error message without letting an accessor replace the primary failure. */
+/** 读取 SDK 错误消息，且不让访问器取代主要的失败。 */
 function errorMessage(error: Error): string {
   try {
     const message: unknown = error.message
     if (typeof message === 'string' && message.length > 0) return message
   } catch (_sdkMessageGetter) {
-    // The fallback below preserves a serializable failure beside the original Error.
+    // 下面的兜底会在原始 Error 旁边保留一个可序列化的失败。
   }
   return 'LLM adapter failed'
 }
 
-/** Trust only Harness-owned codes; third-party SDK codes are not our taxonomy. */
+/** 只信任由 Harness 持有的错误码；第三方 SDK 的错误码不属于我们的分类法。 */
 function harnessErrorCode(error: Error): string {
   return error instanceof HarnessError ? error.code : 'UNKNOWN'
 }

@@ -1,4 +1,4 @@
-/** Bounded, versioned requests between an SSH client and its private remote helper. */
+/** SSH 客户端与其私有远端 helper 之间有界的、带版本的请求协议。 */
 
 import { randomUUID } from 'node:crypto'
 import { EventEmitter } from 'node:events'
@@ -6,12 +6,12 @@ import type { Readable, Writable } from 'node:stream'
 import { z } from 'zod'
 import type { Branded } from '@deepseek-ai/dsh-brand'
 
-/** Wire version shared by the installed helper and client package. */
+/** 已安装 helper 与客户端包共用的线路版本。 */
 export const SSH_PROTOCOL_VERSION = 2
 
-/** Maximum prepared or running process handles owned by one helper. */
+/** 单个 helper 可持有的、已准备或正在运行的进程句柄上限。 */
 export const SSH_MAX_PROCESS_HANDLES = 128
-/** Maximum open text iterators owned by one helper. */
+/** 单个 helper 可持有的、已打开的文本迭代器上限。 */
 export const SSH_MAX_TEXT_STREAMS = 128
 
 const managementLimits = {
@@ -25,7 +25,7 @@ type RequestClass = 'ordinary' | keyof typeof managementLimits
 function requestClass(method: string): RequestClass {
   switch (method) {
     case 'heartbeat': case 'close': case 'process.terminate': case 'fs.streamClose': return method
-    // All other private operations share the configured request budget.
+    // 其余所有私有操作共用已配置的请求额度。
     default: return 'ordinary'
   }
 }
@@ -46,7 +46,7 @@ function operationError(error: unknown): Error {
   return error instanceof Error ? error : new Error(String(error))
 }
 
-/** A remote error retains its typed filesystem or sandbox code. */
+/** 远端错误会保留其带类型的文件系统或沙箱错误码。 */
 export class RemoteOperationError extends Error {
   constructor(message: string, readonly code?: string) {
     super(message)
@@ -54,7 +54,7 @@ export class RemoteOperationError extends Error {
   }
 }
 
-/** The peer owns pending calls and rejects ambiguous operations on connection loss; it never replays requests. */
+/** 该 peer 负责管理进行中的调用，并在连接丢失时拒绝语义不明的操作；它从不重放请求。 */
 export class SshRpcPeer extends EventEmitter {
   private readonly pending = new Map<SshRpcRequestId, {
     resolve(value: unknown): void
@@ -81,12 +81,12 @@ export class SshRpcPeer extends EventEmitter {
   }
 
   /**
-   * Send one request and validate its response before exposing it to the caller.
-   * @param method - the private helper operation.
-   * @param params - JSON request fields.
-   * @param schema - validation for the remote response.
-   * @param signal - cancellation without rollback of remote effects.
-   * @returns the validated response or a transport/remote-operation rejection.
+   * 发送一次请求，并在把结果交给调用方之前校验其响应。
+   * @param method - 私有 helper 操作名。
+   * @param params - JSON 请求字段。
+   * @param schema - 远端响应的校验器。
+   * @param signal - 取消信号，不会回滚远端副作用。
+   * @returns 校验通过的响应，或传输/远端操作失败的拒绝。
    */
   async request<T>(method: string, params: unknown, schema: z.ZodType<T>, signal?: AbortSignal): Promise<T> {
     signal?.throwIfAborted()
@@ -98,8 +98,7 @@ export class SshRpcPeer extends EventEmitter {
     void result.promise.catch(() => {})
     this.pending.set(id, { ...result, requestClass: kind })
     const abort = (): void => {
-      // Keep the credit until the remote handler replies; cancellation does
-      // not mean its resource cleanup has finished.
+      // 在对端处理器回复之前一直保留配额；取消并不代表远端的资源清理已经完成。
       result.reject(new Error('SSH operation cancelled; a completed remote mutation is not rolled back'))
       void this.send({ type: 'cancel', id }).catch(() => {})
     }
@@ -116,8 +115,8 @@ export class SshRpcPeer extends EventEmitter {
   }
 
   /**
-   * Fail pending operations and abort remote handlers without claiming rollback.
-   * @param error - the transport failure reported to all pending operations.
+   * 让进行中的操作失败并中止远端处理器，但不保证已回滚。
+   * @param error - 报告给所有进行中操作的传输层失败原因。
    */
   close(error = new Error('SSH connection lost; remote operation outcome and cleanup are unknown')): void {
     if (this.failure !== undefined) return
@@ -197,7 +196,7 @@ export class SshRpcPeer extends EventEmitter {
   private receive(frame: Frame): void {
     if (frame.type === 'result' || frame.type === 'error') {
       const pending = this.pending.get(frame.id)
-      if (pending === undefined) return // A cancelled request can still complete remotely.
+      if (pending === undefined) return // 一个已取消的请求仍可能在远端完成。
       this.pending.delete(frame.id)
       if (frame.type === 'result') pending.resolve(frame.value)
       else pending.reject(new RemoteOperationError(frame.error.message, frame.error.code))

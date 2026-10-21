@@ -1,4 +1,4 @@
-/** Replay-stable view models for Cordis lifecycle Tool calls. */
+/** Cordis 生命周期工具调用的、可重放稳定的视图模型。 */
 
 import type { StartedToolCallViewProps } from '@deepseek-ai/dsh-client-ui-tool/client'
 import type {
@@ -7,10 +7,10 @@ import type {
 
 type Block = StartedToolCallViewProps['block']
 
-/** Lifecycle of the tool call itself. */
+/** 工具调用自身的生命周期。 */
 export type CordisToolState = 'running' | 'ok' | 'error' | 'stopped'
 
-/** Frozen `cordis_define` presentation data. */
+/** 冻结的 `cordis_define` 呈现数据。 */
 export interface CordisDefineCard {
   readonly pluginId: CordisDynamicPluginId | null
   readonly packageId: CordisDynamicPackageId | null
@@ -23,7 +23,7 @@ export interface CordisDefineCard {
   readonly state: CordisToolState
 }
 
-/** Frozen `cordis_run` presentation data. */
+/** 冻结的 `cordis_run` 呈现数据。 */
 export interface CordisRunCard {
   readonly pluginId: CordisDynamicPluginId | null
   readonly packageId: CordisDynamicPackageId | null
@@ -35,7 +35,7 @@ export interface CordisRunCard {
   readonly state: CordisToolState
 }
 
-/** Frozen `cordis_stop` or `cordis_undefine` presentation data. */
+/** 冻结的 `cordis_stop` 或 `cordis_undefine` 呈现数据。 */
 export interface CordisActionCard {
   readonly pluginId: CordisDynamicPluginId | null
   readonly output: string | null
@@ -63,7 +63,7 @@ function parseArgs(argsRaw: string): Record<string, unknown> | null {
     const parsed: unknown = JSON.parse(argsRaw)
     return typeof parsed === 'object' && parsed !== null ? parsed as Record<string, unknown> : null
   } catch {
-    // Running calls can expose a truncated JSON prefix.
+    // 运行中的调用可能暴露一个被截断的 JSON 前缀。
     return null
   }
 }
@@ -88,9 +88,9 @@ function metaObject(block: Block): Record<string, unknown> | null {
 }
 
 /**
- * Derive one Define card from its frozen call/result slice.
- * @param block - active or settled tool-call block.
- * @returns normalized Define card fields.
+ * 从冻结的调用/结果切片推导出一张 Define 卡片。
+ * @param block - 活动或已结算的工具调用块。
+ * @returns 归一化的 Define 卡片字段。
  */
 export function cordisDefineCard(block: Block): CordisDefineCard {
   const settled = 'kind' in block
@@ -115,9 +115,9 @@ export function cordisDefineCard(block: Block): CordisDefineCard {
 }
 
 /**
- * Derive one Run card and its successful activation metadata.
- * @param block - active or settled tool-call block.
- * @returns normalized Run card fields.
+ * 推导出一张 Run 卡片及其成功的激活元数据。
+ * @param block - 活动或已结算的工具调用块。
+ * @returns 归一化的 Run 卡片字段。
  */
 export function cordisRunCard(block: Block): CordisRunCard {
   const settled = 'kind' in block
@@ -142,9 +142,9 @@ export function cordisRunCard(block: Block): CordisRunCard {
 }
 
 /**
- * Derive one Stop or Remove card from its frozen call/result slice.
- * @param block - active or settled tool-call block.
- * @returns normalized lifecycle-action card fields.
+ * 从冻结的调用/结果切片推导出一张 Stop 或 Remove 卡片。
+ * @param block - 活动或已结算的工具调用块。
+ * @returns 归一化的生命周期动作卡片字段。
  */
 export function cordisActionCard(block: Block): CordisActionCard {
   const settled = 'kind' in block

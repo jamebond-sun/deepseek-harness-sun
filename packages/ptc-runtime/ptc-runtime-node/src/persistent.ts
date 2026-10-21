@@ -1,4 +1,4 @@
-/** Node PTC in-memory execution with retained processes scoped to caller-owned objects. */
+/** Node PTC 常驻内存执行，其保留进程按调用方持有的对象划分作用域。 */
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { stripTypeScriptTypes } from 'node:module'
 import { isAbsolute } from 'node:path'
@@ -38,14 +38,14 @@ interface Evaluation {
   finish(error?: PtcRunFailure, value?: PtcJsonValue, discard?: boolean): void
 }
 
-/** One managed process; all mutable program state belongs to this process alone. */
+/** 一个被托管的进程；所有可变的程序状态只属于该进程本身。 */
 class Kernel {
   private readonly unregister: (() => void) | undefined
   private confined: ConfinedArgv | undefined
   private handle?: SubprocessHandle
   private channel?: JsonChannel
   private active: Evaluation | undefined
-  /** Admission remains reserved until the result includes completed process cleanup. */
+  /** 直到结果中包含已完成的进程清理为止，受理配额一直被占用。 */
   private running = false
   private cleanupPending = false
   private ready = false
@@ -188,7 +188,7 @@ class Kernel {
     const argv = [executable, `--max-old-space-size=${this.config.maxOldGenerationSizeMb}`, ...bootstrapArgs(this.ctx.fs, this.config.launch, this.config.maxMessageBytes, true)]
     const policy = this.policy
     this.confined = policy.mode === 'danger-full-access' ? undefined : await this.ctx.sandbox.confine(argv, { ...policy, mode: policy.mode }, this.controller.signal)
-    // oxlint-disable-next-line typescript/no-unnecessary-condition -- Cancellation can close the kernel during confinement.
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- 取消可能在隔离建立期间就关闭 kernel。
     if (this.closed) return
     const env: NodeJS.ProcessEnv = Object.fromEntries(Object.keys(process.env)
       .filter(key => !STARTUP_ENVIRONMENT_NAMES.has(key.toUpperCase()) && key.toUpperCase() !== 'ELECTRON_RUN_AS_NODE')
@@ -212,7 +212,7 @@ class Kernel {
     void handle.done.then(async (outcome) => {
       this.exitOutcome = outcome
       await Promise.all([drainOutput(handle.stdout, this.config.graceMs), drainOutput(handle.stderr, this.config.graceMs)])
-      // The terminal control frame can already be queued when process exit arrives.
+      // 进程退出到达时，终结控制帧可能已经排在队列里了。
       setImmediate(() => {
         if (!this.closed) this.fail(this.confined !== undefined && classifyRunnerFailure(outcome.exitCode, this.stderr, this.confined.runnerFailureRules) !== undefined ? 'sandbox-unavailable' : 'worker-exit', this.exitMessage(outcome))
       })
@@ -249,7 +249,7 @@ class Kernel {
           const value = payload.value === undefined ? undefined : decodePtcJsonWire(payload.value)
           const failure: PtcRunFailure | undefined = payload.value !== undefined && value === undefined
             ? { kind: 'invalid-output', message: 'program completion must be lossless JSON' } : undefined
-          // Raw stdio may be queued beside the terminal control frame on separate pipes.
+          // 原始 stdio 可能已在另一条管道上与终结控制帧并排排队。
           setImmediate(() => { evaluation.finish(failure, value) })
         }
         return
@@ -279,11 +279,11 @@ class Kernel {
   }
 }
 
-/** Sandboxed, best-effort retained state; restart, disposal, and interrupted execution clear it. */
+/** 受沙箱约束的、尽力而为的保留状态；重启、销毁与被打断的执行都会清空它。 */
 export class InMemoryExecution {
   /**
-   * Model-facing rules for retained variables, authority, output, and recovery.
-   * @returns Usage guidance appended to the run_code schema.
+   * 面向模型的规则：保留变量、权限、输出与恢复方式。
+   * @returns 追加到 run_code schema 上的使用说明。
    */
   get executionInstructions(): string {
     return 'The program contains TypeScript REPL statements; only erasable syntax is accepted, with no enum or namespaces. Type annotations are advisory. Top-level declarations and await are supported; top-level return is not supported. Emit output with console.log(...) or a final lossless JSON expression. Only printed values and that final expression become program output. Variables, functions, and imported modules remain in memory for this Agent across calls. Use await import(...) for modules. Direct filesystem access follows this execution\'s sandbox policy; process.env starts empty. Changing the session sandbox mode clears retained variables. An approved sandbox escalation runs in a separate temporary environment: it cannot access retained variables, and its declarations are discarded afterward. Restart, Agent disposal, cancellation, timeout, output overflow, or process failure clears the environment. If a variable is undefined, recreate it and reacquire its resources. State is not restored from the conversation, and failed evaluations can leave earlier mutations in memory. Redeclaring an existing let, const, or class name fails; assign to a mutable binding or use a new name. Await all tool calls; background callbacks cannot call tools after their evaluation ends. Await child-process completion before ending an evaluation; raw subprocess output belongs to whichever evaluation is active when it arrives.'
@@ -293,10 +293,10 @@ export class InMemoryExecution {
   private disposed = false
 
   /**
-   * Own retained execution resources under the existing Node provider.
-   * @param ctx - Provider lifecycle and execution services.
-   * @param config - Validated limits and selected executable.
-   * @param processes - Provider-owned policy invalidation and cleanup.
+   * 在既有的 Node provider 之下持有保留下来的执行资源。
+   * @param ctx - provider 生命周期与执行服务。
+   * @param config - 已校验的限额与已选定的可执行文件。
+   * @param processes - provider 持有的策略作废与清理。
    */
   constructor(private readonly ctx: Context, private readonly config: ResolvedConfig, private readonly processes: PolicyProcesses) {
     if (this.config.launch.kind === 'embedded') throw new Error('Persistent PTC requires a node-script launch')
@@ -310,9 +310,9 @@ export class InMemoryExecution {
   }
 
   /**
-   * Resolve the file policy, directory and deadline for a retained REPL.
-   * @param request - Program, bindings, owner, directory and elapsed budget.
-   * @returns Resolved inputs with the selected file policy.
+   * 为一个保留式 REPL 解析文件策略、工作目录与截止时间。
+   * @param request - 程序、绑定、所有者、目录与执行预算。
+   * @returns 带有所选文件策略的已解析输入。
    */
   resolve(request: PtcRunRequest): PtcRunSpec {
     if (this.disposed) throw new Error('persistent PTC: resolve after disposal')
@@ -323,9 +323,9 @@ export class InMemoryExecution {
   }
 
   /**
-   * Evaluate statements using this owner's process, or a temporary process without an owner.
-   * @param spec - Resolved request; concurrent calls for one owner are rejected.
-   * @returns Logs, a final JSON expression, or a structured execution failure.
+   * 使用该所有者的进程求值语句；没有所有者时使用一个临时进程。
+   * @param spec - 已解析的请求；同一所有者的并发调用会被拒绝。
+   * @returns 日志、末尾 JSON 表达式，或一次结构化的执行失败。
    */
   async run(spec: PtcRunSpec): Promise<PtcRunResult> {
     if (this.disposed) throw new Error('persistent PTC: run after disposal')
@@ -361,9 +361,9 @@ export class InMemoryExecution {
   }
 
   /**
-   * Release retained state and await its process cleanup.
-   * @param owner - Exact object supplied to run.
-   * @returns Completion after the owned process and output streams stop.
+   * 释放保留状态，并等待其进程清理完成。
+   * @param owner - 传给 run 的那个确切对象。
+   * @returns 在其名下的进程与输出流都停止之后完成。
    */
   async release(owner: object): Promise<void> {
     const kernel = this.owners.get(owner)

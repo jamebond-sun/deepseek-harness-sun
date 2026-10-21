@@ -1,8 +1,7 @@
 /**
- * Service Definition for the web access capability seam (`ctx.web`): registries and provider-selecting execution for search and
- * fetch. Duplicate ids are rejected. At execution time, a configured provider must exist and
- * be usable; without one, exactly one usable provider is required, so selection never depends
- * on registration order.
+ * 网络访问能力 seam（`ctx.web`）的服务定义：用于搜索和抓取的服务注册表与提供方选择式执行。
+ * 重复的 id 会被拒绝。在执行时，必须存在一个已配置且可用的提供方；若没有，则要求恰好一个
+ * 可用的提供方，因此选择绝不依赖注册顺序。
  * @module @deepseek-ai/dsh-web
  */
 
@@ -38,46 +37,43 @@ declare module '@deepseek-ai/cordis' {
   }
 }
 
-/** Selection inputs for execution-time provider resolution. */
+/** 执行时提供方解析的选择输入。 */
 interface Selection<P> {
-  /** The configured provider id for this capability, if any. */
+  /** 该能力已配置的提供方 id（若有）。 */
   readonly configuredId?: string
-  /** Providers registered for this capability kind. */
+  /** 为该能力类型注册的提供方。 */
   readonly providers: ReadonlyMap<string, P>
 }
 
 /**
- * Config for the web seam. `searchProvider` / `fetchProvider` pin which provider
- * wins for each capability; both are optional (a single registered usable
- * provider auto-selects). Each operation reads the current value, so a settings
- * change applies to the next search or fetch without remounting the service.
- * Operational overrides such as environment variables must feed these same
- * fields rather than introduce a hidden priority chain.
+ * web seam 的配置。`searchProvider` / `fetchProvider` 钉住每种能力各自的胜出提供方；
+ * 二者均可选（恰好一个已注册的可用提供方会自动选中）。每次操作都读取当前值，因此一次
+ * 设置变更会应用于下一次搜索或抓取，而无需重新挂载服务。诸如环境变量之类的运行期覆盖
+ * 必须馈入这些相同字段，而不是引入一条隐藏的优先级链。
  */
 export interface WebRuntimeConfig {
-  /** Explicit search provider id. Omitted = auto-select when exactly one usable. */
+  /** 显式的搜索提供方 id。省略 = 恰好一个可用时自动选择。 */
   readonly searchProvider: Volatile<string | undefined>
-  /** Explicit fetch provider id. Omitted = auto-select when exactly one usable. */
+  /** 显式的抓取提供方 id。省略 = 恰好一个可用时自动选择。 */
   readonly fetchProvider: Volatile<string | undefined>
 }
 
 /**
- * The web access service. Registered as `ctx.web` (one instance per context).
+ * 网络访问服务。注册为 `ctx.web`（每个上下文一个实例）。
  *
- * Selection semantics (resolved at execution time, never order-dependent):
- * - A configured id that is registered and `available()` → that provider.
- * - A configured id not registered → `WEB_PROVIDER_CONFIGURED_MISSING`.
- * - A configured id registered but unavailable →
- *   `WEB_PROVIDER_CONFIGURED_UNAVAILABLE`.
- * - No id configured, exactly one registered usable provider → that provider.
- * - No id configured, multiple usable providers → `WEB_PROVIDER_AMBIGUOUS`.
- * - No id configured, no usable provider → `WEB_PROVIDER_UNAVAILABLE`.
+ * 选择语义（在执行时解析，从不依赖顺序）：
+ * - 一个已注册且 `available()` 的配置 id → 该提供方。
+ * - 已配置但未注册的 id → `WEB_PROVIDER_CONFIGURED_MISSING`。
+ * - 已配置但不可用的 id → `WEB_PROVIDER_CONFIGURED_UNAVAILABLE`。
+ * - 未配置 id，且恰好一个已注册的可用提供方 → 该提供方。
+ * - 未配置 id，且有多个可用提供方 → `WEB_PROVIDER_AMBIGUOUS`。
+ * - 未配置 id，且无可用提供方 → `WEB_PROVIDER_UNAVAILABLE`。
  */
 export class WebRuntime extends Service {
   /**
-   * Provider selection config. Operational env overrides feed the SAME fields:
-   * `$DSH_WEB_SEARCH_PROVIDER` / `$DSH_WEB_FETCH_PROVIDER` are equivalent to
-   * `searchProvider` / `fetchProvider` and are NOT a hidden priority chain.
+   * 提供方选择配置。运行期环境覆盖馈入相同的字段：
+   * `$DSH_WEB_SEARCH_PROVIDER` / `$DSH_WEB_FETCH_PROVIDER` 等价于
+   * `searchProvider` / `fetchProvider`，而绝非一条隐藏的优先级链。
    */
   static Config = z.object({
     searchProvider: z.string().volatile(),
@@ -96,22 +92,20 @@ export class WebRuntime extends Service {
   }
 
   /**
-   * Register a search provider. Throws {@link WebError} `WEB_DUPLICATE_PROVIDER`
-   * if its id is already registered for search. Returns a disposer; disposed
-   * with the calling fiber.
-   * @param provider - the provider; its `id` is the registry key.
-   * @returns the disposer that unregisters the provider.
+   * 注册一个搜索提供方。若其 id 已为搜索注册，则抛出 {@link WebError}
+   * `WEB_DUPLICATE_PROVIDER`。返回清理器；随调用纤程一起 dispose。
+   * @param provider - 该提供方；其 `id` 为注册表键。
+   * @returns 注销该提供方的清理器。
    */
   registerSearchProvider(provider: WebSearchProvider): () => void {
     return this.registerProvider(this.searchProviders, provider)
   }
 
   /**
-   * Register a fetch provider. Throws {@link WebError} `WEB_DUPLICATE_PROVIDER`
-   * if its id is already registered for fetch. Returns a disposer; disposed
-   * with the calling fiber.
-   * @param provider - the provider; its `id` is the registry key.
-   * @returns the disposer that unregisters the provider.
+   * 注册一个抓取提供方。若其 id 已为抓取注册，则抛出 {@link WebError}
+   * `WEB_DUPLICATE_PROVIDER`。返回清理器；随调用纤程一起 dispose。
+   * @param provider - 该提供方；其 `id` 为注册表键。
+   * @returns 注销该提供方的清理器。
    */
   registerFetchProvider(provider: WebFetchProvider): () => void {
     return this.registerProvider(this.fetchProviders, provider)
@@ -125,19 +119,18 @@ export class WebRuntime extends Service {
       store.set(provider.id, provider)
       yield () => store.delete(provider.id)
     }, 'web.registerProvider()')
-    // ctx.effect's disposer returns Promise<void>; our disposer API is
-    // synchronous fire-and-forget — discard the (always-resolved) promise.
+    // ctx.effect 的清理器返回 Promise<void>；我们的清理器 API 是同步的
+    // 即发即弃 —— 丢弃（总是已 resolved 的）promise。
     return () => void dispose()
   }
 
   /**
-   * Run one search through the selected provider. Resolves the provider at call
-   * time with the selection rules above; throws {@link WebError} when the
-   * capability cannot run. The seam enforces `request.maxResults` on the result:
-   * if the provider over-returns, `sources[]` is truncated and `truncated` set.
-   * @param request - the query and optional result limit.
-   * @param signal - optional cancellation signal forwarded to the provider.
-   * @returns the provider's results, capped to `request.maxResults`.
+   * 通过所选提供方运行一次搜索。在调用时按上述选择规则解析提供方；当该能力无法运行时
+   * 抛出 {@link WebError}。该 seam 在结果上强制实施 `request.maxResults`：若提供方返回过多，
+   * 则 `sources[]` 被截断并设置 `truncated`。
+   * @param request - 查询以及可选的结果上限。
+   * @param signal - 转发给提供方的可选取消信号。
+   * @returns 提供方的结果，截断至 `request.maxResults`。
    */
   async search(request: WebSearchRequest, signal?: AbortSignal): Promise<WebSearchResult> {
     const configuredId = this.config.searchProvider.get() ?? this.searchProviderEnv
@@ -150,12 +143,11 @@ export class WebRuntime extends Service {
   }
 
   /**
-   * Retrieve one URL through the selected provider. Resolves the provider at
-   * call time with the selection rules above; throws {@link WebError} when the
-   * capability cannot run. A non-2xx response is a result, not a throw.
-   * @param request - the URL plus retrieval options.
-   * @param signal - optional cancellation signal forwarded to the provider.
-   * @returns the retrieval outcome; non-2xx responses resolve descriptively.
+   * 通过所选提供方检索一个 URL。在调用时按上述选择规则解析提供方；当该能力无法运行时
+   * 抛出 {@link WebError}。非 2xx 响应是一个结果，而非抛出。
+   * @param request - URL 以及检索选项。
+   * @param signal - 转发给提供方的可选取消信号。
+   * @returns 检索结果；非 2xx 响应会以描述性方式 resolve。
    */
   async fetch(request: WebFetchRequest, signal?: AbortSignal): Promise<WebFetchResult> {
     const configuredId = this.config.fetchProvider.get() ?? this.fetchProviderEnv
@@ -172,7 +164,7 @@ interface ResolvableProvider {
   available(): boolean
 }
 
-/** Resolve the selected provider or throw the matching {@link WebError}. */
+/** 解析所选提供方，或抛出匹配的 {@link WebError}。 */
 function resolveProvider<P extends ResolvableProvider>(selection: Selection<P>): P {
   const { configuredId, providers } = selection
   if (configuredId !== undefined) {
@@ -197,7 +189,7 @@ function resolveProvider<P extends ResolvableProvider>(selection: Selection<P>):
   return single
 }
 
-/** Enforce `maxResults` on a search result: truncate `sources[]` and flag it. */
+/** 在搜索结果上强制实施 `maxResults`：截断 `sources[]` 并标记。 */
 function capSources(result: WebSearchResult, maxResults: number | undefined): WebSearchResult {
   if (maxResults === undefined || result.sources.length <= maxResults) return result
   return { ...result, sources: result.sources.slice(0, maxResults), truncated: true }

@@ -1,8 +1,7 @@
 /**
- * One-shot Codex child lifecycle: spawn the real app-server through the
- * subprocess seam, publish only after initialization and ephemeral thread
- * creation, flatten post-publication failures, and dispose to whole-range
- * quiescence.
+ * 一次性 Codex 子代理生命周期：通过 subprocess 接缝 spawn 真实的
+ * app-server，只在初始化与临时线程创建之后发布，扁平化发布之后的失败，
+ * 并处置到整体范围静默。
  *
  * @module @deepseek-ai/dsh-subagent-codex/run
  */
@@ -32,7 +31,7 @@ import {
   type CodexWireFailureFacts,
 } from './wire.ts'
 
-/** Default POSIX grace between subprocess termination tiers. */
+/** 子进程终止各层之间的默认 POSIX 宽限。 */
 export const DEFAULT_DISPOSE_GRACE_MS = 3_000
 
 interface CodexPackageManifest {
@@ -46,26 +45,26 @@ const codexPackageManifest = JSON.parse(
   readFileSync(codexPackageJsonPath, 'utf8'),
 ) as CodexPackageManifest
 
-/** Absolute package-local JavaScript wrapper selected by the package manifest. */
+/** 由包 manifest 选定的、包局部的绝对 JavaScript 包装器。 */
 const CODEX_PACKAGE_BIN = resolve(
   dirname(codexPackageJsonPath),
   codexPackageManifest.bin.codex,
 )
 
-/** Profile-selectable non-interactive Codex permission mode. */
+/** 可由 profile 选择的非交互 Codex 权限模式。 */
 export type CodexPermissionMode =
   | 'never'
   | 'approve-for-me'
   | 'dangerously-bypass-approvals-and-sandbox'
 
-/** Native non-interactive Codex modes mapped to official `thread/start` fields. */
+/** 映射到官方 `thread/start` 字段的原生非交互 Codex 模式。 */
 export const CODEX_PERMISSION_MODES = [
   'never',
   'approve-for-me',
   'dangerously-bypass-approvals-and-sandbox',
 ] as const satisfies readonly CodexPermissionMode[]
 
-/** Safe default for unattended Codex runs. */
+/** 无人值守 Codex 运行的安全默认值。 */
 export const DEFAULT_CODEX_PERMISSION_MODE: CodexPermissionMode = 'never'
 
 type CodexFailureStage =
@@ -117,9 +116,9 @@ class CodexRunFailure extends Error {
 }
 
 /**
- * Hide an unpublished Host failure behind fixed safe startup facts.
- * @param cause Original Host failure retained for internal diagnostics.
- * @returns A startup failure whose message contains only fixed safe facts.
+ * 把一个未发布的宿主机失败隐藏在固定的安全启动事实之后。
+ * @param cause 为内部诊断保留的原始宿主机失败。
+ * @returns 一个其消息只包含固定安全事实的启动失败。
  */
 export function codexStartupFailure(cause: unknown): Error {
   return new CodexRunFailure({
@@ -129,40 +128,40 @@ export function codexStartupFailure(cause: unknown): Error {
 }
 
 /**
- * Fixed package-local app-server command, independent of the host `PATH`.
- * @returns Node, the official wrapper, and the fixed app-server arguments.
+ * 固定的、包局部的 app-server 命令，与宿主 `PATH` 无关。
+ * @returns Node、官方包装器与固定的 app-server 实参。
  */
 export function codexAppServerArgv(): string[] {
   return [process.execPath, CODEX_PACKAGE_BIN, 'app-server', '--stdio']
 }
 
-/** Fully resolved inputs for one Codex app-server run. */
+/** 一次 Codex app-server 运行的、已完全解析的输入。 */
 export interface CodexRunSpec {
-  /** Selected child working directory, also supplied to `thread/start`. */
+  /** 已选定的子工作目录，同时也提供给 `thread/start`。 */
   readonly cwd: string
-  /** Profile-selected native model; omitted to preserve Codex settings. */
+  /** 由 profile 选择的原生模型；省略以保留 Codex 设置。 */
   readonly model?: string
-  /** Profile-selected native non-interactive permission mode. */
+  /** 由 profile 选择的原生非交互权限模式。 */
   readonly permissionMode: CodexPermissionMode
-  /** Explicit deployment/test environment layered after the shared scrub. */
+  /** 在共享清洗之后叠加的显式部署/测试环境。 */
   readonly env: Record<string, string>
-  /** Subprocess termination grace passed to the shared managed-range owner. */
+  /** 传给共享受管范围属主的 subprocess 终止宽限。 */
   readonly disposeGraceMs: number
-  /** Shared subprocess service spawn operation. */
+  /** 共享 subprocess 服务的 spawn 操作。 */
   readonly spawn: (spec: SubprocessSpawnSpec) => SubprocessHandle
-  /** Diagnostic sink for a post-publication error flattened into a result. */
+  /** 用于把被扁平化进结果的、发布后错误的诊断汇。 */
   readonly onError?: (error: Error, stopReason: SubagentStopReason) => void
 }
 
 function thrown(value: unknown): Error {
-  /* v8 ignore next -- typed subprocess/wire failures reject with Error. */
+  /* v8 ignore next -- 类型化的 subprocess/wire 失败以 Error 拒绝。 */
   return value instanceof Error ? value : new Error(String(value))
 }
 
 /**
- * Validate and preserve the one-shot task before crossing the process boundary.
- * @param prompt - task content accepted from the shared subagent service.
- * @returns the exact non-empty text block sequence.
+ * 在跨越进程边界之前校验并保留一次性任务。
+ * @param prompt - 从共享子代理 service 接受的任务内容。
+ * @returns 精确的非空文本块序列。
  */
 export function textTask(prompt: readonly ContentBlock[]): string[] {
   if (prompt.length === 0) {
@@ -182,10 +181,9 @@ export function textTask(prompt: readonly ContentBlock[]): string[] {
 }
 
 /**
- * Close the private wire, terminate the managed range, and wait for the
- * subprocess owner to prove it is quiescent.
- * @param wire - private app-server protocol connection.
- * @param child - shared-service handle that owns the managed range.
+ * 关闭私有wire、终止受管范围，并等待 subprocess 属主证明它已静默。
+ * @param wire - 私有的 app-server 协议连接。
+ * @param child - 拥有受管范围的共享服务句柄。
  */
 export async function disposeCodexChild(
   wire: CodexAppServerWire,
@@ -201,7 +199,7 @@ export async function disposeCodexChild(
   try {
     child.stdin?.end()
   } catch {
-    // A concurrently closed stdin does not change range ownership below.
+    // 一个并发关闭的 stdin 不改变下方的范围属主关系。
   }
   child.terminate()
   try {
@@ -217,10 +215,10 @@ export async function disposeCodexChild(
 }
 
 /**
- * Start the real `codex app-server --stdio` child and publish its one-shot run.
- * @param request - resolved shared subagent request.
- * @param spec - Workspace, environment, process service, and diagnostic policy.
- * @returns the published run after initialization and ephemeral thread creation.
+ * 启动真实的 `codex app-server --stdio` 子代理并发布其一次性运行。
+ * @param request - 已解析的共享子代理请求。
+ * @param spec - 工作区、环境、进程服务与诊断策略。
+ * @returns 在初始化与临时线程创建之后发布的运行。
  */
 export async function startCodexRun(
   request: SubagentStartRequest,
@@ -256,24 +254,23 @@ export async function startCodexRun(
   const onStderr = (chunk: Buffer | string): void => {
     const bytes = typeof chunk === 'string' ? Buffer.from(chunk) : chunk
     try {
-      // Synchronous fd forwarding preserves byte order without owning a
-      // backpressure queue. A slow host sink can block this event-loop turn.
+      // 同步的 fd 转发保留字节顺序，而无需拥有一个背压队列。
+      // 一个缓慢的宿主机汇可能阻塞这个事件循环轮次。
       writeFileSync(process.stderr.fd, bytes)
     } catch {
-      // Host stderr is an observation sink, not a child-run failure authority.
+      // 宿主 stderr 是一个观测汇，而非子运行的失败权威。
     }
   }
   const onStderrError = (): void => {
-    // Stderr observation is auxiliary. JSON-RPC and child.done remain the
-    // only terminal authorities if the diagnostic stream itself fails.
+    // stderr 观测是辅助性的。若诊断流本身失败，JSON-RPC 与 child.done
+    // 仍是唯一的终止权威。
   }
   child.stderr?.on('data', onStderr)
   child.stderr?.on('error', onStderrError)
   const disposeProcess = async (): Promise<void> => {
     try {
       await disposeCodexChild(wire, child)
-      // Let stderr already queued by the process close reach the Host before
-      // its forwarding listeners are detached.
+      // 让进程关闭时已排队的 stderr 在其转发监听器被摘除之前到达宿主机。
       await new Promise<void>((resolve) => { setImmediate(resolve) })
     } finally {
       child.stderr?.off('data', onStderr)
@@ -299,8 +296,8 @@ export async function startCodexRun(
       throw new CodexRunFailure(processFailureFacts, thrown(error))
     },
   )
-  // A normal post-result dispose also closes the process. Keep its expected
-  // late rejection observed when the terminal result settles first.
+  // 一次正常的结果后处置也会关闭进程。当终止结果先结算时，
+  // 保持其预期的迟到拒绝被观测到。
   processFailure.catch(() => {})
 
   const runAbort = new AbortController()
@@ -322,8 +319,8 @@ export async function startCodexRun(
     request.signal.removeEventListener('abort', onAbort)
     const cancelledBeforeCleanup = runAbort.signal.aborted
     if (!(error instanceof CodexRunFailure) && !cancelledBeforeCleanup) {
-      // Node reports stdout EOF before the child close that owns its outcome.
-      // Let an already-exiting process publish those facts before rollback.
+      // Node 在拥有其结果的子关闭之前就报告 stdout EOF。
+      // 让一个已经在退出的进程在回滚之前发布那些事实。
       await new Promise<void>((resolve) => { setImmediate(resolve) })
     }
     const failure = new CodexRunFailure({
@@ -371,8 +368,8 @@ export async function startCodexRun(
   }
   const publishedProcessFailure = processFailure.catch(
     async (error: unknown): Promise<never> => {
-      // Frames already queued by the exiting app-server remain authoritative.
-      // One I/O turn lets them settle before process exit ends the run.
+      // 由正在退出的 app-server 已排队的帧保持权威。
+      // 一个 I/O 轮次让它们在进程退出结束运行之前结算。
       await new Promise<void>((resolve) => { setImmediate(resolve) })
       throw error
     },
@@ -385,14 +382,12 @@ export async function startCodexRun(
           publishedProcessFailure,
         ])
         if (terminal.stopReason === 'completed') return terminal
-        // Let stderr already queued with the terminal frame reach the Host
-        // before the non-completed result settles.
+        // 让已与终止帧一起排队的 stderr 在非完成结果结算之前到达宿主机。
         await new Promise<void>((resolve) => { setImmediate(resolve) })
         const facts = withProcessOutcome(wire.collectFailure())
         return { ...terminal, diagnostic: recordFailureDiagnostic(facts) }
       } catch (error: unknown) {
-        // Give stderr data already queued in Node one turn to reach the Host
-        // before error settlement.
+        // 在错误结算之前，给 Node 中已排队的 stderr 数据一个轮次到达宿主机。
         await new Promise<void>((resolve) => { setImmediate(resolve) })
         const endedBeforeTerminal = wire.endedBeforeTerminal()
         if (
@@ -406,7 +401,7 @@ export async function startCodexRun(
             )
             if (exited) await child.done
           } catch {
-            // The wire failure remains authoritative when exit observation fails.
+            // 当退出观测失败时，wire 失败保持权威。
           }
         }
         const facts = error instanceof CodexRunFailure

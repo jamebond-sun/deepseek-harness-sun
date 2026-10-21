@@ -1,16 +1,16 @@
 /**
- * Pure generated-artifact and runtime-registry types. The registry stores Zod
- * schemas separately from generated package reflection metadata.
+ * 纯粹的、生成产物与运行时注册表的类型。注册表将 Zod schema
+ * 与生成的包反射元数据分开存储。
  * @module @deepseek-ai/dsh-typert-registry/types
  */
 
 import type { z } from 'zod'
 import type { InvocationDescriptor } from '@deepseek-ai/dsh-typert-protocol'
 
-/** Independently compiled side that produced a contribution. */
+/** 产出某贡献、彼此独立编译的一端。 */
 export type TypertFace = 'host' | 'client'
 
-/** Structured JSDoc tag retained by generated runtime metadata. */
+/** 由生成运行时元数据保留的结构化 JSDoc 标签。 */
 export interface TypertDocTag {
   readonly name: string
   readonly argument?: string
@@ -18,7 +18,7 @@ export interface TypertDocTag {
   readonly text: string
 }
 
-/** Source documentation retained on reflected package elements. */
+/** 保留在被反射包元素上的源文档。 */
 export interface TypertDocumentation {
   readonly description?: string
   readonly summary?: string
@@ -26,7 +26,7 @@ export interface TypertDocumentation {
   readonly jsDoc?: string
 }
 
-/** One generated public member signature. */
+/** 一份已生成的公共成员签名。 */
 export interface TypertMemberModel {
   readonly kind: 'property' | 'method' | 'getter' | 'setter' | 'call' | 'construct' | 'index'
   readonly name: string
@@ -35,13 +35,13 @@ export interface TypertMemberModel {
   readonly jsDoc?: string
 }
 
-/** One named type declaration referenced by a reflected business surface. */
+/** 一个被反射业务表面所引用的具名类型声明。 */
 export interface TypertTypeModel {
   readonly name: string
   readonly declaration: string
 }
 
-/** Runtime reflection metadata for one Cordis service. */
+/** 某个 Cordis service 的运行时反射元数据。 */
 export interface TypertServiceModel extends TypertDocumentation {
   readonly key: string
   readonly exportName: string
@@ -49,14 +49,14 @@ export interface TypertServiceModel extends TypertDocumentation {
   readonly types: readonly TypertTypeModel[]
 }
 
-/** Runtime reflection metadata for one Cordis event. */
+/** 一个 Cordis 事件的运行时反射元数据。 */
 export interface TypertEventModel extends TypertDocumentation {
   readonly name: string
   readonly mode?: string
   readonly signature: string
 }
 
-/** Runtime reflection metadata for one explicitly exported reference object. */
+/** 一个显式导出的引用对象的运行时反射元数据。 */
 export interface TypertObjectModel extends TypertDocumentation {
   readonly name: string
   readonly exportName: string
@@ -64,31 +64,31 @@ export interface TypertObjectModel extends TypertDocumentation {
   readonly types: readonly TypertTypeModel[]
 }
 
-/** Generated business reflection for one package on one face. */
+/** 一个包在一个端上生成的业务反射。 */
 export interface TypertPackageModel {
   readonly services: readonly TypertServiceModel[]
   readonly events: readonly TypertEventModel[]
   readonly objects: readonly TypertObjectModel[]
 }
 
-/** One generated Zod schema factory. */
+/** 一个生成的 Zod schema 工厂。 */
 export interface TypertSchemaFactory {
   readonly name: string
-  /** Materialize and return the process-realm schema on first use. */
+  /** 在首次使用时实例化并返回进程 realm 中的 schema。 */
   readonly create: () => z.ZodType
 }
 
-/** One generated package contribution registered and withdrawn atomically. */
+/** 一个生成的包贡献，原子地注册与撤回。 */
 export interface TypertContribution {
   readonly package: string
   readonly face: TypertFace
   readonly schemas: readonly TypertSchemaFactory[]
   readonly model: TypertPackageModel
-  /** Host invocation definitions, empty when the package exports no Remote methods. */
+  /** Host 调用定义；当包未导出任何 Remote 方法时为空。 */
   readonly invocations: readonly InvocationDescriptor[]
 }
 
-/** A live schema plus its contribution identity. */
+/** 一个存活 schema 及其贡献身份。 */
 export interface TypertSchemaRecord {
   readonly name: string
   readonly schema: z.ZodType
@@ -97,7 +97,7 @@ export interface TypertSchemaRecord {
   readonly key: string
 }
 
-/** A live generated package model plus its stable identity. */
+/** 一个存活的、生成的包模型及其稳定身份。 */
 export interface TypertPackageRecord {
   readonly package: string
   readonly face: TypertFace
@@ -105,13 +105,13 @@ export interface TypertPackageRecord {
   readonly model: TypertPackageModel
 }
 
-/** Filter for schema enumeration. */
+/** schema 枚举的过滤器。 */
 export interface TypertSchemaFilter {
   readonly package?: string
   readonly face?: TypertFace
 }
 
-/** Filter for package-model enumeration. */
+/** 包模型枚举的过滤器。 */
 export interface TypertPackageFilter {
   readonly package?: string
   readonly face?: TypertFace

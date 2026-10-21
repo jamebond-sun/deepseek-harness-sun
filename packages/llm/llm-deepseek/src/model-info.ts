@@ -1,4 +1,4 @@
-/** Protocol-independent model capabilities and reasoning choices. */
+/** 与协议无关的模型能力与推理选项。 */
 import { ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import type { LlmModelInfo, LlmResolvedModelInfo } from '@deepseek-ai/dsh-llm'
 import type { DeepSeekCatalogModel, DeepSeekConnectionOptions } from './types.ts'
@@ -37,10 +37,10 @@ const OFF_ONLY_REASONING_EFFORTS = [
   },
 ] as const
 
-/** Advertise one catalog entry.
- * @param provider - registered provider id.
- * @param model - advisory catalog entry.
- * @returns selector metadata.
+/** 宣告一个目录条目。
+ * @param provider - 已注册的提供方 id。
+ * @param model - 参考性的目录条目。
+ * @returns 选择器元数据。
  */
 export function catalogModelInfo(provider: string, model: DeepSeekCatalogModel): LlmModelInfo {
   return {
@@ -52,11 +52,11 @@ export function catalogModelInfo(provider: string, model: DeepSeekCatalogModel):
   }
 }
 
-/** Resolve model capabilities against one configuration generation.
- * @param connection - validated connection facts.
- * @param provider - registered provider id.
- * @param model - requested wire model id.
- * @returns effective model metadata for this operation.
+/** 针对一次配置快照解析模型能力。
+ * @param connection - 已校验的连接事实。
+ * @param provider - 已注册的提供方 id。
+ * @param model - 请求的线格式模型 id。
+ * @returns 本次操作生效的模型元数据。
  */
 export function modelInfo(
   connection: DeepSeekConnectionOptions,
@@ -67,9 +67,8 @@ export function modelInfo(
   const contextWindow = configured?.contextWindow
     ?? connection.defaultContextWindow
   return {
-    // An uncatalogued endpoint is safely treated as text-only. Declaring an
-    // unverified image capability would let the host persist input that the
-    // endpoint may reject on every later turn.
+    // 未编入目录的端点被安全地当作纯文本处理。声明一个未经核实的图像能力，
+    // 会让宿主持久化该端点在之后的每个轮次都可能拒绝的输入。
     ...configured === undefined
       ? { provider, id: model, name: model, inputModalities: ['text' as const] }
       : catalogModelInfo(provider, configured),

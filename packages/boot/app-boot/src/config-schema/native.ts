@@ -1,11 +1,11 @@
-/** Identity checks at the plugin-export and lazy-builder boundaries. */
+/** 在插件导出与惰性构建器边界处的身份检查。 */
 
 import type { NativeConfigSchema } from './types.ts'
 
 /**
- * Recognize the native Schemastery graph protocol without invoking a validator or serialization hook.
- * @param value - plugin Config export or lazy-builder result.
- * @returns whether native schema fields can be inspected.
+ * 在不调用校验器或序列化钩子的前提下，识别原生的 Schemastery 图协议。
+ * @param value - 插件 Config 导出或惰性构建器的结果。
+ * @returns 是否可检查原生 schema 字段。
  */
 export function isNativeConfigSchema(value: unknown): value is NativeConfigSchema {
   if (value === null || (typeof value !== 'object' && typeof value !== 'function')) return false

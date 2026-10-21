@@ -1,6 +1,6 @@
 /**
- * Rendering and traversal over the compiler-independent TypeGraph. Emitters
- * use this module instead of reaching back into TypeScript AST nodes.
+ * 与编译器无关的 TypeGraph 之上的渲染与遍历。发射器使用本模块，而非回溯到
+ * TypeScript AST 节点。
  * @module @deepseek-ai/dsh-typert-generator/renderer
  */
 
@@ -17,12 +17,12 @@ import type {
   TypeParameterModel,
 } from './model.ts'
 
-/** Failure to render or traverse an internally inconsistent TypeGraph. */
+/** 渲染或遍历内部不一致的 TypeGraph 时失败。 */
 export class TypeGraphRenderError extends Error {
   override name = 'TypeGraphRenderError'
 }
 
-/** Read and render one TypeGraph without compiler objects. */
+/** 读取并渲染一个不依赖编译器对象的 TypeGraph。 */
 export class TypeGraphRenderer {
   private readonly nodes: ReadonlyMap<TypeNodeId, TypeNodeModel>
   private readonly declarations: ReadonlyMap<SymbolId, TypeDeclarationModel>
@@ -30,8 +30,8 @@ export class TypeGraphRenderer {
   private readonly parameterNames = new Map<string, string>()
 
   /**
-   * Index one complete graph.
-   * @param graph - compiler-independent graph to render.
+   * 索引一个完整的图。
+   * @param graph - 要渲染的、与编译器无关的图。
    */
   constructor(readonly graph: TypeGraph) {
     this.nodes = new Map(graph.nodes.map(node => [node.id, node]))
@@ -46,9 +46,9 @@ export class TypeGraphRenderer {
   }
 
   /**
-   * Resolve a node id or fail with the broken edge.
-   * @param id - graph-local type node id.
-   * @returns the referenced node.
+   * 解析一个节点 id，或在边损坏时失败。
+   * @param id - 图内的类型节点 id。
+   * @returns 被引用的节点。
    */
   node(id: TypeNodeId): TypeNodeModel {
     const node = this.nodes.get(id)
@@ -57,9 +57,9 @@ export class TypeGraphRenderer {
   }
 
   /**
-   * Resolve a declaration id or fail with the broken edge.
-   * @param id - workspace symbol id.
-   * @returns the referenced declaration.
+   * 解析一个声明 id，或在边损坏时失败。
+   * @param id - workspace 符号 id。
+   * @returns 被引用的声明。
    */
   declaration(id: SymbolId): TypeDeclarationModel {
     const declaration = this.declarations.get(id)
@@ -68,9 +68,9 @@ export class TypeGraphRenderer {
   }
 
   /**
-   * Resolve a public member id.
-   * @param id - declaration member id.
-   * @returns the referenced member.
+   * 解析一个公共成员 id。
+   * @param id - 声明成员 id。
+   * @returns 被引用的成员。
    */
   member(id: string): MemberModel {
     const member = this.members.get(id)
@@ -79,10 +79,10 @@ export class TypeGraphRenderer {
   }
 
   /**
-   * Render one type expression from the retained source structure.
-   * @param id - type node id.
-   * @param references - optional generated names for declaration references.
-   * @returns TypeScript type text.
+   * 从保留的源结构渲染一个类型表达式。
+   * @param id - 类型节点 id。
+   * @param references - 可选的、用于声明引用的生成名。
+   * @returns TypeScript 类型文本。
    */
   renderType(id: TypeNodeId, references?: ReadonlyMap<SymbolId, string>): string {
     const node = this.node(id)
@@ -167,21 +167,21 @@ export class TypeGraphRenderer {
   }
 
   /**
-   * Render a callable signature without a member name.
-   * @param signature - modeled signature.
-   * @param references - optional generated names for declaration references.
-   * @returns parameter list and return type.
+   * 渲染一个无名的可调用签名。
+   * @param signature - 被建模的签名。
+   * @param references - 可选的、用于声明引用的生成名。
+   * @returns 参数列表与返回类型。
    */
   renderSignature(signature: SignatureModel, references?: ReadonlyMap<SymbolId, string>): string {
     return `${this.renderSignatureHead(signature, references)}: ${this.renderType(signature.returns, references)}`
   }
 
   /**
-   * Render one class/interface member as a body-free declaration.
-   * @param member - modeled member.
-   * @param sourceModifiers - retain source-only modifiers for reflection text.
-   * @param references - optional generated names for declaration references.
-   * @returns one-line TypeScript member text.
+   * 将一个类/接口成员渲染为无函数体的声明。
+   * @param member - 被建模的成员。
+   * @param sourceModifiers - 保留仅源可见的修饰符用于反射文本。
+   * @param references - 可选的、用于声明引用的生成名。
+   * @returns 单行 TypeScript 成员文本。
    */
   renderMember(member: MemberModel, sourceModifiers = false, references?: ReadonlyMap<SymbolId, string>): string {
     if (sourceModifiers) return member.text
@@ -205,9 +205,9 @@ export class TypeGraphRenderer {
   }
 
   /**
-   * Render a named declaration without JSDoc.
-   * @param id - declaration symbol id.
-   * @returns exported TypeScript declaration text.
+   * 渲染一个无名声明的声明，不含 JSDoc。
+   * @param id - 声明符号 id。
+   * @returns 导出的 TypeScript 声明文本。
    */
   renderDeclaration(id: SymbolId): string {
     const declaration = this.declaration(id)
@@ -233,18 +233,18 @@ export class TypeGraphRenderer {
   }
 
   /**
-   * Find the transitive declaration closure referenced by members.
-   * @param memberIds - business-API member ids.
-   * @returns declarations in graph order, excluding no roots implicitly.
+   * 找到成员所引用的、传递闭包的声明。
+   * @param memberIds - 业务 API 成员 id。
+   * @returns 按图顺序排列的声明，不隐式排除任何根。
    */
   declarationClosureForMembers(memberIds: readonly string[]): TypeDeclarationModel[] {
     return this.declarationClosure(memberIds, [])
   }
 
   /**
-   * Find the transitive declaration closure referenced by type roots.
-   * @param typeIds - graph type roots.
-   * @returns declarations in graph order.
+   * 找到类型根所引用的、传递闭包的声明。
+   * @param typeIds - 图类型根。
+   * @returns 按图顺序排列的声明。
    */
   declarationClosureForTypes(typeIds: readonly TypeNodeId[]): TypeDeclarationModel[] {
     return this.declarationClosure([], typeIds)

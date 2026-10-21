@@ -1,10 +1,8 @@
 /**
- * Session feedback: the `feedback/record` event, its command-independent
- * producer, the `sessionFeedback` Host Remote a product surface records
- * through, and the human-facing `/feedback` command. Recording appends one
- * authoritative log-only event and does not start model work. The append is
- * eager but unflushed, so acknowledgement reports that the entry is logged,
- * not that it reached disk.
+ * 会话反馈：`feedback/record` 事件、不依赖命令的生产者、产品界面借以记录的
+ * `sessionFeedback` Host Remote，以及面向用户的 `/feedback` 命令。
+ * 记录会追加一条权威的仅记日志事件，且不会启动模型工作。该追加是即时的
+ * 但未落盘，因此回执只表明条目已记入日志，而非已写入磁盘。
  * @module @deepseek-ai/dsh-command-feedback
  */
 
@@ -24,8 +22,7 @@ import type {
 export type * from './types.ts'
 
 /**
- * Every feedback category in the order product surfaces present them; each
- * surface owns its localized labels.
+ * 全部反馈分类，顺序与产品界面展示的一致；每个界面各自持有其本地化文案。
  */
 export const FEEDBACK_CATEGORIES = [
   'task-result',
@@ -49,11 +46,10 @@ declare module '@deepseek-ai/cordis' {
 }
 
 /**
- * Record feedback independently of any UI trigger. Surrounding whitespace is
- * discarded and a blank text is recorded as absent; an entry with neither
- * text nor category is still recorded.
- * @param session - session the feedback describes.
- * @param entry - human-authored remark and its category.
+ * 记录反馈，不依赖任何 UI 触发。首尾空白会被丢弃，空白文本按缺省记录；
+ * 文本与分类皆缺省的条目同样会被记录。
+ * @param session - 反馈所描述的会话。
+ * @param entry - 用户书写的意见及其分类。
  */
 export function recordFeedback(session: Session, entry: FeedbackRecord): void {
   const text = entry.text?.trim() ?? ''
@@ -64,11 +60,9 @@ export function recordFeedback(session: Session, entry: FeedbackRecord): void {
 }
 
 /**
- * Validate, record, and acknowledge one feedback entry. Returning an error
- * leaves no `feedback/record` event.
- * @param invocation - receiving agent, raw command input, and UI cancellation.
- * @returns an acknowledgement containing the receiving session and anonymous
- * user ids, or a usage error when no feedback text was supplied.
+ * 校验、记录并回执一条反馈条目。返回错误时不会留下任何 `feedback/record` 事件。
+ * @param invocation - 接收方 agent、原始命令输入与 UI 取消信号。
+ * @returns 含接收会话与匿名用户 id 的回执；未提供反馈文本时返回用法错误。
  */
 function executeFeedbackCommand(invocation: CommandInvocation): CommandResult {
   if (invocation.rawInput.trim().length === 0) {
@@ -81,22 +75,21 @@ function executeFeedbackCommand(invocation: CommandInvocation): CommandResult {
   }
 }
 
-/** Host Remote through which a product surface records a Session-level remark. */
+/** 产品界面借以记录会话级意见的 Host Remote。 */
 export class SessionFeedbackService extends TypertRemoteService {
   static inject = ['sessions']
 
   /**
-   * @param ctx - Host context carrying the live Session store.
+   * @param ctx - 持有实时会话存储的 Host 上下文。
    */
   constructor(ctx: Context) {
     super(ctx, 'sessionFeedback')
   }
 
   /**
-   * Record one remark on a live Session.
-   * @param request - target Session plus the optional text and category.
-   * @returns the recorded postcondition, or `session-not-found` when no live
-   * Session carries the id.
+   * 在一个实时会话上记录一条意见。
+   * @param request - 目标会话以及可选的文本与分类。
+   * @returns 记录后的后置条件；没有实时会话持有该 id 时返回 `session-not-found`。
    */
   @Remote('record')
   record(request: SessionFeedbackRecordRequest): Promise<SessionFeedbackRecordResult> {
@@ -110,9 +103,8 @@ export class SessionFeedbackService extends TypertRemoteService {
 }
 
 /**
- * Register the global `/feedback` command for every composed command adapter
- * and mount the `sessionFeedback` Remote.
- * @param ctx - Host context.
+ * 为每个已组合的命令适配器注册全局 `/feedback` 命令，并挂载 `sessionFeedback` Remote。
+ * @param ctx - Host 上下文。
  */
 export function apply(ctx: Context): void {
   ctx.plugin(SessionFeedbackService)

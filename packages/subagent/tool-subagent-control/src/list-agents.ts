@@ -1,9 +1,8 @@
 /**
- * The globally named `list_agents` tool: a thin model-facing adapter over
- * the continuable projection of `ctx.subagents.listChildren()` and, for the
- * `descendants` scope, `ctx.subagents.listDescendants()`. It stays separately
- * loadable from the root `send_message` plugin so a deployment can register
- * continuation delivery without exposing discovery.
+ * 全局命名的 `list_agents` 工具：对 `ctx.subagents.listChildren()` 的可续跑
+ * 投影、以及对 `descendants` 作用域而言 `ctx.subagents.listDescendants()` 的、
+ * 面向模型的薄适配器。它保持与根 `send_message` 插件分开可加载，因此一个
+ * 部署可以注册续跑投递而不暴露发现能力。
  * @module @deepseek-ai/dsh-tool-subagent-control/list-agents
  */
 
@@ -46,17 +45,17 @@ type ListAgentsEntry =
     readonly depth?: number
   }
 
-/** Resolve the optional model request into an internal required-scope spec. */
+/** 把可选的模型请求解析为一个内部的、必填作用域的规格。 */
 function resolveListAgentsRequest(request: ListAgentsRequest): ListAgentsSpec {
   return { scope: request.scope ?? 'children' }
 }
 
-/** Report turn activity without exposing whether the child is loaded. */
+/** 报告轮次活跃状态，而不暴露该子代理是否已被加载。 */
 function statusOf(agents: { get(id: SessionId): Agent | undefined }, id: SessionId): 'running' | 'inactive' {
   return agents.get(id)?.status === 'running' ? 'running' : 'inactive'
 }
 
-/** Project one service row into the model-facing entry, or omit a one-shot child. */
+/** 把一条 service 行投影为面向模型的条目，或省略一个一次性子代理。 */
 function project(
   agents: { get(id: SessionId): Agent | undefined },
   entry: SubagentCatalogEntry | SubagentListEntry,
@@ -66,8 +65,8 @@ function project(
   if ('kind' in entry && entry.kind === 'diagnostic') {
     return { kind: 'diagnostic', id: entry.id, reason: entry.reason, ...at }
   }
-  // One-shot children cannot be continued by send_message, so the model
-  // never selects them; discovery still traversed them for descendants.
+  // 一次性子代理无法被 send_message 续跑，因此模型从不选择它们；
+  // 发现仍会为后代遍历它们。
   if (entry.mode !== 'continuable') return undefined
   return {
     kind: 'child',
@@ -79,8 +78,8 @@ function project(
 }
 
 /**
- * Register the `list_agents` tool.
- * @param ctx - context carrying the tool registry, subagent service, and live Agent registry.
+ * 注册 `list_agents` 工具。
+ * @param ctx - 承载工具注册表、子代理 service 与实时 Agent 注册表的上下文。
  */
 export function apply(ctx: Context): void {
   ctx.tools.register(defineTool({
@@ -136,9 +135,8 @@ export function apply(ctx: Context): void {
           text: entries.length === 0
             ? '(no subagents)'
             : entries.map((entry) => {
-              // A descendants row always carries its position; children rows
-              // never render it. String() spans the schema-optional shape
-              // without a dead fallback branch.
+              // 一个 descendants 行总是携带其位置；children 行从不渲染它。
+              // String() 跨越该模式可选的形状，而无需一个不可达的兜底分支。
               const at = request.scope === 'descendants'
                 ? ` parent=${String(entry.parent)} depth=${String(entry.depth)}`
                 : ''
@@ -152,7 +150,7 @@ export function apply(ctx: Context): void {
     async execute(args, exec) {
       const parent = exec.agent
       if (!parent) {
-        // Non-agent callers have no session whose children could be listed.
+        // 非 Agent 调用方没有可以列举其子代理的 session。
         throw new Error('list_agents requires a calling agent (exec.agent was undefined)')
       }
       const request = resolveListAgentsRequest(args)
@@ -169,7 +167,7 @@ export function apply(ctx: Context): void {
             .map(entry => project(ctx.agents, entry, entry))
             .filter(entry => entry !== undefined)
         }
-        /* v8 ignore next 2 -- the resolver normalizes the schema-validated closed scope before dispatch. */
+        /* v8 ignore next 2 -- 解析器在分派之前已对该经模式校验的封闭作用域做了归一化。 */
         default:
           return assertNever(request.scope, 'list_agents scope')
       }

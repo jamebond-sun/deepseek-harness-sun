@@ -1,4 +1,4 @@
-/** Current-surface projection and byte-bounded rendering. */
+/** 当前表层投影与按字节受限的渲染。 */
 
 import { isCompactCheckpointSource } from '@deepseek-ai/dsh-compaction'
 import type { SessionSurfaceSnapshot } from '@deepseek-ai/dsh-session-query'
@@ -15,7 +15,7 @@ interface ProjectedItem extends ReferencedConversationItem {
   omittedBytes: number
 }
 
-/** Snapshot data serialized inside the untrusted prompt. */
+/** 序列化于不受信任提示内部的快照数据。 */
 export interface ReferencedSessionData {
   sessionId: SessionId
   label: string
@@ -24,7 +24,7 @@ export interface ReferencedSessionData {
   conversation: ReferencedConversationItem[]
 }
 
-/** Retention facts stored beside the durable context. */
+/** 与持久化上下文一并存储的保留事实。 */
 export interface ReferenceRetentionStats {
   compacted: boolean
   originalMessages: number
@@ -34,7 +34,7 @@ export interface ReferenceRetentionStats {
   truncated: boolean
 }
 
-/** Project current user/assistant conversation while excluding tools, reasoning, and injected context. */
+/** 投影当前的 user/assistant 对话，同时排除工具、推理与注入的上下文。 */
 function projectSessionConversation(snapshot: SessionSurfaceSnapshot): ProjectedItem[] {
   const conversation: ProjectedItem[] = []
   for (const event of snapshot.events) {
@@ -64,11 +64,11 @@ function projectSessionConversation(snapshot: SessionSurfaceSnapshot): Projected
 }
 
 /**
- * Fit one projected snapshot into an exact rendered JSON-object byte cap.
- * @param snapshot - current-surface source observation.
- * @param label - host-provided display label serialized with the source.
- * @param maxBytes - maximum UTF-8 bytes for the serialized data object.
- * @returns full projected data, retained preview and stats, or `undefined` when fixed data cannot fit.
+ * 将一次投影快照装入精确的、已渲染 JSON 对象的字节上限内。
+ * @param snapshot - 当前表层的源观测。
+ * @param label - 与源一并序列化、由宿主提供的展示标签。
+ * @param maxBytes - 序列化后数据对象的最大 UTF-8 字节数。
+ * @returns 完整的投影数据、保留的预览与统计信息；当固定数据无法容纳时为 `undefined`。
  */
 export function retainReferencedSession(
   snapshot: SessionSurfaceSnapshot,
@@ -162,7 +162,7 @@ function truncateWithNotice(text: string, maxOutputBytes: number): { text: strin
     const retainer = new TextRetainer({ kind: 'headTail', headBytes, tailBytes })
     retainer.push(text)
     const result = retainer.finish()
-    // The complete source string was pushed before `finish()`, so omission is exact.
+    // 完整的源字符串在 `finish()` 之前已被压入，因此省略是精确的。
     /* v8 ignore next 3 -- complete-string TextRetainer input cannot report a lower bound. */
     if (result.omittedBytes.kind !== 'exact') {
       throw new Error('session-reference retention did not report exact omitted bytes')

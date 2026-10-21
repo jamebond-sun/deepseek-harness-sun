@@ -1,29 +1,26 @@
 /**
- * Vocabulary for the fs-observation-policy plugin: the minimal execution-context
- * fields used to derive an observed-state owner by narrowing the opaque `object`
- * actor the `fs/*` events carry.
+ * fs-observation-policy 插件的词汇表：用于通过收窄 `fs/*` 事件所携带的不透明 `object`
+ * actor 来派生已观测状态 owner 所需的最小执行上下文字段。
  *
- * The provider vocabulary (`FsTarget`, `FsVersion`, write/edit request types) is
- * re-used from `@deepseek-ai/dsh-fs`; this package owns only the observed-state
- * owner structure on top of it.
+ * 提供者侧的词汇（`FsTarget`、`FsVersion`、写入/编辑请求类型）复用自
+ * `@deepseek-ai/dsh-fs`；本包只在其上拥有"已观测状态 owner"这一结构。
  *
  * @module @deepseek-ai/dsh-fs-observation-policy/types
  */
 
 /**
- * Minimal structural view of a tool execution the policy plugin needs to derive
- * an observed-state owner. `@deepseek-ai/dsh-tools`' `ToolExecution` contains
- * these fields, so the tool passes its `exec` straight through as the opaque
- * `object` actor on the `fs/*` events; this plugin narrows that actor to
- * `FsObservationActor` without importing `dsh-tools`, `dsh-agent`, or `dsh-session`.
+ * 策略插件派生已观测状态 owner 所需的工具执行的最小结构化视图。
+ * `@deepseek-ai/dsh-tools` 的 `ToolExecution` 就包含这些字段，因此工具把它的 `exec`
+ * 原样作为不透明的 `object` actor 传给 `fs/*` 事件；本插件把该 actor 收窄为
+ * `FsObservationActor`，而无须导入 `dsh-tools`、`dsh-agent` 或 `dsh-session`。
  *
- * The owner is `agent.session` when present. It is treated as an opaque object
- * identity (a `WeakMap` key); this package never reads any of its fields.
+ * owner 存在时为 `agent.session`。它被当作不透明的对象同一性（`WeakMap` 的键）；
+ * 本包从不读取它的任何字段。
  */
 export interface FsObservationActor {
-  /** The agent on whose behalf the call runs, when there is one. */
+  /** 当存在代为执行此次调用的 agent 时给出该 agent。 */
   agent?: {
-    /** The session that owns observed-file state, used as an opaque key. */
+    /** 持有已观测文件状态的会话，用作不透明的键。 */
     session?: object
   }
 }

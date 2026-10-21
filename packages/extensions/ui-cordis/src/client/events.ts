@@ -1,6 +1,6 @@
-/** Client-safe dynamic Cordis vocabulary re-exported through the Remote assembly. */
+/** 通过 Remote 装配再导出的、Client 安全的动态 Cordis 词表。 */
 
-// Type-only: merges `ctx.remote` and the forwarded-event key set into this program.
+// 仅类型：将 `ctx.remote` 与转发的事件键集合并到本程序。
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 
 export type {

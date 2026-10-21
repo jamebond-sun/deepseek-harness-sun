@@ -1,5 +1,5 @@
 /**
- * Session working directories, durable changes, and model context.
+ * 会话工作目录、持久化变更与模型上下文。
  * @module @deepseek-ai/dsh-working-directory
  */
 
@@ -23,7 +23,7 @@ declare module '@deepseek-ai/cordis' {
 declare module '@deepseek-ai/dsh-llm' {
   interface MessageSourceMap {
     /**
-     * Committed working-directory transition notices.
+     * 已提交的、工作目录转换的通知。
      * @persistenceAttribution
      */
     'working-directory': { kind: 'working-directory' }
@@ -32,9 +32,9 @@ declare module '@deepseek-ai/dsh-llm' {
 
 declare module '@deepseek-ai/dsh-session/types' {
   interface SessionEventMap {
-    /** Effective working directory; the immutable Session header retains the original project. */
+    /** 有效工作目录；不可变的会话头部保留原始项目。 */
     'working-directory/change': {
-      /** Absolute directory used by subsequent directory-based operations. */
+      /** 后续基于目录的操作所使用的绝对目录。 */
       cwd: string
     }
   }
@@ -42,19 +42,19 @@ declare module '@deepseek-ai/dsh-session/types' {
 
 declare module '@deepseek-ai/dsh-session-projection/types' {
   interface SessionProjectionMap {
-    /** Recorded current directory for Session observations, or null when none is recorded. */
+    /** 为会话观测所记录的当前目录，或在没有记录时为 null。 */
     workingDirectory: string | null
   }
 
   interface SessionProjectionStateMap {
-    /** Last committed working directory, or null before an explicit value exists. */
+    /** 上次提交的工作目录，或在出现显式值之前为 null。 */
     workingDirectory: string | null
   }
 }
 
-/** Deployment default for Sessions without an original project directory. */
+/** 为没有原始项目目录的会话准备的、部署级的默认目录。 */
 export interface Config {
-  /** Absolute execution-world fallback directory; omitted values use the launch directory. */
+  /** 执行世界的绝对回退目录；省略时使用启动目录。 */
   defaultDirectory?: string
 }
 
@@ -66,7 +66,7 @@ export class WorkingDirectoryService extends Service {
     defaultDirectory: z.string(),
   })
 
-  /** Absolute deployment fallback for Sessions with no recorded original directory. */
+  /** 为没有已记录原始目录的会话准备的、绝对的部署回退目录。 */
   readonly defaultDirectory: string
   private readonly pending = new WeakMap<Session, Promise<void>>()
   private readonly operations = new Set<Promise<unknown>>()
@@ -115,21 +115,21 @@ export class WorkingDirectoryService extends Service {
   }
 
   /**
-   * Read the committed directory without filesystem I/O.
-   * @param session - Session whose directory is requested.
-   * @returns its effective absolute directory.
+   * 不做任何文件系统 I/O，读取已提交的目录。
+   * @param session - 其目录被请求的会话。
+   * @returns 其有效的绝对目录。
    */
   get(session: Session): string {
     return this.ctx.sessionProjections.stateOf(session, 'workingDirectory') ?? this.defaultDirectory
   }
 
   /**
-   * Validate the current directory and restore the original project when it disappeared.
-   * @param agent - live or unpublished Agent owning the Session.
-   * @param signal - cancellation for filesystem inspection.
-   * @returns the existing directory; recovery is committed before fulfillment.
-   * A notice failure is warned without reverting the committed state.
-   * @throws when the original project is also unavailable.
+   * 校验当前目录，并在它消失时恢复原始项目。
+   * @param agent - 拥有该会话的、活跃或未发布的 Agent。
+   * @param signal - 用于文件系统检查的取消信号。
+   * @returns 存在的目录；恢复会在 fulfill 之前被提交。
+   * 通知失败会被警告，而不会回退已提交的状态。
+   * @throws 当原始项目也不可用时。
    */
   ensure(agent: Agent, signal?: AbortSignal): Promise<string> {
     return this.serialize(agent, signal, async (control) => {
@@ -152,13 +152,13 @@ export class WorkingDirectoryService extends Service {
   }
 
   /**
-   * Change one Session's directory without changing existing processes or permissions.
-   * @param agent - live or unpublished Agent owning the Session.
-   * @param path - absolute path or a path relative to its current directory.
-   * @param signal - cancellation before the durable change.
-   * @returns the canonical absolute directory, committed before fulfillment.
-   * A notice failure is warned; the next request still receives the committed directory.
-   * @throws when the requested path is not an existing directory.
+   * 改变一个会话的目录，而不改变已有的进程或权限。
+   * @param agent - 拥有该会话的、活跃或未发布的 Agent。
+   * @param path - 绝对路径，或是相对于其当前目录的路径。
+   * @param signal - 在持久化变更之前的取消信号。
+   * @returns 规范的绝对目录，在 fulfill 之前被提交。
+   * 通知失败会被警告；下一次请求仍会收到已提交的目录。
+   * @throws 当请求的路径不是一个已存在的目录时。
    */
   set(agent: Agent, path: string, signal?: AbortSignal): Promise<string> {
     return this.serialize(agent, signal, async (control) => {

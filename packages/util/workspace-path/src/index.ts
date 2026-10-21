@@ -1,28 +1,28 @@
 /**
- * Browser-safe Workspace path and display helpers.
+ * 浏览器安全的 Workspace 路径与显示辅助工具。
  * @module @deepseek-ai/dsh-util-workspace-path
  */
 import { sessionFileAddress } from './file-address.ts'
 
-/** Whether a path uses a Windows drive or UNC prefix. */
+/** 一个路径是否使用 Windows 盘符或 UNC 前缀。 */
 function isWindowsStylePath(value: string): boolean {
   return /^[A-Za-z]:[/\\]/.test(value) || value.startsWith('\\\\')
 }
 
 /**
- * Whether a path is absolute in either spelling the Host accepts: POSIX (`/a/b`) or Windows drive or UNC.
- * @param path - the path to classify.
- * @returns `true` for an absolute path; `false` for a Workspace-relative one.
+ * 一个路径是否在 Host 接受的任一种写法中是绝对的：POSIX（`/a/b`）或 Windows 盘符或 UNC。
+ * @param path - 待分类的路径。
+ * @returns 绝对路径为 `true`；工作区相对路径为 `false`。
  */
 export function isAbsoluteWorkspacePath(path: string): boolean {
   return path.startsWith('/') || isWindowsStylePath(path)
 }
 
 /**
- * Resolve a Workspace-relative path into the Host-facing spelling used by path operations.
- * @param cwd - Session Workspace root, when known.
- * @param path - Absolute or Workspace-relative path.
- * @returns an absolute path when a Workspace root is available, otherwise the original path.
+ * 将一个工作区相对路径解析为路径操作所用的、面向 Host 的写法。
+ * @param cwd - 已知的 Session 工作区根。
+ * @param path - 绝对或工作区相对路径。
+ * @returns 当工作区根可用时为绝对路径，否则为原始路径。
  */
 export function resolveWorkspacePath(cwd: string | undefined, path: string): string {
   if (isAbsoluteWorkspacePath(path)) return path
@@ -34,10 +34,10 @@ export function resolveWorkspacePath(cwd: string | undefined, path: string): str
 }
 
 /**
- * Abbreviate a POSIX home directory for display.
- * @param path - Absolute or already-short display path.
- * @param home - Host account home; absent skips abbreviation.
- * @returns `~` or `~/…` for the POSIX home and its descendants, otherwise `path`.
+ * 缩写 POSIX home 目录用于显示。
+ * @param path - 绝对或已经简短的显示路径。
+ * @param home - Host 账户 home；缺席则跳过缩写。
+ * @returns POSIX home 及其后代显示为 `~` 或 `~/…`，否则为 `path`。
  */
 export function abbreviateHomePath(path: string, home?: string): string {
   if (home === undefined || home === '') return path
@@ -50,10 +50,10 @@ export function abbreviateHomePath(path: string, home?: string): string {
 }
 
 /**
- * Read the final non-empty segment of a Workspace path for display.
- * Workspace-label surfaces use this helper instead of deriving another basename.
- * @param path - Workspace directory path using POSIX or Windows separators.
- * @returns the final segment, or an empty string for a separator-only path.
+ * 读取 Workspace 路径的最后一个非空段用于显示。
+ * Workspace 标签界面使用此辅助工具，而非另起一个 basename。
+ * @param path - 使用 POSIX 或 Windows 分隔符的 Workspace 目录路径。
+ * @returns 最后一个段，或对于仅含分隔符的路径为空字符串。
  */
 export function workspaceTitleOf(path: string): string {
   const trimmed = path.replace(/[/\\]+$/, '')
@@ -62,13 +62,12 @@ export function workspaceTitleOf(path: string): string {
 }
 
 /**
- * Split a path for display: the directories through their last separator, and
- * the final segment after it. Both `/` and `\` separate, so a Windows path
- * splits where its own segments end; trailing separators are dropped first, so
- * a directory path names its own last segment. A path with no separator, or a
- * separator-only path, is all name.
- * @param path - file or directory path using POSIX or Windows separators.
- * @returns the directory prefix (possibly empty) and the final segment.
+ * 为显示拆分一个路径：直到最后一个分隔符的目录，以及其后的最终段。两种 `/`
+ * 和 `\` 都分隔，因此 Windows 路径在其自身段结束处分拆；尾部分隔符先被丢弃，
+ * 因此目录路径命名其自身的最后一段。没有分隔符的路径，或仅含分隔符的路径，
+ * 全是名称。
+ * @param path - 使用 POSIX 或 Windows 分隔符的文件或目录路径。
+ * @returns 目录前缀（可能为空）与最后一段。
  */
 export function pathPartsOf(path: string): { readonly directory: string; readonly name: string } {
   const trimmed = path.replace(/[/\\]+$/, '')
@@ -80,14 +79,13 @@ export function pathPartsOf(path: string): { readonly directory: string; readonl
 export * from './file-address.ts'
 
 /**
- * The address for a path as a caller holds it: a relative path, or an absolute
- * path inside the Session's workspace, becomes a `session`-scoped address; an
- * absolute path outside it, or one whose workspace root is unknown, keeps its
- * absolute path in that Session's address.
- * @param sessionId - the Session the path is read in.
- * @param cwd - that Session's workspace root, when known.
- * @param path - absolute or workspace-relative path, in either separator spelling.
- * @returns the `dsh-resource://file/…` address.
+ * 调用方所持路径的地址：相对路径，或 Session 工作区内的绝对路径，变为
+ * `session` 作用域地址；其外的绝对路径，或工作区根未知的，在该 Session 地址中
+ * 保留其绝对路径。
+ * @param sessionId - 读取该路径的 Session。
+ * @param cwd - 该 Session 的工作区根（若已知）。
+ * @param path - 绝对或工作区相对路径，任一种分隔符写法。
+ * @returns `dsh-resource://file/…` 地址。
  */
 export function fileAddressFor(sessionId: string, cwd: string | undefined, path: string): string {
   const normalized = path.replace(/\\/g, '/')
@@ -99,10 +97,10 @@ export function fileAddressFor(sessionId: string, cwd: string | undefined, path:
 }
 
 /**
- * Strip the workspace root from a workspace-rooted absolute path (display only).
- * @param text - the path to shorten.
- * @param cwd - session workspace root; absent or empty leaves the path unchanged.
- * @returns the path relative to the workspace root, or unchanged when it is not rooted there.
+ * 从以工作区为根的绝刘路径中剥离工作区根（仅供显示）。
+ * @param text - 待缩短的路径。
+ * @param cwd - Session 工作区根；缺席或为空则保持路径不变。
+ * @returns 相对于工作区根的路径，或当它并非以该根为根时保持不变。
  */
 export function relativizeToCwd(text: string, cwd: string | undefined): string {
   if (cwd === undefined || cwd === '') return text
@@ -112,10 +110,10 @@ export function relativizeToCwd(text: string, cwd: string | undefined): string {
 }
 
 /**
- * Address a decoded absolute file path through the authenticated file route.
- * @param base - HTTP(S) application base, including its deployment prefix, or `dsh-app://app/`.
- * @param path - Native file path; URL escapes in authored Markdown must already be decoded.
- * @returns File URL, or undefined for unsupported transports and non-absolute paths.
+ * 通过已认证的文件路由为一个已解码的绝对文件路径生成地址。
+ * @param base - HTTP(S) 应用基址，含其部署前缀，或 `dsh-app://app/`。
+ * @param path - 原生文件路径；编写的 Markdown 中的 URL 转义必须已解码。
+ * @returns 文件 URL，或对于不支持的传输与非绝对路径为 undefined。
  */
 export function fileMediaUrl(base: string, path: string): string | undefined {
   if ((!/^https?:/u.test(base) && !base.startsWith('dsh-app://app/')) || !isAbsoluteWorkspacePath(path)

@@ -1,5 +1,5 @@
 /**
- * Public package manifest and plugin display types, with no runtime exports.
+ * 公共包清单与插件展示类型，不带任何运行时导出。
  * @module @deepseek-ai/dsh-package-manifest
  */
 

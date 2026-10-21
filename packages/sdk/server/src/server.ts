@@ -1,6 +1,6 @@
 /**
- * JSON-RPC methods and notifications for out-of-process harness SDKs.
- * The surrounding context owns plugins, persistence, and configured adapters.
+ * 面向进程外 harness SDK 的 JSON-RPC 方法与通知。
+ * 外围 context 负责插件、持久化与已配置的适配器。
  *
  * @module @deepseek-ai/dsh-sdk-jsonrpc-server/server
  */
@@ -36,7 +36,7 @@ import type {
 
 interface SessionRecord {
   handle: AgentHandle
-  /** Latest live failure not superseded by a subsequently committed terminal. */
+  /** 最新的活动失败，且未被随后提交的终态所取代。 */
   failure: { readonly error: unknown; readonly atOffset: SessionLogOffset } | undefined
 }
 
@@ -59,14 +59,14 @@ async function durablePromptContent(ctx: Context, blocks: SessionPromptParams['c
     : block)
 }
 
-/** Recover the delegating parent from the service-owned scoped carrier. */
+/** 从服务所持有的 scoped carrier 中恢复出委派方父级。 */
 function subagentParentOf(carrier: Scoped<SubagentRuntime>): Agent {
   return carrierKeyOf(carrier) as Agent
 }
 
-/** Deployment-specific status mapping for SDK turn and subagent outcomes. */
+/** 针对 SDK 轮次与 subagent 结果的、与部署相关的状态映射。 */
 export interface HarnessSdkJsonRpcServerOptions {
-  /** Report max-token termination as an accepted result instead of an infrastructure error. */
+  /** 将 max-token 终止上报为被接受的结果，而不是基础设施错误。 */
   maxTokensAsSuccess?: boolean
 }
 
@@ -76,9 +76,9 @@ function successStatus(reason: string, options: HarnessSdkJsonRpcServerOptions):
 }
 
 /**
- * SDK server over one booted harness context and transport peer. Construction
- * subscribes to session, agent, and subagent lifecycle events until shutdown;
- * reinitialization is unsupported.
+ * 位于一个已启动 harness context 与传输对端之上的 SDK 服务端。构造函数会
+ * 订阅 session、agent 与 subagent 的生命周期事件，直到 shutdown；
+ * 不支持重新初始化。
  */
 export class HarnessSdkJsonRpcServer {
   private cwd = process.cwd()
@@ -128,9 +128,8 @@ export class HarnessSdkJsonRpcServer {
     }))
     this.disposers.push(ctx.on('subagent/end', function (this: Scoped<SubagentRuntime>, info: SubagentRunEndInfo) {
       const parent = subagentParentOf(this)
-      // This protocol reports only in-process child sessions. The service
-      // snapshots the provider name and local flag through child disposal;
-      // matching ids or parent lineage alone never establishes locality.
+      // 本协议只上报进程内的子 session。该服务通过子任务的释放过程快照
+      // provider 名称与本地标志；仅凭匹配的 id 或父级血缘无法确立本地性。
       if (!info.local) return
       const payload: SubagentFinishedNotification = {
         provider: info.provider,
@@ -148,9 +147,9 @@ export class HarnessSdkJsonRpcServer {
   }
 
   /**
-   * Validate and configure the SDK route, mounting the DeepSeek fallback only when unowned.
-   * @param params - SDK handshake parameters.
-   * @returns server identity for the handshake.
+   * 校验并配置 SDK 路由，仅在无人持有时才挂载 DeepSeek 兜底适配器。
+   * @param params - SDK 握手参数。
+   * @returns 握手所用的服务端身份。
    */
   async initialize(params: InitializeParams): Promise<InitializeResult> {
     if (params.reasoningEffort !== undefined
@@ -171,7 +170,7 @@ export class HarnessSdkJsonRpcServer {
       if (provider !== 'deepseek-official') throw new Error(`no adapter registered for provider "${provider}"`)
       this.llmFiber = await this.ctx.plugin(LlmDeepSeek)
     }
-    // Adapter presence was read from this service above; a successful fallback mount also requires it.
+    // 适配器的存在性已在上面从本服务读取；兜底挂载成功同样要求它存在。
     const llm = this.ctx.get('llm') as LlmRuntime
     await llm.resolveCallConfig({
       provider,
@@ -189,20 +188,20 @@ export class HarnessSdkJsonRpcServer {
   }
 
   /**
-   * Queue one identified prompt without assigning later activity to it.
-   * @param params - target session and user content.
-   * @returns the durable message identity.
+   * 入队一次已标识的提示，而不把后续的活动归属于它。
+   * @param params - 目标 session 与用户内容。
+   * @returns 持久化的消息标识。
    */
   async prompt(params: SessionPromptParams): Promise<SessionPromptResult> {
     if (!this.initialized) throw new Error('SDK server is not initialized')
     const rec = await this.getOrCreateSession(params.sessionId)
-    // An agent-loop-only reload disposes the loop's agents while this record
-    // survives; a retained agent accepts followup() silently, so validate the
-    // record against the live registry before delivery.
+    // 仅重载 agent loop 会在本记录仍然存活的情况下释放该 loop 的 agent；
+    // 被保留的 agent 会静默接受 followup()，因此在投递之前要针对活动注册表
+    // 校验该记录。
     this.assertLiveAgent(rec, params.sessionId)
     const content = await durablePromptContent(this.ctx, params.contentBlocks)
-    // Attachment admission crosses an async boundary where shutdown or an
-    // agent-loop reload may detach the retained handle.
+    // 附件准入跨越了一个异步边界，在此期间 shutdown 或 agent loop 重载
+    // 都可能使被保留的句柄失效。
     this.assertLiveAgent(rec, params.sessionId)
     const message = createUserMessage({
       content,
@@ -213,11 +212,11 @@ export class HarnessSdkJsonRpcServer {
   }
 
   /**
-   * Restore a persisted session and repair its interrupted final turn without sending input.
-   * Uses the initialized model route while preserving the stored session identity and directory.
-   * Rejects missing, unreadable, or already owned sessions; never creates a replacement.
-   * @param params - persisted session identity in the configured persistence store.
-   * @returns an empty result after the Agent is ready for prompts.
+   * 恢复一个持久化的 session 并修复其被中断的最后一轮，而不发送输入。
+   * 使用已初始化的模型路由，同时保留存储的 session 标识与目录。
+   * 拒绝缺失、不可读或已被占用的 session；绝不创建替代品。
+   * @param params - 已配置持久化存储中的 session 标识。
+   * @returns 在 Agent 准备好接受提示之后返回空结果。
    */
   async resume(params: SessionResumeParams): Promise<Record<string, never>> {
     if (!this.initialized) throw new Error('SDK server is not initialized')
@@ -231,11 +230,11 @@ export class HarnessSdkJsonRpcServer {
   }
 
   /**
-   * Wait for an existing owned Agent and its managed descendants to finish.
-   * The response follows all Session notifications emitted during the wait.
-   * Rejects a live Agent failure that has no subsequent durable terminal.
-   * @param params - the SDK-owned session to observe without creating one.
-   * @returns an empty result after the root stays idle across the descendant check.
+   * 等待一个已存在的、受管的 Agent 及其受管后代结束。
+   * 响应会在等待期间发出的所有 Session 通知之后到达。
+   * 若存在没有后续持久化终态的活动 Agent 失败，则 reject。
+   * @param params - 要观察的 SDK 拥有的 session（不会创建）。
+   * @returns 在根 session 跨后代检查保持空闲之后返回空结果。
    */
   async wait(params: SessionWaitParams): Promise<Record<string, never>> {
     if (!this.initialized) throw new Error('SDK server is not initialized')
@@ -263,9 +262,9 @@ export class HarnessSdkJsonRpcServer {
   }
 
   /**
-   * Read a Session's effective directory, recovering a missing directory to its origin.
-   * @param params - target Session; an unknown id creates it.
-   * @returns the absolute effective directory.
+   * 读取某个 Session 的有效目录，并在目录缺失时恢复到其来源目录。
+   * @param params - 目标 Session；未知 id 会创建它。
+   * @returns 绝对的有效目录。
    */
   async getWorkingDirectory(params: SessionWorkingDirectoryParams): Promise<SessionWorkingDirectoryResult> {
     const agent = await this.workingDirectoryAgent(params.sessionId)
@@ -273,9 +272,9 @@ export class HarnessSdkJsonRpcServer {
   }
 
   /**
-   * Change a Session's directory and queue its model-visible transition.
-   * @param params - target Session and absolute or current-directory-relative path.
-   * @returns the validated absolute directory; origin and permissions are unchanged.
+   * 修改某个 Session 的目录，并为其入队一条模型可见的转换。
+   * @param params - 目标 Session，以及绝对或相对当前目录的路径。
+   * @returns 经过校验的绝对目录；来源与权限不变。
    */
   async setWorkingDirectory(params: SessionWorkingDirectorySetParams): Promise<SessionWorkingDirectoryResult> {
     const agent = await this.workingDirectoryAgent(params.sessionId)
@@ -290,10 +289,10 @@ export class HarnessSdkJsonRpcServer {
   }
 
   /**
-   * Dispose server-owned agents, adapter, and subscriptions to quiescence.
-   * Managed descendants drain before the root Agent handles and adapter are released.
-   * The surrounding context remains running.
-   * @returns empty JSON-RPC result.
+   * 将服务端所持有的 agent、适配器与订阅释放至静默。
+   * 受管后代会在根 Agent 句柄与适配器被释放之前排空。
+   * 外围 context 保持运行。
+   * @returns 空的 JSON-RPC 结果。
    */
   shutdown(): Promise<Record<string, never>> {
     this.shutdownTask ??= this.performShutdown()
@@ -334,11 +333,11 @@ export class HarnessSdkJsonRpcServer {
   }
 
   /**
-   * Dispatch one incoming JSON-RPC request to its typed handler. Throws (→ a
-   * JSON-RPC error response) on an unknown method.
-   * @param method - the JSON-RPC method name.
-   * @param params - the raw params object from the wire.
-   * @returns the handler's result, to be serialized as the response.
+   * 将一条入站 JSON-RPC 请求分派给其带类型的处理器。遇到未知方法时抛出
+   * （→ 变成一条 JSON-RPC 错误响应）。
+   * @param method - JSON-RPC 方法名。
+   * @param params - 来自线上的原始 params 对象。
+   * @returns 处理器的结果，将被序列化为响应。
    */
   async handleRequest(method: string, params: Record<string, unknown> | undefined): Promise<unknown> {
     switch (method) {
@@ -396,10 +395,10 @@ export class HarnessSdkJsonRpcServer {
   }
 
   private async createSession(sessionId: string, resume: boolean): Promise<SessionRecord> {
-    // No preset composition: this server's compositions keep the model-facing
-    // rows in the host plane, so this agent reads them from the global layer. A
-    // deployment that configures a roster has to join one here first
-    // (@deepseek-ai/dsh-agent-preset-registry README, "Composing a child agent").
+    // 没有 preset 组合：本服务端的组合把面向模型的行保留在宿主平面，
+    // 因此该 agent 从全局层读取它们。如果某个部署配置了 roster，
+    // 就必须先在这里接入一个（@deepseek-ai/dsh-agent-preset-registry README，
+    // 「Composing a child agent」）。
     const agentOptions = {
       provider: this.provider,
       model: this.model,

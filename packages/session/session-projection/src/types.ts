@@ -1,24 +1,22 @@
 /**
- * Pure-type outlet of the session-projection Service Definition: the one projection type
- * table, importable from client aggregates without dragging the host-side
- * cordis Context merges of the package root (dsh-agent → dsh-session). Domain
- * packages may declare-merge through either the package root or this outlet —
- * re-export preserves symbol identity, so both land on the same table.
+ * session-projection 服务定义的纯类型出口：那张唯一的投影类型表，可从
+ * 客户端聚合中导入，而无需拖入包根（dsh-agent → dsh-session）的主机侧
+ * cordis Context 合并。领域包既可以通过包根，也可以通过这个出口来声明合并——
+ * 重新导出保留了符号身份，因此两者都落在同一张表上。
  *
  * @module @deepseek-ai/dsh-session-projection/types
  */
 
 /**
- * The merge-extensible client projection table shared by wire blocks, client
- * cells, and React hooks. Domain packages merge their client-visible key here;
- * values are wire-JSON whole values. How a value is rendered is the slot
- * system's business, never this layer's.
+ * 由 wire 区块、客户端 cell 与 React hook 共用的、可合并扩展的客户端投影表。
+ * 领域包在此合并其客户端可见的键；值为 wire-JSON 整体值。某值如何被渲染
+ * 是插槽系统的事，与本层无关。
  */
 export interface SessionProjectionMap {}
 
 /**
- * The merge-extensible host fold-state table. Each client-visible key also
- * appears in {@link SessionProjectionMap}; host-only keys appear only here.
- * Values must be plain JSON so the projection cache can persist them.
+ * 可合并扩展的主机折叠状态表。每个客户端可见的键也会出现在
+ * {@link SessionProjectionMap} 中；仅主机侧的键只出现在这里。值必须是
+ * 纯 JSON，以便投影缓存能够持久化它们。
  */
 export interface SessionProjectionStateMap {}

@@ -1,11 +1,7 @@
 /**
- * Runtime of one open domain: authoritative in-memory state, the single
- * per-domain write chain, and change-event emission. Reads are synchronous
- * from memory; every write queues on the chain, awaits backend durability
- * FIRST, then mutates memory, then emits `domain/changed` — a rejected
- * backend write leaves memory untouched (no divergence between reads and the
- * medium), and events carry values that equal the in-memory state at
- * emission, in write order.
+ * 一个已打开领域的运行时：权威的内存内状态、每个领域唯一的写入链，以及变更事件发射。读取从内存同步进行；
+ * 每次写入都在链上排队，先等待后端持久性，再修改内存，最后发射 `domain/changed`——被拒绝的后端写入会保持内存不变
+ * （读取与介质之间不产生分歧），且事件携带的值等于发射时内存内的状态，按写入顺序排列。
  * @module @deepseek-ai/dsh-storage-domain/src/domain
  */
 
@@ -15,155 +11,139 @@ import { DomainError } from './error.ts'
 import type { DomainSpec, DomainGlobalSpec, TableKeyOf, TableValueOf } from './spec.ts'
 import type { DomainChanged } from './events.ts'
 
-/** Handle on a domain's global singleton. */
+/** 领域全局单例的句柄。 */
 export interface DomainGlobal<G> {
   /**
-   * Current value, synchronously from the authoritative in-memory state.
-   * Before the first `set` this is the spec's `initial`.
-   * @returns the current global value.
+   * 当前值，从权威的内存内状态同步取得。在首次 `set` 之前为 spec 的 `initial`。
+   * @returns 当前全局值。
    */
   get(): G
 
   /**
-   * Replace the value durably. Queued on the domain's write chain; the first
-   * `set` is what materializes the global on the medium.
-   * @param value - New value; must satisfy the spec's schema (not re-checked
-   * here — validation happens at the durable read boundary).
-   * @returns resolution after durability and event emission.
+   * 持久化地替换该值。在领域的写入链上排队；首个 `set` 正是将全局物化到介质上的动作。
+   * @param value - 新值；必须满足 spec 的 schema（此处不再复核——校验发生在持久化读取边界）。
+   * @returns 持久化且事件发射后的结算。
    */
   set(value: G): Promise<void>
 }
 
 /**
- * Handle on one declared table. Records are plain immutable data: returned
- * values are the stored objects themselves (no defensive copies) and must not
- * be mutated in place — replace via `put`/`update`.
+ * 一个已声明表的句柄。记录是纯不可变数据：返回的值是存储对象本身（无防御性拷贝），不得就地修改——应通过 `put`/`update` 替换。
  */
 export interface KvTable<K extends string, V> {
   /**
-   * Read one record, synchronously from memory.
-   * @param key - Record key.
-   * @returns the record, or `undefined` when absent.
+   * 读取一条记录，从内存同步进行。
+   * @param key - 记录键。
+   * @returns 记录；缺失时为 `undefined`。
    */
   get(key: K): V | undefined
 
   /**
-   * Snapshot iterator over `[key, record]` pairs. A snapshot, not a live
-   * view: iteration stays stable while queued writes land.
-   * @returns the pair iterator.
+   * 遍历 `[key, record]` 对的快照迭代器。是快照而非实时视图：迭代在已排队的写入落地期间保持稳定。
+   * @returns 键值对迭代器。
    */
   entries(): IterableIterator<[K, V]>
 
   /**
-   * Snapshot iterator over keys.
-   * @returns the key iterator.
+   * 遍历键的快照迭代器。
+   * @returns 键迭代器。
    */
   keys(): IterableIterator<K>
 
-  /** Current record count. */
+  /** 当前记录数。 */
   readonly size: number
 
   /**
-   * Insert or overwrite one record durably.
-   * @param key - Record key.
-   * @param value - The full new record (no partial merge).
-   * @returns resolution after durability and event emission.
+   * 持久化地插入或覆盖一条记录。
+   * @param key - 记录键。
+   * @param value - 完整的新记录（非部分合并）。
+   * @returns 持久化且事件发射后的结算。
    */
   put(key: K, value: V): Promise<void>
 
   /**
-   * Delete one record durably.
-   * @param key - Record key.
-   * @returns `true` when the record existed, `false` when it was already
-   * absent (no write and no event in that case).
+   * 持久化地删除一条记录。
+   * @param key - 记录键。
+   * @returns 当记录存在时为 `true`，当本就已缺失时为 `false`（此种情况下无写入、无事件）。
    */
   delete(key: K): Promise<boolean>
 
   /**
-   * Atomic read-modify-write on the domain's write chain: `fn` sees the
-   * value current at its queue slot, so concurrent updates never interleave.
-   * @param key - Record key; a missing key rejects with `missing-key`.
-   * @param fn - Synchronous pure transform from current to next record.
-   * @returns the stored next record.
+   * 在领域的写入链上执行原子的读-改-写：`fn` 看到的是其排队槽位处的当前值，因此并发更新不会交错。
+   * @param key - 记录键；缺失的键以 `missing-key` 拒绝。
+   * @param fn - 从当前记录到下一记录的同步纯函数变换。
+   * @returns 存储的下一记录。
    */
   update(key: K, fn: (current: V) => V): Promise<V>
 }
 
-/** Global handle of a spec: typed when declared, `never` (inaccessible) when not. */
+/** 一个 spec 的全局句柄：声明时为有类型，未声明时为 `never`（不可访问）。 */
 export type DomainGlobalHandleOf<S extends DomainSpec> =
   S extends { readonly global: DomainGlobalSpec<infer G> } ? DomainGlobal<G> : never
 
-/** One open domain, typed by its spec. */
+/** 一个已打开的领域，由其 spec 定型。 */
 export interface Domain<S extends DomainSpec> {
-  /** Domain name from the spec. */
+  /** 来自 spec 的领域名。 */
   readonly name: string
-  /** Global singleton handle; a spec without `global` has no usable handle (`never`). */
+  /** 全局单例句柄；未声明 `global` 的 spec 没有可用的句柄（`never`）。 */
   readonly global: DomainGlobalHandleOf<S>
   /**
-   * Resolve one declared table handle. Handles are stable — repeated calls
-   * return the same instance.
-   * @param name - Declared table name.
-   * @returns the typed table handle.
+   * 解析一个已声明表的句柄。句柄是稳定的——重复调用返回同一实例。
+   * @param name - 已声明的表名。
+   * @returns 已定型的表句柄。
    */
   table<N extends keyof S['tables'] & string>(name: N): KvTable<TableKeyOf<S, N>, TableValueOf<S, N>>
 
   /**
-   * Close this domain: reject new writes immediately, drain already-queued
-   * writes (their events still emit), release the backend unit, then free
-   * the domain name for a later open. Idempotent — repeated calls share one
-   * teardown. The consumer owns this call (typically as its own `ctx.effect`
-   * disposer); the facility closes any domain left open when it unmounts.
-   * @returns resolution after the unit is released.
+   * 关闭此领域：立即拒绝新的写入，排干已排队的写入（其事件仍会发射），释放后端单元，随后释放领域名以便稍后重新打开。
+   * 幂等——重复调用共享同一次拆卸。消费者拥有此调用（通常作为其自身的 `ctx.effect` disposer）；
+   * 设施会在卸载时关闭任何仍处于打开状态的领域。
+   * @returns 单元释放后的结算。
    */
   close(): Promise<void>
 }
 
-/** Internal boundary handing table handles their domain-owned write machinery. */
+/** 内部边界：将表句柄交给其领域拥有的写入机制。 */
 interface TableHost {
   readonly domainName: string
   readonly unit: KvUnit
-  /** Queue one job on the domain's single write chain. */
+  /** 在领域唯一的写入链上排队一个任务。 */
   enqueue<T>(job: () => Promise<T>): Promise<T>
-  /** Throw `closed` once the domain has fully closed (reads stay valid while draining). */
+  /** 领域完全关闭后置位，此时新写入会被拒绝（排干期间读取仍有效）。 */
   assertReadable(): void
-  /** Emit `domain/changed` for one durably landed write. */
+  /** 为一次已持久落地的写入发射 `domain/changed`。 */
   emitChanged(change: DomainChanged): void
 }
 
 const noop = () => {}
 
 /**
- * The single domain implementation behind the {@link Domain} interface. The
- * facility constructs it from a validated `loadAll` snapshot and erases it to
- * `Domain<S>`; nothing outside this package constructs one.
+ * 位于 {@link Domain} 接口背后的唯一领域实现。设施从一个已校验的 `loadAll` 快照构造它，并将其擦除为
+ * `Domain<S>`；本包之外没有任何代码会构造一个。
  */
 export class DomainImpl {
-  /** Domain name from the spec. */
+  /** 来自 spec 的领域名。 */
   readonly name: string
 
   private readonly tables = new Map<string, KvTableImpl<string, unknown>>()
   private globalValue: unknown
   private readonly globalHandle?: DomainGlobal<unknown>
 
-  /** Tail of the write chain; every link settles (rejections are observed by the caller's slice). */
+  /** 写入链的尾部；每个环节都会结算（拒绝由调用方的分片观察到）。 */
   private chain: Promise<void> = Promise.resolve()
-  /** Set when close begins: new writes reject while already-queued writes drain. */
+  /** 在 close 开始时置位：新的写入被拒绝，已排队的写入继续排干。 */
   private disposing = false
-  /** Set when close finishes (chain drained, unit closed): reads reject from here on. */
+  /** 在 close 完成时置位（链已排干、单元已关闭）：此后读取会被拒绝。 */
   private closed = false
   private disposal?: Promise<void>
 
   /**
-   * @param ctx - Context that carries `domain/changed` emissions.
-   * @param spec - The domain declaration.
-   * @param unit - The opened backend unit; this instance owns its lifecycle.
-   * @param records - Validated records from the unit's `loadAll`, one entry
-   * per declared table (empty maps included) — the facility builds it from
-   * the spec, so the entry set IS the table set.
-   * @param globalValue - Validated stored global, or the spec's `initial`
-   * when the medium held none; `undefined` when the spec declares no global.
-   * @param onClosed - Facility hook run once after teardown completes; frees
-   * the domain name for a later open.
+   * @param ctx - 承载 `domain/changed` 发射的 Context。
+   * @param spec - 领域声明。
+   * @param unit - 已打开的后端单元；此实例拥有其生命周期。
+   * @param records - 来自单元 `loadAll` 的已校验记录，每个已声明表一项（含空映射）——设施按 spec 构建它，因此条目集合即表集合。
+   * @param globalValue - 已校验的已存储全局值；介质上没有时则为 spec 的 `initial`；spec 未声明全局时为 `undefined`。
+   * @param onClosed - 拆卸完成后运行一次的设施钩子；释放领域名以便稍后打开。
    */
   constructor(
     private readonly ctx: Context,
@@ -200,7 +180,7 @@ export class DomainImpl {
     }
   }
 
-  /** Global singleton handle; accessing it on a spec that declares no global is a caller bug and throws. */
+  /** 全局单例句柄；在未声明全局的 spec 上访问它属于调用方错误并抛出。 */
   get global(): DomainGlobal<unknown> {
     if (this.globalHandle === undefined) {
       throw new Error(`domain '${this.name}' declares no global`)
@@ -209,10 +189,9 @@ export class DomainImpl {
   }
 
   /**
-   * Resolve one declared table handle; an undeclared name is a caller bug
-   * and throws.
-   * @param name - Declared table name.
-   * @returns the stable table handle.
+   * 解析一个已声明表的句柄；未声明的名称属于调用方错误并抛出。
+   * @param name - 已声明的表名。
+   * @returns 稳定的表句柄。
    */
   table(name: string): KvTable<string, unknown> {
     const table = this.tables.get(name)
@@ -223,10 +202,9 @@ export class DomainImpl {
   }
 
   /**
-   * Close this domain: reject new writes immediately, drain already-queued
-   * writes (their events still emit), close the unit, then free the name via
-   * the facility hook. Idempotent — repeated calls share one teardown.
-   * @returns resolution after the unit is released.
+   * 关闭此领域：立即拒绝新的写入，排干已排队的写入（其事件仍会发射），关闭单元，随后通过设施钩子释放名称。
+   * 幂等——重复调用共享同一次拆卸。
+   * @returns 单元释放后的结算。
    */
   close(): Promise<void> {
     this.disposal ??= this.runClose()
@@ -235,8 +213,7 @@ export class DomainImpl {
 
   private async runClose(): Promise<void> {
     this.disposing = true
-    // Chain links never reject (each is settled via then(noop, noop)), so
-    // this await is a pure drain barrier.
+    // 链环节永不拒绝（每个都通过 then(noop, noop) 结算），因此此 await 是纯粹的排干屏障。
     await this.chain
     await this.unit.close()
     this.closed = true
@@ -244,18 +221,15 @@ export class DomainImpl {
   }
 
   /**
-   * Dispatch one post-durability change notification, containing observer
-   * failures: the write is already committed (medium and memory both hold
-   * the new state), so a throwing listener must not retroactively reject it.
+   * 分发一次持久化之后的变更通知，吞掉观察者失败：写入已经提交（介质与内存都持有新状态），
+   * 因此抛出的监听器不得回退地拒绝它。
    */
   private emitChanged(change: DomainChanged): void {
     try {
       this.ctx.emit('domain/changed', change)
     } catch (error) {
-      // Swallows synchronous observer exceptions only: emit dispatches
-      // listeners inline and nothing else runs in the try. The event is a
-      // notification, not a transaction participant — the commit point has
-      // passed, so containment (with a log) is the only correct outcome.
+      // 仅吞掉同步观察者异常：emit 内联分派监听器，try 内不运行任何其他内容。事件是通知，而非事务参与者——
+      // 提交点已经过去，因此包含（附带日志的）遏制是唯一正确的结果。
       this.ctx.logger.warn(`domain '${this.name}': domain/changed listener failed: ${String(error)}`)
     }
   }
@@ -276,7 +250,7 @@ export class DomainImpl {
   }
 }
 
-/** Table handle bound to one in-memory record map and its domain's write chain. */
+/** 绑定到一个内存内记录映射及其领域写入链的表句柄。 */
 class KvTableImpl<K extends string, V> implements KvTable<K, V> {
   constructor(
     private readonly host: TableHost,
@@ -314,8 +288,7 @@ class KvTableImpl<K extends string, V> implements KvTable<K, V> {
 
   delete(key: K): Promise<boolean> {
     return this.host.enqueue(async () => {
-      // Existence is decided at this job's chain slot, not at call time: an
-      // earlier queued put of the same key makes this delete observe it.
+      // 存在性在此任务的链槽处决定，而非在调用时：此前排队的同一键 put 会让本删除观察到它。
       if (!this.records.has(key)) return false
       await this.host.unit.deleteRecord(this.tableName, key)
       this.records.delete(key)

@@ -1,50 +1,50 @@
-/** Public Agent Teams identities, durable records, and service request values. */
+/** 公开的 Agent Teams 身份、持久化记录，以及服务请求取值。 */
 
 import type { MessageId } from '@deepseek-ai/dsh-llm/brand'
 import type { Branded } from '@deepseek-ai/dsh-brand'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm/types'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 
-/** Identifies the implicit team rooted at one top-level Session. */
+/** 标识以一个顶层 Session 为根的隐式 Team。 */
 export type TeamId = Branded<'TeamId'>
 
 /**
- * Brand one root Session identity as its implicit Team identity.
- * @param id - Root Session identity.
- * @returns the same string branded as a Team identity.
+ * 将一个 root Session 身份品牌化为它的隐式 Team 身份。
+ * @param id - Root Session 身份。
+ * @returns 同一个被品牌化为 Team 身份的字符串。
  */
 export function TeamId(id: SessionId | string): TeamId {
   return id as TeamId
 }
 
-/** Stable identifier for one task in a Team. */
+/** Team 中某条任务的稳定标识符。 */
 export type TeamTaskId = Branded<'TeamTaskId'>
 
 /**
- * Brand a validated task id.
- * @param id - Team-local task identity.
- * @returns the same string branded as a Team task identity.
+ * 品牌化一个已校验的任务 id。
+ * @param id - Team 本地的任务身份。
+ * @returns 同一个被品牌化为 Team 任务身份的字符串。
  */
 export function TeamTaskId(id: string): TeamTaskId {
   return id as TeamTaskId
 }
 
-/** Stable identifier for one durable peer message. */
+/** 一条持久化对等消息的稳定标识符。 */
 export type TeamMessageId = Branded<'TeamMessageId'>
 
 /**
- * Brand a generated peer-message id.
- * @param id - Durable mailbox message identity.
- * @returns the same string branded as a Team message identity.
+ * 品牌化一个生成的对等消息 id。
+ * @param id - 持久的邮箱消息身份。
+ * @returns 同一个被品牌化为 Team 消息身份的字符串。
  */
 export function TeamMessageId(id: string): TeamMessageId {
   return id as TeamMessageId
 }
 
-/** Durable teammate lifecycle. */
+/** 持久化的队友生命周期。 */
 export type TeamMemberPhase = 'provisioning' | 'active' | 'failed'
 
-/** Whole durable value written on every teammate lifecycle change. */
+/** 在每次队友生命周期变化时写入的完整持久化取值。 */
 export interface TeamMemberSnapshot {
   readonly id: SessionId
   readonly name: string
@@ -55,7 +55,7 @@ export interface TeamMemberSnapshot {
   readonly error?: string
 }
 
-/** Current runtime-enriched roster row. */
+/** 当前经运行时充实后的花名册行。 */
 export interface TeamMemberView {
   readonly id: SessionId
   readonly name: string
@@ -68,10 +68,10 @@ export interface TeamMemberView {
   readonly diagnostics: string[]
 }
 
-/** Durable task lifecycle. */
+/** 持久化的任务生命周期。 */
 export type TeamTaskStatus = 'pending' | 'in_progress' | 'completed' | 'deleted'
 
-/** Whole durable task snapshot; every mutation increments {@link revision}. */
+/** 完整的持久化任务快照；每一次变更都会使 {@link revision} 自增。 */
 export interface TeamTaskSnapshot {
   readonly id: TeamTaskId
   readonly revision: number
@@ -83,7 +83,7 @@ export interface TeamTaskSnapshot {
   readonly writeScopes: string[]
 }
 
-/** Runtime-enriched task view returned to tools and hosts. */
+/** 返回给工具与宿主的、经运行时充实后的任务视图。 */
 export interface TeamTaskView {
   readonly id: TeamTaskId
   readonly revision: number
@@ -97,20 +97,20 @@ export interface TeamTaskView {
   readonly writeScopeWarnings: string[]
 }
 
-/** One durable roster row published through the `agentTeam` Session projection. */
+/** 通过 `agentTeam` Session 投影发布的一条持久化花名册行。 */
 export interface TeamMemberProjection {
   readonly id: SessionId
   readonly name: string
   readonly role: 'lead' | 'teammate'
-  /** Durable lifecycle; the Lead row is always `active`. Turn activity comes from Session status. */
+  /** 持久化生命周期；Lead 行始终为 `active`。轮次活动来自 Session 状态。 */
   readonly phase: TeamMemberPhase
   readonly error?: string
 }
 
 /**
- * Durable Team state published to browser clients through the Lead Session's
- * `agentTeam` projection. `failure` names the first rejected persisted Team
- * record; members and tasks then stay at the last valid state.
+ * 通过 Lead Session 的 `agentTeam` 投影发布给浏览器客户端的、持久化的 Team 状态。
+ * `failure` 命名第一条被拒绝的、持久化的 Team 记录；成员与任务随后停留在
+ * 最后一个有效状态。
  */
 export interface TeamProjection {
   readonly members: TeamMemberProjection[]
@@ -120,12 +120,12 @@ export interface TeamProjection {
 
 declare module '@deepseek-ai/dsh-session-projection/types' {
   interface SessionProjectionMap {
-    /** Durable roster and non-deleted task board of the Team rooted at the projected Session. */
+    /** 以被投影 Session 为根的 Team 的、持久化的花名册与未删除任务看板。 */
     agentTeam: TeamProjection
   }
 }
 
-/** One peer message recorded by the historical Team mailbox. */
+/** 由历史的 Team 邮箱记录的一条对等消息。 */
 export interface TeamMessageSnapshot {
   readonly id: TeamMessageId
   readonly senderId: SessionId
@@ -134,7 +134,7 @@ export interface TeamMessageSnapshot {
   readonly content: ContentBlock[]
 }
 
-/** Source recorded by a target Session for one historical Team mailbox delivery. */
+/** 目标 Session 为一次历史的 Team 邮箱投递所记录的来源。 */
 export interface TeamMessageSource {
   readonly kind: 'team-message'
   readonly teamId: TeamId
@@ -149,19 +149,19 @@ declare module '@deepseek-ai/dsh-llm' {
   }
 }
 
-/** Team-service deployment limits. */
+/** Team 服务的部署上限。 */
 export interface Config {
-  /** Maximum immutable teammate names retained by one Team. */
+  /** 一个 Team 保留的、不可变的队友名称的最大数量。 */
   readonly maxMembers?: number
-  /** Maximum non-deleted tasks retained by one Team. */
+  /** 一个 Team 保留的、未删除任务的最大数量。 */
   readonly maxTasks?: number
-  /** Maximum UTF-8 bytes in one complete sender-framed delivery. */
+  /** 一次完整的、发送方加框的投递中，UTF-8 字节数的上限。 */
   readonly maxMessageBytes?: number
-  /** Maximum milliseconds for shared operation settlement and for each Team child drain. */
+  /** 共享操作结算以及每个 Team 子级排空的、以毫秒计的最大时长。 */
   readonly disposalTimeoutMs?: number
 }
 
-/** Input for creating one durable teammate. */
+/** 创建一名持久化队友的输入。 */
 export interface SpawnTeammateRequest {
   readonly name: string
   readonly description: string
@@ -171,24 +171,24 @@ export interface SpawnTeammateRequest {
   readonly signal: AbortSignal
 }
 
-/** Result after one teammate reaches a durable active or failed edge. */
+/** 一名队友抵达持久化的 active 或 failed 边之后的结果。 */
 export interface SpawnTeammateResult {
   readonly member: TeamMemberView
 }
 
-/** Input for one direct peer-message attempt. */
+/** 一次直接对等消息尝试的输入。 */
 export interface SendTeamMessageRequest {
   readonly target: string
   readonly content: ContentBlock[]
   readonly signal: AbortSignal
 }
 
-/** Target inbox acceptance under ordinary Agent persistence; no Team retry or deduplication. */
+/** 在普通 Agent 持久化之下的目标收件箱接受；没有 Team 重试或去重。 */
 export interface SendTeamMessageResult {
   readonly messageId: MessageId
 }
 
-/** Input for creating one shared task. */
+/** 创建一条共享任务的输入。 */
 export interface CreateTeamTaskRequest {
   readonly subject: string
   readonly description: string
@@ -196,7 +196,7 @@ export interface CreateTeamTaskRequest {
   readonly writeScopes?: readonly string[]
 }
 
-/** Supported task mutation actions. */
+/** 受支持的任务变更动作。 */
 export type TeamTaskAction =
   | 'claim'
   | 'release'
@@ -207,7 +207,7 @@ export type TeamTaskAction =
   | 'reassign'
   | 'delete'
 
-/** Compare-and-set mutation of one shared task. */
+/** 对一条共享任务的比较并交换变更。 */
 export interface UpdateTeamTaskRequest {
   readonly taskId: TeamTaskId
   readonly expectedRevision: number
@@ -219,20 +219,20 @@ export interface UpdateTeamTaskRequest {
   readonly owner?: string
 }
 
-/** Result of waiting for Team activity. */
+/** 等待 Team 活动的结果。 */
 export interface TeamWaitResult {
   readonly timedOut: boolean
 }
 
 declare module '@deepseek-ai/dsh-session/types' {
   interface SessionEventMap {
-    /** Whole teammate lifecycle value, stored only in the Team Lead Session. */
+    /** 完整的队友生命周期取值，仅存储于 Team Lead Session。 */
     'team/member': { version: 2; teamId: TeamId; member: TeamMemberSnapshot }
-    /** Whole shared-task value, stored only in the Team Lead Session. */
+    /** 完整的共享任务取值，仅存储于 Team Lead Session。 */
     'team/task': { version: 2; teamId: TeamId; task: TeamTaskSnapshot }
-    /** Historical mailbox enqueue; new sends use the target Agent inbox. */
+    /** 历史的邮箱入队；新的发送使用目标 Agent 收件箱。 */
     'team/message/queued': { version: 2; teamId: TeamId; message: TeamMessageSnapshot }
-    /** Historical acknowledgement that the target Session recorded a queued message. */
+    /** 目标 Session 已记录一条入队消息的历史性确认。 */
     'team/message/delivered': {
       version: 2
       teamId: TeamId

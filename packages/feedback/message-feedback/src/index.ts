@@ -1,5 +1,5 @@
 /**
- * Canonical Session-log feedback for finalized assistant messages.
+ * 已定稿 assistant 消息的规范会话日志反馈。
  * @module @deepseek-ai/dsh-message-feedback
  */
 
@@ -36,9 +36,9 @@ import type {
 
 export type * from './types.ts'
 
-/** Required deployment policy for optional notes. */
+/** 可选说明所必需的部署策略。 */
 export interface Config {
-  /** Maximum UTF-8 byte length accepted for one note. */
+  /** 单条说明可接受的最大 UTF-8 字节长度。 */
   readonly maxNoteBytes: number
 }
 
@@ -48,11 +48,11 @@ declare module '@deepseek-ai/cordis' {
   }
   interface Events {
     /**
-     * Observe a durable cold feedback mutation without publishing a live Session.
-     * Observers run before write ownership is released and must not await
-     * another message-feedback operation for this Session. The payload is borrowed
-     * read-only; deep-clone it before transferring ownership (for example, to Session.fromRestore).
-     * @param inspection - committed canonical prefix, including the feedback as its last event.
+     * 观察一次持久化的冷路径反馈变更，而不发布实时会话。
+     * 观察者运行于写所有权释放之前，且不得为同一会话等待另一个
+     * 消息反馈操作。载荷为只读借用；转移所有权前（例如传给
+     * Session.fromRestore）需先做深拷贝。
+     * @param inspection - 已提交的规范前缀，其最后一个事件即该反馈。
      * @mode parallel
      */
     'feedback/committed'(inspection: SessionInspection): void
@@ -80,7 +80,7 @@ type MissingSession = MessageFeedbackRejected<MessageFeedbackSessionNotFound>
 type ResolvedNote = MessageFeedbackSuccess<string | undefined>
   | MessageFeedbackRejected<MessageFeedbackNoteBlank | MessageFeedbackNoteTooLarge>
 
-/** Return a caller-owned immutable value, detached from the log. */
+/** 返回调用方持有的、与日志解耦的不可变值。 */
 function snapshotItem(item: MessageFeedbackItem): MessageFeedbackItem {
   return Object.freeze({ ...item })
 }
@@ -93,7 +93,7 @@ function rejected<E extends MessageFeedbackFailure>(error: E): MessageFeedbackRe
   return Object.freeze({ ok: false, error: Object.freeze(error) })
 }
 
-/** Validate persisted payloads before deriving current, Session-owned feedback. */
+/** 在派生当前的会话所属反馈之前，先校验已持久化的载荷。 */
 function currentItems(sessionId: SessionId, events: readonly SessionEvent[]): MessageFeedbackItem[] {
   const items = new Map<MessageFeedbackItem['messageId'], MessageFeedbackItem>()
   for (const event of events) {
@@ -107,18 +107,18 @@ function currentItems(sessionId: SessionId, events: readonly SessionEvent[]): Me
         if (event.data.sessionId === sessionId) items.delete(event.data.messageId)
         break
       default:
-        // Other plugins' events do not change message feedback.
+        // 其他插件的事件不会改变消息反馈。
         break
     }
   }
   return [...items.values()]
 }
 
-/** Session-log service; cold operations never construct a Session or Agent. */
+/** 会话日志服务；冷路径操作从不构造 Session 或 Agent。 */
 export class MessageFeedbackService extends TypertRemoteService {
   static inject = ['sessionPersistence', 'sessions']
 
-  /** Loader validation for the required note-size policy. */
+  /** 对必需的说明大小策略做加载期校验。 */
   static Config: s<Config> = s.object({
     maxNoteBytes: s.number().step(1).min(1).required(),
   })
@@ -128,8 +128,8 @@ export class MessageFeedbackService extends TypertRemoteService {
   private mutationAdmissionOpen = true
 
   /**
-   * @param ctx - Host context carrying Session persistence and live owners.
-   * @param config - Required note-size policy.
+   * @param ctx - 持有会话持久化与实时持有者的 Host 上下文。
+   * @param config - 必需的说明大小策略。
    */
   constructor(ctx: Context, config: Config) {
     super(ctx, 'messageFeedback')
@@ -147,9 +147,9 @@ export class MessageFeedbackService extends TypertRemoteService {
   }
 
   /**
-   * Read current feedback from the canonical log.
-   * @param request - Session to inspect.
-   * @returns immutable items or a definite persistence miss.
+   * 从规范日志读取当前反馈。
+   * @param request - 待检查的会话。
+   * @returns 不可变的条目，或明确的持久化未命中。
    */
   @Remote('list')
   list(request: MessageFeedbackListRequest): Promise<MessageFeedbackListResult> {
@@ -158,10 +158,10 @@ export class MessageFeedbackService extends TypertRemoteService {
   }
 
   /**
-   * Create or replace feedback after checking its current version.
-   * Matching no-ops retain the version and append no event.
-   * @param request - Target, desired value, and observed item version.
-   * @returns the durable item or an explicit business failure.
+   * 校验当前版本后创建或替换反馈。
+   * 值未变化的空操作会保留版本且不追加事件。
+   * @param request - 目标、期望值与观察到的条目版本。
+   * @returns 已持久化的条目，或明确的业务失败。
    */
   @Remote('put')
   put(request: MessageFeedbackPutRequest): Promise<MessageFeedbackPutResult> {
@@ -199,9 +199,9 @@ export class MessageFeedbackService extends TypertRemoteService {
   }
 
   /**
-   * Delete one item after checking its version; absence succeeds without an event.
-   * @param request - Session, message, and observed item version.
-   * @returns the stable absent postcondition or an explicit failure.
+   * 校验版本后删除一个条目；本就缺失时直接成功且不产生事件。
+   * @param request - 会话、消息与观察到的条目版本。
+   * @returns 稳定的缺失后置条件，或明确的失败。
    */
   @Remote('delete')
   delete(request: MessageFeedbackDeleteRequest): Promise<MessageFeedbackDeleteResult> {
@@ -217,7 +217,7 @@ export class MessageFeedbackService extends TypertRemoteService {
     }))
   }
 
-  /** Hold cold write ownership across read/compare/append; use live owners directly. */
+  /** 在读取/比较/追加期间持有冷路径写所有权；直接使用实时持有者。 */
   private async withSession<T>(
     sessionId: SessionId,
     write: boolean,
@@ -230,19 +230,19 @@ export class MessageFeedbackService extends TypertRemoteService {
     }
     const live = this.ctx.sessions.get(sessionId)
     if (live !== undefined) {
-      // oxlint-disable-next-line typescript/no-deprecated -- Existing Session history read; migration deferred.
+      // oxlint-disable-next-line typescript/no-deprecated -- 读取既有会话历史；迁移延后。
       return operation(live.snapshotEvents(), async (event) => {
         if (event !== undefined) {
           live.append(event.type, event.data)
         }
-        // oxlint-disable-next-line typescript/no-deprecated -- Existing Session history read; migration deferred.
+        // oxlint-disable-next-line typescript/no-deprecated -- 读取既有会话历史；迁移延后。
         const last = live.snapshotEvents().at(-1)
         if (!(await this.ctx.sessions.flush(live))) {
           throw new Error(
             `message-feedback: no durability listener participated for live session '${sessionId}'`,
           )
         }
-        // Listener participation alone does not prove this Session has a persistence writer.
+        // 仅有监听器参与并不能证明该会话存在持久化写入方。
         const handle = await this.ctx.sessionPersistence.open(sessionId, 'read')
         try {
           const { events: stored } = await handle.read(last?.seq ?? 0, 1)
@@ -297,7 +297,7 @@ export class MessageFeedbackService extends TypertRemoteService {
     return { code: 'version-conflict', current: current === null ? null : snapshotItem(current) }
   }
 
-  /** Serialize complete operations and drain their handles before disposal. */
+  /** 串行化完整操作，并在销毁前排空其句柄。 */
   private enqueue<T>(sessionId: SessionId, operation: () => Promise<T>): Promise<T> {
     if (!this.mutationAdmissionOpen) return Promise.reject(new Error('message-feedback: service is disposing'))
     const previous = this.operationTails.get(sessionId) ?? Promise.resolve()

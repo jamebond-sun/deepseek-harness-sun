@@ -1,4 +1,4 @@
-/** Shared live/prepared observations for Session page and lifecycle consumers. */
+/** 面向 Session 页面与生命周期消费方的共享 live/prepared 观察。 */
 
 import type { Context } from '@deepseek-ai/cordis'
 import { SessionLogOffset, SessionSeq } from '@deepseek-ai/dsh-session'
@@ -13,75 +13,71 @@ import type {} from '@deepseek-ai/dsh-session-projection-cache'
 import { SESSION_QUERY_DEFAULT_PREPARED_SESSION_CACHE_SIZE, SessionQueryError } from './config.ts'
 import { readColdSessionLog, type ColdSessionLog } from './cold-read.ts'
 
-/** One exact immutable Session cut retained for the caller's read lifetime. */
+/** 在调用方的读取生命周期内保留的一份精确、不可变的 Session 切片。 */
 export interface SessionObservation extends Disposable {
-  /** Whether the cut came from an attached Session or a retained preparation. */
+  /** 该切片来自已挂载的 Session，还是来自被保留的 prepared 结果。 */
   readonly source: 'live' | 'prepared'
-  /** Immutable Session identity metadata. */
+  /** 不可变的 Session 身份元数据。 */
   readonly header: SessionHeader
-  /** Exact fork-inherited event count paired with {@link header}. */
+  /** 与 {@link header} 配对、精确的 fork 继承事件数。 */
   readonly inheritedEventCount: SessionLogOffsetType
   /**
-   * Immutable contiguous events at {@link cursor}. A live observation
-   * materializes this array on first read, so a consumer that reads only the
-   * header, cursor, or projections never copies the log.
+   * {@link cursor} 处不可变的连续事件。live 观察在首次读取时才物化该数组，
+   * 因此只读取头部、游标或投影的消费方永远不会复制日志。
    */
   readonly events: readonly SessionEvent[]
-  /** Last observed event seq, or -1 for an empty log. */
+  /** 最后观察到的事件 seq；空日志为 -1。 */
   readonly cursor: SessionSeqCursor
-  /** Durable source revision for a cold prepared observation. */
+  /** 冷 prepared 观察对应的持久源修订版本。 */
   readonly revision?: SessionPersistenceRevision
-  /** Exact projection baseline at {@link cursor}, when the registry is mounted. */
+  /** 注册表已挂载时，{@link cursor} 处精确的投影基线。 */
   readonly projections?: ProjectionSnapshot
   /**
-   * Retain the same immutable cut for another Host owner.
-   * @returns an independently disposable lease over this observation.
+   * 为另一个 Host 属主保留同一份不可变切片。
+   * @returns 覆盖该观察、可独立释放的一份租约。
    */
   retain(): SessionObservation
 }
 
-/** Projection work and cancellation requested for one exact observation. */
+/** 一次精确观察所请求的投影工作与取消控制。 */
 export interface SessionObservationOptions {
-  /** Optional cancellation while resolving a cold source. */
+  /** 解析冷源期间的可选取消信号。 */
   readonly signal?: AbortSignal
-  /** Whether to compute every projection or leave projection state untouched. */
+  /** 计算全部投影，还是完全不触碰投影状态。 */
   readonly projectionMode?: 'all' | 'none'
 }
 
 /**
- * One reusable cold observation: an unpublished restored Session plus the
- * exact balanced log it represents, valid while the producing persistence
- * instance still reports the same revision.
+ * 一份可复用的冷观察：一个未发布的、已恢复的 Session，加上它所代表的精确平衡日志；
+ * 只要生成它的持久化实例仍报告相同的修订版本，它就有效。
  */
 interface PreparedEntry {
-  /** Stable service identity whose `stat` produced this revision; proxy references are not instance identities. */
+  /** 产出该修订版本的稳定服务身份，其 `stat` 调用；代理引用不是实例身份。 */
   readonly persistenceIdentity: symbol
-  /** Durable revision observed by `stat` immediately before the log read. */
+  /** 在读取日志之前由 `stat` 立刻观察到的持久修订版本。 */
   readonly revision: SessionPersistenceRevision
-  /** Unpublished Session restored from the balanced log; never entered into the store. */
+  /** 由平衡日志恢复出的、未发布的 Session；从不进入存储。 */
   readonly session: Session
-  /** Immutable balanced log (stored events plus in-memory interrupted-turn closers). */
+  /** 不可变的平衡日志（已存储事件加上内存中的中断回合闭合事件）。 */
   readonly events: readonly SessionEvent[]
-  /** Active observation leases; a pinned entry (`refs > 0`) is never evicted. */
+  /** 活动的观察租约；被固定的条目（`refs > 0`）永不被驱逐。 */
   refs: number
 }
 
 /**
- * Builds point observations without a corpus listing preflight.
+ * 无需语料列举预检即可构建点观察。
  *
- * Cold reads are cached per session id, keyed by the persistence instance and
- * the `stat` revision observed before the log read: an unchanged revision
- * reuses the restored Session without re-reading the log. The cache is bounded
- * (least-recently-used unpinned entries are evicted past the capacity), and
- * entries pinned by active leases survive eviction and replacement — a lease's
- * cut stays valid for the lease lifetime even after a newer revision lands.
+ * 冷读取按会话 id 缓存，键为持久化实例以及在读取日志之前观察到的 `stat` 修订版本：
+ * 修订版本未变时复用已恢复的 Session，不再重读日志。缓存是有界的（超出容量时
+ * 淘汰最近最少使用的未固定条目），而被活动租约固定的条目可以免于淘汰与替换——
+ * 即使之后落下了更新的修订版本，租约持有的切片在租约生命周期内依然有效。
  */
 export class SessionObservationReader {
   private readonly cache = new Map<SessionId, PreparedEntry>()
 
   /**
-   * @param ctx - context carrying Session and optional persistence/projection services.
-   * @param cacheCapacity - maximum unpinned cold observations retained for reuse.
+   * @param ctx - 承载 Session 以及可选持久化/投影服务的上下文。
+   * @param cacheCapacity - 保留以供复用的未固定冷观察的最大数量。
    */
   constructor(
     private readonly ctx: Context,
@@ -89,11 +85,11 @@ export class SessionObservationReader {
   ) {}
 
   /**
-   * Observe one live-preferred Session and retain a cold preparation until disposal.
-   * @param sessionId - logical Session identity.
-   * @param options - cancellation and all-or-none projection computation for this read.
-   * @returns one exact immutable observation.
-   * @throws {@link SessionQueryError} with code `SESSION_QUERY_CORRUPT_SESSION` when live or prepared projection computation fails.
+   * 观察一个 live 优先的 Session，并在释放之前保留一份冷 prepared 结果。
+   * @param sessionId - 逻辑 Session 身份。
+   * @param options - 本次读取的取消控制与全量/全不投影计算选择。
+   * @returns 一份精确的不可变观察。
+   * @throws 当 live 或 prepared 的投影计算失败时，抛出 code 为 `SESSION_QUERY_CORRUPT_SESSION` 的 {@link SessionQueryError}。
    */
   async read(
     sessionId: SessionId,
@@ -116,8 +112,8 @@ export class SessionObservationReader {
         throwIfObservationAborted(signal)
         const attached = this.ctx.sessions.get(sessionId)
         if (attached !== undefined) return this.live(attached, projectionMode)
-        // The handle marks persisted events as adoptable; synthetic closers
-        // are owned by this read, so the combined seed needs no copy.
+        // 句柄把持久化事件标记为可领养；合成的闭合事件由本次读取持有，
+        // 因此合并后的种子无需复制。
         const seed = loaded.events
         let session: Session
         try {
@@ -128,9 +124,8 @@ export class SessionObservationReader {
             eventState: loaded.eventState,
           })
         } catch (error: unknown) {
-          // The store rejects an id with a live owner: that owner is the
-          // fresher source, so retry the live path. Any other rejection means
-          // the stored log failed restore validation.
+          // 存储会拒绝已被 live 属主占用的 id：该属主是更新的源，因此重试 live 路径。
+          // 其他任何拒绝都意味着已存储日志未能通过恢复校验。
           if (this.ctx.sessions.get(sessionId) !== undefined) continue
           throw new SessionQueryError(
             `stored session "${sessionId}" is corrupt: ${errorMessage(error)}`,
@@ -162,7 +157,7 @@ export class SessionObservationReader {
     }
   }
 
-  /** Observe the stored snapshot, mapping absence and backend failures to the query taxonomy. */
+  /** 观察已存储的快照，把缺失与后端失败映射到查询错误分类。 */
   private async statSource(
     persistence: SessionPersistence,
     sessionId: SessionId,
@@ -186,7 +181,7 @@ export class SessionObservationReader {
     return snapshot
   }
 
-  /** Read the complete balanced cold log, mapping backend failures to the query taxonomy. */
+  /** 读取完整的平衡冷日志，把后端失败映射到查询错误分类。 */
   private async loadSource(
     persistence: SessionPersistence,
     sessionId: SessionId,
@@ -200,7 +195,7 @@ export class SessionObservationReader {
     }
   }
 
-  /** Return a still-valid cached entry and mark it most recently used. */
+  /** 返回仍然有效的缓存条目，并把它标记为最近使用。 */
   private cachedEntry(
     persistenceIdentity: symbol,
     sessionId: SessionId,
@@ -215,20 +210,19 @@ export class SessionObservationReader {
     return cached
   }
 
-  /** Insert or replace the entry for one id, then evict past the capacity. */
+  /** 插入或替换某个 id 的条目，再淘汰超出容量的部分。 */
   private store(sessionId: SessionId, entry: PreparedEntry): void {
-    // Replacing a stale revision only drops the map's reference; live leases
-    // keep the old entry alive through their own references.
+    // 替换过期修订版本只会丢弃 map 的引用；活动租约通过自身引用让旧条目继续存活。
     this.cache.delete(sessionId)
     this.cache.set(sessionId, entry)
     this.evictPastCapacity(entry)
   }
 
   /**
-   * Evict oldest unpinned entries until the cache fits its capacity again.
-   * Runs on store and whenever a lease release unpins an entry, so leases
-   * that pinned every candidate cannot leave the cache over budget for good.
-   * @param keep - the entry being stored, about to be leased; never evicted.
+   * 淘汰最旧的未固定条目，直到缓存重新符合容量要求。
+   * 在 store 时运行，也在租约释放解除条目固定时运行，这样把每个候选都固定住的租约
+   * 不会让缓存长期超出预算。
+   * @param keep - 正在存储、即将被租用的条目；永不被淘汰。
    */
   private evictPastCapacity(keep?: PreparedEntry): void {
     if (this.cache.size <= this.cacheCapacity) return
@@ -239,7 +233,7 @@ export class SessionObservationReader {
     }
   }
 
-  /** Build one disposable lease over a cached entry, pinning it until every lease releases. */
+  /** 在缓存条目上构建一份可释放的租约，固定该条目直到每份租约都被释放。 */
   private preparedLease(
     sessionId: SessionId,
     entry: PreparedEntry,
@@ -276,8 +270,8 @@ export class SessionObservationReader {
     session: Session,
     projectionMode: NonNullable<SessionObservationOptions['projectionMode']>,
   ): SessionObservation {
-    // The cut is the log length now. The log only appends, so the prefix
-    // below `seq` is the same array whenever a consumer first reads `events`.
+    // 切片就是此刻的日志长度。日志只会追加，因此无论消费方何时首次读取 `events`，
+    // `seq` 以下的前缀都是同一个数组。
     const seq = session.seq
     let materialized: readonly SessionEvent[] | undefined
     let projections: ProjectionSnapshot | undefined
@@ -299,7 +293,7 @@ export class SessionObservationReader {
         header: session.header,
         inheritedEventCount: session.inheritedEventCount,
         get events() {
-          // oxlint-disable-next-line typescript/no-deprecated -- Existing Session history read; migration deferred.
+          // oxlint-disable-next-line typescript/no-deprecated -- 既有的 Session 历史读取；迁移延后。
           materialized ??= session.snapshotEvents(SessionLogOffset(0), seq)
           return materialized
         },

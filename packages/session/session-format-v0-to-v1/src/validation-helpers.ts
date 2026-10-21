@@ -2,10 +2,10 @@ import { SessionFormatError, isSessionFormatJsonObject } from '@deepseek-ai/dsh-
 import type { SessionFormatJsonValue } from '@deepseek-ai/dsh-session-format'
 
 /**
- * Require one plain JSON object.
- * @param value - candidate JSON value.
- * @param label - diagnostic subject.
- * @returns validated object record.
+ * 要求一个普通 JSON 对象。
+ * @param value - 待检测的 JSON 值。
+ * @param label - 诊断主体。
+ * @returns 已校验的对象记录。
  */
 export function releasedV0Record(value: unknown, label: string): Record<string, SessionFormatJsonValue> {
   if (!isSessionFormatJsonObject(value)) throw new SessionFormatError(`${label} must be a JSON object`)
@@ -13,11 +13,11 @@ export function releasedV0Record(value: unknown, label: string): Record<string, 
 }
 
 /**
- * Require every named member and no member outside the optional list.
- * @param record - candidate object.
- * @param required - members that must exist.
- * @param optional - additional admitted members.
- * @param label - diagnostic subject.
+ * 要求每个具名成员都存在，且不存在可选列表之外的成员。
+ * @param record - 待检测的对象。
+ * @param required - 必须存在的成员。
+ * @param optional - 额外被接纳的成员。
+ * @param label - 诊断主体。
  */
 export function assertReleasedV0Keys(
   record: Readonly<Record<string, unknown>>,

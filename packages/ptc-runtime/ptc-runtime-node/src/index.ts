@@ -1,4 +1,4 @@
-/** Node PTC execution with configurable per-call processes or retained in-memory REPL state. */
+/** Node PTC 执行：可配置为逐次调用进程，或保留常驻内存的 REPL 状态。 */
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { stripTypeScriptTypes } from 'node:module'
 import { isAbsolute } from 'node:path'
@@ -33,7 +33,7 @@ const STRIP_SUFFIX = '\n}'
 function messageOf(error: unknown): string { return error instanceof Error ? error.message : String(error) }
 function record(value: unknown): value is Record<string, unknown> { return typeof value === 'object' && value !== null && !Array.isArray(value) }
 
-/** Node execution under file policy, with optional owner-scoped retained memory. */
+/** 在文件策略下的 Node 执行，可选地按所有者保留内存状态。 */
 export class NodePtcRuntime extends PtcRuntime {
   static inject = ['fs', 'subprocess', 'sandbox', 'sandboxPolicy']
   static Config = NodeConfig
@@ -78,9 +78,9 @@ export class NodePtcRuntime extends PtcRuntime {
   }
 
   /**
-   * Resolve directory, deadline and file policy for the selected execution mode.
-   * @param request - Program, bindings, optional cwd/deadline, and resolved authority.
-   * @returns Complete execution inputs with a capped numeric budget or an explicit null deadline.
+   * 为所选执行模式解析工作目录、截止时间与文件策略。
+   * @param request - 程序、绑定、可选的 cwd/截止时间，以及已解析的权限。
+   * @returns 完整的执行输入，含已设上限的数值预算或显式的 null 截止时间。
    */
   resolve(request: PtcRunRequest): PtcRunSpec {
     if (this.inMemory) return this.inMemory.resolve(request)
@@ -97,10 +97,10 @@ export class NodePtcRuntime extends PtcRuntime {
   }
 
   /**
-   * Run a resolved program under the configured execution mode.
-   * Session mode changes cancel admitted calls before process launch as well as active programs.
-   * @param spec - Inputs returned by resolve for the configured mode.
-   * @returns Logs, JSON completion or failure; retained processes remain until release or invalidation.
+   * 按已配置的执行模式运行一个已解析的程序。
+   * Session 模式变更会取消已受理的调用（包括尚未启动进程的）以及正在运行的程序。
+   * @param spec - resolve 针对该已配置模式返回的输入。
+   * @returns 日志、JSON 完成值或失败；保留的进程会存续到被释放或作废为止。
    */
   async run(spec: PtcRunSpec): Promise<PtcRunResult> {
     if (this.disposed) throw new Error('ptc-runtime-node: run after disposal')
@@ -194,7 +194,7 @@ export class NodePtcRuntime extends PtcRuntime {
     signal.addEventListener('abort', onAbort, { once: true })
     if (signal.aborted) onAbort()
     try {
-      // Abort callbacks can settle execution before or during an awaited operation.
+      // 中止回调可以在某个被 await 的操作之前或期间就结算本次执行。
       // oxlint-disable-next-line typescript/no-unnecessary-condition
       if (settled) return await result.promise
       const stripped = stripTypeScriptTypes(STRIP_PREFIX + spec.program + STRIP_SUFFIX)
@@ -209,7 +209,7 @@ export class NodePtcRuntime extends PtcRuntime {
         maxOutputBytes: this.config.maxOutputBytes,
       }
       const executable = await this.ctx.subprocess.resolveExecutable(this.config.launch.executable, undefined, signal)
-      // Abort callbacks can settle execution before or during an awaited operation.
+      // 中止回调可以在某个被 await 的操作之前或期间就结算本次执行。
       // oxlint-disable-next-line typescript/no-unnecessary-condition
       if (settled) return await result.promise
       const packaged = this.config.launch.kind === 'embedded'
@@ -217,10 +217,10 @@ export class NodePtcRuntime extends PtcRuntime {
       const argv = [executable, ...packaged ? [] : [heapFlag],
         ...bootstrapArgs(this.ctx.fs, this.config.launch, this.config.maxMessageBytes)]
       confined = policy.mode === 'danger-full-access' ? undefined : await this.ctx.sandbox.confine(argv, { ...policy, mode: policy.mode }, signal)
-      // oxlint-disable-next-line typescript/no-unnecessary-condition -- Cancellation can settle during awaited confinement.
+      // oxlint-disable-next-line typescript/no-unnecessary-condition -- 取消可能在被 await 的隔离建立期间结算。
       if (settled) return await result.promise
       if (confined !== undefined) sandbox.enforcement = confined.enforcement
-      // Electron needs its Node-mode selector until bootstrap; the child then removes it with other ambient values.
+      // Electron 在 bootstrap 之前需要它的 Node 模式选择标志；随后子进程会连同其他环境变量一起移除它。
       const env: NodeJS.ProcessEnv = Object.fromEntries(Object.keys(process.env)
         .filter(key => !STARTUP_ENVIRONMENT_NAMES.has(key.toUpperCase()) && key.toUpperCase() !== 'ELECTRON_RUN_AS_NODE')
         .map(key => [key, undefined]))
@@ -332,7 +332,7 @@ export class NodePtcRuntime extends PtcRuntime {
       })
       channel = transport
       void launched.done.then((outcome) => {
-        // Allow queued control-frame callbacks to run before classifying a command exit.
+        // 在判定一次命令退出之前，先让已排队的控制帧回调跑完。
         setImmediate(() => { processFinished(outcome) })
       }, (error: unknown) => { finish({ kind: confined !== undefined && isRunnerSpawnFailure(error, confined.argv[0], spec.cwd) ? 'sandbox-unavailable' : 'worker-exit', message: messageOf(error) }) })
     } catch (error: unknown) {

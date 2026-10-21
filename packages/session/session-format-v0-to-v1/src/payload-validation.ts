@@ -9,9 +9,9 @@ import { assertReleasedV0Keys, releasedV0Record } from './validation-helpers.ts'
 type JsonRecord = Record<string, SessionFormatJsonValue>
 
 /**
- * Validate nested released payload semantics for one known event.
- * @param event - known event with exact top-level members.
- * @param version - source or current payload generation.
+ * 校验一个已知事件的嵌套已发布载荷语义。
+ * @param event - 顶层成员精确的已知事件。
+ * @param version - 源侧或当前侧载荷代际。
  */
 export function assertReleasedPayloadSemantics(event: SessionFormatEvent, version: number): void {
   const data = releasedV0Record(event.data, `${event.type} ${event.seq} data`)

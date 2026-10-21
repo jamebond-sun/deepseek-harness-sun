@@ -1,7 +1,7 @@
-/* jscpd:ignore-start -- deliberate mirror of tool-bash-persistent (persistent-pty note 2026-08-11-pwsh-persistent-pty):
-   the PowerShell counterpart shares the session registry, polling loop, and reset contract by design. */
+/* jscpd:ignore-start -- 对 tool-bash-persistent 的刻意镜像（persistent-pty note 2026-08-11-pwsh-persistent-pty）：
+   PowerShell 版本刻意共用会话注册表、轮询循环与重置契约。 */
 /**
- * Model-facing persistent `pwsh` tool over the owner-scoped PTY seam.
+ * 基于按归属者隔离的 PTY 能力缝、面向模型的持久化 `pwsh` 工具。
  * @module @deepseek-ai/dsh-tool-pwsh-persistent
  */
 
@@ -15,13 +15,13 @@ import type { TerminalReadResult, TerminalSessionId } from '@deepseek-ai/dsh-ter
 import { deadline, timeoutOf } from '@deepseek-ai/dsh-timeout'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 
-// TODO: Replace the file-search advice; arbitrary command output need not come from a searchable file.
+// TODO：替换掉这段文件搜索建议；任意命令的输出并不必然来自某个可搜索的文件。
 const TRUNCATED_MESSAGE = '<response clipped><NOTE>To save on context only part of this file has been shown to you. You should retry this tool after you have searched inside the file with Select-String in order to find the line numbers of what you are looking for.</NOTE>'
 const LOST_PREFIX_MESSAGE = '<response clipped><NOTE>The beginning of this command output was dropped by the terminal scrollback limit. The following text is the earliest retained output.</NOTE>\n'
 const SHELL_RESET_MESSAGE = 'The persistent pwsh shell was reset; the next pwsh call starts from the workspace with a fresh current directory and environment.'
 const TIMEOUT_CODE = 'PERSISTENT_PWSH_TIMEOUT'
-// One page is enough to find a just-emitted completion marker; the full
-// scrollback is assembled only when a command settles or needs partial output.
+// 一页足以找到刚发出的完成标记；只有在命令落定或需要部分输出时，
+// 才会组装完整的回滚缓冲。
 const SCROLLBACK_PAGE_LINES = 1_000
 const POLL_INTERVAL_MS = 25
 
@@ -71,13 +71,12 @@ function markers(): CommandMarkers {
 }
 
 /**
- * Escape a command body for embedding in the wrapper's double-quoted string.
- * Backtick escapes keep every character literal: backtick first so the
- * escapes this function inserts are never re-escaped, `$` so no expansion
- * happens at wrapper construction, and `\r\n`/ESC so multi-line commands and
- * raw control bytes ride one physical input line without PSReadLine mangling.
- * @param value - the model's PowerShell command text.
- * @returns the escaped double-quoted-string body.
+ * 为把命令主体嵌入包装器的双引号字符串而做的转义。反引号转义让每个字符
+ * 都保持字面值：先转义反引号，使本函数插入的转义不会被再次转义；再转义
+ * `$` 以免在构造包装器时发生展开；还要转义 `\r\n`/ESC，使多行命令与原始
+ * 控制字节能挤在同一个物理输入行上而不被 PSReadLine 弄乱。
+ * @param value - 模型的 PowerShell 命令文本。
+ * @returns 转义后的双引号字符串主体。
  */
 function quoteForPwsh(value: string): string {
   return value
@@ -90,11 +89,9 @@ function quoteForPwsh(value: string): string {
 }
 
 function wrapCommand(command: string, marker: CommandMarkers): string {
-  // Keep the wrapper on one physical line: PSReadLine renders the echoed
-  // input, and a wrapped line would split the echo the extraction strips.
-  // The echoed END nonce can never fabricate completion because the status
-  // regex needs digits immediately after it and the echo continues with
-  // quote characters.
+  // 让包装器保持在一个物理行上：PSReadLine 会渲染被回显的输入，而折行
+  // 会把提取逻辑要剥离的那段回显拆开。被回显的 END nonce 永远无法伪造
+  // 出完成状态，因为状态正则要求其后紧跟数字，而回显后面接着的是引号。
   const body = quoteForPwsh(command)
   return `Write-Output '${marker.start}'; $LASTEXITCODE = $null; $__s = 1; try { Invoke-Expression "${body}"; $__ok = $? } catch { $__ok = $false }; if ($null -ne $LASTEXITCODE) { $__s = [int]$LASTEXITCODE } else { $__s = if ($__ok) { 0 } else { 1 } }; Write-Output ('${marker.end}' + $__s)`
 }
@@ -110,16 +107,15 @@ function commandOutput(
 ): CapturedOutput | undefined {
   const text = snapshot.text
   const end = text.lastIndexOf(marker.end)
-  // Terminal padding belongs to the status line, not to captured command output.
+  // 终端填充属于状态行，而不属于被采集的命令输出。
   const status = /^(\d+) *\r?\n/.exec(text.slice(end + marker.end.length))?.[1]
   if (status === undefined) return undefined
   const startMarker = text.lastIndexOf(marker.start, end)
   const start = startMarker < 0 ? 0 : startMarker + marker.start.length
   let captured = text.slice(start, end)
-  // The PSReadLine echo carries the wrapper source (including both marker
-  // nonces) before the real markers; anchor on the real markers excludes it,
-  // and stripping the wrapper covers the rare case where the real START
-  // scrolled out and extraction fell back to the echoed copy.
+  // PSReadLine 的回显会在真实标记之前携带包装器源码（包括两个标记
+  // nonce）；锚定到真实标记即可排除它，而剥离包装器则覆盖了真实 START
+  // 已滚出缓冲、提取回退到回显副本的罕见情形。
   captured = captured.replaceAll(wrapper, '')
   return {
     text: captured.replace(/^\r?\n/, '').replace(/\r?\n$/, ''),
@@ -214,11 +210,11 @@ function renderShellExitStatus(
 }
 
 /**
- * Render the exited-session result, reset the owner's shell, and reset the
- * message that tells the model the next call starts fresh.
- * @param shells - the owner-scoped registry to reset.
- * @param status - the exited session status (exit code and signal).
- * @returns the complete model-facing result.
+ * 渲染已退出会话的结果，重置归属者的 shell，并给出告知模型下一次调用
+ * 将从干净状态开始的消息。
+ * @param shells - 待重置的按归属者隔离的注册表。
+ * @param status - 已退出会话的状态（退出码与信号）。
+ * @returns 完整的、面向模型的结果。
  */
 async function respondToSessionExit(
   ctx: Context,
@@ -320,7 +316,7 @@ async function executeCommand(
   try {
     id = await shells.get(owner, commandDeadline.signal)
   } catch (error: unknown) {
-    // Initialization owns rollback; only this caller's cancellation becomes ABORTED.
+    // 初始化负责回滚；只有本调用方的取消才会变为 ABORTED。
     if (upstream.aborted && error === upstream.reason) return ''
     throw error
   }
@@ -331,10 +327,10 @@ async function executeCommand(
   let fallbackTruncated = false
 
   while (true) {
-    // The shell may flip to exited between iterations (a fast `exit` can
-    // settle the previous send while its exit event is still in flight, and
-    // the echoed wrapper can then carry a marker end without status digits);
-    // re-observing status before the next send closes that gap.
+    // shell 可能在两次迭代之间翻转为已退出（一个快速的 `exit` 能让上一次
+    // 发送落定，而其退出事件仍在传播途中，此时被回显的包装器可能带有一个
+    // 后面没有状态数字的标记结尾）；在下一次发送之前重新观察状态可以
+    // 补上这个缺口。
     const status = ctx.terminals.list(owner).find(session => session.sessionId === id)?.status
     if (status?.kind === 'exited') {
       return await respondToSessionExit(
@@ -368,7 +364,7 @@ async function executeCommand(
       )
       await shells.reset(owner, 'persistent pwsh command timed out')
       return [
-        // TODO: Report a timeout only; this signal does not establish an OOM.
+        // TODO：只上报超时；该信号并不能证明发生了 OOM。
         `Your command timed out after ${Math.round(timedOut.timeoutMs / 1000)} seconds or experienced an OOM error. Below is partial output:`,
         partial,
         SHELL_RESET_MESSAGE,
@@ -376,7 +372,7 @@ async function executeCommand(
     }
     if (commandDeadline.signal.aborted) {
       await shells.reset(owner, 'persistent pwsh command aborted')
-      // ToolRuntime publishes ABORTED after this cancelled invocation settles.
+      // ToolRuntime 会在这次被取消的调用落定之后发布 ABORTED。
       return ''
     }
     if (latest.text.includes(marker.end)) {
@@ -388,10 +384,9 @@ async function executeCommand(
         ctx, shells, owner, id, result.sessionStatus, marker, wrapped, fallback, fallbackTruncated, config,
       )
     }
-    // The shell reads stdin again (its prompt, or a foreground child's own
-    // read) without having printed the end marker — an interrupt, a replaced
-    // shell, or an interactive child. Return what was captured instead of
-    // spinning until the command deadline.
+    // shell 在没有打印结束标记的情况下又去读 stdin（它自己的提示符，或
+    // 前台子进程自身的读取）——一次中断、被替换掉的 shell，或一个交互式
+    // 子进程。此时返回已采集到的内容，而不是一直空转到命令期限为止。
     if (result.waitReason === 'stdin_read') {
       const snapshot = retainedScrollback(ctx, owner, id, latest)
       return renderCaptured(
@@ -404,9 +399,9 @@ async function executeCommand(
 }
 
 /**
- * Register the model-facing persistent `pwsh` tool.
- * @param ctx - plugin context carrying tools and the owner-scoped PTY service.
- * @param config - selected PTY backend and command deadline.
+ * 注册面向模型的持久化 `pwsh` 工具。
+ * @param ctx - 承载工具与按归属者隔离的 PTY 服务的插件 context。
+ * @param config - 所选的 PTY 后端与命令期限。
  */
 function registerPersistentPwsh(ctx: Context, config: ResolvedConfig): void {
   const shells = persistentShells(ctx, config)
@@ -443,7 +438,7 @@ function registerPersistentPwsh(ctx: Context, config: ResolvedConfig): void {
       const owner = exec.agent
       if (owner === undefined) throw new Error('pwsh requires an owning agent session')
       return serialized(owner, async () => {
-        if (exec.signal.aborted) return '' // ToolRuntime publishes ABORTED after settlement.
+        if (exec.signal.aborted) return '' // ToolRuntime 会在落定之后发布 ABORTED。
         return executeCommand(ctx, shells, owner, args.command, config, exec.signal)
       })
     },
@@ -454,19 +449,19 @@ function registerPersistentPwsh(ctx: Context, config: ResolvedConfig): void {
 export const name = 'tool-pwsh-persistent'
 export const inject = ['tools', 'terminals', 'workingDirectory']
 
-/** Configuration for the persistent pwsh tool. */
+/** 持久化 pwsh 工具的配置。 */
 export interface Config {
-  /** PTY backend used for each owner-isolated persistent shell (default `shell`). */
+  /** 每个按归属者隔离的持久化 shell 所用的 PTY 后端（默认 `shell`）。 */
   backendType?: string
-  /** Wall-clock limit for one command (default 300000). */
+  /** 单条命令的挂钟时间上限（默认 300000）。 */
   timeoutMs?: number
-  /** Maximum returned command-output characters before clipping (default 16000). */
+  /** 截断之前返回的命令输出最大字符数（默认 16000）。 */
   maxOutputChars?: number
-  /** Model-facing tool description; deployments may describe their environment. */
+  /** 面向模型的工具描述；各部署可以描述自己的环境。 */
   description?: string
 }
 
-/** Runtime configuration schema for the persistent pwsh tool. */
+/** 持久化 pwsh 工具的运行时配置 schema。 */
 export const Config: z<Config> = z.object({
   backendType: z.string().default('shell'),
   timeoutMs: z.number().default(300_000),
@@ -474,7 +469,7 @@ export const Config: z<Config> = z.object({
   description: z.string().default(DEFAULT_DESCRIPTION),
 })
 
-/** Register one owner-scoped persistent `pwsh` tool. */
+/** 注册一个按归属者隔离的持久化 `pwsh` 工具。 */
 export function apply(ctx: Context, config: Config): void {
   const resolved: ResolvedConfig = {
     backendType: config.backendType ?? 'shell',

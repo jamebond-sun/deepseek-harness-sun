@@ -1,26 +1,26 @@
-/** Minimal managed-range ownership bound to one ordinary subprocess handle. */
+/** 绑定到单个普通子进程句柄的最小化受管范围所有权。 */
 
 import type { Duplex, Readable, Writable } from 'node:stream'
 import type { SubprocessOutcome } from '@deepseek-ai/dsh-subprocess'
 
-/** Platform owner used by termination and whole-range settlement. */
+/** 由终止与整个范围结算所使用的平台所有者。 */
 export interface BoundProcessOwner {
-  /** Signal the managed range; `cancellationReason` is used only before Windows target commit. */
+  /** 向受管范围发信号；`cancellationReason` 仅用于 Windows 目标提交之前。 */
   signal(signal: 'SIGTERM' | 'SIGKILL', cancellationReason?: unknown): void
-  /** Wait for the same managed range to become empty; reject when it cannot be observed. */
+  /** 等待同一受管范围变为空；当无法观察时拒绝。 */
   waitForExit(): Promise<void>
   /**
    * Count tasks in the native range, including descendants outside the observable process tree.
    * @returns the current count, or undefined when observation is unavailable.
    */
   inspectTaskCount?(): number | undefined
-  /** Synchronously force final termination during JavaScript-observable host exit. */
+  /** 在 JavaScript 可观察的主机退出期间，同步强制最终终止。 */
   terminateForHostExit(): void
-  /** Release provider-private protocol artifacts after outcome and range settlement. */
+  /** 在结果与范围结算之后，释放提供方私有的协议产物。 */
   cleanup?(): void
 }
 
-/** Platform launch facts consumed by the common stdio and result lifecycle. */
+/** 由通用 stdio 与结果生命周期所使用的平台启动事实。 */
 export interface ManagedProcessLaunch {
   stdin: Writable | null
   stdout: Readable | null
@@ -31,10 +31,10 @@ export interface ManagedProcessLaunch {
 }
 
 /**
- * Apply an optional abort bound to one shared wait promise.
- * @param pending - managed-range wait shared by all callers.
- * @param signal - optional caller cancellation signal.
- * @returns whether the managed-range wait completed before cancellation.
+ * 将一个可选的中止边界应用到一份共享的等待承诺上。
+ * @param pending - 所有调用方共享的受管范围等待。
+ * @param signal - 可选的调用方取消信号。
+ * @returns 受管范围等待是否在取消之前完成。
  */
 export async function waitWithAbort(pending: Promise<void>, signal?: AbortSignal): Promise<boolean> {
   if (signal?.aborted) {

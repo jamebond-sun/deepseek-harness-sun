@@ -1,4 +1,4 @@
-/** Durable Host-wide Schedule tasks, independently of Session activation. */
+/** 与 Session 激活无关的、Host 范围内持久化的 Schedule 任务。 */
 import { z } from 'zod'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import { MessageId } from '@deepseek-ai/dsh-llm/brand'
@@ -33,7 +33,7 @@ const deliveryHistorySchema = z.object({
   message: 'Delivery history message identities must be unique within a task',
 })
 
-/** Stored task binds one schedule to its original Session; absent status decodes as active. */
+/** 已存储任务把一个 schedule 绑定到其原始 Session；缺失的 status 解码为 active。 */
 export const scheduleTaskSchema = z.object({
   sessionId: z.string().min(1).transform(SessionId),
   record: recordSchema,
@@ -50,10 +50,10 @@ export const scheduleTaskSchema = z.object({
     && latest.messageId === task.lastDelivery.messageId
 }, { message: 'Last delivery must match the latest saved delivery receipt' })
 
-/** Persistent task value; absent history retains only its legacy last receipt without a read-time rewrite. */
+/** 持久化的任务值；缺失历史时只保留其遗留的最后一个回执，而不在读取时重写。 */
 export type ScheduleTask = z.infer<typeof scheduleTaskSchema>
 
-/** Authoritative Schedule storage; malformed tasks reject opening the domain. */
+/** 权威的 Schedule 存储；畸形的任务会拒绝打开该 domain。 */
 export const scheduleDomain = defineDomain({
   name: 'schedule', version: 1,
   tables: { tasks: domainTable<ScheduleId, ScheduleTask>(scheduleTaskSchema) },

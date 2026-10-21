@@ -1,10 +1,8 @@
 /**
- * Authentication and redirect-rejecting transport shared by the Search and
- * Fetch API providers in this package. Credential resolution, the dispatch
- * call, and the cancellation helpers deliberately repeat
- * `dsh-web-search-deepseek`, so neither plugin depends on the other; the
- * `jscpd:ignore` regions mark those repeats
- * ([rationale](../../../../.agents/notes/implemented/feature/2026-10-15-deepseek-search-fetch-api.md)).
+ * 本包中搜索与抓取 API 提供方共享的认证与拒绝重定向的传输层。凭据解析、分发调用和
+ * 取消辅助逻辑刻意地重复 `dsh-web-search-deepseek`，因此两个插件互不依赖；
+ * `jscpd:ignore` 区域标记了这些重复
+ * ([理由](../../../../.agents/notes/implemented/feature/2026-10-15-deepseek-search-fetch-api.md))。
  * @module @deepseek-ai/dsh-web-deepseek-api/transport
  */
 import type { Context } from '@deepseek-ai/cordis'
@@ -17,56 +15,56 @@ import { WebError } from '@deepseek-ai/dsh-web'
 const ACCOUNT_PROVIDER = 'deepseek-account'
 const USER_AGENT = 'deepseek-harness/0.0.1'
 
-/** Authentication and endpoint values resolved once for an operation. */
+/** 为一次操作一次性解析的认证与端点值。 */
 export interface DeepSeekWebAuth {
-  /** Resolve an allowed account token; undefined selects API-key authentication. */
+  /** 解析一个允许的账号令牌；undefined 表示选择 API 密钥认证。 */
   resolveAccountToken?: (endpoint: string) => Promise<string | undefined>
-  /** Literal API key; takes precedence over the credential resolver. */
+  /** 字面 API 密钥；优先于凭据解析器。 */
   apiKey?: string
-  /** Resolve the current API key without retaining it. */
+  /** 解析当前 API 密钥，且不长期保留它。 */
   resolveApiKey?: () => Promise<string | undefined>
-  /** Credential reference named by missing-key diagnostics. */
+  /** 缺失密钥诊断所命名的凭据引用。 */
   apiKeyEnv?: CredentialRef
 }
 
-/** User-owned endpoint settings named by dispatch failures. */
+/** 分发失败时所命名的用户拥有的端点设置。 */
 export interface DeepSeekWebGuidance {
-  /** Capability whose endpoint failed. */
+  /** 端点失败的那个能力。 */
   subject: 'Search' | 'Fetch'
-  /** Plugin configuration namespace. */
+  /** 插件配置命名空间。 */
   plugin: string
-  /** Endpoint configuration field. */
+  /** 端点配置字段。 */
   field: string
-  /** Local settings label. */
+  /** 本地设置标签。 */
   label: string
-  /** Built-in settings page title. */
+  /** 内置设置页标题。 */
   page: string
 }
 
-/** One fully resolved web API request. */
+/** 一个完全解析后的 web API 请求。 */
 interface DeepSeekWebRequest<T> {
-  /** Absolute dispatch URL. */
+  /** 绝对分发 URL。 */
   endpoint: string
-  /** JSON request body. */
+  /** JSON 请求体。 */
   body: object
-  /** Protocol headers without credentials. */
+  /** 不带凭据的协议头。 */
   headers?: Readonly<Record<string, string>>
-  /** Additional API-key headers; not applied to account tokens. */
+  /** 额外的 API 密钥头；不应用于账号令牌。 */
   apiKeyHeaders?: (key: string) => Readonly<Record<string, string>>
-  /** Validate and project the response. */
+  /** 校验并投影响应。 */
   decode: (payload: unknown) => T
-  /** Endpoint recovery settings. */
+  /** 端点恢复设置。 */
   guidance: DeepSeekWebGuidance
-  /** Record model input before dispatch; a throw prevents dispatch. */
+  /** 在分发前记录模型输入；抛出可阻止分发。 */
   recordRequest?: (endpoint: string) => void
 }
 
 /* jscpd:ignore-start */
 /**
- * Resolve credential sources for one operation without retaining secret values.
- * @param ctx - Provider context with request routing and credential services.
- * @param config - Literal key and credential reference from the settings snapshot.
- * @returns Authentication sources for one operation.
+ * 为一次操作解析凭据来源，且不长期保留机密值。
+ * @param ctx - 带有请求路由与凭据服务的提供方上下文。
+ * @param config - 来自设置快照的字面密钥与凭据引用。
+ * @returns 一次操作的认证来源。
  */
 export function deepSeekWebAuth(ctx: Context, config: { apiKey: string | undefined; apiKeyEnv: string }): DeepSeekWebAuth {
   const apiKeyEnv = credentialRef(config.apiKeyEnv)
@@ -76,8 +74,8 @@ export function deepSeekWebAuth(ctx: Context, config: { apiKey: string | undefin
   return {
     ...literalApiKey === undefined ? {} : { apiKey: literalApiKey },
     resolveAccountToken: async (endpoint) => {
-      // The latest request context names the route that served the model
-      // request which called this search, as account sign-out reads it.
+      // 最新的请求上下文命名了服务于调用此搜索的模型请求的路由，
+      // 因为账号登出会读取它。
       const provider = ctx.get('agents')?.currentInitiator()?.session.requestContext()?.provider
       if (provider !== ACCOUNT_PROVIDER) return undefined
       return await ctx.get('deepseekAccount')?.resolveToken(endpoint)
@@ -85,7 +83,7 @@ export function deepSeekWebAuth(ctx: Context, config: { apiKey: string | undefin
     resolveApiKey: async () => {
       const credentials = ctx.get('credentials')
       if (credentials !== undefined) return (await credentials.resolve(apiKeyEnv))?.value
-      // Without the seam the environment is the whole credential plane.
+      // 没有该 seam 时，环境就是整个凭据平面。
       const ambient = launchEnvironmentOf(ctx).get(apiKeyEnv)
       return ambient !== undefined && ambient.value.length > 0 ? ambient.value : undefined
     },
@@ -95,42 +93,42 @@ export function deepSeekWebAuth(ctx: Context, config: { apiKey: string | undefin
 /* jscpd:ignore-end */
 
 /**
- * Check whether an authentication source exists; does not resolve credentials.
- * @param auth - Sources for the operation.
- * @returns Whether a literal key or resolver is present.
+ * 检查是否存在一个认证来源；不解析凭据。
+ * @param auth - 该操作的来源。
+ * @returns 是否存在字面密钥或解析器。
  */
 export function hasDeepSeekWebCredential(auth: DeepSeekWebAuth): boolean {
   return (auth.apiKey?.length ?? 0) > 0 || auth.resolveApiKey !== undefined || auth.resolveAccountToken !== undefined
 }
 
-/** Narrow a remote JSON object.
- * @param value - Untrusted JSON.
- * @returns Whether readable object fields exist.
+/** 收窄一个远端 JSON 对象。
+ * @param value - 不可信 JSON。
+ * @returns 是否存在可读的对象字段。
  */
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-/** Report malformed upstream JSON without embedding response content.
- * @returns The stable provider error.
+/** 报告畸形的上游 JSON，且不内嵌响应内容。
+ * @returns 稳定的提供方错误。
  */
 export function invalidResponse(): WebError {
   return new WebError('DeepSeek returned an invalid response body', 'WEB_PROVIDER_ERROR')
 }
 
-/** Authentication headers for one operation, tagged by the credential that produced them. */
+/** 一次操作的认证头，由产生它的凭据打上标记。 */
 interface SearchAuth {
-  /** `account` for a DeepSeek account token, `api-key` for an API key. */
+  /** `account` 表示 DeepSeek 账号令牌，`api-key` 表示 API 密钥。 */
   readonly kind: 'account' | 'api-key'
-  /** Headers carrying the credential. */
+  /** 携带凭据的头。 */
   readonly headers: Readonly<Record<string, string>>
 }
 
-/** Dispatch one operation using a single settings and credential snapshot.
- * @param options - Authentication sources for this operation.
- * @param request - Resolved endpoint, JSON payload, and response decoder.
- * @param signal - Caller cancellation signal.
- * @returns The validated provider result.
+/** 使用一份设置与凭据快照分发一次操作。
+ * @param options - 本次操作的认证来源。
+ * @param request - 已解析的端点、JSON 负载和响应解码器。
+ * @param signal - 调用方的取消信号。
+ * @returns 校验通过的提供方结果。
  */
 export async function dispatchDeepSeekWeb<T>(
   options: DeepSeekWebAuth, request: DeepSeekWebRequest<T>, signal?: AbortSignal,
@@ -178,16 +176,13 @@ export async function dispatchDeepSeekWeb<T>(
         if (typeof detail === 'string' && detail.length > 0) message += `: ${detail}`
       }
     } catch (error: unknown) {
-      // An abort fired mid-body must surface as WEB_ABORTED, not be swallowed
-      // into a generic HTTP-error message — cancellation is not a provider
-      // error (the seam's cancellation contract).
+      // 在正文读取中途触发的取消必须以 WEB_ABORTED 呈现，而不能被吞入一个
+      // 泛化的 HTTP 错误消息 —— 取消不是提供方错误（该 seam 的取消契约）。
       if (signal?.aborted === true || isAbortError(error)) throw searchAborted(signal, error)
-      // Otherwise: the HTTP status is already captured in `message` above; a
-      // malformed/non-JSON error body (normal for gateway 5xx/429s) can only
-      // cost a richer provider message, never the real error.
+      // 否则：HTTP 状态已在上方的 `message` 中捕获；一个畸形/非 JSON 的错误体
+      //（网关 5xx/429 的常见情况）最多损失一个更丰富的提供方消息，绝不会丢失真实错误。
     }
-    // The account service released this token only for its inference
-    // origin, so the endpoint is not what the user must change.
+    // 账号服务仅为它的推理来源释放此令牌，因此端点不是用户需要修改的对象。
     if (status === 401 && auth.kind === 'account') throw accountRejectedError(message)
     throw searchEndpointError(guidance, endpoint, message)
   }
@@ -205,7 +200,7 @@ export async function dispatchDeepSeekWeb<T>(
   }
 }
 
-/** Replace endpoint guidance with sign-in guidance when DeepSeek rejects the account token. */
+/** 当 DeepSeek 拒绝账号令牌时，将端点指导替换为登录指导。 */
 function accountRejectedError(message: string): WebError {
   return new WebError(
     `${message}\n\nDeepSeek rejected the account sign-in used for this web request. `
@@ -215,12 +210,12 @@ function accountRejectedError(message: string): WebError {
 }
 
 /**
- * Add endpoint recovery instructions to failures that occur after request dispatch begins.
- * @param options - the plugin, settings field, and settings page the guidance names.
- * @param endpoint - the dispatched endpoint.
- * @param message - the failure description.
- * @param cause - the underlying failure, when one exists.
- * @returns the provider failure with recovery instructions.
+ * 为请求分发开始之后发生的失败附加端点恢复指引。
+ * @param options - 指导所命名的插件、设置字段和设置页。
+ * @param endpoint - 被分发的端点。
+ * @param message - 失败描述。
+ * @param cause - 底层失败，当存在时。
+ * @returns 带有恢复指引的提供方失败。
  */
 function searchEndpointError(
   options: DeepSeekWebGuidance, endpoint: string, message: string, cause?: unknown,
@@ -237,11 +232,11 @@ function searchEndpointError(
 }
 
 /**
- * Resolve one operation's authentication headers without retaining a credential on the provider.
- * @param options - the caller's snapshot, so the credential and the endpoint it is sent to come from one section.
- * @param request - the resolved request; its endpoint scopes the account token.
- * @param signal - abort signal for the surrounding operation.
- * @returns the account-token header when one resolves, otherwise the API-key headers, tagged by credential kind.
+ * 解析一次操作的认证头，且不长期在提供方上保留凭据。
+ * @param options - 调用方的快照，因此凭据与其发往的端点来自同一节。
+ * @param request - 已解析的请求；其端点限定账号令牌的作用域。
+ * @param signal - 周边操作的取消信号。
+ * @returns 当某个令牌解析成功时为账号令牌头，否则为 API 密钥头，并按凭据种类打上标记。
  */
 async function authHeaders(
   options: DeepSeekWebAuth, request: DeepSeekWebRequest<unknown>, signal?: AbortSignal,
@@ -260,11 +255,11 @@ async function authHeaders(
 
 /* jscpd:ignore-start */
 /**
- * Resolve one operation's API key without retaining it on the provider.
- * @param options - the caller's snapshot, so the key and the endpoint it is sent to come from one section.
- * @param plugin - configuration namespace named by the missing-key diagnostic.
- * @param signal - abort signal for the surrounding operation.
- * @returns the resolved key.
+ * 解析一次操作的 API 密钥，且不长期在提供方上保留它。
+ * @param options - 调用方的快照，因此密钥与其发往的端点来自同一节。
+ * @param plugin - 缺失密钥诊断所命名的配置命名空间。
+ * @param signal - 周边操作的取消信号。
+ * @returns 解析得到的密钥。
  */
 async function resolveApiKey(options: DeepSeekWebAuth, plugin: string, signal?: AbortSignal): Promise<string> {
   throwIfSearchAborted(signal)
@@ -283,12 +278,11 @@ async function resolveApiKey(options: DeepSeekWebAuth, plugin: string, signal?: 
 }
 
 /**
- * Run one credential resolver under the search's cancellation signal. An
- * already-cancelled search never starts the resolver.
- * @param resolve - the resolver; a synchronous throw is mapped like a rejection.
- * @param signal - abort signal for the surrounding search.
- * @returns the resolved credential, or undefined when the resolver supplied none.
- * @throws {@link WebError} `WEB_ABORTED` on cancellation, `WEB_PROVIDER_ERROR` when the resolver fails.
+ * 在搜索的取消信号之下运行一个凭据解析器。一个已经取消的搜索绝不会启动解析器。
+ * @param resolve - 解析器；同步抛出会被像拒绝一样映射。
+ * @param signal - 周边搜索的取消信号。
+ * @returns 解析得到的凭据，或解析器未提供时为 undefined。
+ * @throws 取消时抛出 {@link WebError} `WEB_ABORTED`，解析器失败时抛出 `WEB_PROVIDER_ERROR`。
  */
 async function resolveCredential(
   resolve: () => Promise<string | undefined>, signal?: AbortSignal,
@@ -307,9 +301,8 @@ async function resolveCredential(
 }
 
 /**
- * Race a same-process asynchronous preflight against caller cancellation. The
- * attached settlement handlers keep observing an uncooperative operation after
- * abort so a later rejection cannot become unhandled.
+ * 让同进程的异步预检与调用方取消竞争。附加的 settle 处理器在 abort 之后继续观察一个
+ * 不合作的操作，使得后续的拒绝不会变成未处理。
  */
 function abortable<T>(operation: Promise<T>, signal?: AbortSignal): Promise<T> {
   if (signal === undefined) return operation
@@ -330,19 +323,19 @@ function abortable<T>(operation: Promise<T>, signal?: AbortSignal): Promise<T> {
   })
 }
 
-/** Throw the provider's stable cancellation error when the caller already aborted. */
+/** 当调用方已经取消时，抛出提供方稳定的取消错误。 */
 function throwIfSearchAborted(signal?: AbortSignal): void {
   if (signal?.aborted === true) throw searchAborted(signal)
 }
 
-/** Build the provider's stable cancellation error while retaining the caller's reason. */
+/** 在保留调用方原因的同时，构建提供方稳定的取消错误。 */
 function searchAborted(signal?: AbortSignal, fallback?: unknown): WebError {
   return new WebError('DeepSeek web request aborted', 'WEB_ABORTED', {
     cause: signal?.aborted === true ? signal.reason : fallback,
   })
 }
 
-/** True for a fetch/`AbortSignal` abort, surfaced as `WEB_ABORTED`. */
+/** 对于 fetch/`AbortSignal` 的取消返回 true，以 `WEB_ABORTED` 呈现。 */
 function isAbortError(error: unknown): boolean {
   return error instanceof DOMException && error.name === 'AbortError'
 }

@@ -1,4 +1,4 @@
-/** Native V4 developer-message and deferred-tool-schema validation. */
+/** 原生 V4 的 developer 消息与延迟工具 schema 校验。 */
 
 import { SessionFormatError, isSessionFormatJsonObject, sessionFormatCount } from '@deepseek-ai/dsh-session-format'
 import type { SessionFormatEvent, SessionFormatJsonObject, SessionFormatJsonValue } from '@deepseek-ai/dsh-session-format'
@@ -28,7 +28,7 @@ function assertDeveloperMessage(message: SessionFormatJsonObject): void {
   }
 }
 
-/** Ordinary-message corruption belongs to the decoder; recognized V4-only values are refused here. */
+/** 普通消息的损坏归解码器处理；被识别出的仅 V4 值在此处被拒绝。 */
 function assertOrdinaryMessage(value: SessionFormatJsonValue | undefined): void {
   if (!isSessionFormatJsonObject(value)) return
   if (value['role'] === 'developer') {
@@ -38,10 +38,10 @@ function assertOrdinaryMessage(value: SessionFormatJsonValue | undefined): void 
 }
 
 /**
- * Validate native V4 developer messages, tool-change blocks, and deferred tool schemas.
- * Additional developer JSON fields are preserved. Malformed legacy message
- * slots remain available to recoverable decoding.
- * @param event - logical event or physical row before source-event range decoding.
+ * 校验原生 V4 的 developer 消息、工具变更块与延迟工具 schema。
+ * 额外的 developer JSON 字段会被保留。格式错误的遗留消息
+ * 槽位仍可供可恢复解码使用。
+ * @param event - 源事件区间解码之前的逻辑事件或物理行。
  */
 export function assertV4DeveloperData(event: SessionFormatEvent): void {
   const data = event.data

@@ -1,4 +1,4 @@
-/** V4 framing with native tool-role admission and released physical rows. */
+/** 具备原生 tool-role 接纳与已发布物理行的 V4 分帧。 */
 
 import { SessionFormatError, isSessionFormatJsonObject } from '@deepseek-ai/dsh-session-format'
 import type { SessionFormatCodec, SessionFormatCurrentEncoder, SessionFormatHeader, SessionFormatEvent } from '@deepseek-ai/dsh-session-format'
@@ -17,8 +17,8 @@ function physicalV2(value: unknown): SessionFormatHeader {
 }
 
 /**
- * V4 physical encoder and decoder retain the released row framing while
- * validating the native tool-role message directly.
+ * V4 物理编码器与解码器保留已发布的行分帧，
+ * 同时直接校验原生的 tool-role 消息。
  */
 export const releasedV4SessionFormatCodec = Object.freeze({
   version: 4,
@@ -54,10 +54,10 @@ export const releasedV4SessionFormatCodec = Object.freeze({
 } satisfies SessionFormatCodec & SessionFormatCurrentEncoder)
 
 /**
- * Apply native V4 admission before a scanner discards a recoverable suffix.
- * Ignorable developer payloads require reader vocabulary; physical decoding defers them.
- * @param row - parsed physical row before framing and source-event range decoding.
- * @param knownEventTypes - installed event types, supplied by native readers before tail recovery.
+ * 在扫描器丢弃可恢复尾部之前应用原生 V4 接纳。
+ * 可忽略的 developer 载荷需要读取方词表；物理解码会推迟处理它们。
+ * @param row - 分帧与源事件区间解码之前已解析的物理行。
+ * @param knownEventTypes - 已安装的事件类型，由原生读取方在尾部恢复之前提供。
  */
 export function assertV4RowAdmission(row: unknown, knownEventTypes?: ReadonlySet<string>): void {
   if (isSessionFormatJsonObject(row)) {

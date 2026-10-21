@@ -1,4 +1,4 @@
-/** Declarative Agent capability sets, activation and session binding. */
+/** 声明式 Agent 能力集、激活与会话绑定。 */
 import { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { Remote, RemoteError, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
@@ -6,7 +6,7 @@ import { bindScopeParent, createScope, scopeOf, scopeParentOf, type Scope, type 
 import { entryListSchema } from '@deepseek-ai/cordis-plugin-include'
 import { dump } from 'js-yaml'
 import type { Agent } from '@deepseek-ai/dsh-agent'
-// Type-only: the optional `settings` service this registry keeps off the generated pages.
+// 仅类型：本注册表不希望其出现在生成页面上的可选 `settings` 服务。
 import type {} from '@deepseek-ai/dsh-settings'
 import type {} from '@deepseek-ai/dsh-tools'
 import type { AgentPresetDocument, AgentPresetRoster } from './types.ts'
@@ -40,7 +40,7 @@ interface Definition {
   context: Context
   ready: Promise<void>
   generation?: Generation
-  /** Mount failure; unset while a tree is mounted, whose rows {@link AgentPresetRegistry.diagnostic} re-audits on read. */
+  /** 挂载失败；当树已挂载时为空，其行会在读取时被 {@link AgentPresetRegistry.diagnostic} 重新审计。 */
   broken?: string
 }
 interface Binding {
@@ -48,7 +48,7 @@ interface Binding {
   generation: Generation
 }
 
-/** Registry of YAML-declared presets and the revisions live Agents retain. */
+/** YAML 声明的预设，以及活动 Agent 所保留的各版本的注册表。 */
 export class AgentPresetRegistry extends TypertRemoteService {
   static inject = ['loader', 'sessionProjections']
   static Config = z.object({
@@ -71,12 +71,12 @@ export class AgentPresetRegistry extends TypertRemoteService {
     })
   }
 
-  /** Default preset for a subsequently created session. */
+  /** 后续创建的会话所使用的默认预设。 */
   get defaultId(): string { return this.config.selectedDefault.get() ?? this.config.default }
 
-  /** Register and eagerly load a definition; activation failure remains visible in the roster.
-   * @param definition Parsed configuration supplied by the declaring plugin.
-   * @returns Definition disposer after activation or its diagnostic settles; the declaring plugin owns it.
+  /** 注册并即时加载一个定义；激活失败会持续显示在名册中。
+   * @param definition 由声明插件提供的已解析配置。
+   * @returns 激活完成或诊断结论确定后的定义清理函数；由声明插件持有。
    */
   async register(definition: PresetDefinition): Promise<() => Promise<void>> {
     const context = this.ctx
@@ -122,15 +122,15 @@ export class AgentPresetRegistry extends TypertRemoteService {
   }
 
   /**
-   * Current activation diagnostic of a definition.
+   * 某个定义当前的激活诊断信息。
    *
-   * A mount failure is final. A mounted tree is re-audited on every read: a
-   * row waiting for a Host service activates by itself once that provider
-   * finishes, so the audit waits for the Host Loader tree to settle before
-   * reporting the row as unusable. Callers therefore must not run inside a
-   * Host row's own activation, which the settlement would wait on.
-   * @param record - the definition to audit.
-   * @returns one line per unusable row, or undefined when the definition is usable.
+   * 挂载失败是终局性的。已挂载的树在每次读取时都会被重新审计：
+   * 等待某个 Host 服务的行会在该提供者就绪后自行激活，
+   * 因此审计会先等待 Host Loader 树稳定，再把该行报为不可用。
+   * 所以调用方不得在某个 Host 行自身的激活过程中调用本方法，
+   * 否则稳定过程会一直在等它。
+   * @param record - 待审计的定义。
+   * @returns 每个不可用的行一行信息，定义可用时为 undefined。
    */
   private async diagnostic(record: Definition): Promise<string | undefined> {
     await record.ready
@@ -157,9 +157,9 @@ export class AgentPresetRegistry extends TypertRemoteService {
     return parent === undefined ? undefined : this.generations.get(parent)
   }
 
-  /** Inspect retained revisions, or the exact revision an Agent joined.
-   * @param ctx - optional Agent context; omission includes all retained revisions.
-   * @returns detached module references and isolation diagnostics; no match returns an empty list.
+  /** 检查保留的版本，或某个 Agent 所加入的确切版本。
+   * @param ctx - 可选的 Agent 上下文；省略时包含所有保留的版本。
+   * @returns 与条目解耦的模块引用与隔离诊断信息；无匹配时返回空列表。
    */
   inspectCompositions(ctx?: Context): AgentPresetInspection[] {
     const joined = ctx === undefined ? undefined : this.generationFor(ctx)
@@ -171,8 +171,8 @@ export class AgentPresetRegistry extends TypertRemoteService {
     }))
   }
 
-  /** Read every declared preset, including activation failures.
-   * @returns Display metadata and loading diagnostics.
+  /** 读取每一个已声明的预设，包括激活失败的。
+   * @returns 展示元数据与加载诊断信息。
    */
   async list(): Promise<AgentPreset[]> {
     const rows = await Promise.all([...this.definitions.values()].map(async (record) => {
@@ -188,8 +188,8 @@ export class AgentPresetRegistry extends TypertRemoteService {
     return rows.sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity) || a.id.localeCompare(b.id))
   }
 
-  /** Read the selection roster.
-   * @returns Current presets, each marked when it is the default.
+  /** 读取选择名册。
+   * @returns 当前预设，并标注各自是否为默认。
    */
   @Remote('list')
   async remoteExportList(): Promise<AgentPresetRoster> {
@@ -197,9 +197,9 @@ export class AgentPresetRegistry extends TypertRemoteService {
     return { presets: (await this.list()).map(row => ({ ...row, isDefault: row.id === defaultId })) }
   }
 
-  /** Resolve an identity without starting an Agent.
-   * @param id Explicit preset or the current default.
-   * @returns Current metadata, including failure when activation failed.
+  /** 在不启动 Agent 的前提下解析一个身份。
+   * @param id 显式指定的预设，或当前默认预设。
+   * @returns 当前元数据，激活失败时包含失败信息。
    */
   async resolve(id?: string): Promise<AgentPreset> {
     const wanted = id ?? this.defaultId
@@ -210,9 +210,9 @@ export class AgentPresetRegistry extends TypertRemoteService {
     return { id: wanted, ...(broken === undefined ? {} : { broken }) }
   }
 
-  /** Read one declaration's child plugin list as YAML, for viewing only.
-   * @param agentPreset Preset identity.
-   * @returns The declared composition beside its published metadata.
+  /** 以 YAML 形式读取某个声明的子插件列表，仅供查看。
+   * @param agentPreset 预设身份。
+   * @returns 声明的组合内容及其发布的元数据。
    */
   @Remote('read')
   readDocument(agentPreset: string): Promise<AgentPresetDocument> {
@@ -222,7 +222,7 @@ export class AgentPresetRegistry extends TypertRemoteService {
         { agentPreset, available: [...this.definitions.keys()] }))
     }
     const { id, name, description, plugins } = record.config
-    // The Loader's own dialect, so `!!js` conditions read as declared rather than as expression objects.
+    // 使用 Loader 自身的方言，使 `!!js` 条件按声明原样呈现，而不是变成表达式对象。
     const content = dump(plugins, { schema: entryListSchema, noRefs: true, lineWidth: -1 })
     return Promise.resolve({
       agentPreset: id, content, ...(name === undefined ? {} : { name }), ...(description === undefined ? {} : { description }),
@@ -273,10 +273,10 @@ export class AgentPresetRegistry extends TypertRemoteService {
     }, 'agent-preset.binding')
   }
 
-  /** Bind an unpublished Agent to the current preset revision.
-   * @param ctx Agent context from its setup callback.
-   * @param id Requested preset, or the default.
-   * @returns Bound preset identity.
+  /** 把一个尚未发布的 Agent 绑定到当前的预设版本。
+   * @param ctx 来自其 setup 回调的 Agent 上下文。
+   * @param id 请求的预设，或默认预设。
+   * @returns 绑定后的预设身份。
    */
   async mount(ctx: Context, id?: string): Promise<AgentPreset> {
     const generation = await this.retain(id)
@@ -289,10 +289,10 @@ export class AgentPresetRegistry extends TypertRemoteService {
     }
   }
 
-  /** Join a child to the exact revision retained by its parent.
-   * @param ctx Child Agent context.
-   * @param parent Parent Agent context.
-   * @returns Inherited preset id, or undefined in a preset-free composition.
+  /** 让子 Agent 加入其父级所保留的确切版本。
+   * @param ctx 子 Agent 上下文。
+   * @param parent 父 Agent 上下文。
+   * @returns 继承到的预设 id；在无预设的组合中为 undefined。
    */
   composeFrom(ctx: Context, parent: Context): string | undefined {
     const generation = this.generationFor(parent)
@@ -302,7 +302,7 @@ export class AgentPresetRegistry extends TypertRemoteService {
       }
       return undefined
     }
-    // A child has no existing binding, so this path has no asynchronous cleanup.
+    // 子级尚无既有绑定，因此这条路径不需要异步清理。
     const key = scopeOf(ctx)
     if (key === undefined) throw new Error('Child preset binding requires a scope')
     if (this.bindings.has(key)) throw new Error('Child already joined a preset')
@@ -310,26 +310,26 @@ export class AgentPresetRegistry extends TypertRemoteService {
     return generation.mount.presetId
   }
 
-  /** Read the preset a live Agent uses.
-   * @param ctx Agent context.
-   * @returns Its preset id, if bound.
+  /** 读取某个活动 Agent 正在使用的预设。
+   * @param ctx Agent 上下文。
+   * @returns 其预设 id（若已绑定）。
    */
   composedPreset(ctx: Context): string | undefined { return this.generationFor(ctx)?.mount.presetId }
 
-  /** Read a service supplied inside an Agent's isolated preset group.
-   * @param agent Agent whose composition is queried.
-   * @param name Cordis service name.
-   * @returns The service, or undefined.
+  /** 读取在 Agent 隔离预设组内部提供的服务。
+   * @param agent 被查询其组合的 Agent。
+   * @param name Cordis 服务名。
+   * @returns 该服务，或 undefined。
    */
   serviceFor<K extends string & keyof Context>(agent: { ctx: Context }, name: K): Context[K] | undefined {
     const mount = this.generationFor(agent.ctx)?.mount
     return mount === undefined ? undefined : serviceForMount(this.owner, mount, name)
   }
 
-  /** Rebind a blank Agent; the caller owns the blank-session check.
-   * @param ctx Agent context.
-   * @param id Requested preset.
-   * @returns The bound identity.
+  /** 重新绑定一个空白 Agent；空白会话的校验由调用方负责。
+   * @param ctx Agent 上下文。
+   * @param id 请求的预设。
+   * @returns 绑定后的身份。
    */
   async recompose(ctx: Context, id: string): Promise<AgentPreset> {
     const preset = await this.mount(ctx, id)
@@ -338,12 +338,11 @@ export class AgentPresetRegistry extends TypertRemoteService {
     return preset
   }
 
-  /** Select a preset before a session starts its first turn. A Session whose
-   * log records the preset and whose Agent runs its current revision keeps its
-   * composition; nothing is logged or announced.
-   * @param agent Target Agent.
-   * @param agentPreset Requested identity.
-   * @returns Committed preset identity.
+  /** 在会话开始第一轮之前选择一个预设。若会话日志已记录该预设、
+   * 且其 Agent 正在运行当前版本，则保持原有组合不变，不记录也不广播任何内容。
+   * @param agent 目标 Agent。
+   * @param agentPreset 请求的身份。
+   * @returns 已提交的预设身份。
    */
   @Remote('select')
   async select(agent: Agent, agentPreset: string): Promise<string> {
@@ -366,9 +365,9 @@ export class AgentPresetRegistry extends TypertRemoteService {
     }
   }
 
-  /** Read current registrations for cold transcript presentation.
-   * @param id Preset identity or the default.
-   * @returns A revision lease; dispose it after the scoped read completes.
+  /** 读取当前注册项，用于冷启动的会话记录展示。
+   * @param id 预设身份或默认预设。
+   * @returns 一个版本租约；在作用域读取完成后需将其释放。
    */
   async acquireScope(id?: string): Promise<{ key: ScopeKey } & AsyncDisposable> {
     const generation = await this.retain(id)
@@ -381,8 +380,8 @@ export class AgentPresetRegistry extends TypertRemoteService {
     } }
   }
 
-  /** Read plugin rows without creating an Agent.
-   * @returns Current declaration metadata and activation states.
+  /** 在不创建 Agent 的前提下读取插件行。
+   * @returns 当前的声明元数据与激活状态。
    */
   compositionInventory(): Promise<AgentPresetComposition[]> {
     return Promise.all([...this.definitions.values()].map(async (record) => {

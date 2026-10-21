@@ -1,40 +1,39 @@
 /**
- * Proxy policy resolution: the pure, transport-free half of this package. It turns the launch
- * environment into one {@link ProxyPolicy}, and answers which proxy
- * (if any) a given URL goes through.
+ * 代理策略解析：本包纯粹、无传输的那一半。它将启动环境转换为一份
+ * {@link ProxyPolicy}，并回答某个给定的 URL 会经过哪个代理（若有）。
  *
- * Nothing here imports `undici`, so the module stays loadable in the browser-worker runtime that
- * evaluates `dsh-web-fetch-http` without a Node transport.
+ * 此处没有任何地方导入 `undici`，因此该模块在浏览器 worker 运行时中仍可加载，
+ * 而该运行时会在没有 Node 传输的情况下执行 `dsh-web-fetch-http`。
  * @module @deepseek-ai/dsh-http-proxy/policy
  */
 
 /**
- * The one thing resolution needs from an environment: a name in, the winning value out. The
- * launcher's snapshot satisfies this structurally and is passed unchanged, so this module names no
- * package to describe its input — and a test builds one from an object literal.
+ * 解析所需要的唯一一件来自环境的东西：输入一个名称，输出胜出的值。启动器
+ * 的快照在结构上满足这一点，并原样传入，因此本模块无需点名任何包来描述其
+ * 输入——测试也可用对象字面量构造一个。
  */
 export interface EnvLookup {
   /**
-   * Resolve one variable name.
-   * @param name - the variable name.
-   * @returns the winning entry, or `undefined` when nothing supplies it.
+   * 解析一个变量名。
+   * @param name - 变量名。
+   * @returns 胜出的条目，或当没有任何来源提供时返回 `undefined`。
    */
   get(name: string): { readonly value: string } | undefined
 }
 
 /**
- * Loopback entries merged into every policy's `noProxy`. A proxy that also serves the harness's own
- * loopback traffic turns the Web UI, the Connection transport, and every local test server into a
- * routing loop, so the bypass is not optional.
+ * 合并进每份策略 `noProxy` 的环回条目。一个同时服务 harness 自身环回流量的
+ * 代理，会把 Web UI、Connection 传输以及每个本地测试服务器都变成路由环路，
+ * 因此该绕过不是可选的。
  *
- * `::1` and `[::1]` are both listed because the resolved string is also handed to undici, whose
- * matcher reads a bare `::1` as host `:` port `1` and therefore never bypasses it.
+ * `::1` 与 `[::1]` 都被列出，因为解析后的字符串也会被交给 undici，其匹配器
+ * 会把裸 `::1` 读作主机 `:` 端口 `1`，从而永远无法绕过它。
  */
 export const LOOPBACK_NO_PROXY: readonly string[] = ['localhost', '127.0.0.1', '::1', '[::1]']
 
 /**
- * The environment names each policy field owns, lowercase first — undici reads the lowercase name
- * first, so both casings are always written or cleared together.
+ * 每个策略字段所拥有的环境名，小写在前——undici 先读取小写名，因此两种大小写
+ * 总是被一同写入或清除。
  */
 export const POLICY_ENV_NAMES = {
   httpProxy: ['http_proxy', 'HTTP_PROXY'],
@@ -43,9 +42,8 @@ export const POLICY_ENV_NAMES = {
 } as const
 
 /**
- * Every environment name that carries proxy configuration, including the `ALL_PROXY` fallback this
- * package resolves but never writes back. A caller that must isolate a child from the machine's
- * network policy clears exactly these.
+ * 承载代理配置的每个环境名，包括本包解析但从不写回的 `ALL_PROXY` 回退。需要
+ * 把一个子进程与机器网络策略隔离的调用方，需精确清除这些名称。
  */
 export const PROXY_ENV_NAMES: readonly string[] = [
   ...Object.values(POLICY_ENV_NAMES).flat(),
@@ -53,58 +51,58 @@ export const PROXY_ENV_NAMES: readonly string[] = [
   'ALL_PROXY',
 ]
 
-/** Proxy URL schemes this package routes through. Everything else is reported, never silently dropped. */
+/** 本包会经其路由的代理 URL scheme。其他一切都会被报告，而非静默丢弃。 */
 const SUPPORTED_PROTOCOLS = new Set(['http:', 'https:'])
 
-/** Schemes recognised well enough to name in a diagnostic instead of calling them malformed. */
+/** 足以在诊断中指明名称、而非称之为畸形的 scheme。 */
 const SOCKS_PROTOCOLS = new Set(['socks:', 'socks4:', 'socks4a:', 'socks5:', 'socks5h:'])
 
 /**
- * One resolved outbound proxy policy. Plain data with no methods: worker threads receive it through
- * `workerData`'s structured clone, so both sides run the identical policy rather than each re-reading
- * an environment they may not share.
+ * 一份已解析的出口代理策略。纯数据，没有任何方法：worker 线程通过
+ * `workerData` 的结构化克隆接收它，因此两端运行的是完全相同的策略，而非各自
+ * 重新读取一个它们可能不共享的环境。
  */
 export interface ProxyPolicy {
-  /** Proxy for `http:` origins, or absent for a direct connection. Always a validated `http(s):` URL. */
+  /** `http:` 来源的代理，或缺席以表示直连。始终为一个已校验的 `http(s):` URL。 */
   readonly httpProxy?: string
-  /** Proxy for `https:` origins, or absent for a direct connection. Always a validated `http(s):` URL. */
+  /** `https:` 来源的代理，或缺席以表示直连。始终为一个已校验的 `http(s):` URL。 */
   readonly httpsProxy?: string
-  /** The bypass list, already merged with {@link LOOPBACK_NO_PROXY}. Empty when nothing is bypassed. */
+  /** 绕过列表，已与 {@link LOOPBACK_NO_PROXY} 合并。无绕过时为空。 */
   readonly noProxy: string
-  /** Which layer supplied the winning proxy URL; `env` when either field came from the environment. */
+  /** 哪个层级提供了胜出的代理 URL；任一字段来自环境时为 `env`。 */
   readonly source: 'env' | 'none'
 }
 
-/** A policy that proxies nothing. Callers that have not installed a policy resolve URLs against this. */
+/** 一个什么也不代理的策略。尚未安装策略的调用方据此解析 URL。 */
 export const DIRECT_POLICY: ProxyPolicy = { noProxy: '', source: 'none' }
 
-/** Why one candidate proxy value was not used. Callers decide whether this warns or fails the load. */
+/** 某个候选代理值未被使用的原因。由调用方决定这是告警还是导致加载失败。 */
 export interface ProxyDiagnostic {
-  /** `socks` for a SOCKS or PAC URL this package cannot route; `invalid` for anything unparseable. */
+  /** 本包无法路由的 SOCKS 或 PAC URL 为 `socks`；任何不可解析的为 `invalid`。 */
   readonly kind: 'socks' | 'invalid'
-  /** The environment variable that supplied the rejected value. */
+  /** 提供了被拒绝值的那个环境变量。 */
   readonly origin: string
-  /** Operator-facing sentence naming the rejection and the way forward. Carries no credential. */
+  /** 面向运维者、指明拒绝原因与解决方向的句子。不含凭据。 */
   readonly message: string
 }
 
 
-/** A resolved policy plus every candidate value that was rejected on the way to it. */
+/** 一份已解析的策略，外加通往它途中被拒绝的每个候选值。 */
 export interface ProxyResolution {
-  /** The policy to install. Never carries a rejected value. */
+  /** 待安装的策略。绝不携带被拒绝的值。 */
   readonly policy: ProxyPolicy
-  /** Rejections, in the order the candidates were considered. Empty on a clean resolution. */
+  /** 拒绝记录，按候选值被考虑的顺序。干净解析时为空。 */
   readonly diagnostics: readonly ProxyDiagnostic[]
 }
 
 /**
- * Read one environment name in undici's precedence order — lowercase first, uppercase as the
- * fallback — treating a blank value as unset. Blank matters: undici's own `??` chain lets an empty
- * lowercase name shadow a populated uppercase one.
+ * 按 undici 的优先级顺序读取一个环境名——小写优先，大写作为回退——将空白值
+ * 视为未设置。空白很重要：undici 自身的 `??` 链会让一个空的小写名遮蔽一个
+ * 已填充的大写名。
  *
- * @param env - the launch environment snapshot to read.
- * @param lower - the lowercase variable name.
- * @returns the trimmed value and the name that supplied it, or `undefined` when neither is set.
+ * @param env - 待读取的启动环境快照。
+ * @param lower - 小写变量名。
+ * @returns 去除空白后的值及提供它的名称，或当两者都未设置时返回 `undefined`。
  */
 function readEnv(
   env: EnvLookup,
@@ -118,24 +116,24 @@ function readEnv(
 }
 
 /**
- * What one environment variable supplied. A rejected slot is distinct from an absent
- * one: the user named a proxy for that scheme, so falling back to another scheme's proxy would route
- * the request somewhere they never asked for while the diagnostic said it stayed direct.
+ * 一个环境变量所提供的内容。被拒绝的槽位与缺失的槽位不同：用户为该 scheme
+ * 命名了一个代理，因此回退到另一个 scheme 的代理，会把请求发往他们从未要求
+ * 的地方，而诊断却说它保持直连。
  */
 type ProxyCandidate =
   | { readonly kind: 'accepted'; readonly value: string }
   | { readonly kind: 'rejected' }
   | { readonly kind: 'absent' }
 
-/** A slot nobody filled. */
+/** 一个无人填入的槽位。 */
 const ABSENT: ProxyCandidate = { kind: 'absent' }
 
 /**
- * Validate one candidate proxy URL.
+ * 校验一个候选代理 URL。
  *
- * @param candidate - the raw value and the origin to name in a diagnostic.
- * @param diagnostics - collector the rejection is appended to.
- * @returns the candidate's usability, distinguishing a rejected slot from an empty one.
+ * @param candidate - 原始值及在诊断中需指明的来源。
+ * @param diagnostics - 拒绝记录所追加到的收集器。
+ * @returns 该候选的可用性，区分被拒绝的槽位与空的槽位。
  */
 function acceptProxyUrl(
   candidate: { value: string; name: string } | undefined,
@@ -171,11 +169,11 @@ function acceptProxyUrl(
 }
 
 /**
- * Whether a proxy URL is one this package accepts: parseable, with an `http:` or `https:` scheme.
- * The same test {@link acceptProxyUrl} applies, without its diagnostics.
+ * 一个代理 URL 是否为本包所接受的：可解析，且为 `http:` 或 `https:` scheme。
+ * 与 {@link acceptProxyUrl} 应用的测试相同，但不带其诊断。
  *
- * @param value - the proxy URL as an environment variable holds it.
- * @returns true when the URL would be accepted.
+ * @param value - 环境变量所持有的那个代理 URL。
+ * @returns 该 URL 会被接受时为 true。
  */
 export function isSupportedProxyUrl(value: string): boolean {
   const parsed = URL.parse(value)
@@ -183,12 +181,12 @@ export function isSupportedProxyUrl(value: string): boolean {
 }
 
 /**
- * Resolve one scheme's proxy from its own slot, then the fallbacks — but only when the scheme's own
- * slot was empty. A rejected slot keeps that scheme direct, so the diagnostic and the route agree.
+ * 从其自身槽位解析一个 scheme 的代理，然后回退——但仅在该 scheme 自身槽位为空时。
+ * 被拒绝的槽位会让该 scheme 保持直连，因此诊断与路由一致。
  *
- * @param own - what the scheme's own name supplied.
- * @param fallbacks - values to try in order when `own` is absent.
- * @returns the proxy URL for that scheme, or `undefined` for a direct connection.
+ * @param own - 该 scheme 自身名称所提供的内容。
+ * @param fallbacks - 当 `own` 缺失时按顺序尝试的值。
+ * @returns 该 scheme 的代理 URL，或直连时的 `undefined`。
  */
 function resolveScheme(own: ProxyCandidate, ...fallbacks: (string | undefined)[]): string | undefined {
   if (own.kind === 'accepted') return own.value
@@ -197,11 +195,11 @@ function resolveScheme(own: ProxyCandidate, ...fallbacks: (string | undefined)[]
 }
 
 /**
- * Merge {@link LOOPBACK_NO_PROXY} into a bypass list, preserving the caller's entries and order.
- * A list of `*` already bypasses everything and is returned unchanged.
+ * 把 {@link LOOPBACK_NO_PROXY} 合并进一个绕过列表，保留调用方的条目与顺序。
+ * 一个 `*` 列表已绕过一切，因此原样返回。
  *
- * @param noProxy - the bypass list as the environment supplied it.
- * @returns the effective bypass list.
+ * @param noProxy - 环境所提供的绕过列表。
+ * @returns 生效的绕过列表。
  */
 function withLoopback(noProxy: string | undefined): string {
   const entries = (noProxy ?? '').split(/[,\s]+/).map(entry => entry.trim()).filter(entry => entry !== '')
@@ -211,14 +209,14 @@ function withLoopback(noProxy: string | undefined): string {
 }
 
 /**
- * Split one bypass entry into host and optional port.
+ * 将一个绕过条目拆分为主机与可选端口。
  *
- * A bare IPv6 literal carries several colons and no port, so only a single-colon entry splits;
- * a bracketed literal takes its port from after the bracket. Getting this wrong is how undici
- * turns `::1` into host `:` port `1`.
+ * 裸 IPv6 字面量带有多个冒号且没有端口，因此只有单冒号条目才拆分；带括号的
+ * 字面量从括号之后取端口。处理出错正是 undici 把 `::1` 变成主机 `:` 端口 `1`
+ * 的原因。
  *
- * @param entry - one already-trimmed bypass entry.
- * @returns the entry's host and, when it carries one, its port.
+ * @param entry - 一条已去除空白的绕过条目。
+ * @returns 该条目的主机，以及当它带有端口时的端口。
  */
 function splitHostPort(entry: string): { host: string; port?: string } {
   if (entry.startsWith('[')) {
@@ -236,49 +234,47 @@ function splitHostPort(entry: string): { host: string; port?: string } {
   return { host: entry }
 }
 
-/** One IPv4 octet, so a loopback match cannot accept `127.999.1.1`. */
+/** 一个 IPv4 八位组，因此环回匹配不能接受 `127.999.1.1`。 */
 const OCTET = '(?:25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)'
 
-/** The whole `127.0.0.0/8` block, not just its first address. */
+/** 整个 `127.0.0.0/8` 网段，而非仅其第一个地址。 */
 const LOOPBACK_IPV4 = new RegExp(`^127\\.${OCTET}\\.${OCTET}\\.${OCTET}$`)
 
 /**
- * Whether a host names this machine.
+ * 一个主机是否命名本机。
  *
- * A proxy cannot meaningfully reach one: it would resolve the address in its own network, and a
- * proxy running on this machine would reach a service that only listens on loopback. The bypass
- * list carries {@link LOOPBACK_NO_PROXY} for the consumers that read an environment rather than a
- * policy, but those are four literal entries — matching them alone leaves `127.0.0.2`, the whole
- * rest of `127.0.0.0/8`, and the IPv4-mapped spelling routed through the proxy.
+ * 代理无法有意义地抵达一台：它会在自身网络中解析地址，而运行在本机上的代理
+ * 会抵达一个只监听环回的服务。绕过列表携带 {@link LOOPBACK_NO_PROXY} 给那些
+ * 读取环境而非策略的消费方，但那只是四条字面条目——仅靠匹配它们会让
+ * `127.0.0.2`、整个 `127.0.0.0/8` 的其余部分，以及 IPv4 映射写法都经代理路由。
  *
- * @param hostname - a URL's hostname, bracketed or not.
- * @returns true when the host is loopback or the unspecified address.
+ * @param hostname - 一个 URL 的主机名，无论是否带括号。
+ * @returns 当主机为环回或未指定地址时为 true。
  */
 export function isLoopbackHost(hostname: string): boolean {
   const host = hostname.replace(/^\[|\]$/g, '').replace(/\.$/, '').toLowerCase()
   if (host === 'localhost' || host.endsWith('.localhost')) return true
   if (host === '::1' || host === '::' || host === '0.0.0.0') return true
-  // An IPv4-mapped IPv6 address may keep its dotted tail or, once a URL has normalized it, carry
-  // the same four bytes as two hex groups: `::ffff:127.0.0.1` and `::ffff:7f00:1` are one address.
+  // 一个 IPv4 映射的 IPv6 地址可能保留其点分尾部，或在 URL 已规范化后，以两个
+  // 十六进制组承载相同的四个字节：`::ffff:127.0.0.1` 与 `::ffff:7f00:1` 是同一地址。
   const mappedHigh = /^::ffff:([0-9a-f]{1,4}):[0-9a-f]{1,4}$/.exec(host)?.[1]
   if (mappedHigh !== undefined) return Number.parseInt(mappedHigh, 16) >>> 8 === 127
   return LOOPBACK_IPV4.test(host.startsWith('::ffff:') ? host.slice('::ffff:'.length) : host)
 }
 
 /**
- * Decide whether a bypass list exempts one URL. An entry names a host and matches it together with
- * every subdomain under it — `example.com` also bypasses `api.example.com` — and a leading `.` or
- * `*.` is accepted as the same thing; an entry may carry a `:port`, and `*` bypasses everything.
- * CIDR notation is not matched —
- * an operating system's bypass list often carries `10.0.0.0/8`, which must be rewritten as suffixes.
+ * 判断一个绕过列表是否豁免某个 URL。一个条目命名一个主机，并与它之下的每个
+ * 子域一同匹配——`example.com` 也会绕过 `api.example.com`——而前导的 `.` 或
+ * `*.` 被视为同一回事；一个条目可带有 `:port`，而 `*` 绕过一切。CIDR 记法
+ * 不被匹配——操作系统绕过列表常携带 `10.0.0.0/8`，它必须被重写为后缀。
  *
- * @param noProxy - the effective bypass list.
- * @param url - the request URL.
- * @returns true when the URL must bypass the proxy.
+ * @param noProxy - 生效的绕过列表。
+ * @param url - 请求 URL。
+ * @returns 当该 URL 必须绕过代理时为 true。
  */
 export function bypassesProxy(noProxy: string, url: URL): boolean {
-  // `URL.hostname` keeps the brackets around an IPv6 literal, while a bypass entry may be written
-  // either way, so both sides are unbracketed before they are compared.
+  // `URL.hostname` 会保留 IPv6 字面量两侧的括号，而绕过条目两种写法皆有可能，
+  // 因此在比较前两侧都去掉括号。
   const host = url.hostname.replace(/^\[|\]$/g, '').replace(/\.$/, '').toLowerCase()
   const port = url.port !== '' ? url.port : url.protocol === 'https:' ? '443' : '80'
   for (const raw of noProxy.split(/[,\s]+/)) {
@@ -295,13 +291,13 @@ export function bypassesProxy(noProxy: string, url: URL): boolean {
 }
 
 /**
- * Resolve the outbound proxy policy for this process.
+ * 解析本进程的出口代理策略。
  *
- * A scheme's own variable wins, then `ALL_PROXY`, then — for HTTPS only — the HTTP proxy, matching
- * undici so this function and the installed dispatcher never disagree about one URL.
+ * 一个 scheme 自身的变量胜出，然后是 `ALL_PROXY`，最后——仅对 HTTPS——是 HTTP
+ * 代理，与 undici 一致，因此本函数与已安装 dispatcher 对一个 URL 永不产生分歧。
  *
- * @param env - the launch environment, whose own layering already prefers real variables over `.env` files.
- * @returns the policy to install plus every rejected candidate.
+ * @param env - 启动环境，其自身的分层已经优先真实的变量而非 `.env` 文件。
+ * @returns 待安装的策略，外加每个被拒绝的候选。
  */
 export function resolveProxyPolicy(env: EnvLookup): ProxyResolution {
   const diagnostics: ProxyDiagnostic[] = []
@@ -310,8 +306,8 @@ export function resolveProxyPolicy(env: EnvLookup): ProxyResolution {
   const envHttp = acceptProxyUrl(readEnv(env, 'http_proxy'), diagnostics)
   const envHttps = acceptProxyUrl(readEnv(env, 'https_proxy'), diagnostics)
   const httpProxy = resolveScheme(envHttp, allValue)
-  // HTTPS falls back to the HTTP proxy last, matching undici — but never past a value the user named
-  // for HTTPS and this package refused.
+  // HTTPS 最后回退到 HTTP 代理，与 undici 一致——但绝不越过用户为 HTTPS 命名、
+  // 而本包拒绝的那个值。
   const httpsProxy = resolveScheme(envHttps, allValue, httpProxy)
   if (httpProxy === undefined && httpsProxy === undefined) return { policy: DIRECT_POLICY, diagnostics }
   return {
@@ -326,14 +322,14 @@ export function resolveProxyPolicy(env: EnvLookup): ProxyResolution {
 }
 
 /**
- * Resolve which proxy one URL goes through under a policy.
+ * 解析一个 URL 在某份策略下会经过哪个代理。
  *
- * This is the single answer both the installed dispatcher and `dsh-web-fetch-http` consult, so a URL
- * can never be pinned to a resolved address by one and tunnelled by the other.
+ * 这是已安装 dispatcher 与 `dsh-web-fetch-http` 共同咨询的唯一答案，因此一个 URL
+ * 永远不会被一方钉到某个已解析地址、而被另一方隧道转发。
  *
- * @param policy - the active policy.
- * @param url - the request URL.
- * @returns the proxy URL to tunnel through, or `undefined` for a direct connection.
+ * @param policy - 活动策略。
+ * @param url - 请求 URL。
+ * @returns 待经其隧道转发的代理 URL，或直连时的 `undefined`。
  */
 export function proxyForUrl(policy: ProxyPolicy, url: URL): string | undefined {
   const proxy = url.protocol === 'https:' ? policy.httpsProxy : url.protocol === 'http:' ? policy.httpProxy : undefined

@@ -1,6 +1,6 @@
 /**
- * Persistent shell PTY backend over the subprocess terminal primitive, shared
- * sandbox policy, bounded output, and provider-owned session cleanup.
+ * 基于子进程终端原语、共享沙箱策略、有界输出以及由提供者持有的会话清理之上的
+ * 持久化 shell PTY 后端。
  * @module @deepseek-ai/dsh-terminal-bash
  */
 
@@ -22,9 +22,9 @@ import { CONTROLLED_PROMPT } from './sanitize.ts'
 export { Config } from './config.ts'
 export type { Config as TerminalLocalConfig } from './config.ts'
 
-/** Cordis plugin name. */
+/** Cordis 插件名称。 */
 export const name = 'terminal-bash'
-/** Required services: terminal registry, shared confinement policy, projection registry, and process substrate. */
+/** 所需的服务：终端注册表、共享隔离策略、投影注册表与进程子层。 */
 export const inject = ['terminals', 'sandboxPolicy', 'sessionProjections', 'subprocess', 'workingDirectory']
 
 interface SandboxModeFenceState {
@@ -63,8 +63,8 @@ function ensureSandboxModeFence(ctx: Context, owner: Agent): void {
 }
 
 function childEnvironment(spec: TerminalBackendSpawnSpec, dialect: ShellDialect): Record<string, string> {
-  // The subprocess provider supplies its own scrubbed ambient base; these are
-  // deliberate terminal-specific overrides layered after it.
+  // 子进程提供者会提供自身经过清理的环境基线；以下是有意叠加在其后的、
+  // 终端特有的覆盖项。
   const common = {
     TERM: 'dumb',
     PAGER: 'cat',
@@ -74,26 +74,24 @@ function childEnvironment(spec: TerminalBackendSpawnSpec, dialect: ShellDialect)
     DSH_PTY_SESSION_ID: spec.sessionId,
   }
   if (dialect === 'pwsh') {
-    // pwsh ignores PS1/PROMPT_COMMAND; its prompt is installed by the startup
-    // bootstrap instead, and NO_COLOR keeps the renderer quiet.
+    // pwsh 忽略 PS1/PROMPT_COMMAND；其提示符由启动引导程序安装，而 NO_COLOR
+    // 则让渲染器保持安静。
     return { ...common, NO_COLOR: '1' }
   }
   return {
     ...common,
     PS1: CONTROLLED_PROMPT,
-    // Re-asserting PS1 after the marker keeps prompt readiness working when a
-    // command overwrote the shell variable: bash runs PROMPT_COMMAND before
-    // rendering each prompt, so an override never survives to the next prompt.
+    // 在标记之后重新声明 PS1，可在某条命令覆盖了该 shell 变量时仍保持提示符就绪：
+    // bash 在渲染每个提示符前都会运行 PROMPT_COMMAND，因此任何覆盖都无法存活到下一个提示符。
     PROMPT_COMMAND: `printf "\\033]133;D;%s\\007" "$?"; PS1='${CONTROLLED_PROMPT}'`,
     BASH_SILENCE_DEPRECATION_WARNING: '1',
   }
 }
 
 /**
- * The pwsh prompt function that emits the shared OSC `133;D;` + BEL marker
- * before every prompt, mirroring bash's PROMPT_COMMAND. `[char]27`/`[char]7`
- * build the control bytes at runtime because raw ESC characters in submitted
- * input are unreliable under PSReadLine.
+ * pwsh 的提示函数，在每个提示符前发出共享的 OSC `133;D;` + BEL 标记，
+ * 对应 bash 的 PROMPT_COMMAND。`[char]27`/`[char]7` 在运行时构造控制字节，
+ * 因为提交输入中的原始 ESC 字符在 PSReadLine 下不可靠。
  */
 export const PWSH_PROMPT_SETUP =
   "function prompt { [Console]::Write([char]27 + ']133;D;' + [int]$LASTEXITCODE + [char]7); '" + CONTROLLED_PROMPT + "' }"
@@ -105,13 +103,12 @@ async function spawnArgv(ctx: Context, config: ResolvedConfig, policy: SandboxEx
   if (sandbox === undefined) {
     throw new Error(`terminal-bash: sandbox mode "${policy.mode}" requires a ctx.sandbox provider in the execution world`)
   }
-  // Re-state the discriminant because object spread does not preserve its narrowed type.
+  // 重新声明判别字段，因为对象展开不会保留其收窄后的类型。
   return (await sandbox.confine(argv, { ...policy, mode: policy.mode }, signal)).argv
 }
 
-// TODO(pty-initialize-race-home): Fold this outer abort race into
-// LocalPtySession.initialize when the send-state consolidation lands; the
-// session already owns the send lifecycle the race protects.
+// TODO(pty-initialize-race-home): 当发送状态整合落地时，将此外层的 abort 竞态并入
+// LocalPtySession.initialize；该会话已经持有此竞态所保护的发送生命周期。
 async function startupSession(
   session: LocalPtySession,
   dialect: ShellDialect,
@@ -171,7 +168,7 @@ async function startupSession(
   }
 }
 
-/** Reject a failed startup only after its unpublished resources reach quiescence. */
+/** 仅在失败启动的未发布资源达到静止后，才拒绝该次启动。 */
 async function rejectAfterStartupCleanup(error: unknown, cleanup: () => Promise<void>): Promise<never> {
   try {
     await cleanup()
@@ -231,7 +228,7 @@ export class BashTerminalBackend implements TerminalBackend {
   }
 }
 
-/** Register the local PTY backend. */
+/** 注册本地 PTY 后端。 */
 export function apply(ctx: Context, config: Config): void {
   const resolved = resolveConfig(config)
   validateConfig(resolved)

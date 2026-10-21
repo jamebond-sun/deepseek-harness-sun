@@ -1,5 +1,5 @@
 /**
- * Plugin-owned human-command registry shared by interactive UI adapters.
+ * 由插件持有的人工命令注册表，供各交互式 UI 适配器共用。
  * @module @deepseek-ai/dsh-commands
  */
 
@@ -31,57 +31,55 @@ export const name = 'commands'
 
 const COMMAND_NAME = /^[a-z][a-z0-9_-]*$/u
 
-/** Shared frozen attachments value for attachment-free invocations. */
+/** 无附件调用共用的冻结 attachments 值。 */
 const NO_ATTACHMENTS: readonly (ImageBlock | FileBlock)[] = Object.freeze([])
 
-/** Host resolver for Session-scoped staged file-upload receipts. */
+/** Session 作用域内已暂存文件上传回执的 Host 解析器。 */
 export type CommandFileReceiptResolver = (agent: Agent, receiptId: string) => FileAttachmentRef | undefined
 
-/** Invocation passed to one registered command handler. */
+/** 传给某个已注册命令处理器的一次调用。 */
 export interface CommandInvocation {
-  /** Pairing id already written to this invocation's `command/run` event. */
+  /** 已写入本次调用 `command/run` 事件的配对 id。 */
   readonly commandId: CommandId
-  /** Exact agent whose UI received the command. */
+  /** 其 UI 收到该命令的那个确切 agent。 */
   readonly agent: Agent
-  /** Exact text following the registered command name, including separator whitespace. */
+  /** 紧跟在已注册命令名之后的逐字文本，含分隔符空白。 */
   readonly rawInput: string
   /**
-   * Durably admitted image and file blocks accompanying this invocation, in submission
-   * order; empty unless the definition declares `input.attachments`. The handler
-   * owns their model-visible use — the registry never schedules them itself —
-   * and a handler whose grammar cannot use them in this invocation returns an
-   * error so the dispatching composer retains the originals.
+   * 本次调用附带的、已持久准入的图片与文件块，按提交顺序排列；除非定义声明了
+   * `input.attachments`，否则为空。其模型可见的用法由处理器自行掌握 ——
+   * 注册表从不代为编排 —— 面对本次调用里语法上无法使用它们的处理器，
+   * 应当返回错误，以便派发的编辑器保留原始附件。
    */
   readonly attachments: readonly (ImageBlock | FileBlock)[]
-  /** Cancellation signal owned by the dispatching UI request. */
+  /** 由派发该命令的 UI 请求持有的取消信号。 */
   readonly signal: AbortSignal
 }
 
-/** Plugin-owned command registration. */
+/** 由插件持有的一次命令注册。 */
 export interface CommandDefinition {
-  /** Stable plugin-owned identity; absent for definitions without identity-based client behavior. */
+  /** 插件持有的稳定身份；没有基于身份的 Client 行为的定义缺省该字段。 */
   readonly definitionId?: CommandDefinitionId
-  /** Lowercase command name without the leading slash. */
+  /** 不含前导斜杠的小写命令名。 */
   readonly name: string
-  /** Human-readable summary used in discovery UI. */
+  /** 发现 UI 使用的易读简介。 */
   readonly description: string
-  /** Optional free-form input hint advertised to capable clients. */
+  /** 向支持该能力的客户端广播的可选自由文本输入提示。 */
   readonly input?: CommandInputDescriptor
   /**
-   * Whether `command/run` records `rawInput`. Defaults to true. A command
-   * whose domain event owns the payload sets this false to avoid duplicating
-   * that payload in the session log.
+   * `command/run` 是否记录 `rawInput`。默认为 true。当某条领域事件已经持有
+   * 该载荷时，命令把本项设为 false，以免在 Session 日志里重复一份。
    */
   readonly recordInput?: boolean
-  /** Execute against the receiving agent without sending the command to the model. */
+  /** 针对接收该命令的 agent 执行，不把命令发送给模型。 */
   readonly handler: (invocation: CommandInvocation) => CommandResult | Promise<CommandResult>
 }
 
-/** Syntactically valid slash command before registry resolution. */
+/** 经注册表解析之前的、语法合法的斜杠命令。 */
 export interface ParsedCommand {
-  /** Lowercase command name without the leading slash. */
+  /** 不含前导斜杠的小写命令名。 */
   readonly name: string
-  /** Exact text following the command name. */
+  /** 紧跟在命令名之后的逐字文本。 */
   readonly rawInput: string
 }
 
@@ -90,13 +88,13 @@ interface RegisteredCommand {
   readonly descriptor: CommandDescriptor
 }
 
-/** All command registrations owned by one global or scoped layer. */
+/** 某个全局层或作用域层持有的全部命令注册。 */
 class CommandLayer implements ScopeLayer {
   readonly commands: NamedEntries<RegisteredCommand>
 
   /**
-   * Create one command layer with diagnostics specific to its ownership scope.
-   * @param scope - the scoped owner, or `undefined` for global registrations.
+   * 创建一个命令层，并携带其所属作用域特有的诊断信息。
+   * @param scope - 作用域持有者；全局注册为 `undefined`。
    */
   constructor(scope: ScopeKey | undefined) {
     this.commands = new NamedEntries(name => new Error(scope === undefined
@@ -104,7 +102,7 @@ class CommandLayer implements ScopeLayer {
       : `command "${name}" is already registered in this scope`))
   }
 
-  /** @returns whether this layer owns no command registrations. */
+  /** @returns 本层是否不持有任何命令注册。 */
   isEmpty(): boolean {
     return this.commands.isEmpty()
   }
@@ -117,32 +115,32 @@ declare module '@deepseek-ai/cordis' {
 }
 
 /**
- * Parse an exact slash command without normalizing its trailing input.
+ * 解析一条精确的斜杠命令，且不规整其尾部输入。
  *
- * @param line - Complete candidate command line.
- * @returns The parsed command, or `undefined` when the line is not a command.
+ * @param line - 完整的候选命令行。
+ * @returns 解析出的命令；当该行不是命令时为 `undefined`。
  */
 export function parseCommand(line: string): ParsedCommand | undefined {
   const match = /^\/([a-z][a-z0-9_-]*)(?=$|[\t\n\r ])/u.exec(line)
   if (match === null) return undefined
   const name = match[1]
-  /* v8 ignore next -- the first capture is required whenever the regular expression matches */
+  /* v8 ignore next -- 只要正则匹配成功，第一个捕获组必然存在 */
   if (name === undefined) return undefined
   return Object.freeze({ name, rawInput: line.slice(match[0].length) })
 }
 
-/** Convert arbitrary abort reasons to one stable rejected Error. */
+/** 把任意 abort 原因收敛为同一个稳定的 rejected Error。 */
 function abortError(signal: AbortSignal): Error {
   if (signal.reason instanceof Error) return signal.reason
   return new Error(typeof signal.reason === 'string' ? signal.reason : 'command aborted')
 }
 
-/** The signal's normalized abort error when it is already aborted. */
+/** 信号处于已中止状态时，返回其归一化的中止错误。 */
 function cancellationOf(signal: AbortSignal): Error | undefined {
   return signal.aborted ? abortError(signal) : undefined
 }
 
-/** Render arbitrary thrown values without trusting their string coercion. */
+/** 渲染任意抛出的值，且不信任其字符串强制转换结果。 */
 function renderThrown(value: unknown): string {
   try {
     return String(value)
@@ -151,7 +149,7 @@ function renderThrown(value: unknown): string {
   }
 }
 
-/** Stop awaiting an uncooperative handler once its owning UI request aborts. */
+/** 一旦持有该处理器的 UI 请求中止，就不再等待这个不配合的处理器。 */
 function withAbort<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
   if (signal.aborted) return Promise.reject(abortError(signal))
   return new Promise<T>((resolve, reject) => {
@@ -175,7 +173,7 @@ function withAbort<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
   })
 }
 
-/** Reject invalid command metadata before it can reach a UI protocol. */
+/** 在无效的命令元数据进入 UI 协议之前予以拒绝。 */
 function normalizeDefinition(definition: CommandDefinition): RegisteredCommand {
   if (!COMMAND_NAME.test(definition.name)) {
     throw new TypeError(`command name "${definition.name}" must match ${String(COMMAND_NAME)}`)
@@ -224,7 +222,7 @@ function normalizeDefinition(definition: CommandDefinition): RegisteredCommand {
   return { definition: normalized, descriptor }
 }
 
-/** Validate and detach an untrusted handler result at the registry boundary. */
+/** 在注册表边界上校验并脱离一份不可信的处理器返回值。 */
 function normalizeResult(command: string, value: unknown): CommandResult {
   if (typeof value !== 'object' || value === null || !('kind' in value)) {
     throw new TypeError(`command "${command}" handler must return a CommandResult`)
@@ -256,9 +254,8 @@ function normalizeResult(command: string, value: unknown): CommandResult {
 }
 
 /**
- * Human-command registry. Plain-context definitions are global; definitions
- * registered through a command-injected child of an agent context shadow
- * globals for that agent.
+ * 人工命令注册表。在普通 context 上注册的定义是全局的；通过某个 agent context
+ * 的命令注入子 context 注册的定义，则在该 agent 上遮蔽同名全局定义。
  */
 export class CommandRuntime extends TypertRemoteService {
   private readonly layers = new ScopedLayers(
@@ -266,11 +263,11 @@ export class CommandRuntime extends TypertRemoteService {
     () => { this.notifyChange() },
   )
 
-  /** Monotonic per-instance counter behind {@link mintCommandId}. */
+  /** {@link mintCommandId} 背后的按实例单调计数器。 */
   private commandSeq = 0
-  /** Instance token keeping minted ids unique across process restarts over one resumed log. */
+  /** 实例令牌：在同一份续跑日志上即使跨进程重启，铸造出的 id 也不重复。 */
   private readonly instanceToken = randomUUID().slice(0, 8)
-  /** Optional provider installed by the Session upload owner. */
+  /** 由 Session 上传能力的持有者安装的可选提供者。 */
   private readonly fileReceipts: { resolver: CommandFileReceiptResolver | undefined } = { resolver: undefined }
 
   constructor(ctx: Context) {
@@ -278,9 +275,9 @@ export class CommandRuntime extends TypertRemoteService {
   }
 
   /**
-   * Register a global or calling-agent-scoped command.
-   * @param definition - discovery metadata and direct UI handler.
-   * @returns the exact effect disposer that unregisters this definition.
+   * 注册一条全局命令或一条作用域为发起 agent 的命令。
+   * @param definition - 发现所需的元数据，以及面向 UI 的直接处理器。
+   * @returns 注销该定义的那个确切 effect 回收函数。
    */
   register(definition: CommandDefinition): () => void {
     const registered = normalizeDefinition(definition)
@@ -292,9 +289,9 @@ export class CommandRuntime extends TypertRemoteService {
   }
 
   /**
-   * Register the sole authority that resolves staged file receipts for command submissions.
-   * @param resolver - Session-aware receipt resolver.
-   * @returns disposer that removes this exact resolver.
+   * 注册唯一的权威方，用于解析命令提交里的已暂存文件回执。
+   * @param resolver - 感知 Session 的回执解析器。
+   * @returns 移除该解析器本身的回收函数。
    */
   registerFileReceiptResolver(resolver: CommandFileReceiptResolver): () => void {
     if (this.fileReceipts.resolver !== undefined) {
@@ -307,55 +304,51 @@ export class CommandRuntime extends TypertRemoteService {
   }
 
   /**
-   * List the effective immutable command descriptors for one agent.
-   * @param agent - exact receiving agent and scoped-layer key.
-   * @returns name-sorted descriptors after scoped shadowing.
+   * 列出某个 agent 生效的命令不可变描述符。
+   * @param agent - 确切的接收 agent，同时也是作用域层的键。
+   * @returns 经过作用域遮蔽后、按名称排序的描述符。
    */
   @Remote
   list(agent: Agent): readonly CommandDescriptor[] {
     return Object.freeze([...this.view(agent).values()]
       .map(command => command.descriptor)
-      // Names are unique in the effective view, so equality is impossible.
+      // 生效视图里名称唯一，因此不可能出现相等的情况。
       .sort((left, right) => left.name < right.name ? -1 : 1))
   }
 
   /**
-   * Resolve one effective command definition.
-   * @param agent - exact receiving agent and scoped-layer key.
-   * @param name - command name without a slash.
-   * @returns the scoped shadow or global definition.
+   * 解析出一条生效的命令定义。
+   * @param agent - 确切的接收 agent，同时也是作用域层的键。
+   * @param name - 不含斜杠的命令名。
+   * @returns 作用域内的遮蔽定义，或全局定义。
    */
   find(agent: Agent, name: string): CommandDefinition | undefined {
     return this.view(agent).get(name)?.definition
   }
 
   /**
-   * Parse and execute a known command without sending it to the model.
+   * 解析并执行一条已知命令，不把它发送给模型。
    *
-   * A resolved command's lifecycle is logged: `command/run` is appended
-   * before the handler is invoked and `command/done` after settlement (a
-   * thrown or aborted handler settles as `kind: 'error'`). Both are direct
-   * log-only appends — no turn wraps them, and persistence drains them at
-   * ordinary checkpoints. Admission misses (syntax or unknown name) log
-   * nothing — they never entered a handler. A `command/run` append failure
-   * fails the execution loud; a `command/done` append failure on the
-   * handler-failure path is contained so the handler's own error stays the
-   * reported failure.
+   * 一条已解析命令的生命周期会被记录：调用处理器之前追加 `command/run`，
+   * 终结之后追加 `command/done`（抛出或被中止的处理器以 `kind: 'error'`
+   * 终结）。两者都是直接的、仅落日志的追加 —— 没有 turn 包裹它们，持久化
+   * 在常规检查点把它们排出。准入失败（语法不合法或名称未知）不记录任何事件 ——
+   * 它们从未进入处理器。`command/run` 追加失败会让本次执行响亮地失败；而在
+   * 处理器失败的路径上，`command/done` 追加失败被就地隔离，以保证对外报告的
+   * 失败仍然是处理器自身的那个错误。
    *
-   * Attachment admission is enforced here, not in the composer: attachments sent to a
-   * command that does not declare `input.attachments`, an absent attachment store,
-   * and an exceeded image limit each settle as an error result before
-   * the handler runs. Validation rejection starts no attachment writes;
-   * a storage failure can leave only unreachable content-addressed objects
-   * for deferred collection.
+   * 附件准入在这里强制执行，而不是在编辑器里：把附件发给未声明
+   * `input.attachments` 的命令、缺失附件存储、以及超出图片数量上限，都会在
+   * 处理器运行之前以错误结果终结。被校验拒绝时不会产生任何附件写入；存储失败
+   * 可能只留下若干个不可达的内容寻址对象，交由延迟回收处理。
    *
-   * @param agent - exact receiving agent.
-   * @param line - complete slash-command line.
-   * @param submittedAttachments - encoded images and staged file receipts accompanying the line,
-   *   in submission order; empty for a plain invocation.
-   * @param signal - cancellation signal owned by the UI request.
-   * @returns the settled execution (result + lifecycle pairing id), or
-   *   `undefined` when syntax or name does not resolve.
+   * @param agent - 确切的接收 agent。
+   * @param line - 完整的斜杠命令行。
+   * @param submittedAttachments - 伴随该命令行提交的编码图片与已暂存文件回执，
+   *   按提交顺序排列；普通调用为空。
+   * @param signal - 由 UI 请求持有的取消信号。
+   * @returns 已终结的执行结果（结果体 + 生命周期配对 id）；当语法或命令名
+   *   无法解析时为 `undefined`。
    */
   @Remote
   async execute(
@@ -408,10 +401,9 @@ export class CommandRuntime extends TypertRemoteService {
         this.settleThrown(agent.session, parsed.name, commandId, error)
         throw error
       }
-      // Cancellation must be honored BEFORE the handler runs: admission may
-      // await slow storage, and a handler entered after the caller cancelled
-      // would mutate state the retrying caller then duplicates. (The committed
-      // image objects stay unreferenced and are deferred-GC territory.)
+      // 取消必须在处理器运行之前兑现：准入过程可能等待较慢的存储，而调用方
+      // 取消之后才进入的处理器会改动状态，重试的调用方再执行一次就会重复。
+      // （已提交的图片对象保持无引用状态，属于延迟 GC 的范畴。）
       const cancelledDuringAdmission = cancellationOf(signal)
       if (cancelledDuringAdmission !== undefined) {
         this.settleThrown(agent.session, parsed.name, commandId, cancelledDuringAdmission)
@@ -430,7 +422,7 @@ export class CommandRuntime extends TypertRemoteService {
     return settle(result)
   }
 
-  /** Contained `command/done` error append for a thrown handler or admission failure. */
+  /** 为抛出或被准入失败打断的处理器追加一条被隔离的 `command/done` 错误。 */
   private settleThrown(session: Session, command: string, commandId: CommandId, error: unknown): void {
     try {
       this.appendLifecycle(session, 'command/done', {
@@ -442,40 +434,38 @@ export class CommandRuntime extends TypertRemoteService {
     }
   }
 
-  /** Mint the next pairing id (monotonic; instance-token-prefixed so a resumed log never repeats one). */
+  /** 铸造下一个配对 id（单调递增；带实例令牌前缀，因此续跑日志上永不重复）。 */
   private mintCommandId(): CommandId {
     this.commandSeq += 1
     return CommandId(`cmd-${this.instanceToken}-${this.commandSeq}`)
   }
 
   /**
-   * Append one log-only lifecycle event directly: no turn is opened for it and
-   * no flush is forced — persistence observes the eager `session/event` path
-   * and drains at ordinary checkpoints and teardown, like every other
-   * standalone plugin event.
+   * 直接追加一条仅落日志的生命周期事件：不为它开启 turn，也不强制 flush ——
+   * 持久化经由既有的 `session/event` 路径观察到它，并在常规检查点与关闭时把它
+   * 排出，与所有其他独立插件事件一致。
    */
   private appendLifecycle<T extends 'command/run' | 'command/done'>(
     session: Session,
     type: T,
     data: SessionEventMap[T],
   ): SessionEvent<T> {
-    // Both admitted types are log-only (non-surface), but TypeScript does not
-    // reduce Session.append's conditional rest parameter through a generic
-    // type parameter. Preserve the proven two-argument call shape.
+    // 两个被准入的事件类型都是仅落日志（非可见面）的，但 TypeScript 无法在
+    // 泛型类型参数下化简 Session.append 的条件化剩余参数。保留已验证有效的
+    // 两参数调用形态。
     const appendLogOnly = session.append.bind(session) as (eventType: T, eventData: SessionEventMap[T]) => SessionEvent<T>
     return appendLogOnly(type, data)
   }
 
-  /** Resolve global definitions followed by exact scoped shadows. */
+  /** 先解析全局定义，再叠加该作用域的精确遮蔽。 */
   private view(agent: Agent): Map<string, RegisteredCommand> {
     return this.layers.merge(agent, layer => layer.commands)
   }
 
-  /** Notify every registry observer without making UI refresh load-bearing. */
+  /** 通知所有注册表观察者，同时不让 UI 刷新成为承载逻辑的一环。 */
   private notifyChange(): void {
-    // Cordis emit uses Array.map: one synchronous throw starves later listeners,
-    // and returned promises are discarded. Registry notifications are
-    // non-vetoing, so contain each callback independently.
+    // Cordis 的 emit 使用 Array.map：一次同步抛出会饿死后续监听器，而返回的
+    // promise 会被丢弃。注册表通知不具否决权，因此逐个隔离回调。
     for (const callback of this.ctx.events.dispatch('emit', ['commands/change'])) {
       try {
         const returned: unknown = callback()
@@ -489,7 +479,7 @@ export class CommandRuntime extends TypertRemoteService {
   }
 }
 
-/** Admit a mixed command batch and restore its original image/file order. */
+/** 准入一批混合命令附件，并还原其原始的图片/文件顺序。 */
 async function admitCommandAttachments(
   store: Parameters<typeof admitEncodedImages>[0],
   attachments: readonly CommandSubmitAttachment[],

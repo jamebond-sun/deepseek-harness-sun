@@ -1,15 +1,15 @@
-/** Complete dependency validation for current Team task snapshots. */
+/** 针对当前 Team 任务快照的完整依赖校验。 */
 
 import type { TeamTaskId, TeamTaskSnapshot } from './types.ts'
 
-/** Task dependency relation rejected by the shared graph validator. */
+/** 被共享图校验器所拒绝的任务依赖关系。 */
 export type TeamTaskGraphViolation = 'missing' | 'duplicate' | 'cycle'
 
-/** Package-private task dependency failure retained for command error mapping. */
+/** 包私有的任务依赖失败，保留供命令错误映射使用。 */
 export class TeamTaskGraphError extends Error {
   /**
-   * @param message - concrete invalid dependency relation.
-   * @param violation - stable relation category used by Team commands.
+   * @param message - 具体的无效依赖关系。
+   * @param violation - Team 命令所用的、稳定的关系类别。
    */
   constructor(message: string, readonly violation: TeamTaskGraphViolation) {
     super(message)
@@ -18,10 +18,10 @@ export class TeamTaskGraphError extends Error {
 }
 
 /**
- * Validate the complete active task graph after replacing one candidate snapshot.
- * @param current - current task snapshots before the candidate event.
- * @param candidate - new or next-revision task snapshot.
- * @throws {TeamTaskGraphError} when an active dependency is missing, duplicated, self-referential, or cyclic.
+ * 在替换一份候选快照之后，校验完整的活跃任务图。
+ * @param current - 候选事件之前的当前任务快照。
+ * @param candidate - 新的或下一修订版本的任务快照。
+ * @throws {TeamTaskGraphError} 当某个活跃依赖缺失、重复、自引用或成环时。
  */
 export function assertTaskGraphCandidate(
   current: readonly TeamTaskSnapshot[],

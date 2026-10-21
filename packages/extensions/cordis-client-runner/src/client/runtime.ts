@@ -1,17 +1,15 @@
 /**
- * Per-package browser lifecycle: evaluate the closure, wrap `apply` in the guard
- * facade, seat a ready-made factory in the module table, and create a loader
- * entry — so dynamic packages ride the exact machinery static plugins do
- * (activation gating on inject, fiber-effect cleanup, status projection). Unload
- * = loader entry removal (fiber disposal cascades slot entries and facade
- * effects) + factory invalidation + style removal.
+ * 按包的浏览器生命周期：求值闭包、用守卫门面包裹 `apply`、
+ * 在模块表中落座一个现成工厂、并创建一个 loader 条目 —— 从而动态包
+ * 乘坐与静态插件完全相同的机制（基于 inject 的激活把关、fiber-effect
+ * 清理、状态投影）。卸载 = 移除 loader 条目（fiber 释放级联槽位条目与
+ * 门面 effect）+ 工厂失效 + 样式移除。
  *
- * The engine answers its caller: `load` resolves with what this page ended up
- * with, which is what the run orchestration reports back to the host. Loads
- * converge by Plugin Run ID against live state, not history: loading the exact
- * activation this page already runs is a no-op that still answers, another run
- * replaces it, and the same Package after a retract loads afresh. Per-Plugin
- * serialization keeps a second request from interleaving with one in flight.
+ * 该引擎应答其调用方：`load` 以本页面最终得到的结果解析，而这正是
+ * 运行编排回传给 host 的内容。加载按 Plugin Run ID 针对活动状态
+ * 收敛，而非历史：加载本页面已在运行的精确激活是无操作且仍会应答，
+ * 另一次运行会替换它，而收回之后同一 Package 会全新加载。按 Plugin
+ * 的串行化避免第二个请求与进行中的请求交错。
  */
 
 import type { Context } from '@deepseek-ai/cordis'
@@ -28,101 +26,101 @@ import { dynamicCordisContext } from './guard.ts'
 import type { DynamicCordisSlotLedgerRow } from './guard.ts'
 
 /**
- * Snapshot source a surface can subscribe to (the render seam's observable
- * shape). Lives here because both this engine and the run orchestration publish
- * through it, and the orchestration already depends on this module.
+ * 一个界面可订阅的快照来源（渲染接缝的可观察形态）。
+ * 它位于此处，是因为引擎本身与运行编排都通过它发布，
+ * 且编排已经依赖本模块。
  */
 export interface CordisObservable<T> {
-  /** Current value; the reference is stable between mutations. */
+  /** 当前值；在两次变更之间引用稳定。 */
   getSnapshot(): T
   /**
-   * Observe mutations.
-   * @param fn - notified after each committed change.
-   * @returns unsubscribe.
+   * 观察变更。
+   * @param fn - 每次已提交的变更之后被通知。
+   * @returns 取消订阅函数。
    */
   subscribe(fn: () => void): () => void
 }
 
-/** Which stage of a load failed, as the page classified it. */
+/** 一次加载失败的、由页面所归类的阶段。 */
 export type DynamicCordisLoadErrorCause = 'evaluate' | 'module-import' | 'activate'
 
-/** Error fields retained by the page runner and Host transport. */
+/** 由页面运行器与 Host 传输保留的错误字段。 */
 export interface CordisErrorDetails {
-  /** Original error message. */
+  /** 原始错误消息。 */
   message: string
-  /** Original stack when the thrown value supplied one. */
+  /** 被抛值提供了栈时的原始栈。 */
   stack?: string
 }
 
-/** One package's browser half as the host handed it over. */
+/** Host 交来的某个包的浏览器半区。 */
 export interface DynamicCordisClientHalf {
-  /** Stable Plugin instance. */
+  /** 稳定的 Plugin 实例。 */
   pluginId: CordisDynamicPluginId
-  /** Immutable Package source version. */
+  /** 不可变的 Package 源码版本。 */
   packageId: CordisDynamicPackageId
-  /** Exact activation. */
+  /** 精确激活。 */
   pluginRunId: CordisDynamicPluginRunId
-  /** Session the run is carried out for; a later render failure is reported under it. */
+  /** 运行所服务的会话；后续的渲染失败在其名下报告。 */
   agentId: SessionId
-  /** Label from the define call; also the plugin name. */
+  /** 来自 define 调用的标签；同时也是插件名。 */
   name: string
-  /** Browser-half source: an async function body returning a plugin. */
+  /** 浏览器半区源码：一个返回插件的 async 函数体。 */
   code: string
 }
 
 /**
- * One render-time crash of a dynamic package's slot entry, as this page reports
- * it. Post-settle diagnosis only: the run it belongs to was answered long before
- * (a package that crashes while rendering loaded successfully), so this never
- * reaches a run resolution.
+ * 一个动态包槽位条目在渲染时的崩溃，按本页面的报告口径。
+ * 仅限结算后诊断：它所属的运行的应答远早于此
+ * （一个在渲染时崩溃的包是加载成功的），因此它
+ * 永远到不了运行结算。
  */
 export interface DynamicCordisRenderFailure {
-  /** Slot key the crashed entry rendered under. */
+  /** 崩溃条目所渲染于其下的槽位键。 */
   slot: string
-  /** What the author has to read to fix it: the crash text, plus a redirect when it names a withheld global. */
+  /** 作者需阅读以修复它的内容：崩溃文本，加上当点名被扣留全局时的重定向。 */
   message: string
-  /** Original render failure stack when available. */
+  /** 可用时的原始渲染失败栈。 */
   stack?: string
-  /** Whether the crash retired the entry from its cell — the package's UI is gone, not merely broken. */
+  /** 崩溃是否将条目从其格位中撤下 —— 包的 UI 已消失，而非仅仅损坏。 */
   abdicated: boolean
 }
 
 /**
- * What this page ended up with. A parked package is a success — the browser half
- * settled and waits on declared services this page has not got.
+ * 本页面最终得到的结果。一个被挂起的包也是成功 —— 浏览器半区
+ * 已落定，并在等待本页面尚未获得的、已声明的服务。
  */
 export type DynamicCordisLoadResult =
   | { ok: true; pluginRunId: CordisDynamicPluginRunId; waitingFor?: string[] }
   | ({ ok: false; cause: DynamicCordisLoadErrorCause; error?: unknown } & CordisErrorDetails)
 
-/** The `window.__ModuleLoader__` registration sink (client-modules contract C6). */
+/** `window.__ModuleLoader__` 的注册汇点（client-modules 契约 C6）。 */
 interface ModuleLoaderSink {
   __ModuleLoader__?: {
     load(handoff: { id: string; factory: (require: (spec: string) => unknown) => unknown }): void
   }
 }
 
-/** One live package's bookkeeping. */
+/** 一个活动包的记账。 */
 interface LivePackage {
   pkg: DynamicCordisPackage
   entryId: string
   styles: DynamicCordisStyles
   ledger: DynamicCordisSlotLedgerRow[]
-  /** Services the browser half declared and this page has not got (parked, still a success). */
+  /** 浏览器半区已声明、而本页面尚未获得的（被挂起，仍属成功）服务。 */
   waitingFor: string[]
 }
 
-/** Runner dependencies, resolved by the plugin entry at activation. */
+/** 运行器依赖，由插件条目在激活时解析。 */
 export interface DynamicCordisRunnerEnv {
-  /** The client root context (service reads and the guard's fiber owner). */
+  /** Client 根上下文（服务读取与守卫的 fiber 所有者）。 */
   ctx: Context
-  /** Client cordis Loader: dynamic packages become entries under it. */
+  /** Client cordis Loader：动态包成为其下的条目。 */
   loader: Loader
-  /** Module table, for factory invalidation before every (re-)registration. */
+  /** 模块表，用于每次（重新）注册前的工厂失效。 */
   modules: ClientModuleSystem
-  /** Slot registry, for the entry-crash supervision seam. */
+  /** 槽位注册表，用于条目崩溃监督接缝。 */
   slots: SlotRegistry
-  /** Route one `host.call` to the package's host half through the Remote namespace. */
+  /** 通过 Remote 命名空间，将一次 `host.call` 路由到包的 host 半区。 */
   invoke(
     pluginId: CordisDynamicPluginId,
     pluginRunId: CordisDynamicPluginRunId,
@@ -130,12 +128,12 @@ export interface DynamicCordisRunnerEnv {
     args: unknown,
   ): Promise<unknown>
   /**
-   * Send one render-time crash back to the session that authored the package.
-   * Fire-and-forget by contract: the crash already happened, and a failed report
-   * must not become a second failure.
-   * @param agentId - session the crashed package was run for.
-   * @param id - the crashed package.
-   * @param failure - slot, teaching text, and whether the entry was retired.
+   * 将一次渲染时崩溃回传给编写该包的会话。
+   * 按契约为发后不理：崩溃已经发生，而一次失败的报告
+   * 绝不能变成第二次失败。
+   * @param agentId - 崩溃包所运行的会话。
+   * @param id - 崩溃的包。
+   * @param failure - 槽位、教学性文本，以及条目是否被撤下。
    */
   reportRenderFailure(
     agentId: SessionId,
@@ -143,7 +141,7 @@ export interface DynamicCordisRunnerEnv {
     pluginRunId: CordisDynamicPluginRunId,
     failure: DynamicCordisRenderFailure,
   ): void
-  /** Send one post-activation Client guard rejection to the owning Agent. */
+  /** 将一次激活后的 Client 守卫拒绝发送给所属 Agent。 */
   reportGuardFailure(
     agentId: SessionId,
     pluginId: CordisDynamicPluginId,
@@ -152,68 +150,68 @@ export interface DynamicCordisRunnerEnv {
   ): void
 }
 
-/** Module-table id of one package (also its loader entry name and fiber name). */
+/** 一个包的模块表 id（亦为其 loader 条目名与 fiber 名）。 */
 function moduleIdOf(id: CordisDynamicPluginId): string {
   return `dyn/${id}`
 }
 
-/** One live package's contribution summary in this page. */
+/** 本页面中一个活动包的贡献摘要。 */
 export interface DynamicCordisLivePackage {
-  /** Stable Plugin instance. */
+  /** 稳定的 Plugin 实例。 */
   pluginId: CordisDynamicPluginId
-  /** Immutable Package source version. */
+  /** 不可变的 Package 源码版本。 */
   packageId: CordisDynamicPackageId
-  /** Exact activation loaded in this page. */
+  /** 本页面中加载的精确激活。 */
   pluginRunId: CordisDynamicPluginRunId
-  /** Label from the define call. */
+  /** 来自 define 调用的标签。 */
   name: string
-  /** Slot names and `factory:<name>` definitions this package registered here. */
+  /** 本包在此注册的槽位名与 `factory:<name>` 定义。 */
   slots: string[]
-  /** Live injected-style tag count. */
+  /** 活动注入样式标签数量。 */
   styleCount: number
 }
 
-/** The browser-side load engine for dynamic packages. */
+/** 动态包的浏览器侧加载引擎。 */
 export class DynamicCordisPackageRunner {
   private readonly live = new Map<CordisDynamicPluginId, LivePackage>()
-  /** Serializes load/unload per package id (a second request can outrun a slow load). */
+  /** 按包 id 串行化加载/卸载（第二个请求可能跑赢一个慢速加载）。 */
   private readonly queues = new Map<CordisDynamicPluginId, Promise<unknown>>()
   private readonly changeListeners = new Set<() => void>()
-  /** Page-local shadowing rank. A later registration receives a lower priority. */
+  /** 页面局部的重影等级。后注册的收到更低的优先级。 */
   private nextPriority = 0
   /**
-   * Which package seated which component, and for whom. Component identity is the
-   * only attribution key that holds:
-   * - the registry stores the component verbatim, so a crashed entry carries its
-   *   own way back — no parallel entry ledger to keep in step;
-   * - `entry.registrant` is `options.registrant ?? fiber.name` and the facade does
-   *   not strip a package-supplied one, so a package could name itself something
-   *   else — attributing by it would let a package impersonate another;
-   * - the assigned shadowing priority is unique but absent on chain entries (their
-   *   election is deliberately left alone), so it would miss chain crashes;
-   * - a package torn down between the crash and the report is still attributable,
-   *   because this index does not depend on the live record.
+   * 哪个包坐落了哪个组件，以及为谁。组件身份是
+   * 唯一站得住脚的归因键：
+   * - 注册表逐字存储组件，因此一个崩溃的条目自带
+   *   回归之路 —— 无需并行的条目台账来保持同步；
+   * - `entry.registrant` 是 `options.registrant ?? fiber.name`，而门面
+   *   不会剥离包提供的那个，因此一个包可能把自己命名为别的东西
+   *   —— 按它归因会让一个包冒充另一个；
+   * - 被分配的重影优先级是唯一的，但在链条目上缺失（其
+   *   选举被刻意保留不动），因此它会漏掉链崩溃；
+   * - 在崩溃与报告之间被拆除的包仍可被归因，
+   *   因为该索引不依赖活动记录。
    *
-   * Two packages cannot collide here: each browser half is evaluated in its own
-   * closure, so no component object reaches two of them. A collision is only
-   * possible inside ONE package (the same component seated twice), where both
-   * entries map to the same id and the value is identical.
+   * 两个包无法在此相撞：每个浏览器半区在自己的
+   * 闭包中求值，因此没有组件对象能抵达其中两个。碰撞只
+   * 可能发生在同一个包内部（同一组件被坐落两次），此时两个
+   * 条目都映射到同一 id，且值相同。
    */
   private readonly owners = new WeakMap<object, {
     pluginId: CordisDynamicPluginId
     pluginRunId: CordisDynamicPluginRunId
     agentId: SessionId
   }>()
-  /** This page's last render crash per package: what a run surface shows on the row. */
+  /** 本页面按包计的上次渲染崩溃：运行界面在行上展示的内容。 */
   private readonly failures = new Map<CordisDynamicPluginId, DynamicCordisRenderFailure>()
   private readonly unwatch: () => void
   private snapshotCache: readonly DynamicCordisLivePackage[] | undefined
   private failureCache: ReadonlyMap<CordisDynamicPluginId, DynamicCordisRenderFailure> | undefined
 
-  /** @param env - loader/module/slot wiring plus the two host verbs this engine uses. */
+  /** @param env - loader/模块/槽位接线，外加本引擎使用的两个 host 动词。 */
   constructor(private readonly env: DynamicCordisRunnerEnv) {
-    // The supervision seam fires for EVERY entry crash on the page, factory UI
-    // included; only the ones this runner seated are ours to report.
+    // 监督接缝为页面上每一次条目崩溃触发，工厂 UI
+    // 也包括在内；只有本运行器坐落的那些才归我们报告。
     this.unwatch = env.slots.onEntryError((slot, entry, error, info) => {
       const component: unknown = (entry as { component?: unknown }).component
       const owner = indexable(component) ? this.owners.get(component) : undefined
@@ -225,9 +223,9 @@ export class DynamicCordisPackageRunner {
         ...details.stack === undefined ? {} : { stack: details.stack },
         abdicated: info.abdicated,
       }
-      // One observation, two outlets with different owners and lifetimes: the host
-      // keeps the last crash ACROSS pages for the model, this map is what THIS page
-      // currently shows. Neither is derived from the other.
+      // 一次观察，两个归属与生命周期不同的出口：host
+      // 为模型保留跨页面的上次崩溃，而此映射是本页面
+      // 当前展示的内容。两者互不派生。
       env.reportRenderFailure(owner.agentId, owner.pluginId, owner.pluginRunId, failure)
       this.failures.set(owner.pluginId, failure)
       this.notify()
@@ -235,9 +233,9 @@ export class DynamicCordisPackageRunner {
   }
 
   /**
-   * Observe live-set changes (the run-state surface's re-render seam).
-   * @param fn - notified after every converged mutation.
-   * @returns unsubscribe.
+   * 观察活动集变更（运行状态界面的重渲染接缝）。
+   * @param fn - 每次收敛的变更之后被通知。
+   * @returns 取消订阅函数。
    */
   subscribe(fn: () => void): () => void {
     this.changeListeners.add(fn)
@@ -245,9 +243,9 @@ export class DynamicCordisPackageRunner {
   }
 
   /**
-   * This page's last render crash per package, on the same notification channel as
-   * the live set — a surface that already subscribed learns about a crash without
-   * a second mechanism to wire.
+   * 本页面按包计的上次渲染崩溃，与活动集处于
+   * 同一通知通道 —— 一个已经订阅的界面无需第二种
+   * 机制就能获知一次崩溃。
    */
   readonly renderFailures: CordisObservable<ReadonlyMap<CordisDynamicPluginId, DynamicCordisRenderFailure>> = {
     getSnapshot: () => this.failureCache ??= new Map(this.failures),
@@ -255,9 +253,9 @@ export class DynamicCordisPackageRunner {
   }
 
   /**
-   * What this page currently has loaded (stable reference between mutations, so
-   * it can back a snapshot selector).
-   * @returns one row per live package.
+   * 本页面当前已加载的内容（在变更之间引用稳定，因此
+   * 可支撑一个快照选择器）。
+   * @returns 每个活动包一行。
    */
   getSnapshot(): readonly DynamicCordisLivePackage[] {
     return this.snapshotCache ??= [...this.live.values()].map(({ pkg, ledger, styles }) => ({
@@ -271,26 +269,26 @@ export class DynamicCordisPackageRunner {
   }
 
   /**
-   * Whether this page has the browser half loaded — page-local truth, never the
-   * host's "it is running".
-   * @param pluginId - stable Plugin identity.
-   * @returns true while one activation of the Plugin is live here.
+   * 本页面是否已加载该浏览器半区 —— 页面局部的真相，而非
+   * host 的"它正在运行"。
+   * @param pluginId - 稳定的 Plugin 身份。
+   * @returns 该 Plugin 的一次激活在此活动期间为 true。
    */
   isLoaded(pluginId: CordisDynamicPluginId): boolean {
     return this.live.has(pluginId)
   }
 
   /**
-   * Load one browser half into this page and answer what happened.
-   * @param half - source for one exact Host activation.
-   * @returns the outcome the run orchestration reports to the host.
+   * 将一个浏览器半区加载到本页面，并应答所发生的结果。
+   * @param half - 某一次精确 Host 激活的源码。
+   * @returns 运行编排回传给 host 的结果。
    */
   load(half: DynamicCordisClientHalf): Promise<DynamicCordisLoadResult> {
     return this.enqueue(half.pluginId, async () => {
       const current = this.live.get(half.pluginId)
       if (current !== undefined) {
-        // Already running this activation here: nothing to load, but the caller
-        // still needs an answer (a replayed run must not look unacknowledged).
+        // 此处已在运行这一激活：无需加载，但调用方
+        // 仍需要一个应答（一次重放的 run 绝不能显得未被确认）。
         if (current.pkg.pluginRunId === half.pluginRunId) return settled(current)
         await this.teardown(current.pkg.pluginId, current.entryId, current.styles)
       }
@@ -301,10 +299,10 @@ export class DynamicCordisPackageRunner {
   }
 
   /**
-   * Unload one package (`cordis/dynamic-retract`: a stop, or an undefine
-   * that stops first).
-   * @param pluginId - stable Plugin identity.
-   * @param pluginRunId - exact activation being retracted; a newer run survives.
+   * 卸载一个包（`cordis/dynamic-retract`：一次停止，或一次先停后定义的
+   * 解除）。
+   * @param pluginId - 稳定的 Plugin 身份。
+   * @param pluginRunId - 被收回的精确激活；更新的运行得以存活。
    */
   retract(pluginId: CordisDynamicPluginId, pluginRunId: CordisDynamicPluginRunId): void {
     void this.enqueue(pluginId, async () => {
@@ -315,7 +313,7 @@ export class DynamicCordisPackageRunner {
     })
   }
 
-  /** Unload everything (plugin disposal path). */
+  /** 卸载一切（插件处置路径）。 */
   async dispose(): Promise<void> {
     this.unwatch()
     for (const current of [...this.live.values()]) {
@@ -330,12 +328,12 @@ export class DynamicCordisPackageRunner {
     for (const fn of [...this.changeListeners]) fn()
   }
 
-  /** Queue one package operation behind that package's previous ones. */
+  /** 将一个包的操作排到该包之前的操作之后。 */
   private enqueue<T>(id: CordisDynamicPluginId, op: () => Promise<T>): Promise<T> {
     const previous = this.queues.get(id) ?? Promise.resolve()
     const next = previous.then(op)
-    // The queue tail must survive this operation's failure, or one rejection
-    // would wedge every later operation on the same package.
+    // 队列尾部必须在本操作失败时存活，否则一次拒绝
+    // 会卡住同一包上随后所有操作。
     this.queues.set(id, next.then(() => {}, () => {}))
     return next
   }
@@ -348,8 +346,8 @@ export class DynamicCordisPackageRunner {
       plugin = await evaluateClientHalf(half.pluginId, half.code, {
         invoke: (method, args) => this.env.invoke(half.pluginId, half.pluginRunId, method, args),
         noteError: (message) => {
-          // A loaded package's own console.error: a page-local diagnostic with
-          // no wire carrier (the run round trip settled long before).
+          // 一个已加载包自身的 console.error：一个页面局部的
+          // 诊断，没有连线载体（运行往返早已结算）。
           console.error(`[cordis-client-runner] ${half.pluginId} logged an error:`, message)
         },
       }, styles)
@@ -366,8 +364,8 @@ export class DynamicCordisPackageRunner {
     }
     const surface = this.guardedSurface(pkg, half.agentId, plugin, ledger)
     const moduleId = moduleIdOf(half.pluginId)
-    // Invalidate-then-register keeps re-loading legal: the module table throws
-    // loudly on a duplicate factory registration.
+    // 先失效再注册使重新加载合法：模块表会在重复
+    // 工厂注册时大声抛出。
     this.env.modules.invalidate(moduleId)
     const sink = (globalThis as ModuleLoaderSink).__ModuleLoader__
     if (sink === undefined) {
@@ -387,24 +385,23 @@ export class DynamicCordisPackageRunner {
       await this.teardown(half.pluginId, entryId, styles)
       return { ok: false, cause: 'activate', ...errorDetails(error), error }
     }
-    // Settled but not active = legal pending on an unsatisfied declaration. The
-    // record is seated only now, so an error mirrored during `apply` cannot
-    // claim the package is already live.
+    // 已落定但未激活 = 合法地等待一个未满足的声明。记录
+    // 此刻才坐落，因此在 `apply` 期间镜像的错误无法
+    // 声称包已经活动。
     const waitingFor = Object.keys(fiber.inject).filter(name => this.env.ctx.get(name) === undefined)
     const record: LivePackage = { pkg, entryId, styles, ledger, waitingFor }
     this.live.set(half.pluginId, record)
-    // A fresh load answers for itself: whatever this page last showed as crashed
-    // is no longer true of what is mounted now.
+    // 一次全新加载为自己应答：本页面上次显示为崩溃的内容
+    // 对于现在挂载的东西不再为真。
     this.failures.delete(half.pluginId)
     return settled(record)
   }
 
   /**
-   * Wrap the evaluated plugin so `apply` sees the guard facade; the surface
-   * doubles as the module-table module. The plugin's OWN `inject` survives (the
-   * object form's declaration is the facade's service gate, mirroring the host
-   * sandbox reading `ctx.fiber.inject`); the function form has no declaration
-   * site and therefore reaches no service.
+   * 包裹被求值的插件，使 `apply` 看到守卫门面；该表面
+   * 同时充当模块表的模块。插件自身的 `inject` 得以保留
+   * （对象形式的声明即门面的服务把关，镜像 host 沙箱读取
+   * `ctx.fiber.inject`）；函数形式没有声明处，因此触达不到任何服务。
    */
   private guardedSurface(
     pkg: DynamicCordisPackage,
@@ -437,8 +434,8 @@ export class DynamicCordisPackageRunner {
   }
 
   /**
-   * Unload one package's contributions. Takes the pieces rather than the record
-   * because a load can fail before any record is seated.
+   * 卸载一个包的贡献。取零件而非记录，
+   * 是因为一次加载可能在任何记录落座前就失败。
    */
   private async teardown(
     id: CordisDynamicPluginId,
@@ -446,11 +443,11 @@ export class DynamicCordisPackageRunner {
     styles: DynamicCordisStyles,
   ): Promise<void> {
     this.live.delete(id)
-    // Nothing of this package renders here any more, so a crash row would outlive
-    // the thing it described.
+    // 本包的任何东西都不再渲染于此，因此崩溃行会比
+    // 它所描述之物活得更久。
     this.failures.delete(id)
-    // Entry removal disposes the fiber (slot entries and facade effects
-    // cascade); the factory invalidation makes a later re-load legal.
+    // 条目移除会释放 fiber（槽位条目与门面 effect
+    // 级联）；工厂失效使随后的重新加载合法。
     const disposal = this.env.loader.resolve(entryId).fiber?.dispose()
     this.env.loader.remove(entryId)
     await disposal
@@ -459,7 +456,7 @@ export class DynamicCordisPackageRunner {
   }
 }
 
-/** The success answer for a package that is live here, parked or active. */
+/** 一个在此活动（已挂起或已激活）的包的成功应答。 */
 function settled(record: { pkg: DynamicCordisPackage; waitingFor: string[] }): DynamicCordisLoadResult {
   return {
     ok: true,
@@ -469,20 +466,20 @@ function settled(record: { pkg: DynamicCordisPackage; waitingFor: string[] }): D
 }
 
 /**
- * Whether a component can key the ownership index. Identity is the key, so only
- * objects and functions qualify — a package may register anything, and what it
- * registered is what a crash report carries back.
- * @param component - whatever a package passed as its component.
- * @returns true when the value can be indexed by identity.
+ * 一个组件能否作为归属索引的键。身份即键，因此只有
+ * 对象与函数合格 —— 一个包可以注册任何东西，而它注册了什么，
+ * 崩溃报告就带回什么。
+ * @param component - 一个包作为组件传入的任何值。
+ * @returns 当该值可按身份索引时为 true。
  */
 function indexable(component: unknown): component is object {
   return typeof component === 'object' && component !== null || typeof component === 'function'
 }
 
 /**
- * Preserve error fields for a load result without fabricating a stack.
- * @param error - original thrown value.
- * @returns its message and original string stack, when present.
+ * 为加载结果保留错误字段，而不臆造一个栈。
+ * @param error - 原始被抛值。
+ * @returns 其消息与原始字符串栈（若存在）。
  */
 /* jscpd:ignore-start */
 export function errorDetails(error: unknown): CordisErrorDetails {
@@ -496,10 +493,10 @@ export function errorDetails(error: unknown): CordisErrorDetails {
 /* jscpd:ignore-end */
 
 /**
- * What the authoring session reads about one render crash. The slot says where it
- * happened, the crash message says what broke, and a withheld global named in that
- * text pulls in its redirect — a package that reached `window.setInterval` around
- * the closure trap crashes with the engine's bare message, which teaches nothing.
+ * 编写会话针对一次渲染崩溃所读取的内容。槽位说明发生在哪里，
+ * 崩溃消息说明哪里坏了，而该文本中点名的被扣留全局会引入其重定向
+ * —— 一个绕过闭包陷阱触达 `window.setInterval` 的包会以引擎的裸消息
+ * 崩溃，那什么都教不到。
  */
 function renderFailureMessage(slot: string, message: string): string {
   const redirect = Object.entries(DYNAMIC_CLIENT_REDIRECTS)

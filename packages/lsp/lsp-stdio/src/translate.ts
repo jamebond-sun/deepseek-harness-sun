@@ -1,7 +1,7 @@
 /**
- * Pure protocol translation for the local host: what the server's capabilities allow, and how its
- * `Location`/`LocationLink`/`Hover` payloads normalize into the seam's closed result unions. No I/O
- * or process state — every function here is a pure transform, which the fake-stdio tests pin exactly.
+ * 本地宿主的纯协议转换：服务端能力允许什么，以及它的 `Location`/`LocationLink`/`Hover`
+ * 负载如何归一化为接缝的封闭结果联合。无 I/O 也无进程状态——这里的每个函数都是纯变换，
+ * fake-stdio 测试会精确地钉住它们。
  * @module @deepseek-ai/dsh-lsp-stdio/translate
  */
 
@@ -25,9 +25,9 @@ import type {
 } from './protocol.ts'
 
 /**
- * The `textDocument/*` request method for each LSP operation.
- * @param operation - the LSP operation to map.
- * @returns the LSP request method name.
+ * 每个 LSP 操作对应的 `textDocument/*` 请求方法。
+ * @param operation - 要映射的 LSP 操作。
+ * @returns LSP 请求方法名。
  */
 export function requestMethod(operation: LspOperation): string {
   switch (operation) {
@@ -35,24 +35,24 @@ export function requestMethod(operation: LspOperation): string {
     case 'findReferences': return 'textDocument/references'
     case 'goToImplementation': return 'textDocument/implementation'
     case 'hover': return 'textDocument/hover'
-    /* v8 ignore next -- exhaustive over the closed LspOperation union; unreachable. */
+    /* v8 ignore next -- 对封闭的 LspOperation 联合穷尽；不可达。 */
     default: return assertNever(operation, 'requestMethod')
   }
 }
 
-/** The `ServerCapabilities` provider field backing each operation. */
+/** 支撑每个操作的 `ServerCapabilities` provider 字段。 */
 function capabilityValue(capabilities: WireServerCapabilities, operation: LspOperation): WireProviderCapability {
   switch (operation) {
     case 'goToDefinition': return capabilities.definitionProvider
     case 'findReferences': return capabilities.referencesProvider
     case 'goToImplementation': return capabilities.implementationProvider
     case 'hover': return capabilities.hoverProvider
-    /* v8 ignore next -- exhaustive over the closed LspOperation union; unreachable. */
+    /* v8 ignore next -- 对封闭的 LspOperation 联合穷尽；不可达。 */
     default: return assertNever(operation, 'capabilityValue')
   }
 }
 
-/** A provider capability is present when the server sent `true` or an options object (not `false`/absent). */
+/** 当服务端发送 `true` 或选项对象（而非 `false`/缺省）时，认为该 provider 能力存在。 */
 function supportsCapability(value: WireProviderCapability): boolean {
   if (value === undefined) return false
   if (typeof value === 'boolean') return value
@@ -60,21 +60,21 @@ function supportsCapability(value: WireProviderCapability): boolean {
 }
 
 /**
- * Whether the server advertises the requested operation.
- * @param capabilities - the server's `initialize` capabilities.
- * @param operation - the LSP operation to check.
- * @returns true when the corresponding provider capability is present.
+ * 服务端是否声明了所请求的操作。
+ * @param capabilities - 服务端 `initialize` 返回的能力。
+ * @param operation - 要检查的 LSP 操作。
+ * @returns 对应的 provider 能力存在时为 true。
  */
 export function supportsOperation(capabilities: WireServerCapabilities, operation: LspOperation): boolean {
   return supportsCapability(capabilityValue(capabilities, operation))
 }
 
 /**
- * Whether a `textDocumentSync` value permits the transient `didOpen`/`didClose` this host relies on.
- * The legacy enum form implies open/close for `Full`/`Incremental`; the options form requires an
- * explicit `openClose: true`, because the protocol defaults an omitted `openClose` to false.
- * @param sync - the server's advertised `textDocumentSync` capability.
- * @returns true when transient open/close is supported.
+ * 某个 `textDocumentSync` 取值是否允许本宿主依赖的临时 `didOpen`/`didClose`。
+ * 旧式枚举形态对 `Full`/`Incremental` 隐含支持 open/close；选项形态则要求显式的
+ * `openClose: true`，因为协议把缺省的 `openClose` 视为 false。
+ * @param sync - 服务端声明的 `textDocumentSync` 能力。
+ * @returns 支持临时 open/close 时为 true。
  */
 export function supportsTransientOpen(sync: WireServerCapabilities['textDocumentSync']): boolean {
   if (sync === undefined) return false
@@ -82,24 +82,24 @@ export function supportsTransientOpen(sync: WireServerCapabilities['textDocument
   return sync.openClose === true
 }
 
-/** Legacy enum: `Full` (1) or `Incremental` (2) imply open/close support; `None` (0) does not. */
+/** 旧式枚举：`Full`（1）或 `Incremental`（2）隐含 open/close 支持；`None`（0）不支持。 */
 function isOpenCloseKind(kind: WireTextDocumentSyncKind): boolean {
   return kind === 1 || kind === 2
 }
 
 /**
- * Normalize the negotiated position encoding. An omitted encoding defaults to `utf-16`; any value
- * other than `utf-16` is a protocol error this host does not support.
- * @param encoding - the server's advertised `positionEncoding`, if any.
- * @returns the string `'utf-16'`.
- * @throws Error for any non-`utf-16` encoding.
+ * 归一化协商出的位置编码。省略编码时默认为 `utf-16`；任何其他取值都是本宿主
+ * 不支持的协议错误。
+ * @param encoding - 服务端声明的 `positionEncoding`（若有）。
+ * @returns 字符串 `'utf-16'`。
+ * @throws Error 对任何非 `utf-16` 的编码。
  */
 export function negotiatePositionEncoding(encoding: string | undefined): 'utf-16' {
   if (encoding === undefined || encoding === 'utf-16') return 'utf-16'
   throw new Error(`server negotiated unsupported position encoding "${encoding}"; this host requires utf-16`)
 }
 
-/** Convert a wire range to the seam's range (structurally identical, but re-shaped as `readonly`). */
+/** 把线上区间转换为接缝的区间（结构完全相同，只是重新整形为 `readonly`）。 */
 function toRange(range: WireRange): LspRange {
   return {
     start: { line: range.start.line, character: range.start.character },
@@ -107,41 +107,41 @@ function toRange(range: WireRange): LspRange {
   }
 }
 
-/** Whether a record is a `LocationLink` (has `targetUri` + `targetSelectionRange`). */
+/** 判断一个记录是否是 `LocationLink`（有 `targetUri` + `targetSelectionRange`）。 */
 function isLocationLink(value: Record<string, unknown>): boolean {
   return typeof value.targetUri === 'string' && isRange(value.targetSelectionRange)
 }
 
-/** Whether a record is a `Location` (has string `uri` + a range). */
+/** 判断一个记录是否是 `Location`（有字符串 `uri` + 一个区间）。 */
 function isLocation(value: Record<string, unknown>): boolean {
   return typeof value.uri === 'string' && isRange(value.range)
 }
 
-/** Structural range guard used by both location shapes. */
+/** 两种位置形态共用的结构化区间守卫。 */
 function isRange(value: unknown): value is WireRange {
   if (value === null || typeof value !== 'object') return false
   const range = value as Record<string, unknown>
   return isPosition(range.start) && isPosition(range.end)
 }
 
-/** Structural position guard. */
+/** 结构化位置守卫。 */
 function isPosition(value: unknown): boolean {
   if (value === null || typeof value !== 'object') return false
   const position = value as Record<string, unknown>
   return isProtocolCoordinate(position.line) && isProtocolCoordinate(position.character)
 }
 
-/** Whether a wire coordinate is a valid nonnegative integer. */
+/** 判断一个线上坐标是否是合法的非负整数。 */
 function isProtocolCoordinate(value: unknown): value is number {
   return typeof value === 'number' && Number.isInteger(value) && value >= 0
 }
 
 /**
- * Normalize a navigation result (`Location`, `Location[]`, `LocationLink[]`, or `null`) to the seam's
- * locations. `Location` maps directly; `LocationLink` maps `targetUri` + `targetSelectionRange`.
- * @param payload - the raw `textDocument/definition|references|implementation` result.
- * @returns the normalized locations (empty for `null`/`[]`).
- * @throws Error when an element is neither a `Location` nor a `LocationLink`.
+ * 把一个导航结果（`Location`、`Location[]`、`LocationLink[]` 或 `null`）归一化为接缝的
+ * locations。`Location` 直接映射；`LocationLink` 映射 `targetUri` + `targetSelectionRange`。
+ * @param payload - 原始的 `textDocument/definition|references|implementation` 结果。
+ * @returns 归一化后的位置（`null`/`[]` 时为空数组）。
+ * @throws Error 当某个元素既不是 `Location` 也不是 `LocationLink` 时。
  */
 export function normalizeLocations(payload: unknown): LspLocation[] {
   if (payload === null) return []
@@ -166,19 +166,19 @@ export function normalizeLocations(payload: unknown): LspLocation[] {
   return locations
 }
 
-/** Render one `MarkedString` (string form verbatim; object form as a language-tagged fenced block). */
+/** 渲染一个 `MarkedString`（字符串形态原样；对象形态渲染为带语言标签的围栏代码块）。 */
 function renderMarkedString(value: WireMarkedString): string {
   if (typeof value === 'string') return value
   return `\`\`\`${value.language}\n${value.value}\n\`\`\``
 }
 
 /**
- * Normalize a `Hover` (or `null`) to the seam's hover. `MarkupContent` uses its `value`; a string
- * `MarkedString` is verbatim; a language-tagged `MarkedString` becomes a fenced code block; an array
- * joins its rendered parts with one blank line. The model-facing tool owns the complete result cap.
- * @param payload - the raw `textDocument/hover` result.
- * @returns the normalized hover, or `null` when there is no content.
- * @throws Error when the payload is a non-null, non-object, or structurally invalid hover.
+ * 把一个 `Hover`（或 `null`）归一化为接缝的 hover。`MarkupContent` 取它的 `value`；
+ * 字符串 `MarkedString` 原样使用；带语言标签的 `MarkedString` 变成围栏代码块；
+ * 数组则用一个空行连接其各个渲染片段。面向模型的工具负责完整结果上限。
+ * @param payload - 原始的 `textDocument/hover` 结果。
+ * @returns 归一化的 hover，没有内容时为 `null`。
+ * @throws Error 当负载是非 null 的非对象，或结构上非法的 hover 时。
  */
 export function normalizeHover(payload: unknown): LspHover | null {
   if (payload === null) return null
@@ -193,7 +193,7 @@ export function normalizeHover(payload: unknown): LspHover | null {
   return { contents, range: toRange(range) }
 }
 
-/** Render the three `Hover.contents` encodings into one string (input is untrusted wire data). */
+/** 把三种 `Hover.contents` 编码渲染成一个字符串（输入是不可信的线上数据）。 */
 function renderHoverContents(contents: unknown): string {
   if (contents === null || contents === undefined) {
     throw malformedResponse('LSP hover result had no contents')
@@ -221,7 +221,7 @@ function renderHoverContents(contents: unknown): string {
   throw malformedResponse('LSP hover contents were not MarkupContent, MarkedString, or an array')
 }
 
-/** Whether an untrusted value is either form of `MarkedString`. */
+/** 判断一个不可信的值是否是 `MarkedString` 的两种形态之一。 */
 function isMarkedString(value: unknown): value is WireMarkedString {
   if (typeof value === 'string') return true
   if (value === null || typeof value !== 'object') return false
@@ -229,7 +229,7 @@ function isMarkedString(value: unknown): value is WireMarkedString {
   return typeof record.language === 'string' && typeof record.value === 'string'
 }
 
-/** Create the stable structured error used for malformed server result payloads. */
+/** 为畸形的服务端结果负载创建稳定的结构化错误。 */
 function malformedResponse(message: string): LspError {
   return new LspError(message, 'LSP_MALFORMED_RESPONSE')
 }

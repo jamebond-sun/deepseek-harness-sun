@@ -1,16 +1,15 @@
 /**
- * The engine behavior for each mods API call this bridge serves, mapped onto
- * harness services: commands and tools on the agent's scoped registries,
- * `ui.ask` on the user-questions answerer, files on `ctx.fs`, processes on
- * `ctx.subprocess`, the store on a storage domain, session facts on the
- * agent's Session and projections. A service a deployment did not compose
- * fails the call with the service name.
+ * 本桥接所服务的每一次 mods API 调用的引擎行为，被映射到宿主服务之上：
+ * 命令与工具落在 agent 的作用域化注册表上，`ui.ask` 落在用户问答器上，
+ * 文件落在 `ctx.fs` 上，进程落在 `ctx.subprocess` 上，存储落在某个存储域上，
+ * 会话事实落在 agent 的 Session 与投影上。某个部署未组合的
+ * 服务会以该服务名称让调用失败。
  * @module
  */
 
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
-// Type-only: activate the `ctx.get('subprocess')` and `ctx.get('sessionProjections')` Context declarations.
+// 仅类型：激活 `ctx.get('subprocess')` 与 `ctx.get('sessionProjections')` 的 Context 声明。
 import type {} from '@deepseek-ai/dsh-subprocess'
 import type {} from '@deepseek-ai/dsh-session-projection'
 import type { SessionProjectionStateMap } from '@deepseek-ai/dsh-session-projection/types'
@@ -21,7 +20,7 @@ import type { ContentBlock, Message } from '@deepseek-ai/dsh-llm'
 import { scopeOf } from '@deepseek-ai/dsh-scope'
 import type { Session } from '@deepseek-ai/dsh-session'
 import type { WorkingDirectoryService } from '@deepseek-ai/dsh-working-directory'
-// Type-only: merges the token-meter projection states into SessionProjectionStateMap.
+// 仅类型：将 token-meter 投影状态并入 SessionProjectionStateMap。
 import type {} from '@deepseek-ai/dsh-token-meter'
 import { defineDomain, domainTable } from '@deepseek-ai/dsh-storage-domain'
 import type { Domain } from '@deepseek-ai/dsh-storage-domain'
@@ -40,67 +39,66 @@ import type {
   SessionUsage, SessionVersion, ToolCallResult, ToolInfo,
 } from './types.ts'
 
-/** The binding every event of this bridge carries: the agent it belongs to, when one does. */
+/** 本桥接的每一个事件所携带的绑定：它所归属的 agent，当存在时。 */
 export interface AgentBinding {
   readonly agent: Agent | undefined
 }
 
-/** The mods API version string `$.session.version()` reports. */
+/** `$.session.version()` 所报告的 mods API 版本字符串。 */
 export const MODS_API_VERSION: SessionVersion = Object.freeze({ version: 'claude-code-mods/0.1', engine: 'deepseek-harness' })
 
-/** Largest file `$.fs.read` returns and `$.fs.write` accepts, Claude Code's own limit. */
+/** `$.fs.read` 返回与 `$.fs.write` 接受的文件最大尺寸，即 Claude Code 自身上限。 */
 export const FS_MAX_BYTES = 4 * 1024 * 1024
 
-/** Largest JSON a plugin's `$.store` holds in total, Claude Code's own limit. */
+/** 某个插件的 `$.store` 整体所能持有的、最大的 JSON 体量，即 Claude Code 自身上限。 */
 export const STORE_MAX_BYTES = 4 * 1024 * 1024
 
-/** Largest stdout or stderr `$.process.run` keeps. */
+/** `$.process.run` 所保留的、最大的 stdout 或 stderr 体量。 */
 const PROCESS_OUTPUT_MAX_BYTES = 1024 * 1024
 
-/** Largest response body `$.http.fetch` returns. */
+/** `$.http.fetch` 所返回的最大响应体体量。 */
 export const HTTP_MAX_BYTES = 4 * 1024 * 1024
 
 /**
- * Full name the model sees for a mod-registered tool: Claude Code's MCP-style spelling.
- * @param plugin - the registering plugin's name.
- * @param tool - the name the mod registered.
- * @returns `mcp__<plugin>__<tool>`.
+ * 模型所看到的、某个 mod 注册工具的全名：即 Claude Code 的 MCP 风格拼写。
+ * @param plugin - 注册该工具的插件名称。
+ * @param tool - 该 mod 注册的名称。
+ * @returns `mcp__<plugin>__<tool>`。
  */
 export function modToolName(plugin: string, tool: string): string {
   return `mcp__${plugin}__${tool}`
 }
 
-/** Tool-local names stay short and id-safe, Claude Code's own rule. */
+/** 工具局部名称保持简短且对 id 安全，即 Claude Code 自身的规则。 */
 const REGISTERED_NAME = /^[A-Za-z0-9_-]{1,64}$/u
 
-/** Per-plugin `$.store` records: one JSON object of keys per plugin. */
+/** 每个插件的 `$.store` 记录：每个插件对应一个 JSON 键对象。 */
 const storeDomainSpec = defineDomain({
   name: 'claude_code_mods',
   version: 1,
   tables: { store: domainTable<string, Record<string, JsonValue>>(zod.record(zod.string(), zod.json())) },
 })
 
-/** Options the host op table is built from. */
+/** 构建宿主操作表所依据的选项。 */
 export interface HostOpsOptions {
   readonly ctx: Context
   readonly aliases: ToolNameAliases
-  /** Default `$.process.run` timeout in milliseconds. */
+  /** `$.process.run` 的默认超时（毫秒）。 */
   readonly processTimeoutMs: number
   /**
-   * Disposers of registrations mods made, keyed by the session they were scoped to
-   * (`''` for global ones), so bridge disposal undoes them and a disposed agent's
-   * entries can be dropped.
+   * mods 所做出的注册项的处置器，按它们所作用域化的会话为键
+   * （全局的用 `''`），以便桥接处置时撤销它们，并丢弃已处置 agent 的条目。
    */
   readonly registrations: Map<string, Set<() => void>>
-  /** The mod that raised each in-flight `$.tool.call`, by call id, so the pipeline raises `tool.call` from it. */
+  /** 每一个在途 `$.tool.call` 所引发的 mod，按调用 id 索引，以便流水线从它那里抛出 `tool.call`。 */
   readonly callOrigins: Map<string, LoadedMod>
-  /** Names of commands mods registered, for `$.command.list` sources. */
+  /** mods 所注册命令的名称，供 `$.command.list` 的来源使用。 */
   readonly modCommands: Set<string>
-  /** Full names of tools mods registered, whose calls a `tool.call` hook may answer with a successful result. */
+  /** mods 所注册工具的全名，其调用可被某个 `tool.call` 钩子以成功结果应答。 */
   readonly modTools: Set<string>
-  /** Redraw a session's band after a `$.ui` call that changes what it shows; absent when no surface is drawn. */
+  /** 在某次改变了所显示内容的 `$.ui` 调用之后，重绘某个会话的 band；当没有绘制任何画面时为缺失。 */
   readonly redraw?: (sessionId: string) => void
-  /** Note a prompt a mod submitted, so the `prompt.submit` it raises carries the mod as its origin. */
+  /** 记录某个 mod 所提交的提示，以便它抛出的 `prompt.submit` 以该 mod 作为来源。 */
   readonly submitted?: (messageId: string, mod: string) => void
 }
 
@@ -115,20 +113,20 @@ function textOf(content: readonly ContentBlock[]): string {
 }
 
 /**
- * Project one tool outcome onto Claude Code's `tool.call` result.
- * @param result - the harness tool outcome.
- * @returns its text as `result`, with `isError` on a failure.
+ * 将一次工具结果投影到 Claude Code 的 `tool.call` 结果上。
+ * @param result - 宿主工具的结果。
+ * @returns 其文本作为 `result`，失败时附带 `isError`。
  */
 export function toolCallResultOf(result: ToolExecutionResult): ToolCallResult {
   return result.isError ? { result: textOf(result.content), isError: true } : { result: textOf(result.content) }
 }
 
-/** The model's raw JSON arguments as an object; an unparsable string is an empty input. */
+/** 模型原始的 JSON 参数作为一个对象；无法解析的字符串视为空输入。 */
 function argumentsOf(raw: string): Record<string, unknown> {
   try {
     return record(JSON.parse(raw))
   } catch {
-    // A truncated or malformed tool call keeps its id and name; its input is unknown.
+    // 一个被截断或格式错误的工具调用会保留其 id 与名称；其输入未知。
     return {}
   }
 }
@@ -145,25 +143,25 @@ function sessionMessages(messages: readonly Message[], aliases: ToolNameAliases)
   return out
 }
 
-/** Entry kind in Claude Code's vocabulary. */
+/** Claude Code 词汇表中的条目类型。 */
 function kindOf(type: 'file' | 'directory' | 'symlink' | 'other'): FsEntry['kind'] {
   return type === 'file' ? 'file' : type === 'directory' ? 'dir' : 'other'
 }
 
 function readOutput(reader: { readFrom(fromByte: number): { text: string } } | undefined): string {
-  /* v8 ignore next -- both streams are spawned collected, so their readers exist */
+  /* v8 ignore next -- 两个流都会以“已收集”方式派生，因此它们的读取器必然存在 */
   return reader === undefined ? '' : reader.readFrom(0).text
 }
 
-/** An entry's size, or 0 where the provider reports none. */
+/** 条目的大小；当提供方未报告时为 0。 */
 function sizeOf(info: { size?: number } | undefined): number {
   return info?.size ?? 0
 }
 
 /**
- * Build the op table over the composed harness services.
- * @param options - the context, aliases, limits, and registration tracking.
- * @returns engine behaviors by event name.
+ * 在已组合的宿主服务之上构建操作表。
+ * @param options - 上下文、别名、上限，以及注册追踪。
+ * @returns 按事件名索引的引擎行为。
  */
 export function createHostOps(options: HostOpsOptions): OpTable<AgentBinding> {
   const { ctx, aliases } = options
@@ -210,7 +208,7 @@ export function createHostOps(options: HostOpsOptions): OpTable<AgentBinding> {
     owned.add(dispose)
   }
 
-  /** Per-plugin write chains: `$.store` read-modify-write runs one at a time per plugin. */
+  /** 每个插件的写入链：`$.store` 的读—改—写每个插件一次只运行一个。 */
   const storeWrites = new Map<string, Promise<void>>()
 
   function serializeStore(plugin: string, write: () => Promise<void>): Promise<void> {
@@ -220,18 +218,18 @@ export function createHostOps(options: HostOpsOptions): OpTable<AgentBinding> {
     return next
   }
 
-  /** Ask the band of the event's session to redraw, when a surface is drawn at all. */
+  /** 当确实有画面被绘制时，请求该事件所属会话的 band 重绘。 */
   function redraw(agent: Agent | undefined): void {
     if (agent !== undefined) options.redraw?.(agent.session.id)
   }
 
-  /** One projection's state, or undefined when the registry or the projection's owning plugin is not composed. */
+  /** 某个投影的状态；当注册表或该投影所属的插件未被组合时为 undefined。 */
   function projection<K extends keyof SessionProjectionStateMap>(session: Session, key: K): SessionProjectionStateMap[K] | undefined {
     return ctx.get('sessionProjections')?.stateOf(session, key)
   }
 
   return {
-    // ---- ui: no mod drawing surface exists; log-style calls reach the host log ----
+    // ---- ui：不存在 mod 的绘制画面；日志风格的调用抵达宿主日志 ----
     'ui.log': (input, { mod }) => {
       const { text, to } = record(input)
       const line = `${mod.name}: ${requireString(text, '$.ui.log text')}`
@@ -244,7 +242,7 @@ export function createHostOps(options: HostOpsOptions): OpTable<AgentBinding> {
       ctx.logger.info(`${mod.name} (status): ${text === undefined ? '(cleared)' : requireString(text, '$.ui.status text')}`)
     },
     'ui.invalidate': (_input, { binding }) => { redraw(binding.agent) },
-    // No pane is placed: a mod that degrades to the band (`isPlaced: false`) is drawn there after this call.
+    // 不放置任何窗格：一个降级到 band 的 mod（其 `isPlaced: false`）会在本调用之后绘制在那里。
     'ui.open': (input, { binding }) => {
       redraw(binding.agent)
       return { id: requireString(record(input).id, '$.ui.open id'), isPlaced: false, reason: 'this host places no panes; draw in AbovePrompt' }
@@ -275,7 +273,7 @@ export function createHostOps(options: HostOpsOptions): OpTable<AgentBinding> {
       return item.custom ?? item.selected.join(', ')
     },
 
-    // ---- commands ----
+    // ---- 命令 ----
     'command.register': (input, { mod, binding, engine }) => {
       const spec = record(input)
       const name = requireString(spec.name, '$.command.register name')
@@ -326,14 +324,14 @@ export function createHostOps(options: HostOpsOptions): OpTable<AgentBinding> {
       }))
     },
 
-    // ---- tools ----
+    // ---- 工具 ----
     'tool.register': (input, { mod, binding }) => {
       const spec = record(input)
       const name = requireString(spec.name, '$.tool.register name')
       if (!REGISTERED_NAME.test(name)) throw new Error(`tool "${name}" refused: tool names are letters, digits, "_" and "-", up to 64 characters`)
       const description = requireString(spec.description, '$.tool.register description')
       const inputSchema = spec.inputSchema === undefined ? { type: 'object', properties: {} } : record(spec.inputSchema)
-      // The schema reaches the model, so an unsupported keyword fails this call, not a later request.
+      // 该 schema 会抵达模型，因此一个不被支持的键会让本调用失败，而非在一次后续请求中。
       assertObjectJsonSchema(inputSchema)
       const registry = (binding.agent?.ctx ?? ctx).get('tools')
       if (registry === undefined) throw new Error('$.tool.register needs a tool registry (dsh-tools), which this deployment did not compose')
@@ -343,7 +341,7 @@ export function createHostOps(options: HostOpsOptions): OpTable<AgentBinding> {
         description,
         parameters: inputSchema,
         output: {
-          // The answering hook's result text; the schema admits only a string.
+          // 应答钩子的结果文本；该 schema 仅接受字符串。
           schema: { type: 'string' },
           render: (_args, value) => [{ type: 'text', text: value as string }],
         },
@@ -360,7 +358,7 @@ export function createHostOps(options: HostOpsOptions): OpTable<AgentBinding> {
       if (registry === undefined) throw new Error('$.tool.call needs a tool registry (dsh-tools), which this deployment did not compose')
       const { tool, tool_use_id: _ignored, agentId: _agent, ...args } = record(input)
       const callId = ToolCallId(`mod-${randomUUID()}`)
-      // The pipeline raises `tool.call` for this call from the calling mod, so only earlier mods see it.
+      // 流水线会从发起调用的 mod 处为本调用抛出 `tool.call`，因此只有更早的 mods 才会看到它。
       options.callOrigins.set(callId, context.mod)
       try {
         const result = await registry.execute({
@@ -370,7 +368,7 @@ export function createHostOps(options: HostOpsOptions): OpTable<AgentBinding> {
           ...agent === undefined ? {} : { agent },
           signal: context.signal,
         })
-        // Guidance a tool defers to the next request still reaches the model when a mod made the call.
+        // 当调用由某个 mod 发起时，某个工具推迟到下一轮请求的指引仍会抵达模型。
         if (agent !== undefined) for (const context of result.additionalContexts ?? []) agent.inject(context)
         return toolCallResultOf(result)
       } finally {
@@ -385,20 +383,20 @@ export function createHostOps(options: HostOpsOptions): OpTable<AgentBinding> {
         .map((schema): ToolInfo => ({ name: aliases.toMod(schema.name), description: schema.description }))
     },
 
-    // ---- prompt ----
+    // ---- 提示 ----
     'prompt.submit': (input, context) => {
       const agent = requireAgent(context, 'prompt.submit')
       const { text, asUser } = record(input)
       const body = requireString(text, '$.prompt.submit text')
       const framed = asUser === true ? body : `Message from the "${context.mod.name}" mod:\n${body}`
-      // Claude Code submits the prompt as the user's own; the framing names the mod unless `asUser` is set.
+      // Claude Code 将提示作为用户自己的输入提交；除非设置了 `asUser`，否则措辞会点明该 mod。
       const message = createUserMessage({ content: [{ type: 'text', text: framed }], source: { kind: 'user' } })
       options.submitted?.(message.id, context.mod.name)
       agent.followup(message)
       return { text: framed }
     },
 
-    // ---- session facts ----
+    // ---- 会话事实 ----
     'session.id': (_input, context) => requireAgent(context, 'session.id').session.id,
     'session.cwd': (_input, context) => {
       const agent = requireAgent(context, 'session.cwd')
@@ -433,7 +431,7 @@ export function createHostOps(options: HostOpsOptions): OpTable<AgentBinding> {
     },
     'session.version': () => MODS_API_VERSION,
 
-    // ---- store: one durable JSON object per plugin ----
+    // ---- 存储：每个插件一个持久的 JSON 对象 ----
     'store.get': async (input, { mod }) => (await store()).table('store').get(mod.name)?.[requireString(record(input).key, '$.store.get key')],
     'store.set': async (input, { mod }) => {
       const { key, value } = record(input)
@@ -460,7 +458,7 @@ export function createHostOps(options: HostOpsOptions): OpTable<AgentBinding> {
     },
     'store.keys': async (_input, { mod }) => Object.keys((await store()).table('store').get(mod.name) ?? {}),
 
-    // ---- files: through the filesystem seam, relative to the session workspace ----
+    // ---- 文件：经由文件系统接缝，相对于会话工作区 ----
     'fs.read': async (input, context) => {
       const path = requireString(record(input).path, '$.fs.read path')
       const resolved = await target(path, context.binding.agent, context.signal)
@@ -490,13 +488,13 @@ export function createHostOps(options: HostOpsOptions): OpTable<AgentBinding> {
       const info = await fs().lstat(path, cwd === undefined ? {} : { cwd }, context.signal)
       if (info === undefined) throw new Error(`$.fs.stat: ${path} does not exist`)
       if (info.type !== 'symlink') return { kind: kindOf(info.type), size: sizeOf(info), mtimeMs: 0, isLink: false } satisfies FsStat
-      // A link reports what it points at, as Claude Code's `resolve: true` does; a dangling one is `other`.
+      // 一个链接会报告它所指向的内容，如同 Claude Code 的 `resolve: true`；悬空链接则为 `other`。
       const resolved = await fs().resolve(path, { ...cwd === undefined ? {} : { cwd }, signal: context.signal })
       const followed = await fs().stat(resolved, context.signal)
       return { kind: kindOf(followed?.type ?? 'other'), size: sizeOf(followed), mtimeMs: 0, isLink: true } satisfies FsStat
     },
 
-    // ---- processes: argv, no shell, collected output ----
+    // ---- 进程：argv、无 shell、收集输出 ----
     'process.run': async (input, context) => {
       const subprocess = ctx.get('subprocess')
       if (subprocess === undefined) throw new Error('$.process.run needs a subprocess service (dsh-subprocess), which this deployment did not compose')
@@ -519,7 +517,7 @@ export function createHostOps(options: HostOpsOptions): OpTable<AgentBinding> {
       })
       const outcome = await handle.done
       if (deadline.aborted) throw new Error(`$.process.run: ${argv[0]} did not exit within ${timeoutMs} ms`)
-      /* v8 ignore next -- a Windows child reports an exit code even when terminated; POSIX coverage owns this branch */
+      /* v8 ignore next -- Windows 子进程即便被终止也会报告退出码；POSIX 覆盖负责此分支 */
       if (outcome.exitCode === null) throw new Error(`$.process.run: ${argv[0]} was terminated by signal ${String(outcome.signal)}`)
       return {
         exitCode: outcome.exitCode,
@@ -528,7 +526,7 @@ export function createHostOps(options: HostOpsOptions): OpTable<AgentBinding> {
       } satisfies ProcessRunResult
     },
 
-    // ---- network ----
+    // ---- 网络 ----
     'http.fetch': async (input, context) => {
       const { url, init } = record(input)
       const settings = record(init)
@@ -547,7 +545,7 @@ export function createHostOps(options: HostOpsOptions): OpTable<AgentBinding> {
       return { status: response.status, ok: response.ok, headers, text: body } satisfies HttpResponse
     },
 
-    // ---- environment of this process ----
+    // ---- 本进程的环境 ----
     'env.get': input => process.env[requireString(record(input).name, '$.env.get name')],
     'env.set': (input) => {
       const { name, value } = record(input)
@@ -560,7 +558,7 @@ export function createHostOps(options: HostOpsOptions): OpTable<AgentBinding> {
 
 export type { ModsEngine }
 
-/** Read a response body up to the bound, cancelling the stream at the first byte past it. */
+/** 读取响应体直到上限为止，并在越过上限的第一个字节处取消流。 */
 async function readBounded(response: Response, maxBytes: number): Promise<string> {
   const reader = response.body?.getReader()
   if (reader === undefined) return ''

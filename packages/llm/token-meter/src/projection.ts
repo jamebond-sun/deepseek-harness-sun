@@ -1,14 +1,14 @@
 /**
- * Pure client-safe token-projection vocabulary.
+ * 纯客户端安全的令牌投影词汇。
  *
  * @module @deepseek-ai/dsh-token-meter/projection
  */
 
 /**
- * Durable cumulative provider usage for a complete session log.
+ * 一份完整会话日志的持久化累计提供方用量。
  *
- * The four buckets are disjoint. In particular, reasoning tokens are already
- * included in `outputTokens` and are not accumulated again.
+ * 这四个分桶是互不相交的。特别是推理令牌已经包含在 `outputTokens` 中，
+ * 不会被再次累计。
  */
 export interface TokenUsageProjection {
   uncachedInputTokens: number
@@ -18,60 +18,56 @@ export interface TokenUsageProjection {
 }
 
 /**
- * Approximate context occupancy for a status display.
+ * 供状态展示使用的近似上下文占用量。
  *
- * The fields, when present, are deliberately NOT one atomic request
- * observation: each is a last-wins record of a different moment. Switching
- * models can therefore pair a fresh capacity with the previous route's
- * pressure until the next request reports usage. This is an intentional trade
- * — the value is a user-facing reference, not a billing or gating input. See
- * the token-meter README for the full rationale.
+ * 这些字段在存在时，刻意不是一次原子性的请求观测：每一个都是
+ * 不同时刻的最后写入者记录。因此切换模型可能会把新的容量与此前路由的
+ * 压力配对，直到下一次请求报告用量。这是一次有意的取舍——
+ * 该值是面向用户的参考，而非计费或门禁输入。完整理由见 token-meter 的 README。
  */
 export interface ContextPressureProjection {
   /**
-   * Provider-reported prompt size of the most recent request: uncached input
-   * plus cache reads and writes. Response output is excluded, so this does not
-   * grow as the current turn streams. Absent until a provider reports usage.
+   * 提供方报告的最近一次请求的提示规模：未缓存输入加上缓存读取与写入。
+   * 响应的输出被排除在外，因此它不会随当前轮次的流式输出而增长。
+   * 在提供方报告用量之前缺失。
    */
   pressureTokens?: number
   /**
-   * What the NEXT request's prompt would cost: {@link pressureTokens} plus the
-   * heuristic repricing of everything the surface gained or lost since that
-   * sample. Only the delta is estimated, so the figure stays anchored to the
-   * provider while still reacting the moment a compaction shadows a span —
-   * which `pressureTokens` alone cannot do, since compaction reports no usage
-   * of its own. Absent until a provider reports usage.
+   * 下一次请求的提示将会消耗的量：{@link pressureTokens} 加上自该次采样以来
+   * 表面新增或丢失内容的启发式重新计价。只有增量是被估计的，因此该数值既
+   * 锚定在提供方上，又能在一次压缩遮蔽某个区间的瞬间做出反应——
+   * 而这恰恰是 `pressureTokens` 单独做不到的，因为压缩本身不报告任何用量。
+   * 在提供方报告用量之前缺失。
    */
   projectedTokens?: number
-  /** Newest recorded route capacity; absent when no adapter advertised one. */
+  /** 最新记录的路由容量；当没有适配器宣告容量时缺失。 */
   contextWindow?: number
 }
 
 /**
- * Heuristic composition of the next request's context: what the prompt is
- * made of, not what it costs. All three figures use the meter's fixed
- * density estimate, so they will not sum to the provider-anchored
- * `projectedTokens`: the estimator systematically underprices CJK text and
- * JSON schemas, which is exactly the error the anchoring in
- * {@link ContextPressureProjection.projectedTokens} keeps out of the occupancy
- * figure. Present these as approximations of composition, never as a total.
+ * 下一次请求上下文的启发式构成：它由什么组成，而非它花费多少。
+ * 这三个数值都使用计量器的固定密度估计，因此它们不会加总为
+ * 以提供方为锚的 `projectedTokens`：该估计器系统性地低估 CJK 文本与
+ * JSON schema，而这正是 {@link ContextPressureProjection.projectedTokens}
+ * 中的锚定要挡在占用量之外的误差。请把它们作为构成的近似值呈现，
+ * 绝不要当作一个总量。
  */
 export interface ContextBreakdownProjection {
-  /** Heuristic tokens of the last nonempty surviving system prompt in surface order; 0 when none exists. */
+  /** 表面顺序上最后一个非空且仍然存活的系统提示的启发式令牌数；不存在时为 0。 */
   systemTokens: number
-  /** Heuristic tokens of the newest request envelope's tool schemas; 0 before any request. */
+  /** 最新请求信封中工具 schema 的启发式令牌数；在任何请求之前为 0。 */
   toolsTokens: number
-  /** Heuristic tokens of every other visible surface node, including superseded system prompts. */
+  /** 其余每个可见表面节点的启发式令牌数，包括已被取代的系统提示。 */
   messageTokens: number
 }
 
 declare module '@deepseek-ai/dsh-session-projection/types' {
   interface SessionProjectionMap {
-    /** Provider-reported usage accumulated across the complete durable log. */
+    /** 跨完整持久化日志累计的、由提供方报告的用量。 */
     tokenUsage: TokenUsageProjection
-    /** Newest request pressure paired with the newest known route capacity. */
+    /** 最新请求压力，与最新的已知路由容量配对。 */
     contextPressure: ContextPressureProjection
-    /** Heuristic system/tools/message composition of the next request. */
+    /** 下一次请求的系统/工具/消息构成的启发式分解。 */
     contextBreakdown: ContextBreakdownProjection
   }
 }

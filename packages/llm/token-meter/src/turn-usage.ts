@@ -3,26 +3,26 @@ import type { AssistantMessage, TokenUsage } from '@deepseek-ai/dsh-llm/types'
 import type {} from '@deepseek-ai/dsh-llm-retry/types'
 import type { SessionEvent } from '@deepseek-ai/dsh-session/types'
 
-/** One provider/model route that contributed a billed request attempt. */
+/** 贡献了一次已计费请求尝试的提供方/模型路由。 */
 export interface TurnTokenUsageRoute {
   readonly provider: string
   readonly model: string
 }
 
-/** Exact provider-reported token accounting for every attempt in one completed Turn. */
+/** 一个已完成 Turn 中每次尝试的精确、由提供方报告的令牌账目。 */
 export interface TurnTokenUsage {
-  /** Sum of uncached prompt input across all attempts. */
+  /** 所有尝试中未缓存提示输入之和。 */
   readonly uncachedInputTokens: number
   readonly outputTokens: number
-  /** Exact aggregate prompt plus output total across all attempts. */
+  /** 所有尝试中精确的提示加输出合计。 */
   readonly totalTokens: number
-  /** Present only when every attempt reported the bucket. */
+  /** 仅当每次尝试都报告了该分桶时存在。 */
   readonly cacheReadTokens?: number
-  /** Present only when every attempt reported the bucket. */
+  /** 仅当每次尝试都报告了该分桶时存在。 */
   readonly cacheWriteTokens?: number
-  /** Output subset, present only when every attempt reported it. */
+  /** 输出的子集，仅当每次尝试都报告了它时存在。 */
   readonly reasoningTokens?: number
-  /** Present only when every billed attempt has provider/model attribution. */
+  /** 仅当每次已计费的尝试都具备提供方/模型归因时存在。 */
   readonly routes?: readonly TurnTokenUsageRoute[]
 }
 
@@ -136,8 +136,8 @@ function aggregateAttempts(attempts: readonly NormalizedAttempt[]): TurnTokenUsa
   const cacheReadTokens = cacheRead.every(isCount) ? safeSum(cacheRead) : undefined
   const cacheWriteTokens = cacheWrite.every(isCount) ? safeSum(cacheWrite) : undefined
   const reasoningTokens = reasoning.every(isCount) ? safeSum(reasoning) : undefined
-  // A present cache bucket is bounded by exact prompt, and reasoning is bounded
-  // by output. Safe required aggregates therefore imply safe optional sums.
+  // 一个存在的缓存分桶以精确的提示为界，而推理以输出为界。
+  // 因此安全的必需聚合意味着安全的可选求和。
 
   let routes: readonly TurnTokenUsageRoute[] | undefined
   const attributed = attempts.map(attempt => attempt.route)
@@ -167,13 +167,12 @@ function sameAttempt(
 }
 
 /**
- * Fold one complete Turn's durable attempt lifecycle into exact token accounting.
+ * 把一个完整 Turn 的持久化尝试生命周期折叠为精确的令牌账目。
  *
- * No attempt is inferred from a usage sample. Any missing lifecycle boundary,
- * incomplete attempt usage, unsafe count, or contradictory exact total makes
- * the whole disclosure unavailable.
- * @param events - Turn-local durable events from `turn/start` through `turn/end`.
- * @returns exact aggregate usage, or undefined when it cannot be proven.
+ * 不从任何用量采样推断出一次尝试。任何缺失的生命周期边界、不完整的
+ * 尝试用量、不安全的计数，或自相矛盾的精确总计，都会让整个披露不可用。
+ * @param events - 从 `turn/start` 到 `turn/end` 的、Turn 本地的持久化事件。
+ * @returns 精确的聚合用量；当无法被证明时为 undefined。
  */
 export function deriveTurnTokenUsage(events: readonly SessionEvent[]): TurnTokenUsage | undefined {
   let state: AttemptState = { kind: 'idle' }

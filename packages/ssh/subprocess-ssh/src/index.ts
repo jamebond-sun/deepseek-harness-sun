@@ -1,4 +1,4 @@
-/** Remote subprocess and PTY handles with independent SSH streams and helper-owned process lifetimes. */
+/** 远端子进程与 PTY 句柄，各自拥有独立的 SSH 流，进程生命周期由 helper 掌管。 */
 import { Duplex, PassThrough, type Readable, type Writable } from 'node:stream'
 import type { Socket } from 'node:net'
 import { Context } from '@deepseek-ai/cordis'
@@ -17,7 +17,7 @@ function environment(env?: NodeJS.ProcessEnv): Record<string, string | null> | u
 
 class RemoteCleanupError extends AggregateError {}
 
-/** One remote ordinary process; stdin and control remain usable during asynchronous SSH allocation. */
+/** 一个远端普通进程；在异步的 SSH 分配过程中，stdin 与 control 仍然可用。 */
 class RemoteProcess implements SubprocessHandle {
   readonly stdin: Writable | undefined
   readonly stdout: Readable | undefined
@@ -162,7 +162,7 @@ class RemoteProcess implements SubprocessHandle {
         this.quiescent = true
         this.detachAbort()
       }).catch((error: unknown) => {
-        // A connection unable to confirm termination must release its helper lease.
+        // 无法确认进程已终止的连接，必须释放其 helper 租约。
         void this.ssh.dispose().catch(() => {})
         throw error
       })
@@ -188,7 +188,7 @@ class RemoteProcess implements SubprocessHandle {
 
   private async observeExit(signal?: AbortSignal): Promise<boolean> {
     try { await this.started } catch {
-      // Startup errors remain on done; a prepared process must first finish termination.
+      // 启动错误仍保留在 done 上；一个已准备的进程必须先完成终止流程。
       if (this.termination !== undefined) await this.termination
       this.quiescent = true
       this.detachAbort()
@@ -225,7 +225,7 @@ class RemoteProcess implements SubprocessHandle {
   }
 }
 
-/** SSH provider paired with the SSH filesystem; the remote helper selects POSIX process ownership. */
+/** 与 SSH 文件系统配对的 SSH provider；远端的 POSIX 进程归属由 helper 选择。 */
 export class SshSubprocessRuntime extends SubprocessRuntime {
   static inject = ['ssh']
   private readonly live = new Set<RemoteProcess>()

@@ -1,4 +1,4 @@
-/** Own Chromium before CDP or Stagehand initialization can wait or fail. */
+/** 在 CDP 或 Stagehand 初始化能够等待或失败之前，先拥有 Chromium。 */
 
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -7,19 +7,19 @@ import { Browser, ChromeReleaseChannel, CDP_WEBSOCKET_ENDPOINT_REGEX, computeSys
 import { scrubbedParentEnv } from '@deepseek-ai/dsh-subprocess'
 import type { NativeBrowserConfig } from './native.ts'
 
-/** Chromium process and profile owned independently of the Stagehand Worker. */
+/** 独立于 Stagehand Worker、由其自身拥有的 Chromium 进程与配置档。 */
 export interface OwnedChromium {
-  /** CDP endpoint reported by this exact process. */
+  /** 由这一确切进程报告的 CDP 端点。 */
   endpoint: string
-  /** Kill the owned process tree, await child close, and remove its profile. */
+  /** 杀死所拥有的进程树，等待子进程关闭，并移除其配置档。 */
   close(): Promise<void>
 }
 
 /**
- * Launch Chromium with scrubbed environment and OS-allocated debugging port.
- * @param config - executable, window visibility, and startup deadline.
- * @param signal - cancellation before the caller receives browser ownership.
- * @returns the owned browser after its debugging endpoint is ready.
+ * 以经过清理的环境与操作系统分配的调试端口启动 Chromium。
+ * @param config - 可执行文件、窗口可见性与启动截止时限。
+ * @param signal - 在调用方取得浏览器所有权之前的取消信号。
+ * @returns 其调试端点就绪之后的、被拥有的浏览器。
  */
 export async function launchChromium(config: NativeBrowserConfig, signal: AbortSignal): Promise<OwnedChromium> {
   signal.throwIfAborted()
@@ -47,7 +47,7 @@ export async function launchChromium(config: NativeBrowserConfig, signal: AbortS
       ],
       env: scrubbedParentEnv(), handleSIGINT: false, handleSIGTERM: false, handleSIGHUP: false,
     })
-    // Failed spawn emits error + close without exit; Process.hasClosed waits only for exit.
+    // 失败的派生会先发射 error 再 close，而不会先 exit；Process.hasClosed 只等待 exit。
     const child = browser.nodeProcess
     closed = new Promise<void>((resolve) => { child.once('close', () => { resolve() }) })
     signal.addEventListener('abort', abort, { once: true })

@@ -1,5 +1,5 @@
 /**
- * Resource-result projection keeps binary payloads out of model history.
+ * 资源结果的投影把二进制负载挡在模型历史之外。
  *
  * @module @deepseek-ai/dsh-mcp-resources
  */
@@ -8,10 +8,10 @@ import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 
 /**
- * Render resource JSON while retaining raw binary data only for programmatic callers.
- * @param server - configured server attribution.
- * @param value - canonical resource result.
- * @returns attributed text with binary payload descriptions.
+ * 渲染资源 JSON，同时只为程序化调用方保留原始二进制数据。
+ * @param server - 已配置的服务端归属。
+ * @param value - 规范化的资源结果。
+ * @returns 带归属信息的文本，其中对二进制负载给出描述。
  */
 export function renderResourceResult(server: string, value: JsonValue): ContentBlock[] {
   const rendered = JSON.stringify(value, (key, item: unknown) => {

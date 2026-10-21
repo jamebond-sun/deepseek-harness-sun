@@ -1,4 +1,4 @@
-/* The shared compact Button owns radius, height, and interaction fills. */
+/* 共享的紧凑 Button 负责圆角、高度与交互填充。 */
 .moreButton {
   flex: none;
   width: 28px;

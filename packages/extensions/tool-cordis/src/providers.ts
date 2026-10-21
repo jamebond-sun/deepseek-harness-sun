@@ -1,4 +1,4 @@
-/** First-party Host inspect providers registered by the Cordis tool package. */
+/** 由 Cordis 工具包注册的第一方 Host 巡检提供方。 */
 
 import type { Context } from '@deepseek-ai/cordis'
 import type { HostCordisInspectProviderRegistration } from '@deepseek-ai/dsh-cordis-host-runner'
@@ -32,9 +32,9 @@ const CONFIG_OUTPUT = {
 const HOST_EVENTS = EVENT_API.filter(event => !event.name.startsWith('cordis/'))
 
 /**
- * Construct Host providers over generated Catalogs, evaluator declarations, and live Tool scope.
- * @param ctx - Host context used for live Loader Config and Agent-scoped Tool queries.
- * @returns registrations for static catalogs and live Host capabilities.
+ * 基于生成的 Catalog、求值器声明与实时 Tool 作用域构建 Host 提供方。
+ * @param ctx - 用于实时 Loader Config 与代理作用域 Tool 查询的 Host 上下文。
+ * @returns 静态 Catalog 与实时 Host 能力的注册项。
  */
 export function hostInspectProviders(ctx: Context): HostCordisInspectProviderRegistration[] {
   return [

@@ -1,5 +1,5 @@
 /**
- * Local-filesystem implementation of `ctx.fileReferences`.
+ * `ctx.fileReferences` 的本地文件系统实现。
  *
  * @module @deepseek-ai/dsh-file-reference-local
  */
@@ -31,17 +31,17 @@ export type { FileSearchConfig } from './search.ts'
 export { FILE_REFERENCE_PROMPT } from '@deepseek-ai/dsh-file-reference'
 export { activeAtToken, formatFileMention } from '@deepseek-ai/dsh-file-reference/grammar'
 
-/** Local file-reference discovery configuration. */
+/** 本地文件引用发现配置。 */
 export interface Config {
-  /** Maximum ranked candidates returned for one query. */
+  /** 针对一次查询返回的、排名后的最大候选数。 */
   maxResults?: number
-  /** Maximum indexed files and directories per agent workspace. */
+  /** 每个代理工作区中索引的最大文件与目录数。 */
   maxEntries?: number
-  /** Directory basenames never traversed or offered. */
+  /** 永不被遍历或提供的目录基名。 */
   excludedDirectories?: string[]
 }
 
-/** Local-filesystem owner of the file-reference discovery service. */
+/** 文件引用发现服务的、本地文件系统的拥有者。 */
 export class LocalFileReferenceService extends FileReferenceService {
   static inject = ['agents', 'workingDirectory']
   static Config: z<Config> = z.object({

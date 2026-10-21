@@ -1,7 +1,6 @@
 /**
- * Vocabulary for the filesystem Service Definition (`ctx.fs`): the opaque target/version
- * identities, the metadata `stat` returns, the write-intent and outcome shapes, the
- * literal-edit request/outcome, and the typed error taxonomy.
+ * 文件系统服务定义（`ctx.fs`）的词汇表：不透明的目标/版本标识、`stat` 返回的元数据、
+ * 写入意图与结果形状、字面量编辑的请求/结果，以及类型化的错误分类。
  * @module @deepseek-ai/dsh-fs/types
  */
 
@@ -9,168 +8,155 @@ import { HarnessError } from '@deepseek-ai/dsh-llm'
 import type { Branded } from '@deepseek-ai/dsh-brand'
 
 /**
- * Opaque key for stale guards and target lookup. The local backend uses a
- * realpath-like string; a remote backend might use a workspace URI or file id.
- * Consumers MUST NOT parse it or assume it is a local absolute path.
+ * 用于过期守卫与目标查找的不透明键。本地后端使用形如 realpath 的字符串；远端后端可能
+ * 使用工作区 URI 或文件 id。消费方**不得**解析它，也不得假定它是本地绝对路径。
  */
 export type FsTargetKey = Branded<'FsTargetKey'>
 
 /**
- * Brand a string as an {@link FsTargetKey}. For backend use only — a consumer
- * never manufactures a key, it receives one from `resolve()`.
- * @param key - the backend's raw key string (the local backend passes a realpath).
- * @returns the same string, branded; no validation is performed.
+ * 把一个字符串标记为 {@link FsTargetKey}。仅供后端使用 —— 消费方从不自行生成键，
+ * 而是从 `resolve()` 获取。
+ * @param key - 后端的原始键字符串（本地后端传入 realpath）。
+ * @returns 同一个字符串，带上标记；不做任何校验。
  */
 export function FsTargetKey(key: string): FsTargetKey {
   return key as FsTargetKey
 }
 
 /**
- * Opaque file-version token — the freshness token a write/edit guards against.
- * The local backend derives it from high-resolution stat identity and freshness
- * fields; a remote backend might use a revision id. The policy layer records it
- * for stale checks; consumers may display related metadata but MUST NOT
- * interpret this token.
+ * 不透明的文件版本令牌 —— 写入/编辑所守卫的新鲜度令牌。本地后端从高分辨率的 stat 同一性
+ * 与新鲜度字段派生它；远端后端可能使用修订 id。策略层记录它用于过期检查；消费方可以展示
+ * 相关元数据，但**不得**解释这个令牌。
  */
 export type FsVersion = Branded<'FsVersion'>
 
 /**
- * Brand a string as an {@link FsVersion}. For backend use only — a consumer
- * never manufactures a version, it receives one from `stat`/write/edit outcomes.
- * @param v - the backend's raw version string.
- * @returns the same string, branded; no validation is performed.
+ * 把一个字符串标记为 {@link FsVersion}。仅供后端使用 —— 消费方从不自行生成版本，
+ * 而是从 `stat`/写入/编辑的结果获取。
+ * @param v - 后端的原始版本字符串。
+ * @returns 同一个字符串，带上标记；不做任何校验。
  */
 export function FsVersion(v: string): FsVersion {
   return v as FsVersion
 }
 
 /**
- * One authoritative observation of a target. A present observation carries the
- * version used by guarded replacement; an absent observation authorizes only a
- * guarded create, never an edit.
+ * 对某个目标的一次权威观测。存在的观测携带受守卫替换所用的版本；不存在的观测只授权
+ * 受守卫的创建，绝不授权编辑。
  */
 export type FsObservation =
   | { readonly kind: 'present'; readonly version: FsVersion }
   | { readonly kind: 'absent' }
 
 /**
- * A path resolved by a backend into a stable identity. `resolve()` produces
- * this; every other operation takes it.
+ * 由后端解析为稳定标识的路径。`resolve()` 产出它；其余所有操作都以它为入参。
  */
 export interface FsTarget {
-  /** Opaque key for stale guards and target lookup. */
+  /** 用于过期守卫与目标查找的不透明键。 */
   targetKey: FsTargetKey
   /**
-   * Path for model/UI-facing output. May be a local absolute path,
-   * workspace-relative path, or remote URI depending on the backend.
+   * 面向模型/UI 输出的路径。依后端不同，可以是本地绝对路径、工作区相对路径或远端 URI。
    */
   displayPath: string
 }
 
 /**
- * Metadata about a target — what {@link FileSystem.stat} returns. Lets the
- * policy layer reject directories/special files before reading and choose
- * `readText` vs `streamText` from `size` without probing by failure. `version`
- * is the freshness token. `undefined` from `stat` means the target is absent.
+ * 目标的元数据 —— 即 {@link FileSystem.stat} 的返回值。让策略层在读取之前就能先拒绝目录
+ * 与特殊文件，并依据 `size` 选择 `readText` 还是 `streamText`，而不必靠失败来试探。
+ * `version` 是新鲜度令牌。`stat` 返回 `undefined` 表示目标不存在。
  */
 export interface FsInfo {
-  /** Opaque freshness token of the target right now. */
+  /** 目标此刻的不透明新鲜度令牌。 */
   version: FsVersion
-  /** Whether the target is a regular file, a directory, or something else. */
+  /** 目标是常规文件、目录还是其他类型。 */
   type: 'file' | 'directory' | 'other'
-  /** Byte size of a regular file, when the backend can report it. */
+  /** 常规文件的字节大小，在后端能够上报时给出。 */
   size?: number
 }
 
 /**
- * Metadata about a path without following the final path component when it is a
- * symbolic link. Unlike {@link FsInfo}, this path-level probe can report
- * `symlink` so consumers with trust-boundary rules can reject repository-owned
- * links before resolving a target.
+ * 当最后一个路径分量是符号链接时，不跟随该分量的路径元数据。与 {@link FsInfo} 不同，
+ * 这个路径级探测可以报出 `symlink`，使带有信任边界规则的消费方能在解析出目标之前就
+ * 拒绝仓库自有的链接。
  */
 export interface FsPathInfo {
-  /** Opaque freshness token of the path entry right now. */
+  /** 路径条目此刻的不透明新鲜度令牌。 */
   version: FsVersion
-  /** Whether the path entry is a regular file, directory, symlink, or other. */
+  /** 路径条目是常规文件、目录、符号链接还是其他类型。 */
   type: 'file' | 'directory' | 'symlink' | 'other'
-  /** Byte size of the path entry, when the backend can report it. */
+  /** 路径条目的字节大小，在后端能够上报时给出。 */
   size?: number
 }
 
 /**
- * One direct child returned by {@link FileSystem.listDir}. Listing returns
- * metadata and resolved targets only; it must not read file contents.
+ * {@link FileSystem.listDir} 返回的一个直接子项。列举只返回元数据与已解析的目标，
+ * 且不得读取文件内容。
  */
 export interface FsDirEntry {
-  /** Basename of the child inside the listed directory. */
+  /** 子项在被列举目录内的基名。 */
   name: string
-  /** Whether the child is a regular file, a directory, or something else. */
+  /** 子项是常规文件、目录还是其他类型。 */
   type: 'file' | 'directory' | 'other'
-  /** Resolved child target for follow-up operations. */
+  /** 供后续操作使用的已解析子目标。 */
   target: FsTarget
-  /** Opaque freshness token when the backend can report metadata cheaply. */
+  /** 当后端能廉价地给出元数据时的不透明新鲜度令牌。 */
   version?: FsVersion
-  /** Byte size of a regular file, when the backend can report it. */
+  /** 常规文件的字节大小，在后端能够上报时给出。 */
   size?: number
 }
 
 /**
- * Guarded write intent. `createIfAbsent` rejects an existing target with
- * `FS_NOT_OBSERVED`; `replaceIfVersion` rejects absence or mismatch with
- * `FS_STALE_VERSION`. Omitting the intent from `writeText` means unconditional
- * create-or-overwrite, not a third union arm.
+ * 受守卫的写入意图。`createIfAbsent` 遇到已存在的目标以 `FS_NOT_OBSERVED` 拒绝；
+ * `replaceIfVersion` 遇到不存在或版本不匹配以 `FS_STALE_VERSION` 拒绝。在 `writeText`
+ * 中省略意图表示无条件的创建或覆盖，而不是联合类型的第三个分支。
  */
 export type FsWriteIntent =
   | { kind: 'createIfAbsent' }
   | { kind: 'replaceIfVersion'; version: FsVersion }
 
-/** Outcome of a full-file write. */
+/** 整文件写入的结果。 */
 export interface FsWriteOutcome {
-  /** Whether the write created a new file or replaced an existing one. */
+  /** 本次写入是新建文件还是替换已有文件。 */
   operation: 'create' | 'update'
-  /** Opaque version of the file after the write. */
+  /** 写入后文件的不透明版本。 */
   version: FsVersion
   /**
-   * The file's content BEFORE the write, or `null` when the file did not exist
-   * (a create) or the backend declined a contextual basis (for example, a
-   * binary/non-UTF-8 prior file or either overwrite side reaching its exclusive limit).
-   * LF-normalized storage text (the diff basis), never a diff — a consumer
-   * computes the result-time contextual diff from `before`/`after` when
-   * `before` is present, else falls back to a whole-file diff.
+   * 写入**之前**的文件内容；当文件原本不存在（即创建）或后端拒绝给出上下文基线时为
+   * `null`（例如此前的二进制/非 UTF-8 文件，或待比较的两侧任一侧达到其排他上限）。
+   * 这是 LF 规范化的存储文本（即 diff 基线），绝不是 diff —— 当 `before` 存在时，
+   * 消费方依据 `before`/`after` 计算结果时刻的上下文 diff，否则退化为整文件 diff。
    */
   before: string | null
-  /** The file's content AFTER the write, LF-normalized to share `before`'s diff basis. */
+  /** 写入**之后**的文件内容，已做 LF 规范化，以便与 `before` 共享同一 diff 基线。 */
   after: string
 }
 
-/** A literal-replacement edit request. */
+/** 一次字面量替换的编辑请求。 */
 export interface FsEditRequest {
-  /** Literal non-empty text to replace. Must match exactly (after line-ending normalization). */
+  /** 待替换的非空字面量文本。必须精确匹配（在行尾规范化之后）。 */
   oldString: string
-  /** Literal replacement text. An empty string deletes the matched text. */
+  /** 字面的替换文本。为空字符串表示删除命中的文本。 */
   newString: string
-  /** Replace every match instead of requiring exactly one. */
+  /** 替换所有命中项，而不是要求恰好命中一处。 */
   replaceAll: boolean
 }
 
-/** Outcome of a literal edit. */
+/** 字面量编辑的结果。 */
 export interface FsEditOutcome {
-  /** Opaque version of the file after the edit. */
+  /** 编辑后文件的不透明版本。 */
   version: FsVersion
   /**
-   * The file's content BEFORE the edit. Raw storage text (LF-normalized by the
-   * backend), never a diff — a consumer computes the result-time contextual diff
-   * (the applied hunk with context) from `before`/`after`.
+   * 编辑**之前**的文件内容。这是原始存储文本（由后端做 LF 规范化），绝不是 diff ——
+   * 消费方依据 `before`/`after` 计算结果时刻的上下文 diff（带上下文的已应用补丁块）。
    */
   before: string
-  /** The file's content AFTER the edit. */
+  /** 编辑**之后**的文件内容。 */
   after: string
 }
 
 /**
- * Stable, machine-routable codes for filesystem failures. Carried on
- * {@link FsError}; the tool registry exposes `{ name, code }` on `isError`
- * results so retry/permission/UI layers can branch without parsing messages.
+ * 稳定、可被机器路由的文件系统失败码。由 {@link FsError} 携带；工具注册表在 `isError`
+ * 结果上暴露 `{ name, code }`，使重试/权限/UI 层无需解析消息文本即可分支处理。
  */
 export type FsErrorCode =
   | 'FS_NOT_FOUND'
@@ -188,10 +174,9 @@ export type FsErrorCode =
   | 'FS_ABORTED'
 
 /**
- * Typed filesystem error. Extends {@link HarnessError} so it carries a stable
- * {@link FsErrorCode} and chains `cause`. `dsh-fs` owns this vocabulary so
- * backends and the policy layer raise the same codes instead of each inventing
- * message strings.
+ * 类型化的文件系统错误。继承 {@link HarnessError}，因此带有稳定的 {@link FsErrorCode}
+ * 并串联 `cause`。这套词汇由 `dsh-fs` 持有，使后端与策略层抛出相同的错误码，
+ * 而不是各自编造消息字符串。
  */
 export class FsError extends HarnessError {
   override readonly code: FsErrorCode

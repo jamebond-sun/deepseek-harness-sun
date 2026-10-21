@@ -1,28 +1,28 @@
-/** Native Stagehand operations run inside one isolated browser Worker. */
+/** 原生的 Stagehand 操作在一个隔离的浏览器 Worker 内部运行。 */
 
 import { StagehandClientCreateConfigSchema } from '@browserbasehq/stagehand'
 import type { ModelConfig, Page, StagehandBrowser } from '@browserbasehq/stagehand'
 import { assertNever } from '@deepseek-ai/dsh-util-values'
 import { z } from 'zod'
 
-/** Profile-owned model settings accepted by the pinned Stagehand SDK. */
+/** 由被固定的 Stagehand SDK 所接受的、归属于配置档的模型设置。 */
 export interface StagehandModelConfig {
-  /** Provider-prefixed model name from Stagehand's supported model catalog. */
+  /** 来自 Stagehand 受支持模型目录、带提供方前缀的模型名称。 */
   modelName: ModelConfig['modelName']
-  /** Explicit API key sent to Stagehand's browser extension. */
+  /** 发送给 Stagehand 浏览器扩展的、显式的 API 密钥。 */
   apiKey: string
-  /** Additional headers sent with the extension's model requests. */
+  /** 随扩展的模型请求一并发送的额外请求头。 */
   headers?: Record<string, string>
 }
 
-/** Explicit credentials for one model supported by the pinned Stagehand SDK. */
+/** 被固定的 Stagehand SDK 所支持的某个模型的、显式凭据。 */
 export const stagehandModelSchema = z.object({
   modelName: z.string(),
   apiKey: z.string().refine(value => value.trim().length > 0, 'Stagehand requires a nonblank model API key'),
   headers: z.record(z.string(), z.string()).optional(),
 }).strict().transform((model): StagehandModelConfig => {
   StagehandClientCreateConfigSchema.parse({ model })
-  // The native-only fields above exclude the SDK's callback-model alternative.
+  // 上述仅原生的字段排除了 SDK 的回调式模型替代方案。
   return {
     modelName: model.modelName as ModelConfig['modelName'],
     apiKey: model.apiKey,
@@ -30,29 +30,29 @@ export const stagehandModelSchema = z.object({
   }
 })
 
-/** Resolved browser options accepted by the native runtime and attachment worker. */
+/** 被原生运行时与附加 Worker 所接受的、已解析的浏览器选项。 */
 export interface NativeBrowserConfig {
-  /** Explicit model credentials passed to Stagehand's browser extension. */
+  /** 传递给 Stagehand 浏览器扩展的、显式的模型凭据。 */
   model: StagehandModelConfig
-  /** Whether the runtime owns Chromium or only its connection. */
+  /** 运行时是拥有 Chromium，还是仅拥有其连接。 */
   mode: 'launch' | 'attach'
-  /** Existing browser's configured debugging endpoint. */
+  /** 既有浏览器所配置的调试端点。 */
   cdpEndpoint?: string
-  /** Optional existing Stagehand extension id. */
+  /** 可选的、既有的 Stagehand 扩展 id。 */
   extensionId?: string
-  /** Executable selected for an owned Chromium instance. */
+  /** 为某个被拥有的 Chromium 实例所选的可执行文件。 */
   executablePath?: string
-  /** Whether to hide an owned browser's window. */
+  /** 是否隐藏一个被拥有的浏览器的窗口。 */
   headless: boolean
-  /** Deadline for Chromium startup, navigation, and natural-language actions. */
+  /** Chromium 启动、导航与自然语言动作的截止时限。 */
   operationTimeoutMs: number
-  /** Time allowed for attachment-worker shutdown before terminating it. */
+  /** 在终止附加 Worker 之前，允许其关闭的宽限时间。 */
   shutdownGraceMs: number
 }
 
 const pageArgs = { pageId: z.string().min(1).optional() }
 
-/** Model and worker requests share the same validated browser arguments. */
+/** 模型与 Worker 请求共享同一套经过校验的浏览器参数。 */
 export const browserInputs = {
   navigate: z.object({ ...pageArgs, url: z.url() }).strict(),
   tabs: z.discriminatedUnion('action', [
@@ -66,31 +66,31 @@ export const browserInputs = {
   extract: z.object({ ...pageArgs, instruction: z.string().min(1), schema: z.record(z.string(), z.json()).optional() }).strict(),
 }
 
-/** Closed set of native browser operations. */
+/** 原生浏览器操作的封闭集合。 */
 export type BrowserMethod = keyof typeof browserInputs
 
-/** SDK requests did not drain before their connection Worker terminated. */
+/** SDK 请求在其连接 Worker 被终止之前尚未排空。 */
 export class StagehandDrainError extends Error {}
 
-/** Native browser operations and SDK cleanup owned by one live Session. */
+/** 由某一个实时 Session 所拥有的、原生浏览器操作与 SDK 清理。 */
 export interface NativeBrowserRuntime {
   /**
-   * Execute one operation after validating its tool or worker arguments.
-   * @param method - supported browser operation.
-   * @param args - untrusted JSON arguments.
-   * @param signal - host-side cancellation; closes the Worker connection when supplied.
-   * @returns a canonicalizable MCP result with text or screenshot content.
+   * 在校验其工具或 Worker 参数之后，执行一次操作。
+   * @param method - 受支持的浏览器操作。
+   * @param args - 不可信的 JSON 参数。
+   * @param signal - 宿主侧的取消信号；提供时会关闭该 Worker 连接。
+   * @returns 一个可规范化的、带有文本或截图内容的 MCP 结果。
    */
   execute(method: BrowserMethod, args: unknown, signal?: AbortSignal): Promise<unknown>
-  /** Release Stagehand state before Worker termination disconnects CDP. */
+  /** 在 Worker 终止断开 CDP 之前，释放 Stagehand 状态。 */
   close(): Promise<void>
 }
 
 /**
- * Open the pinned SDK using its public initialization and native model configuration.
- * The host owns launched Chromium separately; this Worker owns only its CDP connection.
- * @param config - resolved profile-owned browser options.
- * @returns the native operation runtime after initialization completes.
+ * 使用其公开的初始化与原生模型配置，打开被固定的 SDK。
+ * 宿主单独拥有已启动的 Chromium；本 Worker 仅拥有其 CDP 连接。
+ * @param config - 已解析的、归属于配置档的浏览器选项。
+ * @returns 初始化完成之后的原生操作运行时。
  */
 export async function openNativeBrowser(config: NativeBrowserConfig): Promise<NativeBrowserRuntime> {
   const { Stagehand, localBrowser } = await import('@browserbasehq/stagehand')
@@ -151,7 +151,7 @@ export async function openNativeBrowser(config: NativeBrowserConfig): Promise<Na
             : await stagehand.extract(args.instruction, z.fromJSONSchema(args.schema), options)
           return textResult(result)
         }
-        /* v8 ignore next -- closed-union exhaustiveness guard; Worker methods are parsed before dispatch. */
+        /* v8 ignore next -- 封闭联合的穷尽性守卫；Worker 方法在分发前已被解析。 */
         default: return assertNever(method, 'Stagehand browser operation')
       }
     },

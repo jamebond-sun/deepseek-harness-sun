@@ -1,16 +1,14 @@
 /**
- * The browser twin of the tool-cordis context facade: a whitelist of
- * lifecycle-safe verbs plus optional `ctx.get()` lookup and declared-service
- * property access, with
- * framework internals withheld and Context-valued returns denied. Two seats
- * carry extra machinery: `slots`, where the registration proxy assigns any
- * shadowing priority and ledgers ordinary entries or Factory definitions — invoking the service with
- * the traced receiver so the effect lands on the CALLING plugin's fiber
- * (SlotRegistry.register must stay a prototype method for exactly that
- * reason) — and `theme`, whose override source is pinned to the package id.
+ * tool-cordis 上下文门面的浏览器孪生：一份生命周期安全的动词白名单，
+ * 外加可选的 `ctx.get()` 查找与已声明服务的属性访问，其中
+ * 框架内部被扣留，返回 Context 值被拒绝。两个席位带有额外机制：
+ * `slots`，其注册代理分配任意的重影优先级，并把普通条目或 Factory
+ * 定义记入台账 —— 以被追踪的接收者调用服务，从而让副作用落在
+ * 调用方插件的 fiber 上（SlotRegistry.register 正是因此必须保持为
+ * 原型方法）—— 以及 `theme`，其覆盖来源被固定到包 id。
  *
- * This is API discipline, not a security boundary: a dynamic package's code is
- * as trusted as the host process that accepted its definition.
+ * 这是 API 纪律，而非安全边界：动态包的代码与接受其定义的
+ * host 进程同样受信任。
  */
 
 import { Context } from '@deepseek-ai/cordis'
@@ -18,41 +16,41 @@ import type { DynamicCordisPackage } from '@deepseek-ai/dsh-api-remotes/client'
 import type { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type { ThemeRuntime } from '@deepseek-ai/dsh-client-ui-theme/client'
 
-/** Facade verbs beyond declared services (host CTX_VERBS twin). */
+/** 已声明服务之外的门面动词（host CTX_VERBS 孪生）。 */
 const CTX_VERBS = new Set([
   'effect', 'on', 'once', 'provide', 'timeout', 'interval', 'setTimeout', 'setInterval', 'throttle', 'debounce',
 ])
 const TIMER_VERBS = new Set(['timeout', 'interval', 'setTimeout', 'setInterval', 'throttle', 'debounce'])
 
-/** One package's Slot or Factory registration ledger row (contribution projection source). */
+/** 一个包的 Slot 或 Factory 注册台账行（贡献投影来源）。 */
 export interface DynamicCordisSlotLedgerRow {
-  /** Target Slot name, or `factory:<name>` for a Factory definition. */
+  /** 目标 Slot 名，或 Factory 定义的 `factory:<name>`。 */
   slot: string
-  /** The assigned shadowing priority (globally unique — how winners are matched back to packages). */
+  /** 被分配的重影优先级（全局唯一 —— 据此将胜出者匹配回所属包）。 */
   priority: number | undefined
 }
 
-/** What the facade needs beyond the real ctx to govern one package. */
+/** 门面在真实 ctx 之外、为了管控一个包而所需的依赖。 */
 export interface DynamicCordisGuardEnv {
-  /** The dispatched Package row. */
+  /** 被派发的 Package 行。 */
   pkg: DynamicCordisPackage
-  /** Ledger sink: every Slot or Factory registration this package makes. */
+  /** 台账汇点：本包所做的每次 Slot 或 Factory 注册。 */
   ledger: DynamicCordisSlotLedgerRow[]
   /**
-   * Ownership index sink: the component object seated in a slot, so a later
-   * render crash reported against the stored entry can be attributed back to
-   * this package. Identity is the key — the registry stores the component
-   * verbatim — which is why nothing else has to be remembered about the entry.
-   * @param component - whatever the package passed as its component.
+   * 归属索引汇点：坐落到槽位中的组件对象，以便后续
+   * 针对所存条目报告的渲染崩溃能归因回
+   * 本包。身份是关键 —— 注册表逐字存储组件，
+   * 正因如此，条目无需再记住其它任何东西。
+   * @param component - 包作为组件传入的任何值。
    */
   claim(component: unknown): void
-  /** Allocate one page-local shadowing rank; later registrations sort first. */
+  /** 分配一个页面局部的重影等级；后注册的排在前。 */
   allocatePriority(): number
-  /** Report one post-activation guard rejection to the owning Agent. */
+  /** 向所属 Agent 报告一次激活后的守卫拒绝。 */
   reportFailure(error: Error): void
 }
 
-/** Reject any service return that is a cordis Context (host guard twin). */
+/** 拒绝任何返回值为 cordis Context 的服务（host 守卫孪生）。 */
 function denyContext(value: unknown, service: string, env: DynamicCordisGuardEnv): unknown {
   if (value instanceof Context) {
     return rejectGuard(env,
@@ -64,9 +62,9 @@ function denyContext(value: unknown, service: string, env: DynamicCordisGuardEnv
 }
 
 /**
- * Forward service methods with the traced service as receiver — `this.ctx`
- * inside prototype methods (slots.register) must stay the CALLER's ctx so
- * effects land on the calling plugin's fiber — while denying Context returns.
+ * 以被追踪的服务为接收者转发服务方法 —— 原型方法（slots.register）内
+ * 的 `this.ctx` 必须保持为调用方的 ctx，以便副作用落在
+ * 调用方插件的 fiber 上 —— 同时拒绝 Context 返回值。
  */
 function guardedService(service: object, name: string, env: DynamicCordisGuardEnv): unknown {
   return new Proxy(service, {
@@ -82,7 +80,7 @@ function guardedService(service: object, name: string, env: DynamicCordisGuardEn
   })
 }
 
-/** Erased register options as this facade reads and rewrites them. */
+/** 本门面读取并重写的、被擦除的注册选项。 */
 interface ErasedSlotOptions {
   name?: string
   priority?: number
@@ -90,8 +88,8 @@ interface ErasedSlotOptions {
 }
 
 /**
- * The slots seat: automatic shadowing priority and ledger recording around the
- * traced service's own Slot and Factory registration methods.
+ * slots 席位：在被追踪服务自身的 Slot 与 Factory 注册方法周围，
+ * 自动处理重影优先级与台账记录。
  */
 function guardedSlots(slots: SlotRegistry, env: DynamicCordisGuardEnv): unknown {
   return new Proxy(slots, {
@@ -122,8 +120,8 @@ function guardedSlots(slots: SlotRegistry, env: DynamicCordisGuardEnv): unknown 
           }
           options.key = `${env.pkg.pluginId}.${env.pkg.packageId}`
         }
-        // Shadowing kinds get a page-local rank. Later registrations sort first;
-        // chain slots keep their own election (select order) untouched.
+        // 重影类槽位会获得一个页面局部的排序等级。后注册的排在前；
+        // 链槽保留自身的选举（选择顺序）不变。
         const spec = (slots.spec as (key: string) => { kind?: string } | undefined)(slot)
         let priority = options.priority
         if (spec === undefined || spec.kind !== 'chain') {
@@ -133,8 +131,8 @@ function guardedSlots(slots: SlotRegistry, env: DynamicCordisGuardEnv): unknown 
         const register = Reflect.get(target, 'register', target) as (opts: object, comp: unknown) => () => void
         const dispose = register.call(target, options, component)
         env.ledger.push({ slot, priority })
-        // After the registry accepted it: a rejected registration seats no entry,
-        // so claiming one would index a component no crash can ever name.
+        // 在注册表接受之后：被拒绝的注册不会落座任何条目，
+        // 因此认领一个就会索引到一个任何崩溃都无法点名的组件。
         env.claim(component)
         return dispose
       }
@@ -143,13 +141,12 @@ function guardedSlots(slots: SlotRegistry, env: DynamicCordisGuardEnv): unknown 
 }
 
 /**
- * The theme seat: `overrideTokens`' source is FORCED to the package id — a
- * dynamic package can never impersonate (or evict) another source's layer, and
- * its own layers converge under one identity unload can reason about. The
- * layer's disposer is additionally hung on the calling fiber, because the
- * documented contract is "unload restores" and model code cannot be trusted to
- * keep the returned handle (slots parity — register hangs its own cleanup).
- * Everything else forwards through the generic guard.
+ * theme 席位：`overrideTokens` 的 source 被强制固定为包 id —— 动态包
+ * 永远无法冒充（或驱逐）其它来源的层，而其自身的层在单一身份下
+ * 汇聚，卸载能够据此推理。该层的释放器还额外挂在调用方 fiber 上，
+ * 因为文档化契约是"卸载即恢复"，且模型代码不可被信任会
+ * 保留返回的句柄（与 slots 对称 —— register 挂起自身的清理）。
+ * 其余一切都经由通用守卫转发。
  */
 function guardedTheme(theme: ThemeRuntime, env: DynamicCordisGuardEnv, ctx: Context): unknown {
   return new Proxy(theme, {
@@ -164,8 +161,8 @@ function guardedTheme(theme: ThemeRuntime, env: DynamicCordisGuardEnv, ctx: Cont
         }
       }
       return (source: unknown, tokens: unknown): unknown => {
-        // Two-argument shape preserved so the facade matches the documented
-        // service signature; the source VALUE is replaced, never trusted.
+        // 保留双参数形态，以便门面与文档化的
+        // 服务签名一致；source 的值是被替换的，绝不被信任。
         if (tokens === undefined && typeof source === 'object' && source !== null) {
           return rejectGuard(env,
             'theme.overrideTokens(source, tokens) takes two arguments; source is replaced with your package id, '
@@ -174,8 +171,8 @@ function guardedTheme(theme: ThemeRuntime, env: DynamicCordisGuardEnv, ctx: Cont
         }
         const method = Reflect.get(target, 'overrideTokens', target)
         const dispose = Reflect.apply(method, target, [`${env.pkg.pluginId}.${env.pkg.packageId}`, tokens]) as () => void
-        // Fiber-owned lifetime; the returned handle stays valid for early
-        // removal (the service disposer is idempotent per layer identity).
+        // 归属 Fiber 的生命周期；返回的句柄对提前
+        // 移除仍有效（服务释放器按层身份是幂等的）。
         ctx.effect(() => dispose, 'cordis-client-runner: dynamic theme override layer')
         return dispose
       }
@@ -184,12 +181,12 @@ function guardedTheme(theme: ThemeRuntime, env: DynamicCordisGuardEnv, ctx: Cont
 }
 
 /**
- * Build the facade one dynamic plugin's `apply` receives (host sandboxContext
- * twin, browser seats). `ctx.get(name)` performs optional lookup; direct
- * `ctx.serviceName` access is gated by the fiber's `inject` declaration.
- * @param ctx - the plugin's real fiber ctx (loader-created).
- * @param env - package row + ledger sink.
- * @returns the whitelisting proxy standing in for ctx.
+ * 构建某个动态插件的 `apply` 所接收的门面（host sandboxContext
+ * 孪生，浏览器席位）。`ctx.get(name)` 执行可选查找；直接
+ * 的 `ctx.serviceName` 访问由 fiber 的 `inject` 声明把关。
+ * @param ctx - 插件的真实 fiber ctx（由 loader 创建）。
+ * @param env - 包行 + 台账汇点。
+ * @returns 代替 ctx 的白名单代理。
  */
 export function dynamicCordisContext(ctx: Context, env: DynamicCordisGuardEnv): Context {
   const declared = new Set(Object.keys(ctx.fiber.inject))
@@ -219,7 +216,7 @@ export function dynamicCordisContext(ctx: Context, env: DynamicCordisGuardEnv): 
     get(_target, prop) {
       if (prop === 'get') return (name: string): unknown => readService(name, false)
       if (typeof prop !== 'string') return undefined
-      // Lazy verb forwarder (host twin): resolve ctx[verb] only when called.
+      // 惰性动词转发器（host 孪生）：仅在被调用时才解析 ctx[verb]。
       if (CTX_VERBS.has(prop)) {
         return (...args: unknown[]): unknown => {
           if (TIMER_VERBS.has(prop) && !declared.has('timer')) return denyRead('timer')

@@ -1,10 +1,8 @@
-# The dsh-headless bundle patch: one-shot task mode directly over dsh-base.
-# It mounts no Host, HTTP server, Web runtime, or browser plugin. An ordinary
-# provider plugin injects `cmdlineArgs`, parses the task positional
-# (`dsh --profile headless "<task>"`), the `--session-id` and `--json` options,
-# and this app's --help, then the direct driver creates a fresh Agent, or adopts
-# the exact Session the flag names, through the core registry and prints its
-# durable result.
+# dsh-headless bundle 补丁：直接构建在 dsh-base 之上的一次性任务模式。它不挂载任何
+# Host、HTTP 服务器、Web runtime 或浏览器插件。一个普通的提供者插件注入 `cmdlineArgs`，
+# 解析 task 位置参数（`dsh --profile headless "<task>"`）、`--session-id` 与 `--json`
+# 选项以及本应用的 --help，随后直接驱动器通过核心注册表创建一个新的 Agent，或沿用该
+# 标志所指名的确切 Session，并打印其持久化结果。
 
 - id: system-prompt
   config:
@@ -13,14 +11,14 @@
 
 - id: tools
   config:
-    # Keep the same temporary process-wide PTC mode opt-in as the Web surface.
+    # 与 Web 界面一样，保留这个临时的进程级 PTC 模式开关。
     mode: !!js process.env.DSH_TOOLS_MODE
 
 - insert:
     - id: headless-startup
       name: '@deepseek-ai/dsh-headless/startup'
 
-    # Reads its task and run options from the ordinary headlessStartup provider.
+    # 从普通的 headlessStartup 提供者读取其任务与运行选项。
     - id: headless-runner
       name: '@deepseek-ai/dsh-headless'
       inject: [headlessStartup]
@@ -32,7 +30,7 @@
 - id: hmr
   disabled: true
 
-# One-shot jobs use launch-time credentials instead of the interactive store.
+# 一次性任务使用启动时的凭据，而不是交互式凭据存储。
 - id: credentials
   disabled: true
 

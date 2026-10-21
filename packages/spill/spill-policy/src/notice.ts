@@ -1,4 +1,4 @@
-/** Browser-safe formatting and recognition of persisted spill-policy notices. */
+/** 已持久化的溢出策略通知的浏览器安全格式化与识别。 */
 import { describeOmitted, type Omitted } from '@deepseek-ai/dsh-output-retention'
 import type { SpillRef } from '@deepseek-ai/dsh-spill'
 
@@ -12,11 +12,11 @@ const COUNT_OFFSET = EXACT_OMISSION.indexOf('0')
 const COUNT_SUFFIX = EXACT_OMISSION.slice(COUNT_OFFSET + 1)
 
 /**
- * Format the notice appended to a retained preview, preserving its persisted spelling.
- * @param omitted - bytes omitted by the retention policy.
- * @param ref - saved text locator and retrieval guidance.
- * @param images - number of whole images omitted alongside text.
- * @returns the complete notice without a leading preview separator.
+ * 格式化追加到保留预览之后的通知，并保留其持久化后的拼写形式。
+ * @param omitted - 保留策略省略的字节数。
+ * @param ref - 已保存文本的定位信息与取回指引。
+ * @param images - 与文本一同被整体省略的图片数量。
+ * @returns 不含前置预览分隔符的完整通知。
  */
 export function formatSpillNotice(omitted: Omitted, ref: Pick<SpillRef, 'locator' | 'retrievalHint'>, images = 0): string {
   const imageNotice = images > 0 ? ` Omitted ${images} images.` : ''
@@ -37,10 +37,10 @@ function isOmission(text: string): boolean {
 }
 
 /**
- * Recognize a final spill-policy notice in persisted text, including notice-only output.
- * This identifies the text convention, not authenticated tool-output origin.
- * @param text - complete recorded text result.
- * @returns whether a complete notice occupies the end of the result.
+ * 识别持久化文本中位于末尾的溢出策略通知，包括只有通知的输出。
+ * 这识别的是文本约定，而非经过认证的工具输出来源。
+ * @param text - 完整的已记录文本结果。
+ * @returns 结果末尾是否占据着一条完整通知。
  */
 export function hasSpillNotice(text: string): boolean {
   if (!text.endsWith(CLOSE)) return false

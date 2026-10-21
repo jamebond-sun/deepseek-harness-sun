@@ -1,4 +1,4 @@
-/** Pure adjacent streaming Session format migration machinery. */
+/** 纯相邻流式 Session 格式迁移机制。 */
 
 export * from './chain.ts'
 export * from './catalog.ts'

@@ -13,9 +13,9 @@ import {
 } from './validation.ts'
 
 const unusedEncoder: SessionFormatCurrentEncoder = {
-  /* v8 ignore next -- this restore-only test facade never encodes a header. */
+  /* v8 ignore next -- 这个仅用于恢复的测试门面从不编码头部。 */
   encodeHeader: header => header,
-  /* v8 ignore next -- this restore-only test facade never encodes an event. */
+  /* v8 ignore next -- 这个仅用于恢复的测试门面从不编码事件。 */
   encodeEvent: event => event,
 }
 
@@ -32,7 +32,7 @@ const catalog = createSessionFormatCatalog({
     assertReleasedV1MigrationSource(artifact)
     return artifact
   },
-  /* v8 ignore next 3 -- this restore-only test facade never performs a header-only read. */
+  /* v8 ignore next 3 -- 这个仅用于恢复的测试门面从不执行仅头部的读取。 */
   restoreCurrentHeader(header) {
     assertReleasedV1Header(header)
     return header
@@ -51,11 +51,11 @@ function restore(
 }
 
 /**
- * Restore released v0 rows through the production decoder and v0-to-v1 stage.
- * @param header - released v0 physical header.
- * @param rows - released v0 physical rows.
- * @param recovery - strict or recoverable row policy.
- * @returns the transformed released v1 artifact.
+ * 通过生产解码器与 v0→v1 阶段恢复 released v0 行。
+ * @param header - released v0 物理头部。
+ * @param rows - released v0 物理行。
+ * @param recovery - 严格或可恢复的行策略。
+ * @returns 转换后的 released v1 制品。
  */
 export function restoreV0ToV1(
   header: unknown,
@@ -66,11 +66,11 @@ export function restoreV0ToV1(
 }
 
 /**
- * Restore released v1 rows through the production decoder and current collector.
- * @param header - released v1 physical header.
- * @param rows - released v1 physical rows.
- * @param recovery - strict or recoverable row policy.
- * @returns the restored released v1 artifact.
+ * 通过生产解码器与当前收集器恢复 released v1 行。
+ * @param header - released v1 物理头部。
+ * @param rows - released v1 物理行。
+ * @param recovery - 严格或可恢复的行策略。
+ * @returns 恢复得到的 released v1 制品。
  */
 export function restoreV1(
   header: unknown,

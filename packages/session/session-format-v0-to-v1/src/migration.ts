@@ -23,7 +23,7 @@ import { assertReleasedV0Keys, releasedV0Record } from './validation-helpers.ts'
 
 const LEGACY_ASSISTANT_SOURCE_KEY = ['pro', 'venance'].join('')
 
-/** Identity format edge that promotes released v0 into released v1. */
+/** 将已发布的 v0 提升为已发布 v1 的恒等格式边。 */
 export const sessionFormatV0ToV1 = defineSessionFormatMigration({
   name: '@deepseek-ai/dsh-session-format-v0-to-v1',
   fromVersion: 0,
@@ -421,7 +421,7 @@ function normalizeLegacyMessage(
 function replacementStart(event: SessionFormatEvent): number | undefined {
   const operation = event['surfaceOp']
   if (operation === undefined || !releasedIsRecord(operation) || operation['op'] !== 'replace') return undefined
-  // Source envelope validation admits only non-negative safe replacement endpoints.
+  // 源信封校验只接纳非负且安全的替换端点。
   return operation['start'] as number
 }
 

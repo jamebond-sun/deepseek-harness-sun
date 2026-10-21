@@ -1,5 +1,5 @@
 /**
- * Service Definition for combined session-history reads, traces, filters, and full-text search.
+ * 组合式会话历史读取、追踪、过滤与全文搜索的服务定义。
  *
  * @module @deepseek-ai/dsh-session-query
  */
@@ -89,11 +89,10 @@ declare module '@deepseek-ai/cordis' {
 }
 
 /**
- * Unified live-preferred session query service.
+ * 统一的 live 优先会话查询服务。
  *
- * Exact reads, filters, and traces are backend-independent concrete behavior.
- * A backend implements full-text observation, reconciliation, ranking, cursor
- * generations, and query execution on the same `ctx.sessionQuery` service.
+ * 精确读取、过滤与追踪是与后端无关的具体行为。后端在同一个 `ctx.sessionQuery`
+ * 服务上实现全文观察、对账、排序、游标代次与查询执行。
  */
 export abstract class SessionQueryEngine extends Service {
   static inject = ['sessions']
@@ -132,10 +131,10 @@ export abstract class SessionQueryEngine extends Service {
   }
 
   /**
-   * Observe one exact live or prepared Session without a persistence listing preflight.
-   * @param sessionId - logical Session identity.
-   * @param options - cancellation and projection selection for this read.
-   * @returns a caller-owned observation lease.
+   * 无需持久化列举预检即可观察一个精确的 live 或 prepared Session。
+   * @param sessionId - 逻辑 Session 身份。
+   * @param options - 本次读取的取消控制与投影选择。
+   * @returns 由调用方持有的一份观察租约。
    */
   observeSession(
     sessionId: SessionId,
@@ -145,10 +144,10 @@ export abstract class SessionQueryEngine extends Service {
   }
 
   /**
-   * Search the live-preferred logical corpus and group by session.
-   * @param request - query text, metadata filters, page size, and cursor.
-   * @param exec - optional cancellation control.
-   * @returns session hits ranked by their strongest matching event.
+   * 搜索 live 优先的逻辑语料，并按会话分组。
+   * @param request - 查询文本、元数据过滤器、页大小与游标。
+   * @param exec - 可选的取消控制。
+   * @returns 按其最强匹配事件排序的会话命中。
    */
   abstract searchSessions(
     request: SessionSearchRequest,
@@ -156,10 +155,10 @@ export abstract class SessionQueryEngine extends Service {
   ): Promise<SessionSearchPage<SessionSearchHit>>
 
   /**
-   * Search events within one live-preferred logical session.
-   * @param request - target session, query text, filters, page size, and cursor.
-   * @param exec - optional cancellation control.
-   * @returns matching event hits and their target header from one indexed generation.
+   * 在一个 live 优先的逻辑会话内搜索事件。
+   * @param request - 目标会话、查询文本、过滤器、页大小与游标。
+   * @param exec - 可选的取消控制。
+   * @returns 来自同一个已索引代次的匹配事件命中及其目标头部。
    */
   abstract searchEvents(
     request: SessionEventSearchRequest,
@@ -167,19 +166,19 @@ export abstract class SessionQueryEngine extends Service {
   ): Promise<SessionEventSearchPage>
 
   /**
-   * List the complete logical corpus using live-preferred records.
-   * @param signal - optional cancellation for persistence listing.
-   * @returns deterministic newest-first cloned session records.
+   * 用 live 优先的记录列出完整的逻辑语料。
+   * @param signal - 持久化列举的可选取消信号。
+   * @returns 按确定性的最新优先顺序排列的克隆会话记录。
    */
   listSessions(signal?: AbortSignal): Promise<SessionRecord[]> {
     return this._corpus.listSessions(signal)
   }
 
   /**
-   * Read and replay-validate one complete logical session log without making it live.
-   * @param sessionId - live or persisted session id to read.
-   * @returns cloned header and complete raw event log from one observation.
-   * @throws when persistence, header compatibility, or replay validation fails.
+   * 读取并重放校验一份完整的逻辑会话日志，而不使其变为 live。
+   * @param sessionId - 要读取的 live 或持久化会话 id。
+   * @returns 来自同一次观察的克隆头部与完整原始事件日志。
+   * @throws 当持久化、头部兼容性或重放校验失败时抛出。
    */
   async readSession(sessionId: SessionId): Promise<SessionLogSnapshot> {
     const loaded = await this._corpus.load(sessionId)
@@ -198,10 +197,10 @@ export abstract class SessionQueryEngine extends Service {
   }
 
   /**
-   * Filter the complete logical corpus with provider-independent predicates.
-   * @param filters - ANDed session metadata and availability clauses.
-   * @param signal - optional cancellation for persistence listing.
-   * @returns matching cloned records in deterministic newest-first order.
+   * 用与提供方无关的谓词过滤完整的逻辑语料。
+   * @param filters - 按 AND 组合的会话元数据与可用性子句。
+   * @param signal - 持久化列举的可选取消信号。
+   * @returns 按确定性的最新优先顺序排列的、匹配的克隆记录。
    */
   async filterSessions(
     filters: readonly SessionResultFilter[],
@@ -212,10 +211,10 @@ export abstract class SessionQueryEngine extends Service {
   }
 
   /**
-   * Fold the latest log-backed title from one live-preferred logical session.
-   * @param sessionId - live or persisted session id to read.
-   * @param signal - optional cancellation for source resolution and title folding.
-   * @returns latest title snapshot, or `undefined` when the log has no title event.
+   * 从一个 live 优先的逻辑会话中折叠出最新的、以日志为依据的标题。
+   * @param sessionId - 要读取的 live 或持久化会话 id。
+   * @param signal - 源解析与标题折叠的可选取消信号。
+   * @returns 最新标题快照；日志没有标题事件时为 `undefined`。
    */
   async readTitle(
     sessionId: SessionId,
@@ -225,10 +224,10 @@ export abstract class SessionQueryEngine extends Service {
   }
 
   /**
-   * Fold the latest title and return its source header from one corpus observation.
-   * @param sessionId - live or persisted session id to read.
-   * @param signal - optional cancellation for source resolution and title folding.
-   * @returns cloned source header and optional latest title snapshot.
+   * 折叠最新标题，并返回来自同一次语料观察的源头部。
+   * @param sessionId - 要读取的 live 或持久化会话 id。
+   * @param signal - 源解析与标题折叠的可选取消信号。
+   * @returns 克隆的源头部与可选的最新标题快照。
    */
   async readTitleSnapshot(
     sessionId: SessionId,
@@ -240,13 +239,12 @@ export abstract class SessionQueryEngine extends Service {
   }
 
   /**
-   * Fold titles for unique sessions from one cancellable corpus observation.
+   * 从一次可取消的语料观察中为唯一的会话折叠标题。
    *
-   * Results preserve first-occurrence input order. Operational failures stay
-   * isolated per session, while cancellation rejects the complete operation.
-   * @param sessionIds - live or persisted session ids to observe.
-   * @param signal - optional cancellation shared by all source reads.
-   * @returns one fulfilled or rejected result per unique requested id.
+   * 结果保持输入中的首次出现顺序。操作性失败按会话隔离，而取消会让整个操作 reject。
+   * @param sessionIds - 要观察的 live 或持久化会话 id。
+   * @param signal - 由所有源读取共享的可选取消信号。
+   * @returns 每个唯一请求的 id 对应一个 fulfilled 或 rejected 的结果。
    */
   async readTitleSnapshots(
     sessionIds: readonly SessionId[],
@@ -262,9 +260,9 @@ export abstract class SessionQueryEngine extends Service {
   }
 
   /**
-   * List lightweight raw-log event records for one logical session.
-   * @param sessionId - live-preferred session id to read.
-   * @returns event records in ascending seq order.
+   * 列出一个逻辑会话的轻量原始日志事件记录。
+   * @param sessionId - 要读取的 live 优先会话 id。
+   * @returns 按 seq 升序排列的事件记录。
    */
   async listEvents(sessionId: SessionId): Promise<SessionEventRecord[]> {
     const loaded = await this._corpus.load(sessionId)
@@ -272,10 +270,10 @@ export abstract class SessionQueryEngine extends Service {
   }
 
   /**
-   * Scan first-party semantic event documents with provider-independent filters.
-   * @param sessionId - live-preferred session id to scan.
-   * @param filters - ANDed metadata and literal-text predicates.
-   * @returns matching semantic documents in ascending seq order.
+   * 用与提供方无关的过滤器扫描第一方语义事件文档。
+   * @param sessionId - 要扫描的 live 优先会话 id。
+   * @param filters - 按 AND 组合的元数据谓词与字面文本谓词。
+   * @returns 按 seq 升序排列的匹配语义文档。
    */
   async filterEvents(
     sessionId: SessionId,
@@ -302,10 +300,10 @@ export abstract class SessionQueryEngine extends Service {
   }
 
   /**
-   * Read one session's complete current model surface from one corpus observation.
-   * @param sessionId - live-preferred session id to read.
-   * @returns cloned header, current surface, and the last sequence number included in the raw-log capture.
-   * @throws when source resolution fails or the session surface is invalid.
+   * 从一次语料观察中读取一个会话完整的当前模型 surface。
+   * @param sessionId - 要读取的 live 优先会话 id。
+   * @returns 克隆的头部、当前 surface，以及原始日志捕获中包含的最后一个序号。
+   * @throws 当源解析失败或会话 surface 非法时抛出。
    */
   async readSurface(sessionId: SessionId): Promise<SessionSurfaceSnapshot> {
     const loaded = await this._corpus.load(sessionId)
@@ -318,11 +316,11 @@ export abstract class SessionQueryEngine extends Service {
   }
 
   /**
-   * Trace known ancestry and descendants from one corpus observation.
-   * @param sessionId - logical session id to trace.
-   * @param signal - optional cancellation for persistence listing.
-   * @returns a complete lineage or the first parent that could not be resolved.
-   * @throws when corpus resolution fails, the target is absent, or its known ancestry cycles.
+   * 从一次语料观察中追踪已知的祖先与后代。
+   * @param sessionId - 要追踪的逻辑会话 id。
+   * @param signal - 持久化列举的可选取消信号。
+   * @returns 完整的谱系，或第一个无法解析的父会话。
+   * @throws 当语料解析失败、目标缺失，或其已知祖先链成环时抛出。
    */
   async traceSession(sessionId: SessionId, signal?: AbortSignal): Promise<SessionLineageTrace> {
     const records = await this._corpus.listSessions(signal)
@@ -331,11 +329,11 @@ export abstract class SessionQueryEngine extends Service {
   }
 
   /**
-   * Trace one event's direct positional replacements and cited source events.
-   * @param request - target session id and event seq.
-   * @param signal - optional cancellation for persisted source resolution.
-   * @returns source header, direct links, and the target's positional replacement chain.
-   * @throws when source resolution fails, the target is absent, or surface/source-event validation fails.
+   * 追踪一个事件直接的按位置替换关系与被引用源事件。
+   * @param request - 目标会话 id 与事件 seq。
+   * @param signal - 持久化源解析的可选取消信号。
+   * @returns 源头部、直接关联，以及目标的按位置替换链。
+   * @throws 当源解析失败、目标缺失，或 surface/源事件校验失败时抛出。
    */
   async traceEvent(request: SessionEventTraceRequest, signal?: AbortSignal): Promise<SessionEventTraceObservation> {
     const loaded = await this._corpus.load(request.sessionId, signal)
@@ -347,10 +345,10 @@ export abstract class SessionQueryEngine extends Service {
   }
 
   /**
-   * Read one full event plus a bounded raw-log context window.
-   * @param request - target session/seq and context sizes.
-   * @param signal - optional cancellation for persisted source resolution.
-   * @returns cloned target and neighboring events.
+   * 读取一个完整事件以及一个有界的原始日志上下文窗口。
+   * @param request - 目标会话/seq 与上下文长度。
+   * @param signal - 持久化源解析的可选取消信号。
+   * @returns 克隆的目标事件与相邻事件。
    */
   async readEvent(request: SessionEventReadRequest, signal?: AbortSignal): Promise<SessionEventWindow> {
     const before = this._readWindow('before', request.before)

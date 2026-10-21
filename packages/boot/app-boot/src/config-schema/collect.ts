@@ -1,4 +1,4 @@
-/** Boot-free inspection of declared plugin Config schemas using profile module resolution. */
+/** 使用 profile 模块解析、对声明的插件 Config schema 进行的免启动检查。 */
 
 import { readFile, realpath } from 'node:fs/promises'
 import { extname, join } from 'node:path'
@@ -65,15 +65,15 @@ function includePatches(value: unknown): PatchOptions[] | undefined {
 }
 
 /**
- * Generate JSON Schema from parsed entry rows and root-tree patches without applying plugins or evaluating expressions.
- * Imports, Config getters, and lazy schema builders execute trusted plugin code; transform callbacks do not. Calls must not overlap
- * another profile-resolution interception; module imports remain cached after the interception is released.
- * @param profile - prepared profile whose directory anchors root module and include resolution.
- * @param entries - unvalidated rows from profile composition; malformed rows become positioned diagnostics without losing siblings.
- * @param resolution - the same immutable package resolution used for profile boot.
- * @param diagnostics - existing composition diagnostics; copied into the returned catalog.
- * @returns a JSON Schema document with partial-result diagnostics and Config references under `x-cordis`.
- * @throws when Node's profile module resolution cannot be installed.
+ * 在不应用插件或求值表达式的前提下，从已解析的条目行与根树补丁生成 JSON Schema。
+ * import、Config getter 与惰性 schema 构建器会执行受信任的插件代码；转换回调则不会。调用
+ * 不得与另一次 profile-resolution 拦截重叠；在拦截释放之后，模块导入仍被缓存。
+ * @param profile - 已准备的 profile，其目录锚定了根模块与 include 解析。
+ * @param entries - 来自 profile 组合的未校验行；畸形行会变成带位置的诊断，而不丢失其兄弟行。
+ * @param resolution - 与 profile 启动所使用的是同一个不可变包解析。
+ * @param diagnostics - 现有的组合诊断；会被复制到返回的目录中。
+ * @returns 一个带有部分结果诊断与位于 `x-cordis` 下 Config 引用的 JSON Schema 文档。
+ * @throws 当 Node 的 profile 模块解析无法被安装时。
  */
 export async function collectConfigSchemas(
   profile: Profile,
@@ -97,7 +97,7 @@ export async function collectConfigSchemas(
       if (!objectLike(plugin) || !Reflect.get(plugin, EntryGroup.key)) return undefined
       let resolved = nativeCarriers.get(baseUrl)
       if (resolved === undefined) {
-        // Include may be bundled into app-boot; compare against the native packages resolved for this tree as well.
+        // Include 可能被打包进 app-boot；同样要与为本树解析出的原生包进行比较。
         resolved = Promise.allSettled([
           loader.import('@deepseek-ai/cordis-plugin-group', baseUrl, {}),
           loader.import('@deepseek-ai/cordis-plugin-include', baseUrl, {}),
@@ -150,7 +150,7 @@ export async function collectConfigSchemas(
         try {
           source = extension === '.json' ? JSON.parse(content) : yaml.load(content, { schema: entryListSchema })
         } catch (error) {
-          // Parser messages can quote configuration values; retain only the file and location.
+          // 解析器的消息可能会引用配置值；只保留文件与位置。
           const at = error instanceof yaml.YAMLException ? ` at line ${error.mark.line + 1}, column ${error.mark.column + 1}` : ''
           throw new Error(`invalid ${extension === '.json' ? 'JSON' : 'YAML'} include ${filename}${at}`)
         }
@@ -218,7 +218,7 @@ export async function collectConfigSchemas(
           const kind = await carrier(plugin, baseUrl)
           if (kind === undefined) continue
           entry.tree = kind
-          // The Loader never initializes a disabled carrier unless group: true forces it, so a missing config declares no children.
+          // Loader 绝不会初始化一个被禁用的载体，除非 group: true 强制它，因此缺失的 config 不声明任何子项。
           if (row.config === undefined && row.group !== true && (row.disabled === true || isJsExpr(row.disabled))) continue
           if (kind === 'group') await walk(entryList(row.config), baseUrl, `${path}/config`)
           else await walkInclude(row.config, baseUrl, path)

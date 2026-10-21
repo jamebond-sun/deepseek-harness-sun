@@ -1,9 +1,8 @@
 /**
- * The middleware chain: runs the hooks selected for one event in order, each
- * hook's `next` reaching the hooks beneath and then the engine behavior, under
- * Claude Code's failure rules (skip a hook that throws, times out, or returns
- * no result; keep the result from beneath when it had already called `next`;
- * give a `.catch` handler the chance to answer in its place).
+ * 中间件链：按序运行为某一事件选中的钩子，每个钩子的 `next` 会触及更深层
+ * 的钩子，最终触及引擎行为，并遵循 Claude Code 的失败规则（跳过抛出、
+ * 超时或返回无结果的钩子；当更深层已调用过 `next` 时保留其结果；给
+ * `.catch` 处理器一个替代应答的机会）。
  * @module
  */
 
@@ -12,29 +11,29 @@ import { messageOf } from './values.ts'
 import type { AnyHook, HookFailure, HookOrigin, HookMatcher, ModsApi, HookNext, PluginOptions } from './types.ts'
 import { matcherMatches } from './matcher.ts'
 
-/** One loaded mod: its plugin identity and the `register` options it received. */
+/** 一个已加载的 mod：其插件身份，以及它所收到的 `register` 选项。 */
 export interface LoadedMod {
   readonly name: string
   readonly version: string | undefined
-  /** Absolute directory the mod ships in, as `$.plugin.root` reports it. */
+  /** 该 mod 所内置的绝对目录，正如 `$.plugin.root` 所报告的那样。 */
   readonly root: string
   readonly options: PluginOptions
-  /** Load order; hooks of an earlier mod run outside those of a later one. */
+  /** 加载顺序；更靠前 mod 的钩子运行在更靠后 mod 的钩子之外。 */
   readonly order: number
 }
 
-/** One `on(...)` registration. */
+/** 一次 `on(...)` 注册。 */
 export interface RegisteredHook {
   readonly mod: LoadedMod
   readonly event: string
   readonly matcher: HookMatcher | undefined
   readonly hook: AnyHook
   catchHandler: AnyHook | undefined
-  /** Failure kinds already reported for this hook; one line per kind until the mod reloads. */
+  /** 本钩子已经报告过的失败种类；每种一行，直到该 mod 重新加载。 */
   readonly reported: Set<string>
 }
 
-/** The `next.error.kind === 'timeout'` failure. */
+/** `next.error.kind === 'timeout'` 这一失败。 */
 export class HookTimeoutError extends Error {
   constructor(budgetMs: number) {
     super(`ran past its ${budgetMs} ms limit`)
@@ -43,9 +42,8 @@ export class HookTimeoutError extends Error {
 }
 
 /**
- * Accounts a hook's own running time: the clock runs while the hook is busy
- * and pauses while it awaits `next` or a mods API call. The deadline promise
- * rejects once the busy time reaches the limit.
+ * 统计某个钩子自身的运行时间：该钩子忙碌时时钟运行，而当它 await `next`
+ * 或一次 mods API 调用时暂停。一旦忙碌时间到达上限，该截止时限承诺便会拒却。
  */
 export class BudgetClock {
   private spent = 0
@@ -56,34 +54,34 @@ export class BudgetClock {
   private readonly deadline = Promise.withResolvers<never>()
 
   /**
-   * @param ms - the running-time limit in milliseconds.
-   * @param now - monotonic clock in milliseconds.
+   * @param ms - 以毫秒计的运行时间上限。
+   * @param now - 以毫秒计的单调时钟。
    */
   constructor(readonly ms: number, private readonly now: () => number = () => performance.now()) {
-    // The deadline only matters while a race awaits it; an unobserved
-    // rejection after the hook settled must not surface.
+    // 该截止时限仅在某个竞态在 await 它时才要紧；钩子的结算之后、未被观察的
+    // 拒却不得浮出。
     this.deadline.promise.catch(() => {})
   }
 
-  /** Rejects with {@link HookTimeoutError} when the busy time reaches the limit. */
+  /** 当忙碌时间到达上限时，以 {@link HookTimeoutError} 拒却。 */
   get expired(): Promise<never> {
     return this.deadline.promise
   }
 
-  /** Milliseconds left before the deadline fires. */
+  /** 截止时限触发前所剩的毫秒数。 */
   get remainingMs(): number {
     const busy = this.busySince === undefined ? 0 : this.now() - this.busySince
     return Math.max(0, this.ms - this.spent - busy)
   }
 
-  /** Start counting; the hook is busy from now on. */
+  /** 开始计时；从此钩子进入忙碌状态。 */
   start(): void {
     if (this.stopped) return
     this.busySince = this.now()
     this.arm()
   }
 
-  /** Stop counting while the hook awaits `next` or a mods API call. Nested pauses are counted. */
+  /** 在钩子 await `next` 或一次 mods API 调用期间停止计时。嵌套的暂停会被计数。 */
   pause(): void {
     if (this.stopped) return
     this.pauses += 1
@@ -94,7 +92,7 @@ export class BudgetClock {
     this.disarm()
   }
 
-  /** Resume counting after the awaited call settled. */
+  /** 在所 await 的调用结算之后，恢复计时。 */
   resume(): void {
     if (this.stopped || this.pauses === 0) return
     this.pauses -= 1
@@ -104,7 +102,7 @@ export class BudgetClock {
     }
   }
 
-  /** The hook settled: no deadline can fire from now on. */
+  /** 钩子已结算：从此刻起不会再有任何截止时限触发。 */
   stop(): void {
     if (this.busySince !== undefined) this.spent += this.now() - this.busySince
     this.stopped = true
@@ -130,33 +128,32 @@ export class BudgetClock {
   }
 }
 
-/** Everything one dispatch needs besides the hooks themselves. */
+/** 一次分发所需的、除钩子本身之外的一切。 */
 export interface DispatchRequest<E, R> {
   readonly event: string
   readonly input: E
-  /** The engine behavior at the bottom of the chain; receives the input as the chain left it. */
+  /** 位于链底部的引擎行为；收到的是链所留下的输入。 */
   readonly core: (e: E) => Promise<R> | R
   readonly origin: HookOrigin
-  /** Hooks whose event pattern selects this event, outermost first; matchers are evaluated per hook. */
+  /** 其事件模式选中本事件的钩子，最外层的在前；匹配器按每个钩子分别求值。 */
   readonly hooks: readonly RegisteredHook[]
-  /** Builds the `$` a hook receives; the clock pauses while its calls are awaited. */
+  /** 构建某个钩子所收到的 `$`；在其调用被 await 期间时钟暂停。 */
   readonly api: (hook: RegisteredHook, clock: BudgetClock) => ModsApi
-  /** A hook's own running-time limit. */
+  /** 某个钩子自身的运行时间上限。 */
   readonly budgetMs: number
-  /** A `.catch` handler's running-time limit. */
+  /** `.catch` 处理器的运行时间上限。 */
   readonly catchBudgetMs: number
   readonly signal: AbortSignal
-  /** Receives one diagnostic line per skipped hook and failure kind. */
+  /** 每跳过一条钩子或一种失败，都会收到一行诊断信息。 */
   readonly report: (line: string) => void
   /**
-   * Checks the input a hook passes to `next` before anything beneath runs; a
-   * throw skips that hook as a failure of its own and the chain continues with
-   * the input the hook received.
+   * 在更深层运行之前，检查某个钩子传给 `next` 的输入；一次抛出会将该钩子
+   * 作为它自身的失败跳过，而链则以该钩子所收到的输入继续。
    */
   readonly validateNext?: (e: E, hook: RegisteredHook) => void
 }
 
-/** Thrown by {@link DispatchRequest.validateNext}: the hook asked for a rewrite this host does not serve. */
+/** 由 {@link DispatchRequest.validateNext} 抛出：该钩子请求了本宿主不予服务的重写。 */
 export class RewriteRefusedError extends Error {
   constructor(message: string) {
     super(message)
@@ -164,10 +161,10 @@ export class RewriteRefusedError extends Error {
   }
 }
 
-/** The engine's own origin. */
+/** 引擎自身的来源。 */
 export const ENGINE_ORIGIN: HookOrigin = Object.freeze({ plugin: 'engine', tier: 'core' })
 
-/** A hook settled with something other than a result object. */
+/** 某个钩子结算时所带的是结果对象之外的东西。 */
 class NoResultError extends Error {
   constructor() {
     super('returned no result')
@@ -175,7 +172,7 @@ class NoResultError extends Error {
   }
 }
 
-/** Classify a failed hook and word the diagnostic line's tail. */
+/** 归类一个失败的钩子，并措辞化诊断行的尾部。 */
 function failureOf(error: unknown): HookFailure & { readonly line: string } {
   if (error instanceof HookTimeoutError) return { kind: 'timeout', message: error.message, line: `timeout, ${error.message}` }
   if (error instanceof NoResultError || error instanceof RewriteRefusedError) return { kind: 'throw', message: error.message, line: error.message }
@@ -183,15 +180,15 @@ function failureOf(error: unknown): HookFailure & { readonly line: string } {
   return { kind: 'throw', message, line: `threw ${message}` }
 }
 
-/** Freeze the event input in place at every depth, as the mods API promises. */
+/** 在每一个深度原地把事件输入冻结，正如 mods API 所承诺的那样。 */
 function freezeInput<E>(input: E): E {
   return typeof input === 'object' && input !== null ? deepFreeze(input) : input
 }
 
 /**
- * Run one event through its hooks and the engine behavior.
- * @param request - the event, its hooks, and the engine behavior beneath them.
- * @returns the event's result as the outermost hook returned it.
+ * 让一个事件穿过它的钩子与引擎行为。
+ * @param request - 该事件、它的钩子，以及它们之下的引擎行为。
+ * @returns 该事件的结果，即最外层钩子所返回的那个。
  */
 export async function dispatch<E, R>(request: DispatchRequest<E, R>): Promise<R> {
   const { hooks } = request
@@ -208,7 +205,7 @@ export async function dispatch<E, R>(request: DispatchRequest<E, R>): Promise<R>
   async function runHook(hook: RegisteredHook, index: number, input: E): Promise<R> {
     const frozen = freezeInput(input)
     const clock = new BudgetClock(request.budgetMs)
-    // Closure-written flags live on one object so the catch path reads their current values.
+    // 以闭包写入的标志存放在同一个对象上，以便 catch 路径读取它们的当前值。
     const state: {
       abandoned: boolean
       called: boolean
@@ -219,7 +216,7 @@ export async function dispatch<E, R>(request: DispatchRequest<E, R>): Promise<R>
     const next = Object.assign(
       (e: E): Promise<R> => {
         state.called = true
-        // One run beneath per hook: a second call hands back the first run.
+        // 每个钩子在其之下只运行一次：第二次调用会把第一次的运行交回。
         if (state.beneath !== undefined) return state.beneath
         if (state.abandoned) return Promise.resolve(undefined as R)
         if (request.validateNext !== undefined) {
@@ -253,12 +250,12 @@ export async function dispatch<E, R>(request: DispatchRequest<E, R>): Promise<R>
     clock.start()
     try {
       const running = Promise.resolve().then(() => hook.hook(api, frozen, next as HookNext<unknown, unknown>) as R | Promise<R>)
-      // An abandoned hook's later rejection is not an unhandled rejection.
+      // 一个被放弃的钩子后续的拒却并不是未被处理的拒却。
       running.catch(() => {})
       const result = await Promise.race([running, clock.expired])
-      // `null` is an answer (a surface drawn empty); only a hook that settles with no object at all is skipped.
+      // `null` 是一个应答（一个被绘制为空的画面）；只有以完全没有对象的方式结算的钩子才会被跳过。
       if (typeof result !== 'object') throw new NoResultError()
-      // The hook answered; whatever it started beneath still runs to its end before the event settles.
+      // 该钩子已经应答；它在之下启动的一切仍会运行到底，之后该事件才会结算。
       clock.stop()
       if (state.beneath !== undefined) {
         await state.beneath.catch((error: unknown) => {
@@ -268,9 +265,9 @@ export async function dispatch<E, R>(request: DispatchRequest<E, R>): Promise<R>
       return result
     } catch (error: unknown) {
       state.abandoned = true
-      // The engine beneath failed, not the hook: the failure is the event's own.
+      // 失败的是其下的引擎，而非该钩子：这一失败属于事件自身。
       if (state.beneathError !== undefined && error === state.beneathError.error) throw error
-      // A refused rewrite is the hook's failure even when the hook let the rejection through unchanged.
+      // 一次被拒绝的重写是该钩子的失败，即便该钩子让拒却原样通过。
       const failure = failureOf(state.refused !== undefined && error === state.refused.error ? state.refused.error : error)
       if (!hook.reported.has(failure.kind)) {
         hook.reported.add(failure.kind)
@@ -280,7 +277,7 @@ export async function dispatch<E, R>(request: DispatchRequest<E, R>): Promise<R>
         const answered = await runCatch(hook, index, frozen, { kind: failure.kind, message: failure.message }, state)
         if (answered !== undefined) return answered
       }
-      // Whatever ran beneath, for the hook or its handler, ran once; its result stands.
+      // 无论在其之下运行的是钩子还是它的处理器，都已运行一次；其结果保留。
       if (state.beneath !== undefined) return await state.beneath
       return await runFrom(index + 1, input)
     } finally {
@@ -289,9 +286,9 @@ export async function dispatch<E, R>(request: DispatchRequest<E, R>): Promise<R>
   }
 
   /**
-   * Run the failed hook's `.catch` handler. It shares the hook's beneath state:
-   * what the hook already ran is handed back, what the handler runs is recorded
-   * for the skip path, so nothing beneath runs twice.
+   * 运行该失败钩子的 `.catch` 处理器。它与该钩子共享其之下的状态：钩子已经
+   * 运行的部分会被交回，处理器运行的部分被记录供跳过路径使用，因此之下的
+   * 部分不会运行两次。
    */
   async function runCatch(
     hook: RegisteredHook,
@@ -307,7 +304,7 @@ export async function dispatch<E, R>(request: DispatchRequest<E, R>): Promise<R>
         if (state.beneath !== undefined) return state.beneath
         if (handlerAbandoned) return Promise.resolve(undefined as R)
         if (request.validateNext !== undefined) {
-          // The same check the hook's own next makes: a handler cannot pass a rewrite beneath either.
+          // 与钩子自身 `next` 所做的检查相同：处理器同样不能把一次重写传向更深层。
           try {
             request.validateNext(e, hook)
           } catch (error: unknown) {

@@ -1,4 +1,4 @@
-/** Local node-pty terminal-process implementation for the subprocess seam. */
+/** 针对 subprocess 能力 seam 的本地 node-pty 终端进程实现。 */
 
 import { Buffer } from 'node:buffer'
 import { constants } from 'node:os'
@@ -48,13 +48,11 @@ function signalName(number: number | undefined): NodeJS.Signals | null {
 }
 
 /**
- * A local terminal whose native managed range or fallback process-session
- * ownership stays below the PTY backend.
- * The seam's terminate() promise — no write, inspection, or signal in flight
- * after settlement — holds here without operation tracking only because every
- * handle call completes synchronously under the hood (node-pty write, ps-based
- * inspection). A first genuinely asynchronous step in any handle call must add
- * the tracking a remote provider needs.
+ * 一个本地终端，其原生受管范围或回退进程会话的所有权位于 PTY 后端之下。
+ * 该 seam 的 terminate() 承诺——结算后不再有正在进行的写入、检查或信号——之所以
+ * 无需操作跟踪就能成立，只是因为每次句柄调用在底层都是同步完成的（node-pty 写入、
+ * 基于 ps 的检查）。任意句柄调用中一旦出现首个真正的异步步骤，就必须补上
+ * 远程提供方所需的跟踪。
  */
 export class LocalTerminalHandle implements SubprocessTerminalHandle {
   readonly pid: number
@@ -77,10 +75,10 @@ export class LocalTerminalHandle implements SubprocessTerminalHandle {
   private readonly rootIdentity: ProcessIdentity | undefined
 
   /**
-   * @param terminal - allocated node-pty process.
-   * @param inspector - platform process/session operations.
-   * @param graceMs - TERM-to-KILL and exit-wait grace.
-   * @param platform - host platform; defaults to the running platform, injectable for deterministic tests.
+   * @param terminal - 已分配的 node-pty 进程。
+   * @param inspector - 平台进程/会话操作。
+   * @param graceMs - TERM 到 KILL 以及退出等待的宽限。
+   * @param platform - 主机平台；默认取运行平台，可注入以得到确定性测试。
    */
   constructor(
     private readonly terminal: IPty,
@@ -115,7 +113,7 @@ export class LocalTerminalHandle implements SubprocessTerminalHandle {
       this.exited = true
       if (this.managedOwner !== undefined && this.observeShellExit) {
         void this.managedOwner.waitForExit().then(() => { this.managedRangeEmpty = true }).catch(() => {
-          // Failed range observation cannot authorize idle reclamation.
+          // 失败的范围观察不能授权空闲回收。
         })
       }
       this.output.end()
@@ -131,12 +129,12 @@ export class LocalTerminalHandle implements SubprocessTerminalHandle {
     })
   }
 
-  /** Whether node-pty has not yet published the top-level exit event. */
+  /** node-pty 是否尚未发布顶层退出事件。 */
   get running(): boolean {
     return !this.exited
   }
 
-  // node-pty writes synchronously; the seam returns a promise for remote transports.
+  // node-pty 是同步写入的；该 seam 为远程传输返回一个承诺。
   // oxlint-disable-next-line typescript/require-await -- Preserve promise rejection semantics at the async provider contract.
   async write(data: string): Promise<void> {
     if (this.exited) throw new Error('terminal process has exited')
@@ -150,7 +148,7 @@ export class LocalTerminalHandle implements SubprocessTerminalHandle {
     this.terminal.resize(cols, rows)
   }
 
-  // Local inspection is synchronous; the seam returns a promise for remote transports.
+  // 本地检查是同步的；该 seam 为远程传输返回一个承诺。
   // oxlint-disable-next-line typescript/require-await -- Preserve promise rejection semantics at the async provider contract.
   async inspectForeground(): Promise<SubprocessTerminalForeground | undefined> {
     this.descendants(this.inspector.snapshot())
@@ -204,10 +202,9 @@ export class LocalTerminalHandle implements SubprocessTerminalHandle {
     }
     if (this.platform === 'win32') {
       if (signal === 'SIGINT') {
-        // Windows has no process-group signalling: a `\x03` input write is the
-        // Ctrl-C delivery path the console host turns into a console-wide
-        // CTRL_C event for attached processes. node-pty's signal kills throw on Windows, so
-        // no signal ever reaches the inspector.
+        // Windows 没有进程组信令：一次 `\x03` 输入写入就是 console host 转化为
+        // 面向已附加进程的、整控制台 CTRL_C 事件的 Ctrl-C 投递路径。node-pty 的信号
+        // 杀死在 Windows 上会抛错，因此没有任何信号能到达检查器。
         this.terminal.write('\x03')
         return foreground.processGroupId
       }
@@ -233,8 +230,7 @@ export class LocalTerminalHandle implements SubprocessTerminalHandle {
   }
 
   /**
-   * Force-terminate the observable session synchronously during Node's exit
-   * event. This does not claim quiescence and does not replace terminate().
+   * 在 Node 的退出事件期间，同步强制终止可观测的会话。它不声明静默，也不替代 terminate()。
    */
   terminateForHostExit(): void {
     this.forceStopDescendants()
@@ -249,14 +245,14 @@ export class LocalTerminalHandle implements SubprocessTerminalHandle {
       try {
         this.inspector.signalProcess(this.rootIdentity, 'SIGKILL')
       } catch (_rootExitedDuringHostExit) {
-        // Exact identity signalling contains both exit races and PID reuse.
+        // 精确身份信令同时包含退出竞争与 PID 复用。
       }
       return
     }
     try {
       this.terminal.kill('SIGKILL')
     } catch (_unidentifiedShellExitedDuringHostExit) {
-      // Without a captured identity, node-pty is the only root kill primitive.
+      // 没有捕获到的身份时，node-pty 是唯一的根级杀死原语。
     }
   }
 
@@ -265,11 +261,9 @@ export class LocalTerminalHandle implements SubprocessTerminalHandle {
   }
 
   private descendants(observed: ProcessSnapshot): ProcessIdentity[] {
-    // Adopt newly scanned members only while the numeric root pid provably
-    // still carries the spawned shell's start identity: after the shell dies,
-    // a recycled pid's tree and session must not donate an unrelated
-    // process's children to this session's signalling. Already-adopted
-    // members keep their own start identities, which every signal rechecks.
+    // 只在数值根 pid 可证明仍携带被生成 shell 的起始身份时，才接纳新扫描到的
+    // 成员：shell 死亡后，一个被回收 pid 的树与会话绝不能把一个无关进程的
+    // 子进程捐献给本次会话的信令。已被接纳的成员保留各自的起始身份，每次信号都会重新检查。
     const tree = observed.tree(this.pid)
     const root = tree.find(member => member.pid === this.pid)
     const rootVerified = this.rootIdentity !== undefined
@@ -296,11 +290,11 @@ export class LocalTerminalHandle implements SubprocessTerminalHandle {
   private signalMembers(members: ProcessIdentity[], signal: 'SIGTERM' | 'SIGKILL'): void {
     for (const member of members) {
       try {
-        // Each signal reads its own identity fence, inside this try: a failed
-        // read must cost one target, never the rest of a teardown round.
+        // 每条信号都在本 try 内读取自己的身份栅栏：一次失败的读取只应损失一个
+        // 目标，绝不能是拆除轮次中的其余目标。
         this.inspector.signalProcess(member, signal)
       } catch (_alreadyExitedDuringSignal) {
-        // The exact process identity is rechecked; a same-tick exit is success.
+        // 精确的进程身份会被重新检查；同一 tick 内的退出即视为成功。
       }
     }
   }
@@ -310,7 +304,7 @@ export class LocalTerminalHandle implements SubprocessTerminalHandle {
     try {
       members = this.descendants(this.inspector.snapshot())
     } catch (_processTableUnavailableDuringHostExit) {
-      // Preserve already-captured identities when a final process-table scan fails.
+      // 当最后一次进程表扫描失败时，保留已捕获的身份。
     }
     this.signalMembers(members, 'SIGKILL')
   }
@@ -349,7 +343,7 @@ export class LocalTerminalHandle implements SubprocessTerminalHandle {
       try {
         this.terminal.kill('SIGTERM')
       } catch (_topLevelAlreadyExitedDuringTerm) {
-        // The exit callback is authoritative.
+        // 退出回调是权威来源。
       }
       await Promise.race([this.done.then(() => undefined), delay(this.graceMs)])
     }
@@ -357,7 +351,7 @@ export class LocalTerminalHandle implements SubprocessTerminalHandle {
       try {
         this.terminal.kill('SIGKILL')
       } catch (_topLevelAlreadyExitedDuringKill) {
-        // The exit callback is authoritative.
+        // 退出回调是权威来源。
       }
       await Promise.race([this.done.then(() => undefined), delay(this.graceMs)])
     }
@@ -365,15 +359,13 @@ export class LocalTerminalHandle implements SubprocessTerminalHandle {
   }
 
   private async stopShellWindows(): Promise<void> {
-    // node-pty's Windows kill(signal) throws ("Signals not supported on
-    // windows"), and its bare kill() reaches the console host by a per-host
-    // path: Windows' own host goes through a console-list agent that fails when
-    // the parent has no console, while the bundled OpenConsole runs a native
-    // kill plus conout teardown. taskkill tree escalation is the teardown path,
-    // fenced on the shell's start identity like every descendant; a root
-    // identity miss falls back to the bare kill. taskkill termination also does
-    // not reliably fire node-pty's exit notification, so the tiers verify the
-    // shell's absence through the inspector instead of waiting on `done` alone.
+    // node-pty 的 Windows kill(signal) 会抛错（"Signals not supported on
+    // windows"），而其裸 kill() 经由每主机一条路径到达 console host：Windows 自带的
+    // host 走一个控制台列表代理，在父进程没有控制台时会失败，而打包的 OpenConsole
+    // 执行一次原生 kill 外加 conout 拆除。taskkill 树升级才是拆除路径，并与每个后代
+    // 一样以 shell 的起始身份为栅栏；若根身份缺失则回退到裸 kill。taskkill 终止也不能
+    // 可靠地触发 node-pty 的退出通知，因此各层级通过检查器验证 shell 是否缺席，而非
+    // 仅等待 `done`。
     const shellGone = (): boolean =>
       this.exited || (this.rootIdentity !== undefined && !this.inspector.isAlive(this.rootIdentity))
     if (!shellGone() && this.rootIdentity !== undefined) {
@@ -384,7 +376,7 @@ export class LocalTerminalHandle implements SubprocessTerminalHandle {
       try {
         this.terminal.kill()
       } catch (_topLevelAlreadyExitedDuringKill) {
-        // The exit callback is authoritative.
+        // 退出回调是权威来源。
       }
       await Promise.race([this.done.then(() => undefined), delay(this.graceMs)])
     }
@@ -444,8 +436,7 @@ export class LocalTerminalHandle implements SubprocessTerminalHandle {
     if (first.kind !== 'stopped') {
       owner.signal('SIGKILL')
       if (first.kind === 'failed') {
-        // The observation failure is still authoritative, but force cleanup
-        // and a fresh final observation must be attempted before exposing it.
+        // 观察失败仍是权威的，但在暴露它之前，仍须尝试强制清理以及一次全新的最终观察。
         try {
           await owner.waitForExit()
         } catch (finalError: unknown) {
@@ -462,15 +453,14 @@ export class LocalTerminalHandle implements SubprocessTerminalHandle {
   }
 
   private settleExitIfGone(): void {
-    // An externally taskkilled Windows shell may never fire node-pty's exit
-    // notification (its console-list agent fails without a parent console),
-    // which would leave `done` — and every consumer awaiting it — unsettled
-    // forever. Teardown has just verified the shell's absence through the
-    // inspector, so a missing exit event is itself the outcome.
+    // 一个被外部 taskkill 的 Windows shell 可能永远不会触发 node-pty 的退出通知
+    //（其控制台列表代理在没有父控制台时会失败），这会让 `done`——以及每个等待它的
+    // 消费者——永远悬而未决。拆除刚刚通过检查器确认了 shell 的缺席，因此缺失的退出事件
+    // 本身就是结果。
     if (this.platform !== 'win32') return
     if (this.exited) return
-    /* v8 ignore next -- stopShellWindows() verified the shell is gone or threw;
-       the identity re-check is a defensive fence for a future caller. */
+    /* v8 ignore next -- stopShellWindows() 已确认 shell 已消失或已抛错；
+       identity re-check 是为未来调用方设的防御性栅栏。 */
     if (this.rootIdentity !== undefined && this.inspector.isAlive(this.rootIdentity)) return
     this.exited = true
     this.output.end()

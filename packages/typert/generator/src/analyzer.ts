@@ -1,7 +1,7 @@
 /**
- * TypeScript project analyzer for the compiler-independent Typert model.
- * Programs, symbols, and syntax nodes remain extraction-only implementation
- * details; callers receive only the model declared in {@link ./model.ts}.
+ * 面向与编译器无关的 Typert 模型的 TypeScript 工程分析器。
+ * Program、符号与语法节点只是提取用的实现细节；调用方只接收
+ * {@link ./model.ts} 中声明的模型。
  * @module @deepseek-ai/dsh-typert-generator/analyzer
  */
 
@@ -53,87 +53,84 @@ const PUBLIC_REMOTE_TYPE_ROOTS = new Set([
   '@deepseek-ai/dsh-util-values',
 ])
 
-/** Analysis failure with a source-oriented diagnostic. */
+/** 带有面向源诊断的分析失败。 */
 export class TypertAnalysisError extends Error {
   override name = 'TypertAnalysisError'
 }
 
 class SourceEditQueued extends Error {}
 
-/** Missing-annotation handling at public business boundaries. */
+/** 公共业务边界处的缺失注解处理。 */
 export type AnalysisMode = 'check' | 'write'
 
-/** Workspace analysis configuration. */
+/** workspace 分析配置。 */
 export interface WorkspaceAnalyzerOptions {
-  /** Workspace root containing the face tsconfigs. */
+  /** 包含端 tsconfig 的 workspace 根。 */
   readonly root: string
-  /** Host aggregate path, relative to {@link root}; absent files are skipped. */
+  /** Host 聚合路径，相对于 {@link root}；缺失的文件会被跳过。 */
   readonly hostConfig?: string
-  /** Client aggregate path, relative to {@link root}; absent files are skipped. */
+  /** Client 聚合路径，相对于 {@link root}；缺失的文件会被跳过。 */
   readonly clientConfig?: string
-  /** Optional package-name subset for an incremental generation pass. */
+  /** 用于增量生成遍历的可选包名子集。 */
   readonly packages?: readonly string[]
-  /** Independently compiled faces to materialize; both are analyzed by default. */
+  /** 要物化的独立编译 face；默认两者都会被分析。 */
   readonly faces?: readonly TypertFace[]
-  /** Whether to repeat TypeScript project diagnostics before model extraction. */
+  /** 是否在模型提取前重复 TypeScript 工程诊断。 */
   readonly checkDiagnostics?: boolean
-  /** Whether missing annotations fail or are written before a clean re-analysis. */
+  /** 缺失注解是失败、还是在干净重新分析前被写入。 */
   readonly mode?: AnalysisMode
-  /** Shared workspace memo; supply one instance to reuse parses across analyzers. */
+  /** 共享的 workspace 记忆；提供一个实例以在分析器之间复用解析结果。 */
   readonly caches?: WorkspaceCaches
   /**
-   * Fail analysis when a face program loads a file from a workspace
-   * package's `lib/` directory, or cannot resolve an import of a workspace
-   * package (default false). Enable it for faces that import no generated
-   * output, so that the result depends only on workspace source and never on
-   * whether package compilation ran; the failure names each importing
-   * specifier and the source a `paths` alias should map it to.
+   * 当某个端程序从 workspace 包的 `lib/` 目录加载文件、或无法解析对某个
+   * workspace 包的导入时失败（默认 false）。对不导入任何生成产物的端启用它，
+   * 这样结果只依赖于 workspace 源码、而绝不依赖于包编译是否运行；失败时给出
+   * 每个导入说明符，以及某个 `paths` 别名应将其映射到的源。
    */
   readonly rejectBuildOutputs?: boolean
 }
 
-/** One package face whose public export graph contains Typert business declarations. */
+/** 一个公共导出图包含 Typert 业务声明的包端。 */
 export interface DiscoveredTypertPackage {
   readonly package: string
   readonly root: string
   readonly faces: readonly TypertFace[]
 }
 
-/** One parsed tsconfig, memoizable per workspace snapshot. */
+/** 一个已解析的 tsconfig，可按 workspace 快照记忆化。 */
 export interface ParsedConfig {
-  /** Absolute config path. */
+  /** 绝对的配置路径。 */
   readonly path: string
-  /** The TypeScript parse result. */
+  /** TypeScript 解析结果。 */
   readonly parsed: ts.ParsedCommandLine
 }
 
-/** The settings Typert reads from one face aggregate tsconfig. */
+/** Typert 从一个端聚合 tsconfig 读取的设置。 */
 export interface AggregateConfig {
-  /** Absolute config path. */
+  /** 绝对的配置路径。 */
   readonly path: string
-  /** The aggregate's effective compiler options. */
+  /** 该聚合的有效编译器选项。 */
   readonly options: ts.CompilerOptions
-  /** The package projects the aggregate references. */
+  /** 该聚合所引用的包工程。 */
   readonly projectReferences: readonly ts.ProjectReference[]
 }
 
-/** One package face registration discovered from an aggregate tsconfig. */
+/** 从一个聚合 tsconfig 发现的一个包端注册。 */
 export interface PackageRegistration {
-  /** The face whose aggregate references this package project. */
+  /** 其聚合引用本包工程的端。 */
   readonly face: TypertFace
-  /** The package manifest name. */
+  /** 包 manifest 名。 */
   readonly name: string
-  /** Real package root directory. */
+  /** 真实的包根目录。 */
   readonly root: string
   /**
-   * The package's own tsconfig, parsed on first read. Typert parses only the
-   * tsconfigs of packages it analyzes; validating every referenced tsconfig
-   * belongs to the preceding `tsc -b`.
+   * 包自身的 tsconfig，首次读取时解析。Typert 只解析它所分析的包的
+   * tsconfig；校验每个被引用的 tsconfig 属于其前的 `tsc -b`。
    */
   readonly config: ParsedConfig
-  /** The parsed package.json content. */
+  /** 已解析的 package.json 内容。 */
   readonly manifest: Record<string, unknown>
-  /** Export subpaths owned by this face for dual-face packages. */
+  /** 双端包中、由本端拥有的导出子路径。 */
   readonly exportSubpaths?: readonly string[]
 }
 
@@ -155,20 +152,20 @@ interface ModuleIdentity {
   readonly subpath: string
 }
 
-/** The package import a type reference reaches after following package-local forwarding modules. */
+/** 一个类型引用在跟随包内转发模块之后所抵达的包导入。 */
 interface PackageImport {
   readonly module: ModuleIdentity
-  /** Name the type is exported under at that package subpath. */
+  /** 该类型在该包子路径下导出的名字。 */
   readonly name: string
 }
 
-/** One `import` binding of a local name; `name` is absent for a namespace import. */
+/** 一个本地名的 `import` 绑定；命名空间导入时 `name` 缺省。 */
 interface ImportBinding {
   readonly specifier: string
   readonly name?: string
 }
 
-/** One outgoing `export` edge of a forwarding module for one exported name. */
+/** 一个转发模块针对某个导出名的、向外的 `export` 边。 */
 interface ForwardedExport {
   readonly specifier: string
   readonly name: string
@@ -203,10 +200,9 @@ interface FaceProgramHost {
 }
 
 /**
- * Process-wide parse cache for the bundled TypeScript default libraries.
- * `typescript/lib/lib.*.d.ts` content is immutable for the process lifetime,
- * so parses are shared across every {@link WorkspaceCaches} instance; the key
- * carries the parse-affecting settings, keeping reuse exact.
+ * 面向打包 TypeScript 默认库的、进程级的解析缓存。
+ * `typescript/lib/lib.*.d.ts` 的内容在进程生命周期内不可变，因此解析结果
+ * 在 {@link WorkspaceCaches} 的每个实例之间共享；键携带影响解析的设置，使复用保持精确。
  */
 const defaultLibraryParses = new Map<string, ts.SourceFile | undefined>()
 
@@ -223,26 +219,24 @@ function defaultLibraryKey(fileName: string, languageVersionOrOptions: ts.Script
 }
 
 /**
- * Shared memo over one immutable workspace snapshot. Passing one instance to
- * several analyzers (the batched and write-mode children reuse their parent's
- * automatically) reuses parsed tsconfigs, the registration inventory, and
- * per-face compiler hosts whose parsed and bound source files and module
- * resolutions carry across programs. Callers that mutate workspace files
- * between analyses must start from a fresh instance; write-mode source edits
- * invalidate themselves through {@link invalidate}.
+ * 针对一个不可变 workspace 快照的共享记忆。把同一实例传给多个分析器
+ * （批处理与 write 模式的子分析器会自动复用其父级的），可复用已解析的
+ * tsconfig、注册清单，以及每个端编译器宿主——其已解析并绑定的源文件与
+ * 模块解析会跨程序保留。在多次分析之间变更 workspace 文件的调用方必须从
+ * 一个全新实例起步；write 模式的源码编辑会通过 {@link invalidate} 自我失效。
  */
 export class WorkspaceCaches {
-  /** Parsed tsconfig files by absolute config path. */
+  /** 按绝对配置路径记忆的、已解析的 tsconfig 文件。 */
   readonly configs = new Map<string, ParsedConfig>()
-  /** Registration inventories keyed by root and aggregate config paths. */
+  /** 以根与聚合配置路径为键的注册清单。 */
   readonly registrations = new Map<string, PackageRegistration[]>()
   private readonly aggregates = new Map<string, AggregateConfig>()
   private readonly hosts = new Map<TypertFace, FaceProgramHost>()
 
   /**
-   * Parse one tsconfig once per workspace snapshot.
-   * @param path - absolute config path.
-   * @returns the memoized parse result.
+   * 每个 workspace 快照解析一次 tsconfig。
+   * @param path - 绝对配置路径。
+   * @returns 记忆化的解析结果。
    */
   config(path: string): ParsedConfig {
     let parsed = this.configs.get(path)
@@ -254,11 +248,10 @@ export class WorkspaceCaches {
   }
 
   /**
-   * Read one face aggregate tsconfig once per workspace snapshot. An aggregate
-   * that declares `references` is parsed without expanding its `include`
-   * patterns, which affect neither its options nor its references.
-   * @param path - absolute aggregate config path.
-   * @returns the memoized compiler options and project references.
+   * 每个 workspace 快照读取一次端聚合 tsconfig。声明了 `references` 的聚合
+   * 在解析时不展开其 `include` 模式，那些模式既不影响其选项也不影响引用。
+   * @param path - 绝对的聚合配置路径。
+   * @returns 记忆化的编译器选项与工程引用。
    */
   aggregate(path: string): AggregateConfig {
     let aggregate = this.aggregates.get(path)
@@ -271,13 +264,12 @@ export class WorkspaceCaches {
   }
 
   /**
-   * Return the shared compiler host for one face. Every program of one face
-   * is built from the same aggregate compiler options (the first call wins),
-   * so parsed source files, binder state, and module resolutions are safe to
-   * reuse across the face's batched programs.
-   * @param face - the face whose programs share this host.
-   * @param options - the face's effective compiler options.
-   * @returns a compiler host with source-file and module-resolution caches.
+   * 返回某个端共享的编译器宿主。一个端的每个程序都从同一套聚合编译器选项
+   * 构建（首次调用胜出），因此已解析的源文件、绑定状态与模块解析可以安全地
+   * 在该端的批处理程序之间复用。
+   * @param face - 其程序共享此宿主的端。
+   * @param options - 该端的有效编译器选项。
+   * @returns 带有源文件与模块解析缓存的编译器宿主。
    */
   programHost(face: TypertFace, options: ts.CompilerOptions): ts.CompilerHost {
     let entry = this.hosts.get(face)
@@ -290,9 +282,8 @@ export class WorkspaceCaches {
         options,
       )
       const base = host.getSourceFile.bind(host)
-      // The snapshot contract makes shouldCreateNewSourceFile irrelevant: it
-      // only fires under oldProgram reuse, which these fresh programs never
-      // request, and invalidate() is the one supported re-read path.
+      // 快照契约使 shouldCreateNewSourceFile 无关紧要：它仅在旧程序复用时触发，
+      // 而这些全新程序从不请求，且 invalidate() 是唯一受支持的重新读取路径。
       host.getSourceFile = (fileName, languageVersionOrOptions, onError) => {
         if (isStandardLibraryFile(fileName)) {
           const key = defaultLibraryKey(fileName, languageVersionOrOptions)
@@ -312,9 +303,8 @@ export class WorkspaceCaches {
   }
 
   /**
-   * Drop cached parses of one edited source file so the next analysis reads
-   * the written content.
-   * @param file - path of the edited file.
+   * 丢弃某个被编辑源文件的缓存解析，使下一次分析读取写入的内容。
+   * @param file - 被编辑文件的路径。
    */
   invalidate(file: string): void {
     const target = realPath(file)
@@ -326,7 +316,7 @@ export class WorkspaceCaches {
   }
 }
 
-/** Analyze host and client as independent TypeScript programs. */
+/** 将 host 与 client 作为独立的 TypeScript 程序进行分析。 */
 export class WorkspaceAnalyzer {
   private readonly options: Required<Pick<
     WorkspaceAnalyzerOptions,
@@ -353,9 +343,9 @@ export class WorkspaceAnalyzer {
   }
 
   /**
-   * Build the workspace model. Write mode applies inferred annotations and then
-   * returns a fresh check-mode analysis of the edited projects.
-   * @returns the independent face models and their explicit cross-face links.
+   * 构建 workspace 模型。Write 模式会应用推断出的注解，然后
+   * 返回对编辑后工程的、全新的 check 模式分析。
+   * @returns 各独立 face 模型及其显式的跨 face 链接。
    */
   analyze(): WorkspaceModel {
     this.registrations = this.loadRegistrations()
@@ -423,11 +413,10 @@ export class WorkspaceAnalyzer {
   }
 
   /**
-   * Analyze an explicit package selection through bounded compiler programs.
-   * The resulting model is identical in shape to {@link analyze}; stable graph
-   * ids let repeated dependency declarations merge without flattening types.
-   * @param batchSize - maximum selected packages in one face program.
-   * @returns one merged workspace model.
+   * 通过受限的编译器程序分析一个显式的包选择。结果模型与 {@link analyze}
+   * 形状一致；稳定的图 id 让重复的依赖声明无需扁平化类型即可合并。
+   * @param batchSize - 一个端程序中的最大选定包数。
+   * @returns 一个合并后的 workspace 模型。
    */
   analyzeInBatches(batchSize = 8): WorkspaceModel {
     if (this.options.packages === undefined) {
@@ -448,10 +437,10 @@ export class WorkspaceAnalyzer {
   }
 
   /**
-   * Discover package faces from public-export-reachable Cordis augmentations
-   * and explicit `@typert` roots without constructing a type-checker program.
-   * @param includeManifest - optional `package.json` predicate; a rejected package's sources and project config are not read.
-   * @returns contributors grouped by package with deterministic face order.
+   * 从公共可达导出的 Cordis 增强与显式的 `@typert` 根中发现包端，而无需
+   * 构造一个类型检查程序。
+   * @param includeManifest - 可选的 `package.json` 谓词；被拒绝的包其源码与工程配置不会被读取。
+   * @returns 按包分组、face 顺序确定的贡献者。
    */
   discoverPackages(includeManifest?: (manifest: Readonly<Record<string, unknown>>) => boolean): DiscoveredTypertPackage[] {
     const registrations = this.loadRegistrations()
@@ -477,10 +466,9 @@ export class WorkspaceAnalyzer {
   }
 
   /**
-   * Index top-level exported type declarations without promoting them to graph
-   * roots. Consumers use this lexical index for ambiguity checks while all
-   * semantic traversal continues through {@link TypeGraph}.
-   * @returns declarations from the selected faces and package projects.
+   * 索引顶层导出的类型声明，而不将它们提升为图根。消费方使用这个词汇索引做
+   * 歧义检查，而所有语义遍历继续通过 {@link TypeGraph} 进行。
+   * @returns 来自选定端和包工程的声明。
    */
   indexSourceDeclarations(): SourceDeclarationModel[] {
     const selected = this.options.packages === undefined ? undefined : new Set(this.options.packages)
@@ -549,8 +537,7 @@ export class WorkspaceAnalyzer {
         if (typeof name !== 'string') continue
         const root = realPath(packageRoot)
         const caches = this.caches
-        // The project config is parsed on first use, so discovery and analysis
-        // read only the projects they select.
+        // 工程配置在首次使用时解析，因此发现与分析只读取它们所选择的工程。
         const register = (registrationFace: TypertFace, exportSubpaths?: readonly string[]): PackageRegistration => ({
           face: registrationFace,
           name,
@@ -629,9 +616,9 @@ export class WorkspaceAnalyzer {
         composite: false,
         incremental: false,
         noEmit: true,
-        // Source-plane workspace aliases resolve referenced packages to source.
-        // Widen only this diagnostic program's root so those imports do not
-        // produce an artificial TS6059 before Typert checks the public edge.
+        // 源平面的 workspace 别名把被引用的包解析到源码。仅放宽此诊断程序的
+        // 根，使那些导入在 Typert 检查公共边界之前不会产生虚假的 TS6059。
+
         rootDir: this.options.root,
       },
     })
@@ -664,7 +651,7 @@ interface FaceAnalyzerOptions {
   readonly root: string
   readonly face: TypertFace
   readonly program: ts.Program
-  /** Program host whose module-resolution cache serves import resolution outside the checker. */
+  /** 在检查器之外、由其模块解析缓存提供导入解析的程序宿主。 */
   readonly host: ts.CompilerHost
   readonly registrations: readonly PackageRegistration[]
   readonly allRegistrations: readonly PackageRegistration[]
@@ -690,7 +677,7 @@ class FaceAnalyzer {
   private readonly nodes = new Map<TypeNodeId, TypeNodeModel>()
   private readonly exportsByPackage = new Map<string, ExportRecord[]>()
   private readonly nodeOrdinals = new Map<string, number>()
-  /** Registration and package lookups per source path; the registration set is fixed per analyzer. */
+  /** 按源路径的注册与包查找；注册集合在每个分析器内是固定的。 */
   private readonly registrationByFile = new Map<string, PackageRegistration | undefined>()
   private readonly packageNameByFile = new Map<string, string>()
   private staticLookups: readonly StaticLookupDeclaration[] | undefined
@@ -811,7 +798,7 @@ class FaceAnalyzer {
     for (const [subpath, target] of targets) {
       if (target.includes('*') || subpath === './package.json'
         || subpath === './typert' || subpath === './client/typert' || subpath === './remote'
-        // Data exports carry no TypeScript API; their owning readers validate the resources.
+        // 数据导出不携带 TypeScript API；其所属的读取器负责校验这些资源。
         || /\.(?:json|ya?ml|svg|png|jpe?g|webp)$/iu.test(target)) continue
       const sourcePath = sourcePathForExport(registration.root, target)
       const sourceFile = this.sourceFiles.get(realPath(sourcePath))
@@ -897,7 +884,7 @@ class FaceAnalyzer {
   }
 
   private moduleExports(moduleSpecifier: ts.StringLiteral): ts.Symbol[] {
-    /* v8 ignore next -- a semantically valid export declaration from a resolved module always has a module symbol. */
+    /* v8 ignore next -- 来自已解析模块的、语义合法的导出声明必定拥有模块符号。 */
     const moduleSymbol = this.checker.getSymbolAtLocation(moduleSpecifier) as ts.Symbol
     return this.checker.getExportsOfModule(moduleSymbol)
   }
@@ -937,12 +924,10 @@ class FaceAnalyzer {
   }
 
   /**
-   * Follow the import that names `symbol` at `site` through modules of the
-   * referencing package until a package specifier appears. Each forwarding
-   * module and requested export name pair is entered once; its explicit export
-   * edges are tried before its star edges. A relative specifier that resolves
-   * outside `from`, a namespace hop, or a module with no edge leading to a
-   * package specifier yields undefined.
+   * 跟随在 `site` 处命名 `symbol` 的导入，穿过引用包的模块，直到出现一个包说明符。
+   * 每个转发模块与所请求的导出名配对仅登记一次；其显式导出边会先于星号边被尝试。
+   * 一个解析到 `from` 之外的相对说明符、一次命名空间跳转，或没有通向包说明符的
+   * 边的模块，会得到 undefined。
    */
   private packageImportOf(
     site: ReferenceSite,
@@ -970,7 +955,7 @@ class FaceAnalyzer {
     return walk(site.getSourceFile(), moduleSpecifier, authoredExportName(site, moduleSpecifier))
   }
 
-  /** Export edges of `sourceFile` that carry `name`: explicit edges in source order, then star edges exporting `symbol`. */
+  /** `sourceFile` 携带 `name` 的导出边：按源顺序的显式边，然后是导出 `symbol` 的星号边。 */
   private forwardedExports(sourceFile: ts.SourceFile, name: string, symbol: ts.Symbol): ForwardedExport[] {
     const explicit: ForwardedExport[] = []
     const stars: ForwardedExport[] = []
@@ -1011,11 +996,10 @@ class FaceAnalyzer {
     const result: ServiceModel[] = []
     for (const member of context.members) {
       if (!ts.isPropertySignature(member) || member.type === undefined) continue
-      // An OPTIONAL key is not a service: `X | undefined` and `key?: X` both mark
-      // a value the launcher or boot code installs before the tree mounts (a root
-      // accessor, an environment snapshot), which no plugin provides and no
-      // consumer can reach with `inject`. Describing one as a service would answer
-      // "add the plugin that provides it" for a key where no such plugin exists.
+      // 一个可选键不是 service：`X | undefined` 与 `key?: X` 都标记一个在树挂载前
+      // 由启动器或 boot 代码安装的值（一个根访问器、一个环境快照），没有任何插件
+      // 提供它，也没有消费者能用 `inject` 取得。把一个描述为 service 会让“添加提供
+      // 它的插件”变成一个根本不存在该插件的键的答案。
       if (member.questionToken !== undefined
         || (ts.isUnionTypeNode(member.type)
           && member.type.types.some(node => node.kind === ts.SyntaxKind.UndefinedKeyword))) continue
@@ -1440,10 +1424,9 @@ class FaceAnalyzer {
   }
 
   /**
-   * Read the options object of `@Remote` or `@RemoteScope`. `resources`
-   * accepts any expression: its readers run only at runtime, where the
-   * Gateway reads them from the prototype descriptor, so generation records
-   * nothing for them.
+   * 读取 `@Remote` 或 `@RemoteScope` 的 options 对象。`resources`
+   * 可以接受任意表达式：其读取器仅在运行时执行，此时 Gateway 会
+   * 从原型描述符中读取它们，因此生成阶段不为它们记录任何内容。
    */
   private remoteOptions(
     argument: ts.Expression,
@@ -1471,10 +1454,9 @@ class FaceAnalyzer {
   }
 
   /**
-   * The item types a Remote method's authored return type declares. Unary
-   * methods unwrap `Promise<T>`; stream methods unwrap `Iterable<Out>`,
-   * `AsyncIterable<Out>`, or the protocol's `RemoteStream<Out, In>`, whose
-   * second type argument is the uplink item type unless it is `never`.
+   * Remote 方法所声明的返回类型包含的项类型。一元方法解包 `Promise<T>`；
+   * 流式方法解包 `Iterable<Out>`、`AsyncIterable<Out>` 或协议的
+   * `RemoteStream<Out, In>`，其中第二个类型参数为上行项类型，除非其为 `never`。
    */
   private remoteResultType(
     method: ts.MethodDeclaration,
@@ -1607,8 +1589,8 @@ class FaceAnalyzer {
   ): RemoteBoundaryModel {
     const type = this.convertType(authoredType)
     const declaredType = this.checker.getTypeFromTypeNode(authoredType)
-    // An optional parameter's authored node carries no `undefined`; the codec
-    // still has to accept the omitted wire field the consumer sends.
+    // 可选参数在其声明的节点上不携带 `undefined`；但 codec 仍需接受
+    // 消费端发送的被省略字段。
     const resolvedType = optional
       ? this.checker.getNullableType(declaredType, ts.TypeFlags.Undefined)
       : declaredType
@@ -1658,11 +1640,10 @@ class FaceAnalyzer {
   }
 
   /**
-   * Project one authored Remote boundary through the complete face Program.
-   * Consumer declarations retain the authored alias, while codecs use this
-   * concrete graph so declaration-merged mapped and conditional types are
-   * validated without teaching the compiler-independent emitter TypeScript's
-   * type evaluator.
+   * 将一个声明的 Remote boundary 投影到完整的 face Program 上。消费端声明
+   * 保留原声明的别名，而 codec 使用这张具体图谱，从而无需让与编译器无关的
+   * 生成器去学习 TypeScript 的类型求值器，就能校验声明合并的映射类型与
+   * 条件类型。
    */
   private resolvedRemoteCodecType(
     authoredType: ts.TypeNode,
@@ -1756,8 +1737,8 @@ class FaceAnalyzer {
             const { id: _projectedId, ...value } = this.nodes.get(projected) as TypeNodeModel
             return add(value)
           }
-          // Object intersections contribute one request object; closing each operand
-          // separately would reject fields declared by its sibling operands.
+          // 对象交集会贡献一个请求对象；若分别闭合每个操作数，则会拒绝其
+          // 兄弟操作数所声明的字段。
           if (!material.every(member => (member.flags & ts.TypeFlags.Object) !== 0
             && !this.checker.isArrayType(member) && !this.checker.isTupleType(member))) {
             return add({ kind: 'intersection', types: material.map(convert) })
@@ -2598,10 +2579,10 @@ class FaceAnalyzer {
         ...(node.type === undefined ? {} : { type: this.convertType(node.type) }),
       })
     }
-    /* v8 ignore else -- every source TypeNode kind accepted by TypeScript is handled above; this arm keeps
-     * future compiler kinds fail-loud. */
+    /* v8 ignore else -- 上面已处理 TypeScript 接受的所有源 TypeNode 种类；本分支用于让
+     * 未来的编译器种类在命中时报错而非静默通过。 */
     if (ts.isThisTypeNode(node)) return add({ kind: 'this' })
-    /* v8 ignore next -- paired with the exhaustive TypeNode guard above. */
+    /* v8 ignore next -- 与上面穷尽的 TypeNode 守卫配套。 */
     this.fail(node, `unsupported TypeScript type node ${ts.SyntaxKind[node.kind]}`)
   }
 
@@ -2622,7 +2603,7 @@ class FaceAnalyzer {
 
   private targetForReference(symbol: ts.Symbol, site: ReferenceSite): TypeTargetModel {
     const declaration = preferredDeclaration(symbol)
-    /* v8 ignore next -- a symbol from a semantically valid source type reference always has a declaration. */
+    /* v8 ignore next -- 来自语义合法的源类型引用的符号必定拥有声明。 */
     if (declaration === undefined) this.fail(site, `type symbol ${symbol.name} has no declaration`)
     if (ts.isTypeParameterDeclaration(declaration)) {
       return {
@@ -2864,7 +2845,7 @@ function mergeWorkspaceModels(models: readonly WorkspaceModel[]): WorkspaceModel
   }
 }
 
-/** {@link ts.sys} config reads without directory listing, so `include` patterns match no files. */
+/** {@link ts.sys} 在读取配置时不列举目录，因此 `include` 模式匹配不到任何文件。 */
 const UNLISTED_CONFIG_HOST: ts.ParseConfigHost = {
   useCaseSensitiveFileNames: ts.sys.useCaseSensitiveFileNames,
   readDirectory: () => [],
@@ -2876,9 +2857,9 @@ function parseConfig(path: string, aggregate = false): ParsedConfig {
   const compilerPath = path.split(sep).join('/')
   const read = ts.readConfigFile(compilerPath, file => ts.sys.readFile(file))
   if (read.error !== undefined) throw new TypertAnalysisError(formatDiagnostic(read.error))
-  // Include expansion only fills `fileNames`, and TypeScript reports missing
-  // inputs only for a config without `files` or `references`; skipping it for
-  // an aggregate with `references` keeps diagnostics, options, and references.
+  // 展开 include 只会填充 `fileNames`，而 TypeScript 仅在配置缺少 `files`
+  // 或 `references` 时才报告缺失输入；对带有 `references` 的聚合配置跳过展开，
+  // 可保留诊断、选项与引用信息。
   const raw: unknown = read.config
   const host = aggregate && typeof raw === 'object' && raw !== null && Object.hasOwn(raw, 'references')
     ? UNLISTED_CONFIG_HOST
@@ -3148,7 +3129,7 @@ function documentationOf(node: ts.Node): DocumentationModel {
 function normalizedDocText(value: string | undefined): string | undefined {
   if (value === undefined) return undefined
   const normalized = value.replace(/\s+/g, ' ').trim()
-  /* v8 ignore next -- TypeScript represents whitespace-only JSDoc as undefined before this helper is called. */
+  /* v8 ignore next -- 在本辅助函数被调用前，TypeScript 已将仅含空白的 JSDoc 表示为 undefined。 */
   return normalized.length === 0 ? undefined : normalized
 }
 
@@ -3199,8 +3180,8 @@ function stringLiteralValue(node: ts.Node | undefined): string | undefined {
 }
 
 function isRemoteSegment(value: string): boolean {
-  // Generation bootstraps workspace artifacts before dsh-typert-protocol is built,
-  // so this extraction-only copy must mirror isTypertRemoteSegment().
+  // 生成阶段在 dsh-typert-protocol 构建之前就引导出 workspace artifact，
+  // 因此这份只做提取的副本必须与 isTypertRemoteSegment() 保持一致。
   return value !== '.' && value !== '..' && /^[A-Za-z0-9_$.-]+$/.test(value)
 }
 
@@ -3257,7 +3238,7 @@ function literalModel(node: ts.LiteralTypeNode): Omit<Extract<TypeNodeModel, { k
   if (literal.kind === ts.SyntaxKind.TrueKeyword) return { kind: 'literal', value: true, text: 'true' }
   if (literal.kind === ts.SyntaxKind.FalseKeyword) return { kind: 'literal', value: false, text: 'false' }
   if (literal.kind === ts.SyntaxKind.NullKeyword) return { kind: 'literal', value: null, text: 'null' }
-  /* v8 ignore else -- all remaining LiteralTypeNode syntax is a signed numeric or bigint literal. */
+  /* v8 ignore else -- 其余所有 LiteralTypeNode 语法均为带符号的数值或 bigint 字面量。 */
   if (ts.isPrefixUnaryExpression(literal)
     && (ts.isNumericLiteral(literal.operand) || ts.isBigIntLiteral(literal.operand))) {
     return {
@@ -3268,7 +3249,7 @@ function literalModel(node: ts.LiteralTypeNode): Omit<Extract<TypeNodeModel, { k
       text: literal.getText(),
     }
   }
-  /* v8 ignore next -- TypeScript's LiteralTypeNode grammar is exhausted above; this contains future compiler syntax. */
+  /* v8 ignore next -- 上面已穷尽 TypeScript 的 LiteralTypeNode 文法；此处涵盖未来的编译器语法。 */
   throw new TypertAnalysisError(`typert: unsupported literal type ${literal.getText()}`)
 }
 
@@ -3308,7 +3289,7 @@ function authoredExportName(node: ReferenceSite, moduleSpecifier: string): strin
     : node.expression.getText().split('.')
   const localName = referenced[0] as string
   const binding = importBindingOf(node.getSourceFile(), localName)
-  /* v8 ignore next -- moduleSpecifierOf returns only the import inspected by importBindingOf. */
+  /* v8 ignore next -- moduleSpecifierOf 只返回被 importBindingOf 检查的那个导入。 */
   if (binding === undefined) throw new TypertAnalysisError(`typert: cannot recover export name for ${localName} from ${moduleSpecifier}`)
   return binding.name ?? (referenced[1] as string)
 }
@@ -3379,7 +3360,7 @@ function formatProgramDiagnostic(root: string, face: TypertFace, diagnostic: ts.
 }
 
 const realPathCache = new Map<string, string>()
-/** Normalized form per requested path; `resolve` reads only the process working directory. */
+/** 每个请求路径的规范化形式；`resolve` 只读取进程的工作目录。 */
 const absolutePathCache = new Map<string, string>()
 
 function realPath(path: string): string {
@@ -3390,9 +3371,9 @@ function realPath(path: string): string {
   }
   const cached = realPathCache.get(absolute)
   if (cached !== undefined) return cached
-  // Only existing paths are memoized: a path can come into existence later,
-  // but an existing path's canonical form is stable for the process lifetime
-  // (analysis edits rewrite file contents, never the directory tree).
+  // 仅对已存在的路径做记忆化缓存：某个路径可能在之后才出现，
+  // 但已存在路径的规范形式在进程生命周期内保持稳定
+  // （分析阶段的编辑只会改写文件内容，从不改动目录树）。
   if (!existsSync(absolute)) return absolute
   const resolved = realpathSync(absolute)
   realPathCache.set(absolute, resolved)

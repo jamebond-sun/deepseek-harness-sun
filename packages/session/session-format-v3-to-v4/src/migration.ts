@@ -1,4 +1,4 @@
-/** Append historical child facts after converting V3 source events to V4. */
+/** 在将 V3 源事件转换为 V4 之后追加历史子会话事实。 */
 
 import { defineSessionFormatMigration, SessionFormatError, SessionFormatUnsupportedMigrationError, isSessionFormatJsonObject, sessionFormatCount } from '@deepseek-ai/dsh-session-format'
 import type { SessionFormatEvent, SessionFormatEventRun, SessionFormatJsonObject, SessionFormatJsonValue, SessionFormatMigration, SessionFormatMigrationContext, SessionFormatMigrationStage, SessionFormatMigrationStageInput } from '@deepseek-ai/dsh-session-format'
@@ -11,7 +11,7 @@ import { assertReleasedV4Header, validateDeliveryAccepted } from './validation.t
 import { catalogFact, childCatalogSource, childCatalogFact, childCatalogSubject } from './facts.ts'
 import { remapV3References } from './references.ts'
 
-/** Header-only migration declaration; body restoration requires explicit child evidence. */
+/** 仅涉及头部的迁移声明；事件体恢复需要显式的子会话证据。 */
 export const sessionFormatV3ToV4 = defineSessionFormatMigration({
   name: '@deepseek-ai/dsh-session-format-v3-to-v4',
   fromVersion: 3,
@@ -27,9 +27,9 @@ export const sessionFormatV3ToV4 = defineSessionFormatMigration({
 })
 
 /**
- * Bind one parent's historical child evidence to its V3→V4 migration.
- * @param children - complete child evidence retained unchanged for the lifetime of this declaration; an empty array declares no children.
- * @returns an adjacent migration that creates independent stages with the supplied evidence.
+ * 将某个父会话的历史子会话证据绑定到其 V3→V4 迁移上。
+ * @param children - 完整的子会话证据，在本声明的整个生命周期内保持不变；空数组表示声明没有子会话。
+ * @returns 一个相邻迁移，它使用所提供的证据创建彼此独立的阶段。
  */
 export function createSessionFormatV3ToV4(children: readonly SessionFormatJsonValue[]): SessionFormatMigration {
   return defineSessionFormatMigration({
@@ -88,8 +88,8 @@ class ReleasedV3ToV4Stage implements SessionFormatMigrationStage {
     }
     const opaque = namespaceV3OpaqueEvent(event)
     if (opaque !== event) {
-      // Unknown ignorable events keep their unvalidated envelope references: V3 admission never checked
-      // `sourceEventSeqs` or `surfaceOp` on them and native V4 does not interpret either, so only `seq` moves.
+      // 未知的可忽略事件保留其未经校验的信封引用：V3 接纳从未检查它们的
+      // `sourceEventSeqs` 或 `surfaceOp`，原生 V4 也不解释二者，因此只有 `seq` 会移动。
       this.mapping.push(targetSeq)
       context.emitEvent(opaque.seq === targetSeq ? opaque : { ...opaque, seq: targetSeq })
       return
@@ -124,7 +124,7 @@ class ReleasedV3ToV4Stage implements SessionFormatMigrationStage {
     if (event.type === 'turn/start' && isSessionFormatJsonObject(data) && typeof data['turn'] === 'number') {
       this.turn = data['turn']
     } else if (event.type === 'turn/end') {
-      // Target validation refuses a turn boundary that crosses an open step, so only `step/*` clears `stepOpen`.
+      // 目标校验会拒绝跨越一个打开 step 的轮次边界，因此只有 `step/*` 会清除 `stepOpen`。
       this.turn = undefined
     } else if (event.type === 'step/start') {
       this.stepOpen = true
@@ -137,7 +137,7 @@ class ReleasedV3ToV4Stage implements SessionFormatMigrationStage {
   finish(context: SessionFormatMigrationContext): number {
     const cut = sessionFormatCount(this.cut, 'V3 inherited event count')
     const sourceCut = sessionFormatCount(this.sourceCut, 'V3 source inherited event count')
-    // Catalog payloads belong to this Session only after the final inherited cut.
+    // 目录载荷只有在最终继承切点之后才属于本 Session。
     const existingCatalogs = new Map<string, SessionFormatJsonObject>()
     for (const data of this.catalogs) {
       const fact = catalogFact(data)

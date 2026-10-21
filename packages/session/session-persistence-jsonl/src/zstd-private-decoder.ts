@@ -1,5 +1,5 @@
 /**
- * Node-private synchronous Zstandard frame decoder optimization.
+ * 基于 Node 私有实现的同步 Zstandard 帧解码器优化。
  * @module dsh-session-persistence-jsonl/zstd-private-decoder
  */
 
@@ -32,7 +32,7 @@ interface NodeZstdPrivateState {
 
 type NodeZstdPrivateStream = ReturnType<typeof createZstdDecompress> & NodeZstdPrivateState
 
-/** Return the stream with its observed private Node contract, or reject that optimization. */
+/** 返回该流及其观测到的 Node 私有契约，否则拒绝这一优化。 */
 function privateZstdStream(
   stream: ReturnType<typeof createZstdDecompress>,
 ): { stream: NodeZstdPrivateStream; errorKey: symbol } | undefined {
@@ -41,7 +41,7 @@ function privateZstdStream(
   const errorKey = Reflect.ownKeys(stream).find((key): key is symbol => (
     typeof key === 'symbol' && key.description === 'kError'
   ))
-  /* v8 ignore next -- one test runtime exposes one Node-private shape; the Node 22/24/26 matrix checks compatibility. */
+  /* v8 ignore next -- 单个测试运行时只暴露一种 Node 私有形态；Node 22/24/26 矩阵负责检查兼容性。 */
   if (
     typeof handle !== 'object' || handle === null
     || typeof (handle as { writeSync?: unknown }).writeSync !== 'function'
@@ -55,10 +55,9 @@ function privateZstdStream(
 }
 
 /**
- * Synchronous multi-frame decoder backed by one Node Zstd stream handle. Node
- * exposes synchronous decoding only as a one-shot API, so this adapter uses
- * the stream's private handle contract to reuse its native context and output
- * chunks across frames.
+ * 由一个 Node Zstd 流句柄支撑的同步多帧解码器。Node 只以一次性 API 的形式
+ * 暴露同步解码，因此本适配器使用流的私有句柄契约，以便跨帧复用其原生
+ * 上下文与输出块。
  */
 export class NodePrivateZstdFrameDecoder implements ZstdFrameDecoder {
   private readonly output = Buffer.allocUnsafe(DECODE_CHUNK_SIZE)
@@ -76,20 +75,19 @@ export class NodePrivateZstdFrameDecoder implements ZstdFrameDecoder {
   }
 
   /**
-   * Create the optimized decoder when this Node release exposes the expected
-   * private stream shape.
-   * @returns a shared decoder, or `undefined` when callers must use the public fallback.
+   * 当本 Node 版本暴露出预期的私有流形态时，创建该优化解码器。
+   * @returns 一个共享解码器；当调用方必须使用公开回退实现时为 `undefined`。
    */
   static create(): NodePrivateZstdFrameDecoder | undefined {
     const stream = createZstdDecompress({ chunkSize: DECODE_CHUNK_SIZE })
     const privateAccess = privateZstdStream(stream)
-    /* v8 ignore next -- reached only when a supported Node release changes its private stream shape. */
+    /* v8 ignore next -- 仅当某个受支持的 Node 版本改变了其私有流形态时才会到达。 */
     if (privateAccess !== undefined) {
       return new NodePrivateZstdFrameDecoder(privateAccess.stream, privateAccess.errorKey)
     }
-    /* v8 ignore next -- the active Node runtime passed the private-shape probe above. */
+    /* v8 ignore next -- 当前 Node 运行时已通过上面的私有形态探测。 */
     stream.close()
-    /* v8 ignore next -- the active Node runtime passed the private-shape probe above. */
+    /* v8 ignore next -- 当前 Node 运行时已通过上面的私有形态探测。 */
     return undefined
   }
 
@@ -113,10 +111,10 @@ export class NodePrivateZstdFrameDecoder implements ZstdFrameDecoder {
     }
   }
 
-  /** Decode one frame; its returned scratch view remains valid until the next call. */
+  /** 解码一个帧；其返回的临时视图在下次调用之前保持有效。 */
   private decodeFrame(input: Buffer): Buffer {
     const handle = this.stream._handle
-    /* v8 ignore next -- decode() rejects closed instances before entering this private frame operation. */
+    /* v8 ignore next -- decode() 在进入这个私有帧操作之前就会拒绝已关闭的实例。 */
     if (this.closed || handle === null) throw new Error('cannot decode with a closed Zstandard frame decoder')
 
     let inputOffset = 0
@@ -146,14 +144,14 @@ export class NodePrivateZstdFrameDecoder implements ZstdFrameDecoder {
       const produced = this.output.length - outputAfter
       if (produced > 0) {
         outputBytes += produced
-        /* v8 ignore next -- Buffer cannot materialize a frame beyond its own process-wide maximum length. */
+        /* v8 ignore next -- Buffer 无法物化一个超过其自身进程级最大长度的帧。 */
         if (outputBytes > bufferConstants.MAX_LENGTH) {
           throw new Error(`Zstandard frame output exceeds ${bufferConstants.MAX_LENGTH} bytes`)
         }
       }
 
       if (outputAfter !== 0) {
-        /* v8 ignore next -- structurally scanned ranges contain exactly one complete frame and no trailing bytes. */
+        /* v8 ignore next -- 结构化扫描出的区间恰好包含一个完整帧，且没有尾随字节。 */
         if (inputAfter !== 0) throw new Error('Zstandard frame decoder left trailing input')
         const finalChunk = this.output.subarray(0, produced)
         if (fullChunks.length === 0) return finalChunk

@@ -1,20 +1,20 @@
-/** Browser-safe metadata for native file associations. */
+/** 原生文件关联的浏览器安全元数据。 */
 
-/** One OS-registered application capable of opening the requested file. */
+/** 一个能够打开所请求文件的、由 OS 注册的应用。 */
 export interface NativeFileApplication {
-  /** OS application identifier; callers must revalidate it against the file's current handlers before opening. */
+  /** OS 应用标识符；调用方在打开前必须依据文件当前的处理程序重新校验它。 */
   readonly id: string
   readonly name: string
   readonly default: boolean
-  /** PNG or SVG data URL, or null when the desktop supplies no icon. */
+  /** PNG 或 SVG 的 data URL，当桌面未提供图标时为 null。 */
   readonly icon: string | null
 }
 
 /**
- * Validate file association metadata received from a native process or authenticated Host.
- * @param value - decoded application list.
- * @returns validated application metadata.
- * @throws Error for malformed entries or unsupported icon URLs.
+ * 校验从原生进程或已认证 Host 收到的文件关联元数据。
+ * @param value - 已解码的应用列表。
+ * @returns 已校验的应用元数据。
+ * @throws 当条目畸形或图标 URL 不受支持时抛出 Error。
  */
 export function parseNativeFileApplications(value: unknown): readonly NativeFileApplication[] {
   if (!Array.isArray(value)) throw new Error('Invalid native application list')

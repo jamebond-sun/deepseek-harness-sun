@@ -1,20 +1,16 @@
 /**
- * The `turnOutline` projection unit: a pure fold of `turn/start` boundaries,
- * first human prompts, and final assistant responses into the whole-log turn
- * outline the chat rail renders for turns outside a client's paged event
- * window.
+ * `turnOutline` 投影单元：一个纯折叠，把 `turn/start` 边界、首条人类提示
+ * 与最终 assistant 响应折叠成整日志的回合大纲，供聊天 rail 为客户端分页
+ * 事件窗口之外的回合渲染。
  *
- * `turn/start` — not the prompt `user/message` — anchors each entry because
- * its seq is the load-through target for a jump: the loop logs `turn/start`
- * before the turn's prompt and steps, so a window paged back through that seq
- * contains the whole turn. Previews mirror the rail's loaded-turn previews
- * (space-joined text blocks, collapsed whitespace, an ellipsis when clipped)
- * with budgets sized to the rail card's clamps — one prompt line, up to three
- * response lines — so a turn shows the same words before and after its events
- * load. The response commits at `turn/end` from a draft of the newest
- * text-bearing assistant message; draft-only applies keep the `turns` array's
- * identity, so the identity-gated change feed pushes at most three times per
- * turn (boundary, prompt, response).
+ * 锚定每个条目的是 `turn/start` 而非提示 `user/message`，因为其 seq 是
+ * 跳转时“加载穿过”的目标：循环在该回合的提示与步骤之前记录 `turn/start`，
+ * 因此一个分页回退穿过该 seq 的窗口会包含整个回合。预览镜像 rail 已加载
+ * 回合的预览（空格连接的文本块、折叠后的空白、截断时的省略号），预算大小
+ * 与 rail 卡片的钳制一致——一条提示行，至多三行响应行——因此一个回合在
+ * 其事件加载前后显示相同的文字。响应在 `turn/end` 时，从最新一条含文本
+ * 的 assistant 消息的草稿中提交；仅草稿的 apply 保留 `turns` 数组的身份，
+ * 因此按身份闸门的变更流每个回合至多推送三次（边界、提示、响应）。
  *
  * @module @deepseek-ai/dsh-session-turn-outline/projection
  */
@@ -32,7 +28,7 @@ const RESPONSE_PREVIEW_LIMIT = 120
 
 type MessageContent = SessionEvent<'user/message'>['data']['content']
 
-/** Space-join text blocks, collapse whitespace, and cap at `limit` with a trailing ellipsis when clipped. */
+/** 以空格连接文本块、折叠空白，并在截断时以尾随省略号截断到 `limit`。 */
 function preview(content: MessageContent, limit: number): string {
   let text = ''
   let unread = false
@@ -42,9 +38,8 @@ function preview(content: MessageContent, limit: number): string {
       unread = true
       break
     }
-    // Per-block bound: the fold runs on every message event, so a single
-    // multi-megabyte block must not be concatenated (and regex-normalized)
-    // whole for a preview this short.
+    // 每块的边界：折叠在每个消息事件上运行，因此单个多兆字节的块绝不能
+    // 为了这么短的一个预览而被整体拼接（并做正则规范化）。
     const clipped = block.text.length > limit * 2
     const chunk = clipped ? block.text.slice(0, limit * 2) : block.text
     text += text === '' ? chunk : ` ${chunk}`
@@ -81,22 +76,20 @@ const turnOutlineStateSchema: ZodType<TurnOutlineState> = z.object({
 
 const EMPTY_OUTLINE: TurnOutlineState = { turns: [], draft: '' }
 
-/** The `turnOutline` unit registered on `ctx.sessionProjections` (exported for the unit spec). */
+/** 注册在 `ctx.sessionProjections` 上的 `turnOutline` 单元（为单元 spec 而导出）。 */
 export const turnOutlineProjectionDefinition = {
   key: 'turnOutline',
   stateVersion: 2,
   stateSchema: turnOutlineStateSchema,
   init: () => EMPTY_OUTLINE,
   apply: (state, event) => {
-    // Every uninteresting event returns the same reference (Object.is gates
-    // the drive), and draft-only changes keep `turns` identity (the raw-view
-    // identity gate then keeps the change feed quiet).
+    // 每个无趣的事件都返回同一个引用（Object.is 把住驱动），而仅草稿的
+    // 变化保留 `turns` 的身份（原始视图的身份闸门随后让变更流保持安静）。
     switch (event.type) {
       case 'turn/start': {
         const last = state.turns.at(-1)
-        // Order guard: a boundary that does not advance the turn number keeps
-        // the outline sorted, and a retried turn's previews land on the
-        // standing entry.
+        // 顺序守卫：不推进回合号的边界会让大纲保持有序，而一个被重试回合
+        // 的预览会落在既有的条目上。
         if (last !== undefined && event.data.turn <= last.turn) return state
         return {
           turns: [...state.turns, { turn: event.data.turn, seq: event.seq, prompt: '', response: '' }],
@@ -104,9 +97,8 @@ export const turnOutlineProjectionDefinition = {
         }
       }
       case 'user/message': {
-        // Only the newest turn can still be waiting for its opening human
-        // prompt; later human messages in the same turn (steering) keep the
-        // first preview.
+        // 只有最新的回合还可能正在等待它的开头人类提示；同一回合中后来的
+        // 人类消息（纠偏）保留首条预览。
         if (event.data.source.kind !== 'user') return state
         const last = state.turns.at(-1)
         if (last === undefined || last.prompt !== '') return state
@@ -115,7 +107,7 @@ export const turnOutlineProjectionDefinition = {
         return { turns: [...state.turns.slice(0, -1), { ...last, prompt }], draft: state.draft }
       }
       case 'assistant/message': {
-        // Newest text-bearing message wins; the buffer commits at turn/end.
+        // 最新一条含文本的消息胜出；缓冲区在 turn/end 时提交。
         const draft = preview(event.data.message.content, RESPONSE_PREVIEW_LIMIT)
         if (draft === '' || draft === state.draft) return state
         return { turns: state.turns, draft }

@@ -1,11 +1,11 @@
-/** Classify observed sandbox runner failures and file-effect denials. */
+/** 对观测到的沙箱运行器失败与文件效应拒绝进行分类。 */
 import { accessSync, constants, statSync } from 'node:fs'
 import type { RunnerFailureRule } from './index.ts'
 
-/** Node-local spawn codes proven to identify executable resolution or permission failure. */
+/** 已证实可标识可执行文件解析或权限失败的 Node 本地 spawn 错误码。 */
 const EXECUTABLE_SPAWN_CODES = new Set(['EACCES', 'ENOENT'])
 
-/** Whether the caller-owned spawn cwd can be entered. */
+/** 调用方提供的 spawn 工作目录是否可进入。 */
 function isUsableWorkdir(path: string): boolean {
   try {
     if (!statSync(path).isDirectory()) return false
@@ -17,18 +17,16 @@ function isUsableWorkdir(path: string): boolean {
 }
 
 /**
- * Attribute only Node ENOENT/EACCES failures whose error path equals argv[0]
- * after independently ruling out the caller-owned cwd. A supplied error path
- * must exactly identify the runner; without one, the syscall must. With a
- * usable cwd, these codes describe resolution or execute permission for that
- * argv[0] or its shebang interpreter.
- * The workdir is checked at classification time, not atomically with spawn;
- * concurrent path replacement may change attribution but cannot permit an
- * unconfined execution.
- * @param error - the original spawn rejection.
- * @param runnerProgram - provider argv[0], the executable that establishes confinement.
- * @param workdir - the caller-owned spawn cwd, checked independently for usability.
- * @returns whether the rejection has executable-specific runner evidence.
+ * 仅在独立排除调用方工作目录之后，才把错误路径等于 argv[0] 的 Node
+ * ENOENT/EACCES 失败归因到运行器：错误自带路径时必须精确指认运行器，
+ * 否则由 syscall 指认。在工作目录可用的前提下，这些错误码描述的正是该
+ * argv[0] 或其 shebang 解释器的解析失败或执行权限问题。
+ * 工作目录是在分类时检查的，与 spawn 并非原子操作；并发的路径替换可能
+ * 改变归属判断，但不会让一次不受限的执行被放行。
+ * @param error - 原始的 spawn 拒绝错误。
+ * @param runnerProgram - 提供者的 argv[0]，即建立限制执行环境的可执行文件。
+ * @param workdir - 调用方提供的 spawn 工作目录，独立检查其是否可用。
+ * @returns 该拒绝是否带有针对该可执行文件的运行器证据。
  */
 export function isRunnerSpawnFailure(
   error: unknown,
@@ -46,21 +44,20 @@ export function isRunnerSpawnFailure(
   return syscall === 'spawn' || syscall === exactSyscall
 }
 
-/** Fatal runner evidence retained for infrastructure-error detail. */
+/** 为基础设施错误详情保留的致命运行器证据。 */
 interface RunnerFailureMatch {
-  /** The original stderr line that matched a fatal signature. */
+  /** 命中致命特征串的原始 stderr 行。 */
   detail: string
 }
 
 /**
- * Classify one settled process against the selected backend's structured
- * runner-failure rules. Each rule requires a nonzero exit, its optional
- * exit-code gate, and a fatal signature on one stderr line after exact
- * informational lines are excluded.
- * @param exitCode - process exit code; null means signal termination.
- * @param stderr - collected stderr text, left unchanged.
- * @param rules - structured runner-failure rules from the active wrap.
- * @returns the first matching fatal line, or undefined when evidence is insufficient.
+ * 依据所选后端的运行器失败结构化规则，对一次已结束的进程进行分类。
+ * 每条规则都要求：非零退出、可选的退出码门槛，以及在排除完全匹配的信息性
+ * 行之后，某一 stderr 行上出现致命特征串。
+ * @param exitCode - 进程退出码；null 表示被信号终止。
+ * @param stderr - 收集到的 stderr 文本，不做修改。
+ * @param rules - 来自当前包装的运行器失败结构化规则。
+ * @returns 首个匹配的致命行；证据不足时返回 undefined。
  */
 export function classifyRunnerFailure(
   exitCode: number | null,
@@ -72,8 +69,8 @@ export function classifyRunnerFailure(
   for (const rule of rules) {
     if (rule.allowedExitCodes !== undefined && !rule.allowedExitCodes.includes(exitCode)) continue
     const informationalLines = new Set((rule.informationalLines ?? []).map(line => line.toLowerCase()))
-    // An empty or whitespace-only substring is not meaningful runner evidence.
-    // Ignore it while keeping any valid signatures beside it active.
+    // 空串或纯空白子串不构成有意义的运行器证据：忽略它，同时让其旁边
+    // 其他有效特征串继续生效。
     const fatalSignatures = rule.fatalSignatures
       .filter(signature => signature.trim().length > 0)
       .map(signature => signature.toLowerCase())
@@ -87,11 +84,11 @@ export function classifyRunnerFailure(
 }
 
 /**
- * Match a non-zero exit against case-insensitive stderr signatures.
- * @param exitCode - process exit code; null means signal termination.
- * @param stderr - collected stderr text.
- * @param signatures - substrings identifying the selected backend's dialect.
- * @returns whether this is a non-zero exit whose stderr matches a signature.
+ * 将非零退出与大小写不敏感的 stderr 特征串做匹配。
+ * @param exitCode - 进程退出码；null 表示被信号终止。
+ * @param stderr - 收集到的 stderr 文本。
+ * @param signatures - 标识所选后端方言的子串。
+ * @returns 是否为 stderr 命中特征串的非零退出。
  */
 export function matchesSignature(exitCode: number | null, stderr: string, signatures: readonly string[]): boolean {
   if (exitCode === null || exitCode === 0) return false

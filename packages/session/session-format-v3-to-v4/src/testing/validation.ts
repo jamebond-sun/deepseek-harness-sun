@@ -3,8 +3,8 @@ import type { SessionFormatArtifact } from '@deepseek-ai/dsh-session-format'
 import { releasedV4SessionFormatCodec } from '../codec.ts'
 
 /**
- * Validate an artifact through the native codec without vocabulary-aware restoration.
- * @param artifact - current-generation artifact to encode and decode.
+ * 通过原生编解码器校验制品，不做感知词表的恢复。
+ * @param artifact - 待编码与解码的当前代际制品。
  */
 export function assertReleasedV4Artifact(artifact: SessionFormatArtifact): void {
   const codec = releasedV4SessionFormatCodec

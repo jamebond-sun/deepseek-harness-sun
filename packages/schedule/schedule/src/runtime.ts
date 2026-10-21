@@ -1,4 +1,4 @@
-/** Host timer over stored tasks; Session activation is a delivery operation. */
+/** 位于已存储任务之上的 Host 定时器；Session 激活是一次投递操作。 */
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { ContextFormed } from '@deepseek-ai/dsh-llm'
 declare module '@deepseek-ai/dsh-llm' {
@@ -13,10 +13,10 @@ import type { DeliveryRetentionBounds, RecurringScheduleRecord } from './types.t
 import type { ScheduleTask } from './storage.ts'
 import { appendDelivery } from './delivery-history.ts'
 
-/** Largest delay Node timers represent without clamping. */
+/** Node 定时器在不被钳制的情况下可以表示的最大延迟。 */
 export const MAX_TIMER_DELAY_MS = 2_147_483_647
 
-/** Owns at most one timer across recomputations; delivery and management share the serialized operation. */
+/** 跨多次重算至多持有一个定时器；投递与管理共享同一个串行化操作。 */
 export class ScheduleRuntime {
   private timer: ReturnType<typeof setTimeout> | undefined
   private running: Promise<void> | undefined
@@ -24,10 +24,10 @@ export class ScheduleRuntime {
   private requested = false
 
   /**
-   * @param ctx - Host services used to resume and enqueue.
-   * @param tasks - Current durable tasks.
-   * @param transact - Serialize delivery against management writes.
-   * @param commit - Persist task status, target, receipt, and history together after durable inbox delivery.
+   * @param ctx - 用于恢复与入队的 Host 服务。
+   * @param tasks - 当前的持久化任务。
+   * @param transact - 将投递与管理写入串行化。
+   * @param commit - 在持久化的 inbox 投递之后，一起持久化任务状态、目标、回执与历史。
    */
   constructor(
     private readonly ctx: Context,
@@ -38,8 +38,8 @@ export class ScheduleRuntime {
   ) {}
 
   /**
-   * Recompute the nearest obligation after startup or a durable change.
-   * Dispatch failures are logged; refused admission does not retry automatically.
+   * 在启动或一次持久化变更之后重算最近的义务。
+   * 派发失败会被记录；被拒绝的准入不会自动重试。
    */
   requestDrive(): void {
     if (this.stopping) return
@@ -55,7 +55,7 @@ export class ScheduleRuntime {
         }
       })
     } catch (error: unknown) {
-      // Ancestor unloading closes initiator admission before runtime cleanup runs.
+      // 祖先卸载会在运行时清理执行之前关闭发起方准入。
       this.requested = false
       this.ctx.logger.warn(`schedule: dispatch stopped: ${String(error)}`)
       return
@@ -69,11 +69,11 @@ export class ScheduleRuntime {
     })
   }
 
-  /** Stop the timer and drain an accepted delivery before storage closes. */
+  /** 停止定时器，并在存储关闭之前排空一次已接受的投递。 */
   async dispose(): Promise<void> {
     this.stopping = true
     this.clearTimer()
-    // requestDrive reports execution failures; teardown only waits for quiescence.
+    // requestDrive 负责上报执行失败；拆除只等待静默。
     await this.running?.catch(() => undefined)
   }
 
@@ -100,10 +100,10 @@ export class ScheduleRuntime {
       try {
         const resolved = await this.ctx.sessionController.resolveAgent(task.sessionId)
         if ('error' in resolved) throw resolved.error
-        // oxlint-disable-next-line typescript/no-unnecessary-condition -- Disposal can run while Session restoration is awaited.
+        // oxlint-disable-next-line typescript/no-unnecessary-condition -- 在等待 Session 恢复期间，释放操作也可能正在执行。
         if (this.stopping) return
         const now = Date.now()
-        // Session restoration can span a wall-clock rollback; future members keep their timer obligation.
+        // Session 恢复可能跨越一次墙上时钟回退；未来的成员保留其定时器义务。
         admitted = group.filter(member => Date.parse(member.record.scheduledAt) <= now)
         if (admitted.length === 0) continue
         const recurring = admitted.filter((member): member is ScheduleTask & { record: RecurringScheduleRecord } =>
@@ -119,7 +119,7 @@ export class ScheduleRuntime {
         const message = createUserMessage({
           content: [{ type: 'text', text }], source: { kind: 'schedule' },
         })
-        // followup synchronously appends the inbox splice before flush observes the Session.
+        // followup 会在 flush 观察到该 Session 之前同步追加 inbox 的 splice。
         resolved.agent.followup(message)
         const flushed = await this.ctx.sessions.flush(resolved.agent.session)
         if (!flushed) throw new Error('Session persistence did not acknowledge the reminder')
@@ -141,7 +141,7 @@ export class ScheduleRuntime {
           committed.add(member.record.id)
         }
       } catch (error: unknown) {
-        // Successful commits and targets made future by clock rollback keep their timer obligation.
+        // 成功提交的任务，以及因时钟回退而变为未来的目标，保留其定时器义务。
         const pending = admitted.filter(member => !committed.has(member.record.id))
         const failedAt = Date.now()
         for (const member of pending) {

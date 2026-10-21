@@ -1,6 +1,5 @@
 /**
- * Semantic durability checkpoints for model requests, top-level tool dispatch,
- * and completed agent steps.
+ * 针对模型请求、顶层工具派发与已完成的 agent 步骤的、语义化的持久性检查点。
  * @module @deepseek-ai/dsh-session-checkpoint-policy
  */
 
@@ -11,20 +10,20 @@ import { TOOL_ABORTED_BEFORE_DISPATCH, type ToolExecutionResult } from '@deepsee
 import type { PreStepDecision } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-session-persistence'
 
-/** Cordis plugin name used by Loader diagnostics. */
+/** 由 Loader 诊断所用的 Cordis 插件名称。 */
 export const name = 'session-checkpoint-policy'
 
-/** Services whose request, tool, session, and persistence boundaries this policy joins. */
+/** 本策略所接合其请求、工具、会话与持久化边界的服务。 */
 export const inject = ['llm', 'sessionPersistence', 'sessions', 'tools']
 
 /**
- * Delay construction of the downstream model stream until the complete logged
- * request prefix is durable. A checkpoint rejection prevents adapter dispatch.
+ * 推迟下游模型流的构造，直到完整的、已记录的请求前缀变为持久。一次检查点
+ * 拒绝会阻止适配器派发。
  *
- * @param ctx - plugin context that owns the session store.
- * @param session - live session named by the model request.
- * @param next - downstream `llm/stream` chain.
- * @returns a stream that checkpoints before requesting its first chunk.
+ * @param ctx - 拥有会话存储的插件上下文。
+ * @param session - 由模型请求命名的活跃会话。
+ * @param next - 下游的 `llm/stream` 链。
+ * @returns 一条在其请求首个分块之前先做检查点的流。
  */
 function afterCheckpoint(
   ctx: Context,
@@ -37,7 +36,7 @@ function afterCheckpoint(
   })()
 }
 
-/** Materialize the canonical result for a call cancelled before tool dispatch. */
+/** 为一次在工具派发之前被取消的调用，物化其规范结果。 */
 function abortedBeforeDispatchResult(): ToolExecutionResult {
   return {
     content: [{ type: 'text', text: 'Error: tool call aborted before dispatch' }],
@@ -50,15 +49,15 @@ function abortedBeforeDispatchResult(): ToolExecutionResult {
 }
 
 /**
- * Install semantic checkpoint listeners. Loop-built model calls checkpoint the
- * logged request before adapter dispatch; top-level tool calls checkpoint their
- * recorded call before the tool body; the next request boundary checkpoints
- * the preceding response/result batch. Nested tool dispatches reuse the durable outer call.
+ * 安装语义化检查点监听器。由循环构建的模型调用会在适配器派发之前、对其
+ * 已记录的请求做检查点；顶层工具调用会在工具体之前、对其已记录的调用做
+ * 检查点；下一个请求边界会对前一批响应/结果做检查点。嵌套的工具派发会
+ * 复用那个持久的外层调用。
  *
- * Checkpoint failures are fail-closed at the model and tool side-effect
- * boundaries: the downstream adapter or tool body is not invoked.
+ * 检查点失败在模型与工具副作用边界处是失败关闭的：下游适配器或工具体
+ * 不会被调用。
  *
- * @param ctx - plugin context that owns the listeners.
+ * @param ctx - 拥有这些监听器的插件上下文。
  */
 export function apply(ctx: Context): void {
   ctx.on('llm/stream', (options, next): AsyncIterable<StreamChunk> => {
@@ -74,8 +73,8 @@ export function apply(ctx: Context): void {
     return next()
   })
 
-  // Before each request, persist everything committed by the preceding step;
-  // the first step's call is an intentional no-op beyond any prompt intake.
+  // 在每次请求之前，把前一步所提交的一切都持久化；第一步的调用除了任何
+  // 提示摄入之外，是有意的无操作。
   ctx.on('agent/pre-step', async ({ agent }, next): Promise<PreStepDecision> => {
     await ctx.sessions.flush(agent.session)
     return next()

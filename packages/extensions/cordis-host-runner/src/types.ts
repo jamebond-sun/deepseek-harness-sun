@@ -1,5 +1,5 @@
 /**
- * Client-safe wire vocabulary of the dynamic Cordis plugin runner.
+ * 动态 Cordis 插件运行器的、对 Client 安全的连线词汇。
  * @module @deepseek-ai/dsh-cordis-host-runner/types
  */
 
@@ -7,67 +7,67 @@ import type { Branded } from '@deepseek-ai/dsh-brand'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 
-/** Stable identity of one dynamic plugin instance. */
+/** 一个动态插件实例的、稳定的标识。 */
 export type CordisDynamicPluginId = Branded<'CordisDynamicPluginId'>
 
-/** Identity of one immutable package version belonging to a dynamic plugin. */
+/** 属于一个动态插件的、某个不可变包版本的标识。 */
 export type CordisDynamicPackageId = Branded<'CordisDynamicPackageId'>
 
-/** Identity of one successful activation attempt. */
+/** 一次成功激活尝试的标识。 */
 export type CordisDynamicPluginRunId = Branded<'CordisDynamicPluginRunId'>
 
-/** Identity of one human approval request. */
+/** 一次人工审批请求的标识。 */
 export type ApprovalRequestId = Branded<'ApprovalRequestId'>
 
-/** Identity of one cross-page inspect query. */
+/** 一次跨页面 inspect 查询的标识。 */
 export type CordisInspectRequestId = Branded<'CordisInspectRequestId'>
 
-/** Runtime plane that owns an inspect provider. */
+/** 拥有一个 inspect 提供方的运行时面。 */
 export type CordisInspectPlatform = 'host' | 'client'
 
-/** One model-callable read-only query exposed by an inspect provider. */
+/** 一个由 inspect 提供方暴露的、可供模型调用的只读查询。 */
 export interface CordisInspectMethodManifest {
-  /** Method name, unique within its provider. */
+  /** 方法名，在其提供方内唯一。 */
   name: string
-  /** What the query returns and when to use it. */
+  /** 该查询返回什么，以及何时使用它。 */
   description: string
-  /** JSON Schema accepted by the query. */
+  /** 该查询所接受的 JSON Schema。 */
   inputSchema: JsonValue
-  /** JSON Schema produced by the query. */
+  /** 该查询所产生的 JSON Schema。 */
   outputSchema: JsonValue
 }
 
-/** Serializable directory entry for one inspect provider. */
+/** 一个 inspect 提供方的、可序列化的目录条目。 */
 export interface CordisInspectProviderManifest {
-  /** Provider identity, unique within one platform. */
+  /** 提供方标识，在一个平台内唯一。 */
   id: string
-  /** Capability described by this provider. */
+  /** 此提供方所描述的能力。 */
   description: string
-  /** Explicit read-only queries. */
+  /** 显式的只读查询。 */
   methods: readonly CordisInspectMethodManifest[]
 }
 
-/** Provider directory row returned by `cordis_inspect_list`. */
+/** 由 `cordis_inspect_list` 返回的提供方目录行。 */
 export interface CordisInspectProviderView extends CordisInspectProviderManifest {
-  /** Runtime plane that executes these methods. */
+  /** 执行这些方法的运行时面。 */
   platform: CordisInspectPlatform
 }
 
-/** Host broadcast requesting one live Client inspect result. */
+/** 请求一个活跃 Client inspect 结果的 Host 广播。 */
 export interface CordisInspectQueryRequest {
-  /** Correlation identity. */
+  /** 关联标识。 */
   requestId: CordisInspectRequestId
-  /** Session whose model requested the query. */
+  /** 其模型发起了该查询的 Session。 */
   agentId: SessionId
-  /** Provider selected from the Client manifest. */
+  /** 从 Client 清单中选出的提供方。 */
   provider: string
-  /** Method selected from the provider manifest. */
+  /** 从提供方清单中选出的方法。 */
   method: string
-  /** JSON query input, omitted when the method has no fields. */
+  /** JSON 查询输入，方法无字段时省略。 */
   input?: JsonValue
 }
 
-/** Result sent from a Client provider to the waiting Host query. */
+/** 从一个 Client 提供方发送至正在等待的 Host 查询的结果。 */
 export type CordisInspectQueryResolution =
   | { ok: true; data: JsonValue }
   | {
@@ -76,36 +76,36 @@ export type CordisInspectQueryResolution =
     message: string
   }
 
-/** Notification that a Client inspect request can no longer be answered. */
+/** 通知某个 Client inspect 请求已无法再被回答。 */
 export interface CordisInspectQueryResolved {
-  /** Query that left the pending state. */
+  /** 离开待定状态的查询。 */
   requestId: CordisInspectRequestId
 }
 
-/** Whether a Client answer claimed the still-pending query. */
+/** 某个 Client 应答是否认领了仍处于待定状态的查询。 */
 export interface CordisInspectResolveAck {
   /**
-   * True only for a valid success that settles the query;
-   * false for retained failures and unknown, timed out, cancelled, or late answers.
+   * 仅对一次有效、且能了结该查询的成功为真；
+   * 对保留的失败，以及未知、超时、取消或迟到的应答为假。
    */
   accepted: boolean
 }
 
-/** Whether a package starts the current version or replaces it. */
+/** 一个包是启动当前版本还是替换它。 */
 export type CordisDynamicRunMode = 'run' | 'update'
 
-/** How a model-driven Client activation request left the pending state. */
+/** 一个由模型驱动的 Client 激活请求如何离开待定状态。 */
 export type RequestRunOutcome = 'approved' | 'completed' | 'rejected' | 'cancelled' | 'failed'
 
-/** Error fields preserved across the Host/Client transport. */
+/** 跨越 Host/Client 传输而保留的错误字段。 */
 export interface CordisErrorDetails {
-  /** Original error message. */
+  /** 原始错误消息。 */
   message: string
-  /** Original stack when the thrown value supplied one. */
+  /** 抛出异常的值提供了栈时，其原始栈。 */
   stack?: string
 }
 
-/** Persisted state of the latest activation attempt. */
+/** 最近一次激活尝试的持久化状态。 */
 export type CordisRunStatus =
   | 'awaiting-approval'
   | 'starting-host'
@@ -117,174 +117,174 @@ export type CordisRunStatus =
   | 'cancelled'
   | 'stopped'
 
-/** One platform half within an activation attempt. */
+/** 一次激活尝试中的一个平台半区。 */
 export interface CordisHalfState {
-  /** Lifecycle state of this half. */
+  /** 此半区的生命周期状态。 */
   status: 'absent' | 'pending' | 'stopped' | 'running' | 'waiting' | 'failed'
-  /** Services still needed by a successfully created Fiber. */
+  /** 一个已成功创建的 Fiber 仍需要的服务。 */
   waitingFor: readonly string[]
-  /** Failure text for this half. */
+  /** 此半区的失败文本。 */
   error?: string
 }
 
-/** Structured failure associated with an exact activation attempt. */
+/** 与某一次确切激活尝试相关联的结构化失败。 */
 export interface CordisRunDiagnostic {
-  /** Stage that failed. */
+  /** 失败所处的阶段。 */
   phase: 'approval' | 'host-load' | 'host-apply' | 'client-load' | 'client-apply' | 'client-render'
-  /** Original failure text. */
+  /** 原始失败文本。 */
   message: string
-  /** Original failure stack when available. */
+  /** 有可用失败时，其原始失败栈。 */
   stack?: string
-  /** Stable Plugin identity. */
+  /** 稳定的 Plugin 标识。 */
   pluginId: CordisDynamicPluginId
-  /** Immutable Package identity. */
+  /** 不可变的 Package 标识。 */
   packageId: CordisDynamicPackageId
-  /** Exact attempt identity. */
+  /** 确切的尝试标识。 */
   pluginRunId: CordisDynamicPluginRunId
 }
 
-/** Latest activation attempt retained independently from the physical run. */
+/** 独立于物理运行而保留的最近激活尝试。 */
 export interface DynamicCordisRunAttempt {
-  /** Exact attempt identity. */
+  /** 确切的尝试标识。 */
   pluginRunId: CordisDynamicPluginRunId
-  /** Target Package. */
+  /** 目标 Package。 */
   packageId: CordisDynamicPackageId
-  /** Explicit run/update intent. */
+  /** 显式的 run/update 意图。 */
   mode: CordisDynamicRunMode
-  /** Current attempt state. */
+  /** 当前尝试状态。 */
   status: CordisRunStatus
-  /** Pending Client activation request; it represents approval only when `requiresApproval` is true. */
+  /** 待定的 Client 激活请求；仅当 `requiresApproval` 为真时它才代表审批。 */
   approvalRequestId?: ApprovalRequestId
-  /** Whether the pending Client activation requires a user decision. */
+  /** 待定的 Client 激活是否需要用户决策。 */
   requiresApproval?: boolean
-  /** Host-half state. */
+  /** Host 半区状态。 */
   host: CordisHalfState
-  /** Client-half state. */
+  /** Client 半区状态。 */
   client: CordisHalfState
-  /** Most recent failure. */
+  /** 最近的失败。 */
   error?: CordisRunDiagnostic
 }
 
-/** One running package announced to browser pages. */
+/** 向浏览器页面宣告的一个运行中包。 */
 export interface DynamicCordisPackage {
-  /** Stable plugin instance. */
+  /** 稳定的插件实例。 */
   pluginId: CordisDynamicPluginId
-  /** Immutable package version currently active. */
+  /** 当前活跃的不可变包版本。 */
   packageId: CordisDynamicPackageId
-  /** This activation's identity. */
+  /** 本次激活的标识。 */
   pluginRunId: CordisDynamicPluginRunId
-  /** Package label. */
+  /** 包标签。 */
   name: string
 }
 
-/** One pending model-driven Client activation forwarded to browser pages. */
+/** 转发给浏览器页面的、待定的由模型驱动的 Client 激活。 */
 export interface DynamicCordisRunRequest {
-  /** Correlation identity of the activation request. */
+  /** 激活请求的关联标识。 */
   requestId: ApprovalRequestId
-  /** Session whose plugin and tool call own the request. */
+  /** 其插件与工具调用拥有该请求的 Session。 */
   agentId: SessionId
-  /** Stable plugin instance being acted on. */
+  /** 正被操作的稳定插件实例。 */
   pluginId: CordisDynamicPluginId
-  /** Package version the request will activate. */
+  /** 该请求将要激活的包版本。 */
   packageId: CordisDynamicPackageId
-  /** Explicit lifecycle intent. */
+  /** 显式的生命周期意图。 */
   mode: CordisDynamicRunMode
-  /** Package label. */
+  /** 包标签。 */
   name: string
-  /** User-facing reason supplied at define time. */
+  /** 在 define 时提供的、面向用户的理由。 */
   purpose: string
-  /** Whether a page must wait for an explicit user decision before activation. */
+  /** 页面是否必须在激活前等待一次显式的用户决策。 */
   requiresApproval: boolean
 }
 
-/** One settled model-driven Client activation request broadcast to all pages. */
+/** 向所有页面广播的、一次已了结的由模型驱动的 Client 激活请求。 */
 export interface DynamicCordisRequestResolved {
-  /** Request that left the pending state. */
+  /** 离开待定状态的请求。 */
   requestId: ApprovalRequestId
-  /** How the request settled. */
+  /** 该请求如何了结。 */
   outcome: RequestRunOutcome
 }
 
-/** One activation withdrawn from every page. */
+/** 从每个页面撤回的一次激活。 */
 export interface DynamicCordisRetracted {
-  /** Stable plugin instance. */
+  /** 稳定的插件实例。 */
   pluginId: CordisDynamicPluginId
-  /** Package version that was active. */
+  /** 曾处于活跃状态的包版本。 */
   packageId: CordisDynamicPackageId
-  /** Exact activation being withdrawn. */
+  /** 正被撤回的确切激活。 */
   pluginRunId: CordisDynamicPluginRunId
 }
 
-/** Package metadata exposed by the inventory without source code. */
+/** 由清单在不暴露源码的前提下所暴露的包元数据。 */
 export interface DynamicCordisInventoryPackage {
-  /** Immutable package version. */
+  /** 不可变的包版本。 */
   packageId: CordisDynamicPackageId
-  /** Package label. */
+  /** 包标签。 */
   name: string
-  /** User-facing purpose. */
+  /** 面向用户的用途。 */
   purpose: string
-  /** Whether this version contains Host code. */
+  /** 此版本是否包含 Host 代码。 */
   hasHostHalf: boolean
-  /** Whether this version contains Client code. */
+  /** 此版本是否包含 Client 代码。 */
   hasClientHalf: boolean
 }
 
-/** One stable plugin row in the frame-wide inventory. */
+/** 框级清单中的一行稳定插件。 */
 export interface DynamicCordisInventoryRow {
-  /** Stable plugin instance. */
+  /** 稳定的插件实例。 */
   pluginId: CordisDynamicPluginId
-  /** Session that owns this plugin. */
+  /** 拥有此插件的 Session。 */
   agentId: SessionId
-  /** Immutable versions in define order. */
+  /** 按 define 顺序的不可变版本。 */
   packages: readonly DynamicCordisInventoryPackage[]
-  /** Last package that completed activation successfully. */
+  /** 最近一次成功完成激活的包。 */
   currentPackageId?: CordisDynamicPackageId
-  /** Package selected for a failed or in-progress transition. */
+  /** 为一个失败中或进行中的转换所选的包。 */
   nextPackageId?: CordisDynamicPackageId
-  /** Current activation, absent while stopped. */
+  /** 当前激活，停止期间缺省。 */
   activeRun?: {
     pluginRunId: CordisDynamicPluginRunId
     packageId: CordisDynamicPackageId
   }
-  /** Latest activation attempt, including pending approval and diagnostics. */
+  /** 最近一次激活尝试，包含待定审批与诊断。 */
   latestRun?: DynamicCordisRunAttempt
 }
 
-/** Answer to removing a plugin and all of its package versions. */
+/** 移除一个插件及其全部包版本的应答。 */
 export type DynamicCordisUndefineReceipt =
   | { ok: true; wasRunning: boolean }
   | { ok: false; reason: 'plugin-missing'; message: string }
 
-/** One render failure observed after a Client half loaded. */
+/** 在一个 Client 半区加载之后观察到的一次渲染失败。 */
 export interface DynamicCordisRenderFailure {
-  /** Slot whose component failed. */
+  /** 组件失败的槽位。 */
   slot: string
-  /** Render failure text. */
+  /** 渲染失败文本。 */
   message: string
-  /** Original render failure stack when available. */
+  /** 有可用渲染失败时，其原始渲染失败栈。 */
   stack?: string
-  /** Whether the failing contribution relinquished its slot. */
+  /** 失败的贡献是否放弃了它的槽位。 */
   abdicated: boolean
 }
 
-/** Result shared by model-driven and panel-driven activation. */
+/** 由模型驱动与面板驱动激活所共享的结果。 */
 export type DynamicCordisRunResponse =
   | {
     ok: true
-    /** Whether activation completed synchronously, is starting in a Client, or awaits user approval. */
+    /** 激活是已同步完成、正在某 Client 中启动，还是等待用户审批。 */
     status: 'awaiting-approval' | 'starting' | 'running'
     pluginId: CordisDynamicPluginId
     packageId: CordisDynamicPackageId
     pluginRunId: CordisDynamicPluginRunId
-    /** Missing Host services; a parked Fiber is a successful activation. */
+    /** 缺失的 Host 服务；一个停驻的 Fiber 是一次成功的激活。 */
     waitingFor: readonly string[]
-    /** Missing Client services reported by the approving page. */
+    /** 由审批页面报告的、缺失的 Client 服务。 */
     clientWaitingFor?: readonly string[]
-    /** Last fully successful Package. */
+    /** 最近一次完全成功的 Package。 */
     currentPackageId?: CordisDynamicPackageId
-    /** Selected transition target. */
+    /** 被选定的转换目标。 */
     nextPackageId?: CordisDynamicPackageId
-    /** Explicit lifecycle intent. */
+    /** 显式的生命周期意图。 */
     mode: CordisDynamicRunMode
   }
   | {
@@ -300,16 +300,16 @@ export type DynamicCordisRunResponse =
       | 'cancelled'
       | 'not-running'
     message: string
-    /** Original failure stack when available. */
+    /** 有可用失败时，其原始失败栈。 */
     stack?: string
   }
 
-/** Result of stopping a Plugin without deleting its Packages. */
+/** 在不删除其包的前提下停止一个 Plugin 的结果。 */
 export type DynamicCordisStopResponse =
   | { ok: true }
   | { ok: false; reason: 'plugin-missing' | 'not-running'; message: string }
 
-/** Result of bringing up the Host half before loading the Client half. */
+/** 在加载 Client 半区之前拉起 Host 半区的结果。 */
 export type DynamicCordisHostHalfResult =
   | {
     ok: true
@@ -317,46 +317,46 @@ export type DynamicCordisHostHalfResult =
     packageId: CordisDynamicPackageId
     pluginRunId: CordisDynamicPluginRunId
     waitingFor: readonly string[]
-    /** False when a panel merely attaches this page to an already active run. */
+    /** 当面板只是把本页面附加到一次已活跃的运行上时为假。 */
     startedHere: boolean
   }
   | ({ ok: false } & CordisErrorDetails)
 
-/** Client-half source for one exact activation. */
+/** 某一次确切激活的 Client 半区源码。 */
 export interface DynamicCordisClientSource {
-  /** Browser JavaScript body. */
+  /** 浏览器 JavaScript 主体。 */
   code: string
-  /** Package label. */
+  /** 包标签。 */
   name: string
-  /** Stable plugin instance. */
+  /** 稳定的插件实例。 */
   pluginId: CordisDynamicPluginId
-  /** Immutable source version. */
+  /** 不可变的源码版本。 */
   packageId: CordisDynamicPackageId
-  /** Exact activation the source belongs to. */
+  /** 该源码所属的确切激活。 */
   pluginRunId: CordisDynamicPluginRunId
 }
 
-/** Browser verdict used for both approved tool runs and panel runs. */
+/** 用于已审批工具运行与面板运行的浏览器裁定。 */
 export type DynamicCordisRunResolution =
   | { ok: true; pluginRunId: CordisDynamicPluginRunId; waitingFor?: readonly string[] }
   | {
     ok: false
     reason: 'rejected' | 'host-half-failed' | 'client-half-failed'
-    /** Activation that failed; absent for a refusal before activation. */
+    /** 失败的激活；激活前被拒绝时缺省。 */
     pluginRunId?: CordisDynamicPluginRunId
-    /** Whether this page created the failed activation instead of attaching to it. */
+    /** 本页面是创建了该失败激活、还是仅是附加到它之上。 */
     startedHere?: boolean
     message?: string
     stack?: string
   }
 
-/** Whether a Client activation resolution reached the still-pending request. */
+/** 一次 Client 激活裁定是否抵达了仍处于待定状态的请求。 */
 export interface DynamicCordisResolveAck {
-  /** False for late, unknown, or stale answers. */
+  /** 对迟到、未知或过期的应答为假。 */
   accepted: boolean
 }
 
-/** Result of routing one Client call to the active Host half. */
+/** 将一次 Client 调用路由到活跃的 Host 半区的结果。 */
 export type DynamicCordisInvokeResult =
   | { ok: true; value: JsonValue }
   | ({ ok: false; code: 'plugin-not-running' | 'stale-run' | 'method-not-found' | 'handler-error' } & CordisErrorDetails)
@@ -364,38 +364,38 @@ export type DynamicCordisInvokeResult =
 declare module '@deepseek-ai/cordis' {
   interface Events {
     /**
-     * A Client-bearing activation needs a browser page, and may require a user decision.
-     * @param request - correlation identity, owner, target version, mode, and approval requirement.
+     * 一个带 Client 的激活需要一个浏览器页面，并可能需要一次用户决策。
+     * @param request - 关联标识、所有者、目标版本、模式与审批要求。
      * @mode emit
      */
     'cordis/request-run'(request: DynamicCordisRunRequest): void
     /**
-     * A pending Client activation request left the answerable state.
-     * @param resolved - request identity and outcome.
+     * 一个待定的 Client 激活请求离开了可回答状态。
+     * @param resolved - 请求标识与结果。
      * @mode emit
      */
     'cordis/request-run-resolved'(resolved: DynamicCordisRequestResolved): void
     /**
-     * One exact Plugin/Package activation is now live in the Host.
-     * @param pkg - stable plugin, immutable package, run identity, and label.
+     * 某一次确切的 Plugin/Package 激活现已在 Host 中活跃。
+     * @param pkg - 稳定的插件、不可变的包、运行标识与标签。
      * @mode emit
      */
     'cordis/dynamic-package'(pkg: DynamicCordisPackage): void
     /**
-     * One exact activation was withdrawn.
-     * @param retracted - plugin, package, and run identity.
+     * 某一次确切的激活已被撤回。
+     * @param retracted - 插件、包与运行标识。
      * @mode emit
      */
     'cordis/dynamic-retract'(retracted: DynamicCordisRetracted): void
     /**
-     * Request a live read-only query from the Client inspect registry.
-     * @param request - correlation, Session, provider, method, and JSON input.
+     * 从 Client inspect 注册表请求一次活跃的只读查询。
+     * @param request - 关联、Session、提供方、方法，以及 JSON 输入。
      * @mode emit
      */
     'cordis/inspect-query'(request: CordisInspectQueryRequest): void
     /**
-     * Notify every Client that an inspect query has settled or been cancelled.
-     * @param resolved - exact query identity that is no longer answerable.
+     * 通知每个 Client 某个 inspect 查询已了结或已被取消。
+     * @param resolved - 不再可回答的确切查询标识。
      * @mode emit
      */
     'cordis/inspect-query-resolved'(resolved: CordisInspectQueryResolved): void

@@ -1,56 +1,52 @@
 /**
- * Boot-time backend resolution for the adaptive directory-picker composition:
- * one pure decision from sampled host facts to a concrete backend kind. The
- * caller samples exactly once per boot, so the mounted capability stays
- * stable for the service lifetime as the seam requires.
+ * 自适应目录选择组合的启动期后端判定：从采样到的宿主事实到具体后端类型的一次纯决策。
+ * 调用方每次启动只采样一次，因此挂载后的能力在服务生命周期内保持稳定，这正是接缝的
+ * 要求。
  * @module @deepseek-ai/dsh-host-directory-picker-auto/resolve
  */
 
 import { isLoopbackHost, type Config as HttpServerConfig } from '@deepseek-ai/dsh-host-webserver'
 
-/** Concrete interaction backend the resolver chooses between. */
+/** 解析器在其中做选择的具体交互后端。 */
 export type DirectoryPickerBackendKind = 'native' | 'browse'
 
-/** Environment keys the resolution reads (a `process.env` subset). */
+/** 判定过程读取的环境键（`process.env` 的一个子集）。 */
 export type DirectoryPickerEnv = Readonly<
   Partial<Record<'DISPLAY' | 'WAYLAND_DISPLAY', string>>
 >
 
-/** Host facts the backend choice is a pure function of, sampled once at boot. */
+/** 后端选择所依据的宿主事实，启动时采样一次，判定是这些事实的纯函数。 */
 export interface DirectoryPickerHostFacts {
-  /** Effective webserver bind address (a concrete IP literal of one local interface). */
+  /** Webserver 生效的绑定地址（某个本地接口的具体 IP 字面量）。 */
   bindHost: HttpServerConfig['host']
   /**
-   * Whether the Connection trust policy admits a non-loopback authority (a
-   * validated `trustedHosts` entry naming a remote hostname).
+   * Connection 信任策略是否接纳非回环来源（`trustedHosts` 中存在一条指向远程主机名的
+   * 已校验条目）。
    */
   allowsRemoteAuthorities: boolean
-  /** Host process platform. */
+  /** 宿主进程的平台。 */
   platform: NodeJS.Platform
-  /** SSH launch fact from the inherited process layer, independent of `.env` values. */
+  /** 来自继承进程层的 SSH 启动事实，与 `.env` 取值无关。 */
   ssh: boolean
-  /** Environment sample; DISPLAY/WAYLAND_DISPLAY marks a Linux display. */
+  /** 环境采样；DISPLAY/WAYLAND_DISPLAY 标志 Linux 上存在显示会话。 */
   env: DirectoryPickerEnv
-  /** Whether a Linux chooser binary the native backend can drive (zenity/kdialog) is on PATH; consulted only when `platform` is linux. */
+  /** PATH 上是否存在原生后端可驱动的 Linux 选择器二进制文件（zenity/kdialog）；仅当 `platform` 为 linux 时才参考。 */
   linuxChooser: boolean
 }
 
-/** An env value counts only when set and non-blank (an empty export is "unset" by shell convention). */
+/** 环境变量仅在已设置且非空白时才算存在（按 shell 约定，空导出等同于“未设置”）。 */
 const present = (value: string | undefined): boolean => value !== undefined && value !== ''
 
 /**
- * Resolve which backend serves this boot. `native` requires every signal that
- * the operator can see the host display and the native backend can serve it:
- * no remote-authority trust, a loopback bind (remote-authority trust or a
- * non-loopback bind admits remote browsers no OS chooser can reach), no SSH
- * launch (a forwarded connection cannot display the server's chooser), and a
- * servable display session — assumed on darwin/win32, requiring
- * `DISPLAY`/`WAYLAND_DISPLAY` plus a chooser binary on linux, and never true
- * elsewhere (the native backend drives exactly darwin/win32/linux). Anything
- * ambiguous resolves to
- * `browse`, which works everywhere.
- * @param facts - the sampled host facts.
- * @returns the backend kind to mount.
+ * 判定本次启动由哪个后端提供服务。`native` 要求满足全部信号，以确保操作者能看到宿主
+ * 显示器、且原生后端能够提供服务：不信任远程来源、绑定在回环地址（信任远程来源或绑定
+ * 非回环地址都会接纳操作系统选择器触及不到的远程浏览器）、非 SSH 启动（转发连接无法显
+ * 示服务端的选择器），并且存在可服务的显示会话——darwin/win32 上假定存在，linux 上要求
+ * `DISPLAY`/`WAYLAND_DISPLAY` 且存在选择器二进制文件，其他平台则永不为真（原生后端只
+ * 支持 darwin/win32/linux）。任何不确定的情况一律判定为
+ * `browse`，它在任何环境都可用。
+ * @param facts - 采样得到的宿主事实。
+ * @returns 要挂载的后端类型。
  */
 export function resolveDirectoryPickerBackend(facts: DirectoryPickerHostFacts): DirectoryPickerBackendKind {
   if (facts.allowsRemoteAuthorities || !isLoopbackHost(facts.bindHost)) return 'browse'

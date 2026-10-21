@@ -1,24 +1,23 @@
 /**
- * Wire types for the Exa search API (`POST https://api.exa.ai/search`). Types
- * only — no runtime code. Exa returns a flat `results[]`; each entry carries a
- * URL, optional title, optional `publishedDate`, and (when highlights are
- * requested) a `highlights[]` array of salient sentences.
+ * Exa 搜索 API 的线类型（`POST https://api.exa.ai/search`）。仅类型 —— 无运行时代码。
+ * Exa 返回一个扁平的 `results[]`；每个条目携带一个 URL、可选 title、可选 `publishedDate`，
+ * 以及（当请求突出句时）一个 `highlights[]` 显著句子数组。
  *
  * @module @deepseek-ai/dsh-web-search-exa/types
  */
 
-/** Request body sent to Exa's search endpoint. */
+/** 发送给 Exa 搜索端点的请求体。 */
 export interface ExaSearchRequest {
   query: string
-  /** Retrieval mode: keyword, neural (embeddings), or auto (Exa decides). */
+  /** 检索模式：关键词、神经（嵌入）或 auto（Exa 决定）。 */
   type: 'auto' | 'keyword' | 'neural'
-  /** Exa's result-count control; the seam still enforces the bound on return. */
+  /** Exa 的结果数控制；该 seam 在返回时仍强制实施上限。 */
   numResults?: number
-  /** Ask Exa to return highlight sentences per result. */
+  /** 要求 Exa 返回每个结果的突出句子。 */
   contents: { highlights: { highlightsPerUrl: number } }
 }
 
-/** One entry of Exa's flat `results[]`. */
+/** Exa 扁平 `results[]` 中的一个条目。 */
 export interface ExaResult {
   url: string
   title?: string | null
@@ -26,12 +25,12 @@ export interface ExaResult {
   highlights?: string[]
 }
 
-/** Exa's search response envelope. */
+/** Exa 的搜索响应信封。 */
 export interface ExaSearchResponse {
   results?: ExaResult[]
 }
 
-/** Exa's error response envelope (best-effort; fields vary by failure). */
+/** Exa 的错误响应信封（尽力而为；字段因失败而异）。 */
 export interface ExaError {
   error?: string
   message?: string

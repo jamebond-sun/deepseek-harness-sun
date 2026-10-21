@@ -4,22 +4,22 @@ import type {
   SessionFormatMigrationContext,
 } from './types.ts'
 
-/** Migration output context that expands compact runs into retained events. */
+/** 将紧凑 run 展开为保留事件的迁移输出上下文。 */
 export class SessionFormatEventCollector implements SessionFormatMigrationContext {
-  /** Events retained by this collector in source order. */
+  /** 本收集器按源顺序保留的事件。 */
   readonly values: SessionFormatEvent[] = []
 
   /**
-   * Retain one settled event.
-   * @param event - settled event emitted by the upstream stage.
+   * 保留一个已确定事件。
+   * @param event - 上游阶段发出的已确定事件。
    */
   emitEvent(event: SessionFormatEvent): void {
     this.values.push(event)
   }
 
   /**
-   * Expand one compact run directly into retained events.
-   * @param run - compact event run emitted by the upstream stage.
+   * 将一个紧凑 run 直接展开为保留事件。
+   * @param run - 上游阶段发出的紧凑事件 run。
    */
   emitRun(run: SessionFormatEventRun): void {
     for (const event of run.expand()) this.values.push(event)

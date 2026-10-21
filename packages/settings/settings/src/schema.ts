@@ -1,11 +1,11 @@
-/** Derive editable forms and plain values from plugin Config schemas. */
+/** 从插件 Config schema 派生可编辑表单与纯值。 */
 import { redactSecrets } from './redact.ts'
 import z from '@deepseek-ai/schemastery'
 import { isVolatile } from '@deepseek-ai/cosmokit'
 
-/** Remove runtime references from a configuration snapshot.
- * @param value Parsed Config output.
- * @returns Detached ordinary values suitable for redaction and forms.
+/** 从配置快照中移除运行时引用。
+ * @param value 解析后的 Config 输出。
+ * @returns 适合脱敏与表单使用的脱钩普通值。
  */
 export function plainConfig(value: unknown): unknown {
   if (isVolatile(value)) return plainConfig(value.get())
@@ -30,9 +30,9 @@ function plainSchema(schema: z): z {
   return result
 }
 
-/** Select fields whose nearest volatile ancestor makes them editable without remounting.
- * @param schema The plugin's Config schema.
- * @returns A plain form schema, or undefined when no field is live.
+/** 选出其最近的 volatile 祖先使其无需重新挂载即可编辑的字段。
+ * @param schema 插件的 Config schema。
+ * @returns 纯表单 schema；当没有任何字段是 live 时返回 undefined。
  */
 export function volatileForm(schema: z): z | undefined {
   if (schema.meta.volatile) return plainSchema(schema)
@@ -46,15 +46,15 @@ export function volatileForm(schema: z): z | undefined {
   return undefined
 }
 
-/** Whether a raw config node is an unevaluated `!!js` expression, kept whole rather than projected field by field. */
+/** 判断原始配置节点是否为未求值的 `!!js` 表达式；此类节点整体保留，而非逐字段投影。 */
 function isExpression(value: object): boolean {
   return Object.keys(value).length === 1 && typeof Reflect.get(value, '__jsExpr') === 'string'
 }
 
-/** Project only schema-declared fields, excluding ordinary configuration.
- * @param schema The filtered form schema.
- * @param value Plain raw or resolved config.
- * @returns The fields visible to this form.
+/** 只投影 schema 声明的字段，排除普通配置。
+ * @param schema 已过滤的表单 schema。
+ * @param value 纯原始配置或已解析配置。
+ * @returns 该表单可见的字段。
  */
 export function projectForm(schema: z, value: unknown): unknown {
   if (schema.type === 'object' && value !== null && typeof value === 'object' && !isExpression(value)) {
@@ -66,10 +66,10 @@ export function projectForm(schema: z, value: unknown): unknown {
   return value
 }
 
-/** Check that a field path lies beneath a declared volatile node.
- * @param schema Complete plugin Config schema.
- * @param path Field path addressed by a form edit.
- * @returns Whether the path can be edited live.
+/** 检查字段路径是否位于已声明的 volatile 节点之下。
+ * @param schema 完整的插件 Config schema。
+ * @param path 表单编辑所寻址的字段路径。
+ * @returns 该路径是否可热编辑。
  */
 export function isVolatilePath(schema: z, path: readonly string[]): boolean {
   if (schema.meta.volatile) return true

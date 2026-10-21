@@ -1,8 +1,7 @@
 /**
- * Model-facing delegation through one configured `ctx.subagents` provider.
- * Provider lifecycle controls tool registration and context-sensitive schema
- * wording. Every delegation starts a managed activation and returns its child
- * id; the subagent runtime owns result delivery and resource cleanup.
+ * 通过一个已配置的 `ctx.subagents` 提供方实现的、面向模型的委托。
+ * 提供方生命周期控制工具注册与上下文敏感的模式措辞。每次委托都启动一个
+ * 受管理的激活并返回其子 id；子代理运行时拥有结果投递与资源清理。
  * @module @deepseek-ai/dsh-tool-subagent
  */
 
@@ -42,37 +41,34 @@ import {
 export const name = 'tool-subagent'
 export const inject = ['tools', 'subagents', 'systemPrompt', 'sessionProjections']
 
-// Definition identity keeps shared guidance scoped to the actual visible tools,
-// including scoped overrides and independently loaded tool registries.
+// 定义身份把共享指引限定在真正可见的工具上，包括作用域覆盖项与
+// 独立加载的工具注册表。
 const delegationTools = new Set<ToolDefinition>()
 
-/** Config: which registered provider this tool delegates to, plus child defaults. */
+/** 配置：本工具委托给哪个已注册的提供方，外加子代理默认值。 */
 export interface Config extends PresetSelectionConfig {
-  /** The `ctx.subagents` provider name to start runs on (e.g. `spawn`, `acp`). */
+  /** 启动运行所用的 `ctx.subagents` 提供方名称（例如 `spawn`、`acp`）。 */
   provider: string
   /**
-   * Model-facing tool name (default `subagent`). Each loaded instance must use
-   * a distinct name.
+   * 面向模型的工具名（默认 `subagent`）。每个已加载实例必须使用不同的名称。
    */
   toolName?: string
   /**
-   * Sample the Host `subagent-model-selection` setting for each new top-level
-   * Session and inherit that decision in its child Sessions.
+   * 为每个新的顶层 Session 采样 Host `subagent-model-selection` 设置，
+   * 并在其子 Session 中继承该决定。
    */
   modelSelectionSettings?: boolean
   /**
-   * Agent options applied to every child; omitted fields use child-loop defaults.
+   * 应用到每个子代理的 Agent 选项；省略的字段使用子循环默认值。
    */
   agentOptions?: AgentOptions
   /**
-   * Maximum child depth: a non-negative safe integer (`0` forbids delegation),
-   * or `'provider-managed'` to send no cap. A numeric cap
-   * requires the provider's `depthLimit` capability (mount fails loud
-   * otherwise). The provider checks the calling agent's current depth at every
-   * start; the tool remains model-visible so runtime policy owns rejection.
-   * `'provider-managed'` is for an out-of-process provider whose recursion
-   * budget belongs to the child runtime or its own deployment. Omission reads
-   * the current Host subagent depth setting (default `1`) at each delegation.
+   * 最大子代理深度：一个非负安全整数（`0` 禁止委托），或
+   * `'provider-managed'` 以不发送任何上限。数值上限需要提供方的
+   * `depthLimit` 能力（否则挂载会响亮失败）。提供方在每次启动时检查调用方
+   * agent 的当前深度；该工具保持模型可见，因此运行时策略拥有拒绝权。
+   * `'provider-managed'` 适用于递归预算属于子运行时或其自身部署的进程外
+   * 提供方。省略则在每次委托时读取当前 Host 子代理深度设置（默认 `1`）。
    */
   maxDepth?: number | 'provider-managed'
 }
@@ -81,7 +77,7 @@ export const Config: z<Config> = z.object({
   provider: z.string().required(),
   toolName: z.string().default('subagent'),
   modelSelectionSettings: z.boolean().default(false),
-  // Prevent Schemastery from materializing omitted agentOptions as `{}`.
+  // 阻止 Schemastery 把被省略的 agentOptions 物化为 `{}`。
   agentOptions: z.object({
     provider: z.string(),
     model: z.string(),
@@ -99,16 +95,13 @@ export const Config: z<Config> = z.object({
 })
 
 /**
- * Model-facing wording from the provider's conversation-history descriptor
- * ({@link SubagentProvider.inheritsParentContext}).
- * A fresh child needs a standalone prompt; a forked child already sees the
- * conversation's completed turns — telling the model to restate everything
- * (or, worse, that the child "does not see this conversation") would be false
- * for a fork.
- * @param inheritsConversation - whether the child's conversation is seeded
- *   with the parent's completed turns; this says nothing about tool, service,
- *   scope, or authority inheritance.
- * @returns the tool `description` and the `prompt` parameter description.
+ * 来自提供方对话历史描述符（{@link SubagentProvider.inheritsParentContext}）
+ * 的、面向模型的措辞。一个全新的子代理需要一份独立的 prompt；一个 fork 出的
+ * 子代理已经看到了对话已完成的轮次 —— 告诉模型要重述一切（或更糟，说该
+ * 子代理"看不到本次对话"）对 fork 而言就是假的。
+ * @param inheritsConversation - 子代理的对话是否被父代理已完成的轮次所播种；
+ *   这与工具、服务、作用域或权限继承无关。
+ * @returns 工具的 `description` 与 `prompt` 参数描述。
  */
 function providerWording(inheritsConversation: boolean): { description: string; promptDescription: string } {
   if (inheritsConversation) {
@@ -137,11 +130,11 @@ function providerWording(inheritsConversation: boolean): { description: string; 
 }
 
 /**
- * Install one delegation-tool composition.
- * Standing preset choices are validated for each Agent before its tool is installed.
- * @param ctx - Context that owns the registrations.
- * @param config - delegation-tool configuration.
- * @param session - unpublished Session supplied by a direct Agent setup; omit for a standing composition.
+ * 安装一个委托工具组合。
+ * 常驻预设选择会在其工具被安装之前针对每个 Agent 校验。
+ * @param ctx - 拥有这些注册项的 Context。
+ * @param config - 委托工具配置。
+ * @param session - 由直接 Agent setup 提供的未发布 Session；常驻组合则省略。
  */
 export async function apply(ctx: Context, config: Config, session?: Session): Promise<void> {
   for (const field of ['persona', 'toolFilter']) {
@@ -153,8 +146,8 @@ export async function apply(ctx: Context, config: Config, session?: Session): Pr
   if (presets.configured && ctx.get('agentPresets') === undefined) {
     throw new Error('tool-subagent: agent preset selection requires the agent-presets service')
   }
-  // Direct apply() bypasses Schemastery's numeric constraints. A direct-apply
-  // omission stays capless (the schema default only runs through the loader).
+  // 直接 apply() 会绕过 Schemastery 的数值约束。直接 apply 的省略保持无上限
+  // （模式默认值只在 loader 中运行）。
   if (config.maxDepth !== 'provider-managed') assertSubagentMaxDepth(config.maxDepth)
   const toolName = config.toolName ?? 'subagent'
 
@@ -182,8 +175,8 @@ export async function apply(ctx: Context, config: Config, session?: Session): Pr
 
   }
 
-  // Validate provider-owned config outside the optional LLM binding so an
-  // invalid provider always rejects its registration or this plugin's load.
+  // 在可选的 LLM 绑定之外校验提供方自有的配置，使一个无效的提供方总是
+  // 拒绝其注册或本插件的加载。
   ctx.on('subagent/provider-added', (subagentProvider) => {
     if (subagentProvider.name === config.provider) assertSubagentProviderConfiguration(subagentProvider)
   })
@@ -193,8 +186,7 @@ export async function apply(ctx: Context, config: Config, session?: Session): Pr
   const install = (runtimeCtx: Context, modelSelectionPolicy: ModelSelectionPolicy | undefined): void => {
     const modelSelectionEnabled = modelSelectionPolicy !== undefined
     if (modelSelectionPolicy !== undefined) registerListSubagentModels(runtimeCtx, modelSelectionPolicy)
-    // Load order and HMR replacement can change provider availability while
-    // this fiber remains active.
+    // 加载顺序与 HMR 替换会在本 fiber 仍活跃时改变提供方可用性。
     let mounted: { subagentProvider: SubagentProvider; definition: ToolDefinition; disposeTool: () => void } | undefined
     const mount = (subagentProvider: SubagentProvider): void => {
       assertSubagentProviderConfiguration(subagentProvider)
@@ -276,7 +268,7 @@ export async function apply(ctx: Context, config: Config, session?: Session): Pr
         async execute(args, exec) {
           const parent = exec.agent
           if (!parent) {
-            // Non-agent callers provide no parent for delegation ownership.
+            // 非 Agent 调用方无法提供委托属主所需的父代理。
             throw new Error('subagent tool requires a calling agent (exec.agent was undefined)')
           }
 
@@ -345,11 +337,11 @@ export async function apply(ctx: Context, config: Config, session?: Session): Pr
           unregister()
         }
       })
-      // oxlint-disable-next-line typescript/no-misused-promises -- Tool and guidance disposal are synchronous.
+      // oxlint-disable-next-line typescript/no-misused-promises -- 工具与指引处置是同步的。
       mounted = { subagentProvider, definition, disposeTool }
     }
 
-    // Register listeners before checking presence so no synchronous change is missed.
+    // 在检查存在性之前注册监听器，以免遗漏任何同步的变化。
     runtimeCtx.on('subagent/provider-added', (subagentProvider) => {
       if (subagentProvider.name === config.provider && mounted === undefined) mount(subagentProvider)
     })
@@ -362,7 +354,7 @@ export async function apply(ctx: Context, config: Config, session?: Session): Pr
     if (present !== undefined) {
       mount(present)
     } else {
-      // A backend fiber may activate later; a misspelled provider remains visible in this log.
+      // 一个后端 fiber 可能稍后激活；一个拼写错误的提供方仍会显示在本日志中。
       runtimeCtx.logger.info(`subagent provider "${config.provider}" not registered yet; the "${config.toolName ?? 'subagent'}" tool will register when it appears`)
     }
     runtimeCtx.systemPrompt.section({
@@ -413,7 +405,7 @@ export async function apply(ctx: Context, config: Config, session?: Session): Pr
   const selectForSession = (target: Session): ModelSelectionPolicy | undefined => {
     if (!modelSelectionCapable || settings === undefined) return undefined
     const freshSession = target.firstLiveSeq === 0
-      // oxlint-disable-next-line typescript/no-deprecated -- Existing Session history read; migration deferred.
+      // oxlint-disable-next-line typescript/no-deprecated -- 沿用既有 Session 历史读取；迁移暂缓。
       && target.eventAt(SessionSeq(0))?.type !== 'session/end-seed'
     let allowedModels = subagentModelSelectionPolicy(ctx.sessionProjections, target)
     if (allowedModels === undefined) {
@@ -449,7 +441,7 @@ export async function apply(ctx: Context, config: Config, session?: Session): Pr
     throw new Error('tool-subagent: standing `modelSelectionSettings` requires a scoped preset Context')
   }
   const agents = ctx.get('agents')
-  /* v8 ignore next -- shipped preset compositions always include the Agent registry. */
+  /* v8 ignore next -- 已发布的预设组合总是包含 Agent 注册表。 */
   if (agents === undefined) throw new Error('tool-subagent: standing `modelSelectionSettings` requires the Agent registry')
   const scopedInstalls = new WeakMap<Agent, ReturnType<Context['inject']>>()
   const installing = new WeakSet<Agent>()
@@ -459,8 +451,8 @@ export async function apply(ctx: Context, config: Config, session?: Session): Pr
     const existing = scopedInstalls.get(candidate)
     if (existing !== undefined) return existing
     if (installing.has(candidate)) return
-    // Reserve before the injected fiber runs: tool registration emits
-    // `tools/change` synchronously, which re-enters the reconciliation below.
+    // 在被注入的 fiber 运行之前预留：工具注册会同步发出 `tools/change`，
+    // 它会重入下方的协调逻辑。
     installing.add(candidate)
     let fiber: ReturnType<Context['inject']>
     try {
@@ -479,7 +471,7 @@ export async function apply(ctx: Context, config: Config, session?: Session): Pr
     const fiber = scopedInstalls.get(candidate)
     if (fiber === undefined) return
     scopedInstalls.delete(candidate)
-    /* v8 ignore next 3 -- Cordis Fiber disposal contains registration cleanup failures; this is the final diagnostic sink. */
+    /* v8 ignore next 3 -- Cordis Fiber 处置包含注册清理失败；这里是最终的诊断汇。 */
     void fiber.dispose().catch((error: unknown) => {
       ctx.logger.warn(`tool-subagent: failed to remove recomposed Agent "${candidate.id}" definitions: ${String(error)}`)
     })
@@ -490,16 +482,15 @@ export async function apply(ctx: Context, config: Config, session?: Session): Pr
       else removeScoped(candidate)
     }
   }
-  // The preset-scoped listener admits descendant Agents and installs the
-  // sampled tool definition in each Agent's own scope, so a later settings
-  // change cannot mutate a live session.
+  // 预设作用域的监听器接纳后代 Agents，并在每个 Agent 自身作用域内安装
+  // 被采样的工具定义，因此之后设置的更改无法变更一个活跃的 session。
   ctx.on('agent/created', async ({ agent: created }) => {
     await installScoped(created)
   })
   ctx.on('agent/disposed', ({ agent: disposed }) => { removeScoped(disposed) })
-  // Reparenting an Agent between standing presets changes its inherited tool
-  // set and emits `tools/change`; reconcile the Agent-owned override with the
-  // new ancestry. Other registry changes are idempotent no-ops here.
+  // 在常驻预设之间重挂一个 Agent 会改变其继承来的工具集并发出
+  // `tools/change`；用新的血缘协调该 Agent 自有的覆盖项。其他注册表变化
+  // 在此处都是幂等的空操作。
   ctx.on('tools/change', reconcileComposedAgents)
   reconcileComposedAgents()
 }

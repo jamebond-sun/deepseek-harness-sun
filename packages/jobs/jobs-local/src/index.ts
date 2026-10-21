@@ -1,12 +1,9 @@
 /**
- * Process-local provider for the background-job capability seam
- * (`ctx.jobs`). It keeps every job — lifecycle state, the bounded output
- * ring, and the model cursor — in memory and hands out fresh projections and
- * chunk copies, never live state.
+ * 后台任务能力 seam（`ctx.jobs`）的进程内提供者。它把每个任务——生命周期状态、有界的
+ * 输出环形缓冲区以及模型游标——都保存在内存中，并交出全新的投影与块的副本，绝不是活状态。
  *
- * Registrations outlive producer and controller fibers. Agent or service
- * disposal cancels live work and awaits compliant producers; a throwing
- * teardown cancel force-fails only the record and reports a possible orphan.
+ * 注册记录比生产者和控制器的 fiber 活得更久。Agent 或服务销毁会取消仍在运行的工作并
+ * 等待合规的生产者；抛出错误的销毁取消只强制失败该条记录，并报告可能存在孤儿。
  * @module @deepseek-ai/dsh-jobs-local
  */
 
@@ -27,105 +24,102 @@ import { startPump } from './pump.ts'
 import type { PumpHandle } from './pump.ts'
 import { OutputRing } from './ring.ts'
 
-/** Timeout code that distinguishes a bounded wait from caller cancellation. */
+/** 区分有界等待与调用方取消的超时码。 */
 export const TASK_WAIT_TIMEOUT = 'TASK_WAIT_TIMEOUT'
 
-/** Default maximum number of active jobs in one exact-owner bucket. */
+/** 单个确切所有者桶中活跃任务的默认最大数量。 */
 const DEFAULT_MAX_CONCURRENT_JOBS_PER_OWNER = 10
 
-/** Default live ring retention per job, in UTF-8 bytes. */
+/** 每个任务在世时的默认环形缓冲区保留量，单位 UTF-8 字节。 */
 const DEFAULT_RETAIN_BYTES = 256 * 1024
 
-/** Default ring retention kept after settlement, in UTF-8 bytes. */
+/** 任务结算后默认保留的环形缓冲区保留量，单位 UTF-8 字节。 */
 const DEFAULT_SETTLED_RETAIN_BYTES = 16 * 1024
 
-/** Default poll interval for pull sources, in milliseconds. */
+/** 拉取源的默认轮询间隔，单位毫秒。 */
 const DEFAULT_PUMP_POLL_MS = 150
 
-/** Configuration for the process-local job registry. */
+/** 进程内任务注册表的配置。 */
 export interface Config {
   /**
-   * Maximum `running` plus `stopping` jobs per exact owner or in the shared unowned bucket;
-   * omission defaults to 10.
+   * 每个确切所有者或共享的无主桶中 `running` 加 `stopping` 任务的最大数量；
+   * 省略时默认为 10。
    */
   maxConcurrentJobsPerOwner?: number
-  /** Live ring retention per job in UTF-8 bytes; omission defaults to 262144. */
+  /** 每个任务在世时的环形缓冲区保留量，单位 UTF-8 字节；省略时默认为 262144。 */
   retainBytes?: number
   /**
-   * Ring retention kept after a job settles, in UTF-8 bytes; omission defaults to 16384.
-   * Settlement keeps every byte the model cursor has not consumed on top of
-   * this cap; the first terminal model read then trims to it.
+   * 任务结算后保留的环形缓冲区保留量，单位 UTF-8 字节；省略时默认为 16384。
+   * 结算会在该上限之外额外保留模型游标尚未消费的每一个字节；随后第一次终态模型读取
+   * 会裁剪到该上限。
    */
   settledRetainBytes?: number
-  /** Poll interval for a job's pull sources, in milliseconds; omission defaults to 150. */
+  /** 任务拉取源的轮询间隔，单位毫秒；省略时默认为 150。 */
   pumpPollMs?: number
 }
 
 /**
- * Producer-written state shared between the {@link JobHandle} and the
- * registered record: the starter call writes through it before the commit,
- * the same object serves the job for its whole life afterwards.
+ * 生产者写入的、在 {@link JobHandle} 与已注册记录之间共享的状态：启动器调用在提交之前
+ * 通过它写入，此后同一个对象在任务的整个生命周期内服务。
  */
 interface ProducerState {
-  /** Live progress line until settlement clears it. */
+  /** 直到结算清空它为止的实时进度行。 */
   progress: string | undefined
-  /** The committed registry record; undefined exactly during the starter call. */
+  /** 已提交的注册表记录；恰好在启动器调用期间为 undefined。 */
   job: TrackedJob | undefined
 }
 
-/** The registry's mutable per-job record (never handed out — see {@link LocalJobRegistry.view}). */
+/** 注册表每个任务的可变记录（从不外发——见 {@link LocalJobRegistry.view}）。 */
 interface TrackedJob {
   id: JobId
   toolCall: JobToolCall | undefined
   kind: JobKind
   label: string
   outputLimitBytes: number | undefined
-  /** Exact lifecycle owner; session-id authorization is derived from it. */
+  /** 确切的生命周期所有者；会话 id 授权由它派生。 */
   owner: Agent | undefined
   cancel: (reason?: string) => void
   status: JobStatus
   ring: OutputRing
-  /** The model's consuming cursor; {@link JobRegistry.readAt} never moves it. */
+  /** 模型的消费游标；{@link JobRegistry.readAt} 从不移动它。 */
   modelCursor: number
-  /** Whether the first post-settlement read already handed out `result`. */
+  /** 结算后的第一次读取是否已经交出了 `result`。 */
   resultDelivered: boolean
-  /** Producer-shared progress line and commit binding. */
+  /** 生产者共享的进度行与提交绑定。 */
   state: ProducerState
-  /** Terminal reason; a recorded kill reason is merged in at settlement. */
+  /** 终态原因；已记录的 kill 原因在结算时并入。 */
   detail: string | undefined
   result: string | undefined
   startedAt: number
   finishedAt: number | undefined
-  /** Reason recorded by {@link JobRegistry.kill}, merged into a `killed` settlement's detail. */
+  /** {@link JobRegistry.kill} 记录的原因，并入一次 `killed` 结算的 detail。 */
   killReason: string | undefined
-  /** Set once a kill or teardown cancel ran; settlement reports it as the cause. */
+  /** 一旦执行过 kill 或销毁取消就置位；结算把它作为 cause 报告。 */
   settleCause: JobSettleCause | undefined
-  /** Resolves once the terminal record is committed and announced. */
+  /** 终态记录被提交并宣告之后兑现。 */
   settled: Promise<void>
-  /** Resolver for {@link settled}, called by the first effective settlement. */
+  /** {@link settled} 的 resolver，由第一次有效结算调用。 */
   markSettled: () => void
-  /** Removable resolvers for live waits; timeout/abort unregister before the job settles. */
+  /** 在世等待的可移除 resolver；超时/abort 会在任务结算之前注销。 */
   waitResolvers: Set<() => void>
-  /** The registry-owned pump over the spec's pull sources, when it named any. */
+  /** 注册表自有的、覆盖 spec 拉取源的泵，当它指名了源时存在。 */
   pump: PumpHandle | undefined
   /**
-   * The spill file each pull source reported on its latest read, by source
-   * index; an entry is undefined while that source keeps none. Source
-   * metadata rather than per-chunk metadata, so it survives ring eviction and
-   * follows a source that withdraws its file.
+   * 每个拉取源在其最近一次读取时上报的溢出文件，按源下标排列；某个源没有保存文件时
+   * 对应项为 undefined。它是源的元数据而非每块的元数据，因此能在环形缓冲区淘汰之后
+   * 存活，并跟随某个源撤回其文件。
    */
   spillPaths: (string | undefined)[]
 }
 
-/** True for the three terminal {@link JobStatus} values. */
+/** 对三个终态 {@link JobStatus} 值为 true。 */
 function isTerminal(status: JobStatus): boolean {
   return status === 'completed' || status === 'killed' || status === 'failed'
 }
 
 /**
- * The in-memory `jobs` registry. See the Service Definition contract in
- * `@deepseek-ai/dsh-jobs` for the ownership, isolation, and lifecycle
- * semantics this implementation honors.
+ * 内存中的 `jobs` 注册表。本实现所遵守的所有权、隔离与生命周期语义，
+ * 见 `@deepseek-ai/dsh-jobs` 中的服务定义契约。
  */
 export class LocalJobRegistry extends JobRegistry {
   static Config: z<Config> = z.object({
@@ -151,38 +145,34 @@ export class LocalJobRegistry extends JobRegistry {
       .default(DEFAULT_PUMP_POLL_MS),
   })
 
-  /** Schemastery-defaulted active-job limit. */
+  /** 由 Schemastery 填入默认值的活跃任务上限。 */
   private readonly maxConcurrentJobsPerOwner: number
-  /** Schemastery-defaulted live ring retention cap. */
+  /** 由 Schemastery 填入默认值的在世环形缓冲区保留上限。 */
   private readonly retainBytes: number
-  /** Schemastery-defaulted settled ring retention cap. */
+  /** 由 Schemastery 填入默认值的已结算环形缓冲区保留上限。 */
   private readonly settledRetainBytes: number
-  /** Schemastery-defaulted pull-source poll interval. */
+  /** 由 Schemastery 填入默认值的拉取源轮询间隔。 */
   private readonly pumpPollMs: number
   private store = new Map<JobId, TrackedJob>()
   /**
-   * Controllers and scoped subscriptions layered by the scope that registered
-   * them, in the tools-registry shape: a contribution files into its
-   * registering context's scope, and a read unions the global layer with the
-   * owner's scope chain.
+   * 按注册它们的作用域分层存放的控制器与作用域订阅，形状与工具注册表一致：一份贡献归档到
+   * 其注册上下文的作用域，而一次读取把全局层与所有者的作用域链取并集。
    *
-   * The registry is one process-wide instance serving every composition, so a
-   * flat table would answer a per-owner question process-wide: one preset's
-   * job controls would hold `start()` open for an agent whose own composition
-   * loads none, and one settlement would reach every preset's notice listener.
-   * Layers make both reads owner-relative. Nothing derives a cache from a
-   * layer, so change notification is a no-op.
+   * 注册表是一个服务进程内所有组合的实例，所以一张扁平的表会以全进程的口径回答一个按
+   * 所有者的问题：某个 preset 的任务控制会为一个自身组合没有加载任何控制器的 agent 保持
+   * `start()` 开放，而一次结算会触达每个 preset 的通知监听器。分层让这两种读取都变成
+   * 相对于所有者的。没有任何东西从某一层派生缓存，所以变更通知是空操作。
    */
   private readonly layers = new ScopedLayers<JobLayer>(() => new JobLayer(), () => {})
   private readonly hub: JobEventHub
-  /** Owner agents with attached scope cleanup, mapped to the exact disposer. */
+  /** 附带了作用域清理的所有者 agent，映射到确切的 disposer。 */
   private ownerCleanups = new Map<Agent, () => Promise<void> | void>()
-  /** Service context used by detached settlement continuations and teardown. */
+  /** 被脱离上下文的结算 continuation 与销毁所使用的服务上下文。 */
   private readonly selfCtx: Context
 
   constructor(ctx: Context, config: Config) {
     super(ctx)
-    // Schemastery validates and fills the defaults before constructing the service.
+    // Schemastery 在构造服务之前完成校验并填入默认值。
     const resolved = config as Required<Config>
     this.maxConcurrentJobsPerOwner = resolved.maxConcurrentJobsPerOwner
     this.retainBytes = resolved.retainBytes
@@ -194,8 +184,8 @@ export class LocalJobRegistry extends JobRegistry {
   }
 
   /**
-   * The event stream bound to the accessing context: a subscription is an
-   * effect of that context, and `{ owners: 'scope' }` names its scope.
+   * 绑定到访问方上下文的事件流：一个订阅是那个上下文的 effect，而 `{ owners: 'scope' }`
+   * 指名的就是它的作用域。
    */
   get events(): JobEvents {
     const registrar = this.ctx
@@ -224,8 +214,8 @@ export class LocalJobRegistry extends JobRegistry {
       )
     }
 
-    // The producer uses the same short UUID identity as controls and durable lifecycle records.
-    // Retry a collision while this registry still holds an earlier id.
+    // 生产者使用与控制端及持久生命周期记录相同的短 UUID 身份。
+    // 当本注册表仍持有先前的一个 id 时，重试一次冲突。
     let id: JobId
     do {
       id = JobId(`${spec.kind}-${randomUUID().replaceAll('-', '').slice(0, 16)}`)
@@ -267,24 +257,21 @@ export class LocalJobRegistry extends JobRegistry {
       pump: undefined,
       spillPaths: [],
     }
-    // Binding the shared producer state is the commit: writes staged inside
-    // the starter are already in the ring and `state`, and every later handle
-    // call reaches the registered record for its terminal checks and signals.
+    // 绑定共享的生产者状态就是提交：在启动器内暂存的写入已经在环形缓冲区和 `state` 里，
+    // 而之后的每次 handle 调用都会到达已注册的记录，以做终态检查与发信号。
     state.job = job
     this.store.set(id, job)
     this.recordSessionEvent(job)
-    // Registration is complete and cannot fail from here, so the visible set
-    // has genuinely changed. The announcement precedes the pump because the
-    // pump drains its sources once synchronously, and that drain may append
-    // and announce output: a job's first event is always `registered`.
+    // 注册已完成，且从此处起不可能失败，所以可见集合确实发生了变化。宣告先于泵，因为泵会
+    // 同步排空它的源一次，而那次排空可能追加并宣告输出：一个任务的第一个事件总是 `registered`。
     this.emit({ type: 'registered', job: this.view(job) }, owner)
 
-    // The producer's settlement or a registry-forced one ends the pump; the
-    // pump's final drain then lands before this registry trims the ring.
+    // 生产者的结算或注册表强制的结算会结束泵；泵的最后一次排空随后在本注册表裁剪
+    // 环形缓冲区之前落地。
     const producerDone = hooks.done.then(
       outcome => ({ outcome, producerReported: true }),
       (error: unknown): { outcome: JobOutcome; producerReported: boolean } => {
-        // Contain a producer contract violation (`done` rejected) so cleanup and waiters cannot hang.
+        // 隔离一次生产者契约违例（`done` 被拒绝），这样清理与等待者不会挂住。
         this.selfCtx.logger.warn(`jobs: job ${job.id} producer done promise rejected (producer contract violation): ${String(error)}`)
         return { outcome: { status: 'failed', detail: String(error) }, producerReported: false }
       },
@@ -344,7 +331,7 @@ export class LocalJobRegistry extends JobRegistry {
   }
 
   attachController(name: string): () => void {
-    // One token per call keeps duplicate labels independently disposable.
+    // 每次调用一个令牌，使重复的标签仍能各自独立卸载。
     const token = Symbol(name)
     return this.layers.effect(
       this.ctx,
@@ -354,9 +341,8 @@ export class LocalJobRegistry extends JobRegistry {
   }
 
   /**
-   * Resolve a spec's owner session to its live Agent. An owned registration
-   * needs the agent registry, and the session must currently have a live
-   * instance: that instance's disposal is what cancels and drops the job.
+   * 把一个 spec 的所有者会话解析到它的活体 Agent。带所有者的注册需要 agent 注册表，
+   * 且该会话此刻必须有一个活体实例：正是那个实例的销毁会取消并丢弃该任务。
    */
   private resolveOwner(session: SessionId | undefined): Agent | undefined {
     if (session === undefined) return undefined
@@ -372,12 +358,11 @@ export class LocalJobRegistry extends JobRegistry {
   }
 
   /**
-   * Whether an attached job controller can collect and stop work owned by
-   * `owner`. The global layer holds every controller attached from an unscoped
-   * context — a host composition's own controls — and therefore serves every
-   * owner; a scoped controller serves exactly the agents composed under it.
-   * @param owner - the job's owner, or undefined for unowned work.
-   * @returns whether some reachable controller serves the owner.
+   * 一个已挂载的任务控制器能否收取并停止 `owner` 拥有的工作。全局层持有每一个从不限定
+   * 作用域的上下文挂载的控制器——宿主组合自己的控制端——因此服务所有所有者；一个带作用域的
+   * 控制器只服务其下组合出的那些 agent。
+   * @param owner - 任务的所有者；无主工作为 undefined。
+   * @returns 是否存在某个可达的控制器服务该所有者。
    */
   private servesOwner(owner?: Agent): boolean {
     if (!this.layers.global.controllers.isEmpty()) return true
@@ -385,7 +370,7 @@ export class LocalJobRegistry extends JobRegistry {
       .some(layer => !layer.controllers.isEmpty())
   }
 
-  /** Count authoritative active records for one exact owner or the shared unowned bucket. */
+  /** 统计某个确切所有者或共享的无主桶的权威活跃记录数。 */
   private activeJobCount(owner: Agent | undefined): number {
     let count = 0
     for (const job of this.store.values()) {
@@ -394,7 +379,7 @@ export class LocalJobRegistry extends JobRegistry {
     return count
   }
 
-  /** Look up a job and enforce caller access. */
+  /** 查找一个任务并强制校验调用方的访问权。 */
   private expect(id: JobId, caller?: SessionId): TrackedJob {
     const job = this.store.get(id)
     if (job === undefined) throw new Error(`unknown job ${id}`)
@@ -403,9 +388,8 @@ export class LocalJobRegistry extends JobRegistry {
   }
 
   /**
-   * The isolation fence: a job with an owner is reachable only by callers
-   * whose session id matches (`!== undefined` semantics — an unowned job is
-   * open, and a caller-less view can never match an owned one).
+   * 隔离栅栏：一个带所有者的任务只对其会话 id 匹配的调用方可达（`!== undefined` 语义
+   * ——无主任务是开放的，而没有调用方的视图永远无法匹配一个带所有者的任务）。
    */
   private assertAccess(job: TrackedJob, caller: SessionId | undefined): void {
     if (job.owner !== undefined && job.owner.id !== caller) {
@@ -413,7 +397,7 @@ export class LocalJobRegistry extends JobRegistry {
     }
   }
 
-  /** Project a fresh read-only view from the mutable record. */
+  /** 从可变记录投影出一个全新的只读视图。 */
   private view(job: TrackedJob): JobView {
     const owner = job.owner?.id
     const spillPaths = [...new Set(job.spillPaths.filter((path): path is string => path !== undefined))]
@@ -440,7 +424,7 @@ export class LocalJobRegistry extends JobRegistry {
     this.hub.emit(event, owner)
   }
 
-  /** Publish committed facts before live subscribers or completion waiters react. */
+  /** 在活订阅者或完成等待者作出反应之前发布已提交的事实。 */
   private recordSessionEvent(
     job: TrackedJob,
     settlement?: Pick<JobSettledData, 'finishedAt' | 'status' | 'cause' | 'producerReported' | 'detail'>,
@@ -457,15 +441,14 @@ export class LocalJobRegistry extends JobRegistry {
       if (settlement === undefined) session.append('job/registered', data)
       else session.append('job/settled', { ...data, ...settlement })
     } catch (error: unknown) {
-      // Recording cannot orphan already-started work or prevent waiter release.
+      // 记录失败不会让已启动的工作变成孤儿，也不会阻止等待者被释放。
       this.selfCtx.logger.warn(`jobs: failed to record lifecycle for ${job.id}: ${String(error)}`)
     }
   }
 
   /**
-   * Consume the ring from the model cursor; the result rides the first read
-   * after settlement. A terminal read is the point the settled stream drops
-   * to the settled cap: settlement kept every unconsumed byte for it.
+   * 从模型游标消费环形缓冲区；结果搭在结算之后的第一次读取上。终态读取正是已结算的流
+   * 降到已结算上限的时点：结算为它保留了每一个未消费的字节。
    */
   private readJob(job: TrackedJob): JobRead {
     const read = job.ring.readFrom(job.modelCursor)
@@ -483,10 +466,10 @@ export class LocalJobRegistry extends JobRegistry {
 
   private killJob(job: TrackedJob, reason?: string): 'requested' | 'already-finished' {
     if (isTerminal(job.status)) return 'already-finished'
-    // Cancel first so a throw leaves lifecycle state unchanged.
+    // 先取消，这样抛出时生命周期状态保持不变。
     job.cancel(reason)
     job.status = 'stopping'
-    // Last writer wins on purpose: the detail reports the latest kill intent.
+    // 有意让最后一个写入者胜出：detail 报告的是最新的 kill 意图。
     if (reason !== undefined) job.killReason = reason
     job.settleCause = 'kill'
     this.emit({ type: 'stopping', job: this.view(job) }, job.owner)
@@ -499,8 +482,8 @@ export class LocalJobRegistry extends JobRegistry {
     }
     if (!isTerminal(job.status)) {
       if (signal?.aborted) throw new Error('wait aborted')
-      // The scoped deadline distinguishes a successful wait timeout from
-      // caller cancellation and clears its timer on every exit.
+      // 带作用域的 deadline 把一次成功的等待超时与调用方取消区分开来，
+      // 并在每次退出时清掉它的定时器。
       using d = deadline(signal, timeoutMs, TASK_WAIT_TIMEOUT)
       await new Promise<void>((resolve, reject) => {
         const onSettled = (): void => {
@@ -510,10 +493,9 @@ export class LocalJobRegistry extends JobRegistry {
         }
         const onAbort = (): void => {
           job.waitResolvers.delete(onSettled)
-          // A settled job cannot reach here: settlement releases every waiter
-          // before it announces, and each released waiter detaches this
-          // listener in the same synchronous span, so nothing that reacts to a
-          // settlement can abort a wait the settlement already owed.
+          // 已结算的任务无法到达这里：结算在宣告之前释放每一个等待者，而每个被释放的
+          // 等待者在同一个同步区间内摘掉这个监听器，因此任何对结算作出反应的东西都不可能
+          // 中止一个该结算已经欠下的等待。
           if (timeoutOf(d.signal, TASK_WAIT_TIMEOUT) !== undefined) {
             resolve()
           } else {
@@ -528,11 +510,9 @@ export class LocalJobRegistry extends JobRegistry {
   }
 
   /**
-   * Append one chunk to the ring. A producer chunk against a settled job is
-   * logged and dropped; the registry's own pump drains silently after
-   * settlement (a forced settlement may precede the producer's). A chunk
-   * staged inside the starter call is retained and signals no observer — the
-   * registration commit publishes it.
+   * 向环形缓冲区追加一个块。针对已结算任务的生产者块会被记日志并丢弃；注册表自己的泵在
+   * 结算（一次强制结算可能先于生产者的结算）之后静默排空。在启动器调用内暂存的块会被
+   * 保留，且不通知任何观察者——注册提交会发布它。
    */
   private appendRing(
     state: ProducerState,
@@ -551,9 +531,8 @@ export class LocalJobRegistry extends JobRegistry {
   }
 
   /**
-   * Contain a failing pull source: the first throw is logged, and the source
-   * reads as exhausted from then on, so the job runs to its own settlement
-   * with whatever the ring holds instead of freezing on a pump failure.
+   * 隔离一个失败的拉取源：第一次抛出被记日志，此后该源读起来就像已耗尽，于是任务带着
+   * 环形缓冲区里已有的内容跑到它自己的结算，而不是卡死在一次泵故障上。
    */
   private guardSource(job: TrackedJob, source: JobOutputSource): JobOutputSource {
     let failed = false
@@ -572,16 +551,15 @@ export class LocalJobRegistry extends JobRegistry {
     }
   }
 
-  /** Announce that one job's ring advanced (append or settlement). */
+  /** 宣告某个任务的环形缓冲区前进了（追加或结算）。 */
   private emitOutput(job: TrackedJob): void {
     const owner = job.owner?.id
     this.emit({ type: 'output', id: job.id, ...owner !== undefined ? { owner } : {}, total: job.ring.total }, job.owner)
   }
 
   /**
-   * Replace the live progress line through a producer face; a write against a
-   * settled job is logged and dropped. A write staged inside the starter call
-   * seeds the registered projection and signals no observer.
+   * 通过生产者接口替换实时进度行；针对已结算任务的写入会被记日志并丢弃。在启动器调用内
+   * 暂存的写入会作为已注册投影的初值，且不通知任何观察者。
    */
   private updateProgress(state: ProducerState, line: string): void {
     const job = state.job
@@ -594,19 +572,16 @@ export class LocalJobRegistry extends JobRegistry {
   }
 
   /**
-   * Record the first terminal outcome, release waiters, then announce the
-   * settlement. First-wins preserves a teardown force-failure against late
-   * producer settlement. The settled event follows every released waiter and
-   * reports whether it released one: a timed-out or aborted wait has already
-   * left the set, so only a wait still owed the projection counts.
+   * 记录第一个终态结果，释放等待者，然后宣告这次结算。先到先得使销毁期的强制失败能够
+   * 顶住迟到的生产者结算。settled 事件跟随每一个被释放的等待者，并报告是否释放过：已超时
+   * 或被中止的等待早已离开该集合，所以只有仍被欠着投影的等待才算数。
    */
   private settle(job: TrackedJob, outcome: JobOutcome, cause: JobSettleCause, producerReported: boolean): void {
     if (isTerminal(job.status)) return
     job.status = outcome.status
-    // A killed settlement carries the recorded kill reason in its detail:
-    // producer facts first (`signal: SIGTERM; cancelled by the user`). A job
-    // that outran its kill request (settled `completed`/`failed`) keeps the
-    // producer detail alone — the reason describes a kill that never landed.
+    // 一次 killed 结算在其 detail 中带上已记录的 kill 原因：生产者事实在前
+    // （`signal: SIGTERM; cancelled by the user`）。一个跑赢了它的 kill 请求的任务
+    // （结算为 `completed`/`failed`）只保留生产者的 detail——原因描述的是一次从未落地的 kill。
     if (outcome.status === 'killed' && job.killReason !== undefined) {
       job.detail = outcome.detail !== undefined
         ? `${outcome.detail}; ${job.killReason}`
@@ -621,29 +596,26 @@ export class LocalJobRegistry extends JobRegistry {
       finishedAt: job.finishedAt, status: outcome.status, cause, producerReported,
       ...job.detail !== undefined ? { detail: job.detail } : {},
     })
-    // Settlement ends the stream: trim to the settled cap before any observer
-    // reads the terminal projection, but never below the bytes the model
-    // cursor has not consumed. A job that finishes before its first model
-    // read keeps everything the live cap retained until that read.
+    // 结算结束这条流：在任何观察者读到终态投影之前就裁剪到已结算上限，但绝不裁到模型
+    // 游标尚未消费的字节之下。一个在第一次模型读取之前就结束的任务，会一直保留在世上限
+    // 所保留的一切，直到那次读取发生。
     job.ring.trim(Math.max(this.settledRetainBytes, job.ring.total - job.modelCursor))
     const waitResolvers = [...job.waitResolvers]
     job.waitResolvers.clear()
     for (const resolveWait of waitResolvers) resolveWait()
     job.markSettled()
     this.emit({ type: 'settled', job: this.view(job), cause, awaited: waitResolvers.length > 0 }, job.owner)
-    // The ring's stream ends with settlement; the signal follows the committed
-    // settlement so an observer that wakes on it reads the terminal state.
+    // 环形缓冲区的流随结算结束；信号跟随已提交的结算，这样被它唤醒的观察者读到的就是终态。
     this.emitOutput(job)
   }
 
   /**
-   * Attach one awaited cleanup through the exact owner's scope. This survives
-   * producer reloads and joins agent quiescence; the retained disposer lets
-   * service teardown detach the cross-fiber effect.
+   * 通过确切所有者的作用域挂载一个被 await 的清理。它能在生产者重载之后存活，并汇入
+   * agent 的静默；保留下来的 disposer 让服务销毁能够卸载这个跨 fiber 的 effect。
    */
   private ensureOwnerCleanup(owner: Agent): void {
     if (this.ownerCleanups.has(owner)) return
-    // Record only after attach succeeds; a disposing scope rejects new effects.
+    // 只在挂载成功之后记录；正在销毁的作用域会拒绝新的 effect。
     const detach = owner.ctx.effect(() => async () => {
       this.ownerCleanups.delete(owner)
       await this.disposeOwned(owner)
@@ -651,7 +623,7 @@ export class LocalJobRegistry extends JobRegistry {
     this.ownerCleanups.set(owner, detach)
   }
 
-  /** Cancel, await terminal records, and drop every job owned by one exact agent lifecycle. */
+  /** 取消、等待终态记录，并丢弃某一个确切 agent 生命周期拥有的全部任务。 */
   private async disposeOwned(owner: Agent): Promise<void> {
     const owned = [...this.store.values()].filter(job => job.owner === owner)
     this.cancelForTeardown(owned, 'owner disposed')
@@ -659,7 +631,7 @@ export class LocalJobRegistry extends JobRegistry {
     this.drop(owned)
   }
 
-  /** Drop settled records and announce each removal, the one visible-set change no per-job record carries. */
+  /** 丢弃已结算的记录并宣告每次移除——这是唯一一种不体现在每任务记录上的可见集合变化。 */
   private drop(jobs: readonly TrackedJob[]): void {
     for (const job of jobs) {
       this.store.delete(job.id)
@@ -668,42 +640,37 @@ export class LocalJobRegistry extends JobRegistry {
   }
 
   /**
-   * Cancel live jobs, await settlement, drop every record, and detach owner
-   * effects. Throwing cancels are force-failed to avoid teardown deadlock.
+   * 取消在世的任务，等待结算，丢弃每条记录，并卸载所有者的 effect。抛出的取消被强制失败，
+   * 以避免销毁期死锁。
    */
   private async disposeAll(): Promise<void> {
     const all = [...this.store.values()]
     this.cancelForTeardown(all, 'jobs service disposed')
     await Promise.all(all.map(job => job.settled))
-    // A subscriber mounted outside this service — the job controller's rows
-    // stream registers from its own context — is still reachable here.
-    // Without the removals it keeps the rows it last received after a
-    // registry reload.
+    // 挂载在本服务之外的订阅者——任务控制器的行流从它自己的上下文注册——在这里仍然可达。
+    // 不做这些移除，它会在注册表重载之后继续保留它最后收到的那些行。
     this.drop(all)
-    // Detach cross-fiber owner effects after the shared store is quiescent.
+    // 在共享存储静默之后卸载跨 fiber 的所有者 effect。
     const ownerCleanups = [...this.ownerCleanups.values()]
     this.ownerCleanups.clear()
     await Promise.all(ownerCleanups.map(cleanup => Promise.resolve(cleanup())))
   }
 
   /**
-   * Cancel jobs during teardown with per-job containment. A throwing cancel
-   * force-fails the record and reports a possible orphan; a cancel that returns
-   * without settling remains indistinguishable from a slow stop and may stall.
+   * 在销毁期间逐个隔离地取消任务。抛出的取消会强制失败该记录并报告可能存在孤儿；一个
+   * 返回了却没有结算的取消，与一次缓慢的停止无从区分，可能拖住流程。
    */
   private cancelForTeardown(jobs: TrackedJob[], reason: string): void {
     for (const job of jobs) {
       if (isTerminal(job.status)) continue
-      // Whatever settles this job from here on, its owner or the service is
-      // being destroyed: the settlement announces `teardown` so a completion
-      // reporter does not address a reader that no longer exists.
+      // 从此处起，无论什么来结算这个任务，它的所有者或服务都正在被销毁：结算宣告
+      // `teardown`，这样完成上报方就不会去寻址一个已经不存在的读者。
       job.settleCause = 'teardown'
       try {
         job.cancel(reason)
         job.status = 'stopping'
-        // Teardown reaches settlement only after the producer releases, which a
-        // slow stop can defer; announcing the transition here is what keeps an
-        // observer from showing `running` for that whole window.
+        // 销毁要等到生产者释放之后才走到结算，而一次缓慢的停止会推迟它；在这里宣告这个
+        // 转换，正是让观察者不会在那一整段窗口里都显示 `running` 的原因。
         this.emit({ type: 'stopping', job: this.view(job) }, job.owner)
       } catch (error: unknown) {
         const detail = `cancel threw during teardown; work may be orphaned: ${String(error)}`

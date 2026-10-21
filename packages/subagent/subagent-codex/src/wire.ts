@@ -1,8 +1,7 @@
 /**
- * Minimal Codex app-server 0.153.4 protocol adapter. The shared JSON-RPC
- * transport owns framing and request correlation; this module owns only the
- * product methods, current thread/turn association, unattended approval
- * responses, and terminal-answer selection.
+ * 最小的 Codex app-server 0.153.4 协议适配器。共享的 JSON-RPC 传输拥有分帧
+ * 与请求关联；本模块只拥有产品方法、当前 thread/turn 关联、无人值守审批
+ * 响应与终止答案选取。
  *
  * @module @deepseek-ai/dsh-subagent-codex/wire
  */
@@ -15,7 +14,7 @@ import type { CodexPermissionMode } from './run.ts'
 
 type JsonObject = Record<string, unknown>
 
-/** Product facts owned by the Codex wire after publication. */
+/** 发布之后由 Codex wire 拥有的产品事实。 */
 export interface CodexWireFailureFacts {
   readonly stage: 'turn-start' | 'turn'
   readonly category:
@@ -157,7 +156,7 @@ function unattendedDiagnostic(
 }
 
 function thrown(value: unknown): Error {
-  /* v8 ignore next -- typed protocol and stream failures reject with Error. */
+  /* v8 ignore next -- 类型化的协议与流失败以 Error 拒绝。 */
   return value instanceof Error ? value : new Error(String(value))
 }
 
@@ -184,10 +183,10 @@ async function raceAbort<T>(pending: Promise<T>, signal: AbortSignal): Promise<T
 }
 
 /**
- * One app-server connection and its single ephemeral thread/turn.
+ * 一个 app-server 连接及其单个临时 thread/turn。
  *
- * The class deliberately exposes no generic request surface. Supporting
- * another product method must first become part of the provider contract.
+ * 该类有意不暴露通用的请求表面。支持另一个产品方法必须首先成为提供方
+ * 契约的一部分。
  */
 export class CodexAppServerWire {
   private readonly transport: JsonRpcLineTransport
@@ -228,9 +227,8 @@ export class CodexAppServerWire {
     private readonly model?: string,
   ) {
     this.transport = new JsonRpcLineTransport(input, output)
-    // Fatal protocol state can arrive after the current guarded operation has
-    // already settled. Keep the shared rejection observed without inserting
-    // another promise-adoption hop into active races.
+    // 致命的协议状态可能在当前受守卫的操作已经结算之后到达。
+    // 保持该共享拒绝被观测到，而不向活跃的竞速中插入另一次 promise  adoptee 跳。
     void this.fatal.promise.catch(() => {})
     this.transport.onRequest((method, params) => this.handleServerRequest(method, params))
     this.transport.onNotification((method, params) => {
@@ -242,28 +240,28 @@ export class CodexAppServerWire {
     })
     this.input.on('error', this.onInputError)
     this.input.on('end', this.onInputEnd)
-    // Pipe errors can race protocol closure and process teardown. Retain both
-    // error listeners for the lifetime of their per-run streams so no late
-    // EPIPE or read failure becomes an unhandled EventEmitter error.
+    // 管道错误可能与协议关闭和进程拆解竞速。为它们按运行流的整个生命周期
+    // 保留这两个错误监听器，使迟到的 EPIPE 或读取失败不会变成未处理的
+    // EventEmitter 错误。
     output.on('error', this.onOutputError)
   }
 
-  /** Start reading app-server frames. */
+  /** 开始读取 app-server 帧。 */
   start(): void {
     this.transport.start()
   }
 
   /**
-   * Whether protocol output ended before a terminal turn notification.
-   * @returns `true` only for an early protocol close without a terminal turn.
+   * 协议输出是否在终止轮次通知之前结束。
+   * @returns 仅对一个没有终止轮次的早期协议关闭返回 `true`。
    */
   endedBeforeTerminal(): boolean {
     return this.inputEnded && !this.terminalObserved
   }
 
   /**
-   * Perform the required app-server initialize/initialized handshake.
-   * @param signal - unpublished-start cancellation.
+   * 执行必需的 app-server initialize/initialized 握手。
+   * @param signal - 未发布启动的取消信号。
    */
   async initialize(signal: AbortSignal): Promise<void> {
     object(await this.guarded(this.transport.request('initialize', {
@@ -282,9 +280,9 @@ export class CodexAppServerWire {
   }
 
   /**
-   * Create the run's private ephemeral thread and retain its identity.
-   * @param cwd - selected child working directory.
-   * @param signal - unpublished-start cancellation.
+   * 创建本次运行的私有临时线程并保留其身份。
+   * @param cwd - 已选定的子工作目录。
+   * @param signal - 未发布启动的取消信号。
    */
   async startThread(cwd: string, signal: AbortSignal): Promise<void> {
     const response = object(await this.guarded(this.transport.request('thread/start', {
@@ -302,11 +300,10 @@ export class CodexAppServerWire {
   }
 
   /**
-   * Submit the one text-only task and wait for this thread/turn's authoritative
-   * terminal notification.
-   * @param texts - already validated task text blocks.
-   * @param signal - local cancellation for the published run.
-   * @returns the shared subagent result.
+   * 提交唯一的一次纯文本任务，并等待本 thread/turn 的权威终止通知。
+   * @param texts - 已校验的任务文本块。
+   * @param signal - 已发布运行的本地取消信号。
+   * @returns 共享的子代理结果。
    */
   async runTurn(
     texts: readonly string[],
@@ -375,8 +372,8 @@ export class CodexAppServerWire {
   }
 
   /**
-   * Best-effort remote cancellation. Local settlement and process teardown
-   * remain authoritative when the child no longer accepts protocol requests.
+   * 尽力而为的远程取消。当子代理不再接受协议请求时，本地结算与进程拆解
+   * 保持权威。
    */
   interrupt(): void {
     if (this.threadId === undefined || this.turnId === undefined || this.closed) return
@@ -387,10 +384,10 @@ export class CodexAppServerWire {
   }
 
   /**
-   * The best non-commentary answer observed so far, preserving exact bytes:
-   * the latest `final_answer`, else the latest `partial_answer`, else the
-   * latest nullable-phase message.
-   * @returns the selected text block, if any.
+   * 到目前为止观测到的、最佳的非 commentary 答案，保留精确字节：
+   * 最新的 `final_answer`，否则最新的 `partial_answer`，否则最新的
+   * nullable-phase 消息。
+   * @returns 选中的文本块（若有）。
    */
   collectOutput(): ContentBlock[] {
     const selected = this.lastFinalAnswer ?? this.lastPartialAnswer ?? this.lastUnphasedAnswer
@@ -400,23 +397,23 @@ export class CodexAppServerWire {
   }
 
   /**
-   * The latest safe unattended permission fact observed for this run.
-   * @returns provider-authored diagnostic text, when one was observed.
+   * 本次运行观测到的最新安全无人值守权限事实。
+   * @returns 由提供方撰写的诊断文本，当观测到一条时。
    */
   collectDiagnostic(): string | undefined {
     return this.diagnostic
   }
 
   /**
-   * The structured failure fact observed for this published turn.
-   * Call only after a non-completed return or rejection from {@link runTurn}.
-   * @returns the fixed stage/category pair and optional HTTP status.
+   * 为本次已发布轮次观测到的结构化失败事实。
+   * 仅在 {@link runTurn} 返回非完成结果或拒绝之后调用。
+   * @returns 固定的 stage/category 对与可选的 HTTP 状态。
    */
   collectFailure(): CodexWireFailureFacts {
     return this.failure as CodexWireFailureFacts
   }
 
-  /** Detach JSON-RPC listeners and reject outstanding requests. Idempotent. */
+  /** 摘除 JSON-RPC 监听器并拒绝未完成的请求。幂等。 */
   close(): void {
     if (this.closed) return
     this.closed = true
@@ -482,9 +479,9 @@ export class CodexAppServerWire {
   }
 
   /**
-   * Validate the request's thread and turn association.
-   * @returns `true` when the matching turn is still provisional, so the caller
-   * defers its diagnostic until `commitTurnId()`.
+   * 校验请求的 thread 与 turn 关联。
+   * @returns 当匹配的轮次仍是暂定的时返回 `true`，使调用方把其诊断
+   * 推迟到 `commitTurnId()`。
    */
   private validateRunIds(
     params: JsonObject,
@@ -671,9 +668,9 @@ export class CodexAppServerWire {
       if (item.phase === 'final_answer') {
         this.lastFinalAnswer = text
       } else if (item.phase === 'partial_answer') {
-        // `MessagePhase::PartialAnswer` (openai/codex codex-rs/protocol/src/models.rs,
-        // app-server 0.162+): stable answer text that later assistant output
-        // or tool calls may follow; it outranks only unphased text.
+        // `MessagePhase::PartialAnswer`（openai/codex
+        // codex-rs/protocol/src/models.rs，app-server 0.162+）：稳定的答案
+        // 文本，之后可能跟随更多助手输出或工具调用；它只胜过无 phase 的文本。
         this.lastPartialAnswer = text
       } else if (item.phase === null) {
         this.lastUnphasedAnswer = text

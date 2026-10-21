@@ -1,27 +1,23 @@
 /**
- * Generic pi-ai-backed implementation of the Harness LLM seam.
+ * Harness LLM 接缝的、由 pi-ai 支撑的通用实现。
  *
- * Each resolution produces one **immutable** snapshot — the profiles plus a
- * `Models` collection holding the `Provider` each route built — and an
- * operation captures a whole snapshot before its first `await`. A
- * configuration change builds a *new* collection rather than mutating the one
- * in use, because `Models.streamSimple()` is lazy: it resolves the provider
- * when the stream is first consumed, which is after the credential await, so a
- * mutated collection would let a request that started under one configuration
- * finish under another — or fail with a provider that no longer exists. This is
- * what makes the seam's per-step call freeze (`llm.prepareCall()`) hold all the
- * way down: switching models mid-reply takes effect on the next step, never
- * inside the one in flight.
+ * 每次解析都产出一个**不可变的**快照——各个 profile，外加一个持有
+ * 每条路由所构建出的 `Provider` 的 `Models` 集合——而一次操作会在它的
+ * 第一个 `await` 之前捕获整个快照。一次配置变更会构建一个*新的*集合，
+ * 而不是改动正在使用中的那个，因为 `Models.streamSimple()` 是惰性的：
+ * 它在流首次被消费时才解析那个提供方，而那时已经在凭据 await 之后，
+ * 因此一个被改动的集合会让一个在某份配置下开始的请求在另一份配置下
+ * 结束——或者以一个已不存在的提供方失败。正是这一点让该接缝的按步骤
+ * 调用冻结（`llm.prepareCall()`）一路保持到底：在一次回复中途切换模型
+ * 会在下一个步骤生效，而绝不会在正在进行中的那个步骤内部生效。
  *
- * A route naming a credential reference still resolves it through the harness
- * seam and passes it as the request's `apiKey` option, which pi-ai treats as
- * the highest-priority auth override — that is what keeps the fail-loud
- * reference semantics. Everything that override does not cover reaches pi-ai
- * through the collection's own auth: the credential store holds the records a
- * login wrote and a refresh rotates, and the auth context answers the ambient
- * questions a provider asks while resolving. Both are stable across snapshots,
- * so a configuration change rebuilds the collection without forgetting who is
- * signed in.
+ * 一条指名了凭据引用的路由仍然通过 harness 接缝解析它，并把它作为
+ * 该请求的 `apiKey` 选项传入，而 pi-ai 把它当作最高优先级的认证覆盖——
+ * 正是这一点保持了引用语义的响亮失败。该覆盖没有涵盖的一切都通过
+ * 集合自己的认证到达 pi-ai：凭据存储持有一次登录所写入、并由一次刷新
+ * 轮转的那些记录，而认证上下文回答某个提供方在解析时所问的那些环境问题。
+ * 两者在快照之间保持稳定，因此一次配置变更会重建集合，而不会忘记
+ * 谁已经登录。
  *
  * @module dsh-llm-pi-ai/adapter
  */
@@ -64,8 +60,9 @@ import { conversationUpdates, createModels, getSupportedThinkingLevels } from '.
 import { toStreamChunks } from './stream.ts'
 
 /**
- * Initially active declaration added to an Anthropic request whose projected
- * tools are all deferred, because Anthropic rejects a tool list without one.
+ * 被加入一个 Anthropic 请求的、初始即处于激活状态的声明，
+ * 当该项目投影出来的工具全部是延迟加载时——因为 Anthropic 会拒绝
+ * 一个没有任何激活项的工具列表。
  */
 const ANTHROPIC_TOOL_UPDATE_PLACEHOLDER: ToolSchema = {
   name: 'DeferredToolPlaceholder',
@@ -73,57 +70,55 @@ const ANTHROPIC_TOOL_UPDATE_PLACEHOLDER: ToolSchema = {
   parameters: { type: 'object', properties: {} },
 }
 
-/** One resolution's frozen view: the profiles and the collection built from them. */
+/** 一次解析的冻结视图：各个 profile，以及由它们构建出来的集合。 */
 interface PiAiSnapshot {
-  /** The resolved profiles this collection was built from, used as its identity. */
+  /** 构建本集合所依据的那些已解析 profile，被用作它的身份。 */
   profiles: ReadonlyMap<string, ResolvedPiAiProviderProfile>
-  /** Providers for exactly those profiles; never mutated once published. */
+  /** 恰好对应那些 profile 的各个提供方；一旦发布就绝不被改动。 */
   models: Models
 }
 
-/** Constructor options for {@link PiAiAdapter}: the two resolution hooks the plugin owns. */
+/** {@link PiAiAdapter} 的构造选项：由该插件持有的两个解析钩子。 */
 export interface PiAiAdapterOptions {
-  /** Current validated profiles by provider route; called once per operation. */
+  /** 按提供方路由组织的、当前已校验的 profile；每次操作调用一次。 */
   profiles: () => ReadonlyMap<string, ResolvedPiAiProviderProfile>
   /**
-   * Resolve the credential for one already-resolved profile; called once per
-   * stream call and frozen for that call, and by `listModels`, which offers no
-   * models while it throws `MISSING_CREDENTIAL`. `undefined` defers to the route's own
-   * pi-ai auth, which for an installed catalog route is its provider-native
-   * ambient discovery; the plugin allows that only for a profile naming no
-   * credential at all, because a named reference that misses throws `LlmError`
-   * `MISSING_CREDENTIAL` rather than falling back.
+   * 为一个已解析的 profile 解析凭据；每次流式调用调用一次并为该次调用冻结，
+   * 也会被 `listModels` 调用——当它抛出 `MISSING_CREDENTIAL` 时不提供任何模型。
+   * `undefined` 会委派给该路由自己的 pi-ai 认证，而对于一条已安装的目录路由，
+   * 那就是它的提供方原生环境发现；该插件只允许一个完全没有指名任何凭据的
+   * profile 这样做，因为一个指名了却未命中的引用会以 `LlmError`
+   * `MISSING_CREDENTIAL` 抛出，而不是回退。
    */
   resolveApiKey: (provider: string, profile: ResolvedPiAiProviderProfile) => Promise<string | undefined>
   /**
-   * How every collection this adapter builds resolves auth the request-level
-   * `apiKey` override does not cover. Required rather than optional: a
-   * collection built without them gets pi-ai's in-memory default store, which
-   * is empty at every boot and discarded on every configuration change, so a
-   * route whose only method is a login would report itself unconfigured on
-   * every request no matter how often the human signed in.
+   * 本适配器所构建的每个集合如何解析那些请求级 `apiKey` 覆盖没有涵盖的认证。
+   * 它是必需的而非可选的：一个没有它们就构建出来的集合会得到 pi-ai 的
+   * 内存默认存储，而它在每次启动时都是空的，并且在每次配置变更时被丢弃，
+   * 因此一条其唯一方式是登录的路由会在每次请求上报告自己未被配置，
+   * 无论人类登录了多少次。
    */
   auth: PiAiAuthInjection
-  /** Resolve the optional durable attachment service at request time. */
+  /** 在请求时解析可选的持久化附件服务。 */
   resolveAttachments?: () => AttachmentStore | undefined
-  /** Bridge one attachment reference into the current model-tool execution world. */
+  /** 把一个附件引用桥接到当前的模型工具执行世界。 */
   resolveImageAccess?: (attachments: AttachmentStore, ref: ImageAttachmentRef) => ImageAttachmentAccess | undefined
   /**
-   * Observe one assistant history message degrading to provider-neutral
-   * conversion because its stored replay state is unusable by this build.
+   * 观察一条助手历史消息因其已存储的回放状态无法被本构建使用，
+   * 而降级为与提供方无关的转换。
    */
   onReplayDegrade?: (detail: { provider: string; model: string; reason: string }) => void
 }
 
-/** The two auth injectables a pi-ai collection is built with. */
+/** 构建一个 pi-ai 集合时所用的那两个认证注入项。 */
 export interface PiAiAuthInjection {
-  /** Durable storage for credentials pi-ai itself writes: logins, and the refreshes it runs under its own lock. */
+  /** 供 pi-ai 自己写入的那些凭据使用的持久化存储：登录，以及它在自己的锁之下运行的刷新。 */
   credentials: CredentialStore
-  /** Ambient lookups a provider performs while resolving its own auth. */
+  /** 某个提供方在解析自己的认证时所执行的环境查找。 */
   authContext: AuthContext
 }
 
-/** Copy profile stream knobs into pi-ai's common option vocabulary. */
+/** 把 profile 的流开关复制进 pi-ai 的通用选项词汇。 */
 function profileOptions(
   profile: ResolvedPiAiProviderProfile,
   reasoning: ModelThinkingLevel | undefined,
@@ -138,23 +133,22 @@ function profileOptions(
     ...profile.transport === undefined ? {} : { transport: profile.transport },
     ...profile.timeoutMs === undefined ? {} : { timeoutMs: profile.timeoutMs },
     ...profile.websocketConnectTimeoutMs === undefined ? {} : { websocketConnectTimeoutMs: profile.websocketConnectTimeoutMs },
-    // The agent recovery layer owns visible attempts; one adapter call is one SDK attempt.
+    // 那个 agent 恢复层持有可见的尝试；一次适配器调用就是一次 SDK 尝试。
     maxRetries: 0,
   }
 }
 
 /**
- * The profile default this exact model can actually take, for DESCRIBING it.
- * A configured level the model does not support yields none rather than
- * throwing: `resolveModel` builds the model catalog, and a catalog that fails
- * takes its whole provider out of every picker — so one mis-set profile field
- * would hide every model on the route, including the ones that support the
- * level. The request path still refuses, which is where a bad configuration
- * belongs: describing what a model can do must not fail because a deployment
- * asked it for something it cannot.
- * @param model - the resolved model descriptor.
- * @param effort - the profile's configured level, if any.
- * @returns the level when this model supports it, otherwise undefined.
+ * 这条精确模型实际可以采取的那个 profile 默认值，用于**描述**它。
+ * 一个该模型并不支持的已配置强度会得出 none 而不是抛错：
+ * `resolveModel` 构建的是模型目录，而一个失败的目录会把它的整个提供方
+ * 从每个选择器中移走——于是 profile 上一个设置错误的字段会隐藏该路由上的
+ * 每一个模型，包括那些支持该强度的模型。请求路径仍然会拒绝，
+ * 而那正是一份错误配置应当待的地方：描述一个模型能做什么，
+ * 绝不能因为某个部署要求了它做不到的事情而失败。
+ * @param model - 已解析的模型描述符。
+ * @param effort - 该 profile 已配置的强度，若有。
+ * @returns 当该模型支持它时返回该强度，否则返回 undefined。
  */
 function describableReasoningLevel(
   model: Model<Api>,
@@ -166,7 +160,7 @@ function describableReasoningLevel(
     : undefined
 }
 
-/** Validate an explicit Harness/profile effort without invoking pi-ai's clamp. */
+/** 校验一个显式的 Harness/profile 强度，而不调用 pi-ai 的钳制。 */
 function resolveReasoningLevel(
   model: Model<Api>,
   effort: ReasoningEffortIdType | ModelThinkingLevel | undefined,
@@ -181,20 +175,18 @@ function resolveReasoningLevel(
 }
 
 /**
- * Selectable reasoning efforts for one model, or nothing at all.
+ * 一个模型的可选推理强度，或者干脆什么都没有。
  *
- * A model that carries no reasoning metadata — every hand-declared one, and
- * every catalog model pi-ai marks as non-reasoning — is reported by pi-ai as
- * supporting the single level `off`. Passing that through would offer a control
- * that cannot do what it says: `off` is translated to *omitting* the reasoning
- * option, which for such a model is byte-for-byte the same request as naming no
- * effort — so a provider whose own default is to think would keep thinking with
- * `off` selected. Omitting `reasoning` entirely is the seam's way of saying the
- * capability is unavailable, which leaves the surface offering only the
- * provider's default.
- * @param model - the resolved model descriptor.
- * @param defaultLevel - the profile's configured effort, already validated.
- * @returns the `reasoning` field, or an empty object when none can be offered.
+ * 一个不携带任何推理元数据的模型——每一个手工声明的模型，以及每个被
+ * pi-ai 标记为非推理的目录模型——都会被 pi-ai 报告为支持单一的
+ * `off` 强度。把它透传会提供一个做不到它所说的控制项：`off` 被翻译为
+ * *省略*那个推理选项，而对这样一个模型而言，这与不指名任何强度
+ * 是逐字节相同的请求——于是一个其自身默认就是去思考的提供方，
+ * 在选中 `off` 的情况下仍然会继续思考。完全省略 `reasoning` 是该接缝
+ * 表达这项能力不可用的方式，于是界面只提供该提供方的默认值。
+ * @param model - 已解析的模型描述符。
+ * @param defaultLevel - 该 profile 已配置的强度，已经过校验。
+ * @returns 那个 `reasoning` 字段，或一个空对象（当无法提供任何强度时）。
  */
 function reasoningInfo(
   model: Model<Api>,
@@ -213,7 +205,7 @@ function reasoningInfo(
   }
 }
 
-/** Merge deployment headers while removing case-insensitive attribution collisions. */
+/** 合并部署提供的请求头，同时移除大小写不敏感的归因冲突项。 */
 function requestHeaders(headers: Readonly<Record<string, string>> | undefined): Record<string, string> {
   const attribution = attributionHeaders()
   const reserved = new Set(Object.keys(attribution).map(name => name.toLowerCase()))
@@ -224,9 +216,9 @@ function requestHeaders(headers: Readonly<Record<string, string>> | undefined): 
 }
 
 /**
- * pi-ai-backed multi-provider adapter. Each operation reads the current
- * profiles, so a configuration change reaches the next request without a
- * restart; model descriptors come from the collection those profiles built.
+ * 由 pi-ai 支撑的多提供方适配器。每次操作都读取当前的各个 profile，
+ * 因此一次配置变更无需重启就能到达下一次请求；模型描述符来自那些
+ * profile 所构建出来的集合。
  */
 export class PiAiAdapter extends LlmAdapter {
   private snapshot: PiAiSnapshot | undefined
@@ -243,10 +235,9 @@ export class PiAiAdapter extends LlmAdapter {
   }
 
   /**
-   * The snapshot for the current profiles. Resolution memoizes its result, so
-   * an unchanged configuration is recognized by identity; a changed one gets a
-   * brand-new collection, leaving any snapshot an operation already captured
-   * untouched for as long as that operation holds it.
+   * 当前各个 profile 的那个快照。解析会记住它的结果，因此一份未变化的
+   * 配置会按身份被识别出来；一份已变化的配置会得到一个全新的集合，
+   * 从而让某个操作已经捕获的任何快照在该操作持有它的期间保持不受影响。
    */
   private current(): PiAiSnapshot {
     const profiles = this.config.profiles()
@@ -259,7 +250,7 @@ export class PiAiAdapter extends LlmAdapter {
     return this.snapshot
   }
 
-  /** The profile for one route within one snapshot, or the not-owned failure. */
+  /** 某个快照中一条路由的 profile，或那个未持有的失败。 */
   private profileOf(snapshot: PiAiSnapshot, provider: string): ResolvedPiAiProviderProfile {
     const profile = snapshot.profiles.get(provider)
     if (profile === undefined) {
@@ -268,7 +259,7 @@ export class PiAiAdapter extends LlmAdapter {
     return profile
   }
 
-  /** The configured descriptor for one exact route/model pair within one snapshot. */
+  /** 某个快照中一对精确的路由/模型所对应的已配置描述符。 */
   private modelOf(snapshot: PiAiSnapshot, provider: string, model: string): Model<Api> {
     const profile = this.profileOf(snapshot, provider)
     const failure = profile.modelErrors.get(model)
@@ -282,9 +273,9 @@ export class PiAiAdapter extends LlmAdapter {
   }
 
   override providerInfo(provider: string): LlmProviderInfo {
-    // The configured name, not the route key: `displayName` exists so a
-    // deployment can label a route, and a label only the configuration surface
-    // reads would leave every selector showing the raw key.
+    // 已配置的名称，而不是路由键：`displayName` 之所以存在，就是为了让一个
+    // 部署能给一条路由贴标签，而一个只有配置界面会读取的标签会让每个
+    // 选择器都在显示那个原始的键。
     return { id: provider, name: this.current().profiles.get(provider)?.displayName ?? provider }
   }
 
@@ -298,7 +289,8 @@ export class PiAiAdapter extends LlmAdapter {
       const profile = this.profileOf(snapshot, provider)
       try { await this.config.resolveApiKey(provider, profile) }
       catch (error) {
-        // A route whose named key does not resolve cannot serve a request, so it offers no models until the key is stored.
+        // 一条其已指名密钥无法解析的路由无法服务请求，
+        // 因此在密钥被存储之前它不提供任何模型。
         if (error instanceof LlmError && error.code === 'MISSING_CREDENTIAL') return []
         throw error
       }
@@ -326,8 +318,8 @@ export class PiAiAdapter extends LlmAdapter {
     const profile = this.profileOf(snapshot, provider)
     const resolvedModel = this.modelOf(snapshot, provider, model)
     const defaultLevel = describableReasoningLevel(resolvedModel, profile.reasoning)
-    // Only a cap the deployment configured is a request default; the
-    // catalog's `maxTokens` sizes the model and stops there.
+    // 只有由部署配置的上限才是一个请求默认值；
+    // 目录的 `maxTokens` 用于给模型定尺寸，并到此为止。
     const configuredMaxTokens = profile.configuredMaxTokens.get(model)
     return {
       provider,
@@ -360,15 +352,14 @@ export class PiAiAdapter extends LlmAdapter {
     if (options.stop !== undefined) {
       throw new LlmError('llm-pi-ai does not support GenerateOptions.stop', 'UNSUPPORTED_OPTION')
     }
-    // One capture per stream call, taken before any await: the profile, the
-    // model descriptor, and the collection all come from the same immutable
-    // snapshot, and the credential freezes with them. A configuration change
-    // mid-request builds a separate snapshot, so this request finishes under
-    // the one it started with and the next call picks up the new one.
+    // 每次流式调用一次捕获，且在任何 await 之前完成：那个 profile、
+    // 那个模型描述符，以及那个集合全部来自同一个不可变快照，
+    // 而凭据与它们一起冻结。请求中途的一次配置变更会构建一个独立的快照，
+    // 因此本次请求会在它开始时所用的那个之下结束，而下一次调用会拾取新的那个。
     const profile = this.profileOf(snapshot, options.provider)
     const model = this.modelOf(snapshot, options.provider, options.model)
     const updates = conversationUpdates(model)
-    // pi-ai collapses Anthropic tool updates without an initially active declaration.
+    // pi-ai 会折叠掉没有初始激活声明的 Anthropic 工具更新。
     const tools = options.tools ?? []
     const needsPlaceholder = model.api === 'anthropic-messages' && updates.toolUpdate === 'in-history'
       && tools.every(tool => tool.deferLoading === true)
@@ -419,8 +410,8 @@ export class PiAiAdapter extends LlmAdapter {
         ...options.maxTokens === undefined ? {} : { maxTokens: options.maxTokens },
         ...options.sessionId === undefined ? {} : { sessionId: String(options.sessionId) },
         signal: watchdog.signal,
-        // Profile headers are deployment-owned; attribution names are
-        // Harness-owned and therefore win collisions.
+        // profile 的请求头由部署持有；归因名称由 Harness 持有，
+        // 因此在冲突时胜出。
         headers: requestHeaders(profile.headers),
       })
       const iterator = toStreamChunks(events, model.contextWindow, options.signal, model.id)[Symbol.asyncIterator]()
@@ -437,9 +428,9 @@ export class PiAiAdapter extends LlmAdapter {
       } finally {
         if (!exhausted) {
           consumer.abort('pi-ai stream consumer stopped')
-          // A demand the deadline abandoned can stay pending forever, and this
-          // generator queues its return behind it; the abort above owns SDK termination.
-          /* v8 ignore next -- the detached drain only rejects while unwinding an abandoned stream. */
+          // 一次被截止时间放弃的需求可能永远处于待定状态，而本生成器
+          // 会把自己的 return 排在它之后；上面的 abort 负责 SDK 的终止。
+          /* v8 ignore next -- 该分离的排空只在展开一个被放弃的流时才会 reject。 */
           void iterator.return(undefined).catch(() => {})
         }
       }

@@ -1,13 +1,13 @@
-/** Historical child identity reduced to the fields required by a parent's catalog. */
+/** 历史子会话身份，精简为父目录所需字段。 */
 
 import { SessionFormatError, SessionFormatUnsupportedMigrationError, isSessionFormatJsonObject, sessionFormatCount } from '@deepseek-ai/dsh-session-format'
 import type { SessionFormatArtifact, SessionFormatJsonObject, SessionFormatJsonValue } from '@deepseek-ai/dsh-session-format'
 
 /**
- * Collect a child's own descriptor without requiring one before its parent catalog is read.
- * @param artifact - validated historical child artifact with its exact inherited cut.
- * @returns compact child identity and descriptor evidence with validated discovery fields for catalog completion.
- * @throws SessionFormatError when a supported own descriptor has invalid discovery fields.
+ * 收集子会话自身的描述符，且在读取其父目录之前不要求一定存在该描述符。
+ * @param artifact - 已校验的历史子会话制品，带有其精确的继承切点。
+ * @returns 紧凑的子会话身份与描述符证据，含用于补全目录的已校验发现字段。
+ * @throws SessionFormatError 当某个受支持的自身描述符含有无效的发现字段时抛出。
  */
 export function historicalChildCatalogSource(artifact: SessionFormatArtifact): SessionFormatJsonObject {
   const header = artifact.header
@@ -24,9 +24,9 @@ export function historicalChildCatalogSource(artifact: SessionFormatArtifact): S
 }
 
 /**
- * Validate supplemental child evidence supplied across the migration JSON interface.
- * @param value - collected child identity and optional descriptor.
- * @returns validated evidence; descriptor interpretation is deferred until parent membership is known.
+ * 校验通过迁移 JSON 接口提供的补充子会话证据。
+ * @param value - 已收集的子会话身份与可选描述符。
+ * @returns 已校验的证据；描述符的解释推迟到父成员身份已知之后。
  */
 export function childCatalogSource(value: SessionFormatJsonValue): SessionFormatJsonObject {
   if (!isSessionFormatJsonObject(value) || typeof value['childId'] !== 'string'
@@ -39,9 +39,9 @@ export function childCatalogSource(value: SessionFormatJsonValue): SessionFormat
 }
 
 /**
- * Interpret only the discovery fields of known historical descriptors.
- * @param source - validated child evidence.
- * @returns a catalog fact, or undefined without exactly one supported own descriptor.
+ * 只解释已知历史描述符的发现字段。
+ * @param source - 已校验的子会话证据。
+ * @returns 一个目录事实；若没有恰好一个受支持的自身描述符则为 undefined。
  */
 export function childCatalogFact(source: SessionFormatJsonObject): SessionFormatJsonObject | undefined {
   const id = source['childId'] as string
@@ -57,17 +57,17 @@ export function childCatalogFact(source: SessionFormatJsonObject): SessionFormat
   }
   return catalogFact({
     version: 0, childId: id, childCreatedAt: source['childCreatedAt'] as number,
-    // V1 described only continuable children and carried no mode field.
+    // V1 只描述可续接的子会话，且没有 mode 字段。
     mode: descriptor['version'] === 1 ? 'continuable' : descriptor['mode'] as SessionFormatJsonValue,
     ...(descriptor['label'] === undefined ? {} : { label: descriptor['label'] }),
   }, childCatalogSubject(source))
 }
 
 /**
- * Validate the historical fields used for catalog membership without interpreting extensions.
- * @param value - catalog payload or prepared historical discovery fact.
- * @param subject - event type or child identity used in rejection diagnostics.
- * @returns validated catalog payload.
+ * 校验用于目录成员身份的历史字段，不解释扩展内容。
+ * @param value - 目录载荷，或已准备好的历史发现事实。
+ * @param subject - 用于拒绝诊断的事件类型或子会话身份。
+ * @returns 已校验的目录载荷。
  */
 export function catalogFact(value: SessionFormatJsonValue, subject = 'subagent/catalog'): SessionFormatJsonObject {
   if (!isSessionFormatJsonObject(value) || (value['version'] !== 0 && value['version'] !== 1 && value['version'] !== 2)
@@ -84,9 +84,9 @@ export function catalogFact(value: SessionFormatJsonValue, subject = 'subagent/c
 }
 
 /**
- * Name the child and its optional storage-owned location in a migration diagnostic.
- * @param source - validated supplemental child evidence.
- * @returns a child identity with its source path when persistence supplied one.
+ * 在迁移诊断中标明子会话及其可选的、由存储拥有的位置。
+ * @param source - 已校验的补充子会话证据。
+ * @returns 子会话身份，并在持久化提供源路径时附带该路径。
  */
 export function childCatalogSubject(source: SessionFormatJsonObject): string {
   return `Session ${source['childId'] as string}${typeof source['sourcePath'] === 'string' ? ` (raw log: ${source['sourcePath']})` : ''}`

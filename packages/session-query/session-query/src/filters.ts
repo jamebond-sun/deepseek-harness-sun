@@ -1,4 +1,4 @@
-/** Pure provider-independent predicates for logical sessions and event text. */
+/** 面向逻辑会话与事件文本的、与提供方无关的纯谓词。 */
 
 import type {
   SessionEventResultFilter,
@@ -10,10 +10,10 @@ import type {
 import { SessionQueryError } from './config.ts'
 
 /**
- * Apply ANDed logical-session filters while preserving input order.
- * @param records - detached logical-session records to inspect.
- * @param filters - clauses whose list values are ORed within each clause.
- * @returns records accepted by every clause.
+ * 应用按 AND 组合的逻辑会话过滤器，同时保持输入顺序。
+ * @param records - 要检查的、分离的逻辑会话记录。
+ * @param filters - 各子句；子句内的列表值按 OR 组合。
+ * @returns 被每个子句都接受的记录。
  */
 export function filterSessionResults<T extends SessionRecord>(
   records: readonly T[],
@@ -24,10 +24,10 @@ export function filterSessionResults<T extends SessionRecord>(
 }
 
 /**
- * Apply ANDed event filters to extracted semantic documents.
- * @param documents - semantic documents produced by {@link buildSessionEventSearchDocuments}.
- * @param filters - metadata and literal-text predicates.
- * @returns documents accepted by every clause, in input order.
+ * 对抽取出的语义文档应用按 AND 组合的事件过滤器。
+ * @param documents - 由 {@link buildSessionEventSearchDocuments} 生成的语义文档。
+ * @param filters - 元数据谓词与字面文本谓词。
+ * @returns 按输入顺序排列的、被每个子句都接受的文档。
  */
 export function filterSessionEventDocuments<T extends SessionEventSearchDocument>(
   documents: readonly T[],
@@ -38,9 +38,9 @@ export function filterSessionEventDocuments<T extends SessionEventSearchDocument
 }
 
 /**
- * Copy and validate logical-session filters before an asynchronous boundary.
- * @param filters - caller-owned clauses to materialize.
- * @returns detached validated clauses.
+ * 在跨越异步边界之前复制并校验逻辑会话过滤器。
+ * @param filters - 由调用方持有的、需要物化的子句。
+ * @returns 分离且经过校验的子句。
  */
 export function materializeSessionResultFilters(
   filters: readonly SessionResultFilter[],
@@ -68,9 +68,9 @@ export function materializeSessionResultFilters(
 }
 
 /**
- * Copy and validate event filters before an asynchronous boundary.
- * @param filters - caller-owned clauses to materialize.
- * @returns detached validated clauses.
+ * 在跨越异步边界之前复制并校验事件过滤器。
+ * @param filters - 由调用方持有的、需要物化的子句。
+ * @returns 分离且经过校验的子句。
  */
 export function materializeSessionEventResultFilters(
   filters: readonly SessionEventResultFilter[],
@@ -98,9 +98,9 @@ export function materializeSessionEventResultFilters(
 }
 
 /**
- * Compile a literal case-insensitive, whitespace-flexible semantic-text match.
- * @param text - caller-provided literal text.
- * @returns Unicode-aware regular expression safe from regex injection.
+ * 编译一个字面量、大小写不敏感且对空白宽松的语义文本匹配。
+ * @param text - 调用方提供的字面文本。
+ * @returns 可感知 Unicode 且不受正则注入影响的正则表达式。
  */
 export function compileSessionTextFilter(text: string): RegExp {
   const trimmed = text.trim()

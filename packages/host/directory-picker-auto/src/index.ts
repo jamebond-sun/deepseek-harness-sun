@@ -1,20 +1,15 @@
 /**
- * Adaptive chooser of the directory-picker seam: resolves the host's
- * situation once at boot (remote-authority trust, bind host, SSH launch,
- * display session, chooser binary) and mounts the matching interaction —
- * `native` or `browse` — as real Loader entries in the in-memory root tree.
- * Each interaction is a pair: the Host backend serving the seam capability and
- * the client surface occupying ui-workspace's directory-flow holes. Both
- * arrive as ordinary entries, so the surface is discovered exactly as a
- * config-row's would be and one resolved choice still swaps both faces;
- * pinning an interaction remains composing that pair directly instead of this
- * row.
+ * 目录选择接缝的自适应选择器：在启动时一次性判定宿主处境（远程来源信任、绑定地址、
+ * SSH 启动、显示会话、选择器可执行文件），并将匹配的交互形态——`native` 或 `browse`——
+ * 作为真正的 Loader 条目挂载到内存中的根树上。每种交互形态都是成对出现的：提供接缝
+ * 能力的宿主后端，以及占据 ui-workspace 目录流程占位的应用界面。两者都以普通条目的
+ * 形式加入，因此该界面的发现方式与配置行条目完全一致，且一次判定结果会同时替换这两
+ * 个面；若要固定某种交互形态，直接组合这一对条目即可，无需使用本行。
  * @module @deepseek-ai/dsh-host-directory-picker-auto
  */
 
 import type { Context } from '@deepseek-ai/cordis'
-// Empty type imports carry the `connection`, `loader`, and `webServer` Context
-// merges for the reads below.
+// 空类型导入用于携带下列读取所需的 `connection`、`loader`、`webServer` Context 合并声明。
 import type {} from '@deepseek-ai/cordis-plugin-loader'
 import type {} from '@deepseek-ai/dsh-client-connection'
 import type {} from '@deepseek-ai/dsh-host-webserver'
@@ -27,20 +22,18 @@ export { canExecute, hasLinuxChooserBinary } from './probe.ts'
 export type { DirectoryPickerBackendKind, DirectoryPickerEnv, DirectoryPickerHostFacts } from './resolve.ts'
 export { resolveDirectoryPickerBackend } from './resolve.ts'
 
-/** Cordis plugin name. */
+/** Cordis 插件名。 */
 export const name = 'directory-picker-auto'
 /**
- * Required services: HTTP deployment settings (`webServer`), the Connection
- * trust policy (`connection`), and the entry tree the backend mounts into
- * (`loader`).
+ * 必需服务：HTTP 部署设置（`webServer`）、Connection 信任策略（`connection`），以及
+ * 后端要挂载进去的条目树（`loader`）。
  */
 export const inject = ['webServer', 'connection', 'loader']
 
 /**
- * Host backend package per resolved kind — fixed composition vocabulary, not a
- * tunable. Exported because the reference is a runtime string the static
- * config gate cannot see in a yml row: `verify-cordis-config` requires every
- * app composing this chooser to declare both values as dependencies.
+ * 每种判定结果对应的宿主后端包——这是固定的组合词汇表，不是可调参数。之所以导出，是
+ * 因为该引用是静态配置门禁在 yml 行内看不到的运行时字符串：`verify-cordis-config`
+ * 要求每个组合本选择器的应用都把这两个值声明为依赖。
  */
 export const BACKEND_PACKAGES: Record<DirectoryPickerBackendKind, string> = {
   native: '@deepseek-ai/dsh-host-directory-picker-native',
@@ -48,11 +41,9 @@ export const BACKEND_PACKAGES: Record<DirectoryPickerBackendKind, string> = {
 }
 
 /**
- * Client surface package per resolved kind, mounted with its backend so one
- * resolved interaction still composes both faces. Declared as dependencies by
- * every composing app for the same reason as {@link BACKEND_PACKAGES}. Only the
- * specifier is referenced here because the packages belong to the Client
- * program, so no import of them exists on this side.
+ * 每种判定结果对应的应用界面包，与后端一同挂载，从而一次判定仍能同时组合两个面。出于
+ * 与 {@link BACKEND_PACKAGES} 相同的原因，每个组合它的应用都要将其声明为依赖。此处只
+ * 引用说明符，因为这些包属于 Client 程序，本侧不存在对它们的导入。
  */
 export const SURFACE_PACKAGES: Record<DirectoryPickerBackendKind, string> = {
   native: '@deepseek-ai/dsh-client-ui-directory-picker-native',
@@ -60,11 +51,10 @@ export const SURFACE_PACKAGES: Record<DirectoryPickerBackendKind, string> = {
 }
 
 /**
- * Resolve the interaction from one boot-time sample and mount its backend and
- * surface as Loader entries; the effect's disposer removes both entries and
- * joins their fibers' teardown, so unloading this plugin returns only after
- * both faces of the mounted interaction (and their dependents) quiesced.
- * @param ctx - cordis context carrying the injected services.
+ * 依据启动时的采样判定交互形态，并把其后端与界面作为 Loader 条目挂载；该 effect 的
+ * disposer 会移除两个条目并等待各自 fiber 的拆卸，因此卸载本插件时，会等到已挂载交互
+ * 形态的两个面（及其依赖方）都 quiesce 之后才返回。
+ * @param ctx - 携带被注入服务的 cordis context。
  */
 export async function apply(ctx: Context): Promise<void> {
   const backend = resolveDirectoryPickerBackend({
@@ -76,15 +66,12 @@ export async function apply(ctx: Context): Promise<void> {
     linuxChooser: hasLinuxChooserBinary(process.env.PATH, canExecute),
   })
   await ctx.effect(async () => {
-    // Root-tree create: the Loader root is in-memory (write() is a no-op), so
-    // the mounted rows can never be persisted back into a config file. The
-    // backend lands first: the surface's browser half drives the capability
-    // the backend registers.
+    // 在根树上创建：Loader 的根是内存中的（write() 为空操作），因此挂载的行永远不会被
+    // 回写进配置文件。后端先落地：界面的浏览器半边驱动的是后端所注册的能力。
     const ids: string[] = []
     const unmount = async () => {
       for (const id of [...ids].reverse()) {
-        // Tree teardown (group.stop) can have removed the entry already;
-        // nothing is left to unmount or await then.
+        // 树的拆卸（group.stop）可能已经移除了该条目；此时既无需卸载也无需等待。
         const entry = ctx.loader.store[id]
         if (entry === undefined) continue
         const disposal = entry.fiber?.dispose()
@@ -101,9 +88,8 @@ export async function apply(ctx: Context): Promise<void> {
         await entry.fiber.await()
       }
     } catch (cause) {
-      // Setup owns the entries it created until it returns the disposer: leaving
-      // the backend mounted would make a retry collide with its own
-      // directoryPicker registration.
+      // 在返回 disposer 之前，setup 阶段自己负责它创建的条目：若让后端继续挂载，重试时
+      // 会与其自身的 directoryPicker 注册冲突。
       await unmount()
       throw cause
     }

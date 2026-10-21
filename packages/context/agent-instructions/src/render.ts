@@ -1,5 +1,5 @@
 /**
- * Model-facing workspace instruction rendering within an explicit byte budget.
+ * 在明确字节预算内、面向模型的、工作区指令渲染。
  *
  * @module @deepseek-ai/dsh-agent-instructions/render
  */
@@ -24,14 +24,14 @@ const EMPTY_REPLACEMENT_AGENT_INSTRUCTIONS_INTRO = 'This complete workspace inst
   + 'No workspace instructions are currently active.'
 const COMPACT_AGENT_INSTRUCTIONS_INTRO = 'Workspace instructions were omitted or truncated to fit the configured byte budget.'
 
-/** Byte-accounting record for one truncated instruction file. */
+/** 针对单个被截断指令文件的字节计量记录。 */
 export interface TruncatedInstruction {
   displayPath: string
   originalBytes: number
   includedBytes: number
 }
 
-/** Model-facing text plus omitted and truncated source records. */
+/** 面向模型的文本，以及被省略与被截断的源记录。 */
 export interface RenderedAgentInstructions {
   text: string
   omitted: InstructionFile[]
@@ -40,16 +40,15 @@ export interface RenderedAgentInstructions {
 
 interface RenderedInstructionContext extends RenderedAgentInstructions {
   /**
-   * Original files semantically represented by rendered section text. This is
-   * not the complement of `omitted`: a truncated file may be represented here
-   * and in `truncated`, while a notice-only file appears in neither. A genuinely
-   * empty file counts when its heading survives because that heading conveys
-   * that the instruction exists and has no content.
+   * 由渲染段落文本在语义上所代表的原始文件。这并非 `omitted` 的补集：
+   * 一个被截断的文件可能同时出现在此处与 `truncated` 中，而一个仅含提示的
+   * 文件在两者中都不出现。一个真正为空的文件在其标题保留时会被计入，
+   * 因为该标题传达了“该指令存在且无内容”这一事实。
    */
   represented: LoadedInstructionFile[]
 }
 
-/** Structured dynamic state persisted outside model-visible prompt prose. */
+/** 持久化于模型可见提示文本之外的结构化动态状态。 */
 export interface AgentInstructionChange {
   action: 'set' | 'replace' | 'remove'
   scope: string
@@ -57,7 +56,7 @@ export interface AgentInstructionChange {
   digest?: string
 }
 
-/** One state transition paired with the content used to render it. */
+/** 一次状态转换，连同用于渲染它的内容。 */
 export interface ChangeRenderItem {
   change: AgentInstructionChange
   file: LoadedInstructionFile
@@ -76,8 +75,8 @@ function truncateUtf8(value: string, maxBytes: number): string {
   const bytes = Buffer.from(value, 'utf8')
   if (bytes.length <= maxBytes) return value
   let end = Math.max(0, Math.trunc(maxBytes))
-  // If the first excluded byte is a UTF-8 continuation byte, the budget cut
-  // through that code point. Back up to its lead byte and exclude it too.
+  // 若首个被排除的字节是 UTF-8 续接字节，则预算切穿了该码点。
+  // 回退到它的首字节并同样将其排除。
   while (end > 0 && (bytes.readUInt8(end) & 0xc0) === 0x80) {
     end -= 1
   }
@@ -92,39 +91,37 @@ function sectionText(file: LoadedInstructionFile): string {
   return `Instructions from: ${file.displayPath}\n\n${file.content}`
 }
 
-/** Directory component that identifies the harness-home user-global instruction scope. */
+/** 标识 harness 主目录用户全局指令作用域的目录分量。 */
 export const USER_GLOBAL_DIRECTORY = 'user-global'
 
 /**
- * Directory component that identifies the shared agents-root user-global scope.
+ * 标识共享 agents 根目录用户全局作用域的目录分量。
  *
- * It is a distinct scope so the harness-home file keeps the scope key that
- * earlier sessions recorded, while {@link instructionCandidateGroup} still
- * deduplicates the two roots as one candidate group.
+ * 它是一个独立的作用域，因此 harness 主目录文件保留了早期会话记录的
+ * 作用域键，而 {@link instructionCandidateGroup} 仍将两个根目录作为
+ * 一个候选组去重。
  */
 export const AGENTS_GLOBAL_DIRECTORY = 'agents-global'
 
 /**
- * Ordered user-global scope directories.
+ * 有序的用户全局作用域目录。
  *
- * Discovery, baseline reconciliation, and deduplication all iterate this order,
- * so the harness home stays the candidate that decides content duplicates
- * against the shared agents root.
+ * 发现、基线对账与去重都按此顺序迭代，因此 harness 主目录始终是
+ * 决定与共享 agents 根目录内容重复的那一个候选。
  */
 export const USER_GLOBAL_DIRECTORIES = [USER_GLOBAL_DIRECTORY, AGENTS_GLOBAL_DIRECTORY] as const
 
 /**
- * File name of the user-global instruction file under each user-global root.
- * Discovery (`<root>/<name>`) and reconciliation (the user-global scope key's
- * candidate component) both key on this name, so it lives in one place: were the
- * two to disagree, the user-global instruction would load but never reconcile.
+ * 每个用户全局根目录下、用户全局指令文件的文件名。
+ * 发现（`<root>/<name>`）与对账（用户全局作用域键的候选分量）都以此名称为键，
+ * 因此它集中在一处：倘若两者出现分歧，用户全局指令就会被加载却永远无法对账。
  */
 export const USER_GLOBAL_FILE = 'AGENTS.md'
 
 /**
- * Derive the logical instruction scope from a model-facing path.
- * @param displayPath - project-relative or user-global instruction path.
- * @returns `user-global`, `agents-global`, `.`, or the containing project-relative directory.
+ * 从面向模型的路径派生出逻辑指令作用域。
+ * @param displayPath - 项目相对或用户全局的指令路径。
+ * @returns `user-global`、`agents-global`、`.`，或所属的项目相对目录。
  */
 export function scopeForDisplayPath(displayPath: string): string {
   if (displayPath === `${DEFAULT_DSH_HOME_DISPLAY}/${USER_GLOBAL_FILE}`
@@ -135,40 +132,38 @@ export function scopeForDisplayPath(displayPath: string): string {
 }
 
 /**
- * Whether a decoded scope directory is one of the two user-global roots.
- * @param directory - `user-global`, `agents-global`, `.`, or a project-relative directory.
- * @returns true for the harness-home and shared agents-root scopes.
+ * 某个已解码的作用域目录是否为两个用户全局根目录之一。
+ * @param directory - `user-global`、`agents-global`、`.`，或一个项目相对目录。
+ * @returns 对于 harness 主目录与共享 agents 根目录作用域为 true。
  */
 export function isUserGlobalDirectory(directory: string): boolean {
   return directory === USER_GLOBAL_DIRECTORY || directory === AGENTS_GLOBAL_DIRECTORY
 }
 
 /**
- * Candidate group of one decoded scope directory.
+ * 某个已解码作用域目录的候选组。
  *
- * The harness home and the shared agents root are the ordered candidates of one
- * user-global candidate group: identical trimmed content renders once, and an
- * unobservable candidate preserves the last-good state of its group. Every
- * project directory forms its own group.
- * @param directory - `user-global`, `agents-global`, `.`, or a project-relative directory.
- * @returns the shared group key of both user-global roots, or the directory itself.
+ * harness 主目录与共享 agents 根目录是一个用户全局候选组的有序候选：
+ * 相同的裁剪内容只会渲染一次，而不可观测的候选会保留其组的最后良好状态。
+ * 每个项目目录都构成自己的组。
+ * @param directory - `user-global`、`agents-global`、`.`，或一个项目相对目录。
+ * @returns 两个用户全局根目录共享的组键，或该目录自身。
  */
 export function instructionCandidateGroup(directory: string): string {
   return directory === AGENTS_GLOBAL_DIRECTORY ? USER_GLOBAL_DIRECTORY : directory
 }
 
-/** Directory names that {@link scopeForDisplayPath} reads as a user-global scope, not a project path. */
+/** 被 {@link scopeForDisplayPath} 视为用户全局作用域（而非项目路径）的目录名。 */
 const RESERVED_SCOPE_DIRECTORIES: ReadonlySet<string> = new Set(USER_GLOBAL_DIRECTORIES)
 
 /**
- * Keep a project-relative path out of the user-global scope namespace.
+ * 使一个项目相对路径避开用户全局作用域命名空间。
  *
- * A project directory whose name equals a user-global scope directory would
- * otherwise resolve to the global root for probing and joins the global
- * candidate group for deduplication. Escaping the collision with a leading `.`
- * keeps the file in its own project scope.
- * @param relativePath - project-root-relative path using the platform separator.
- * @returns the path, with a leading `.` component when its first component collides.
+ * 一个名称等于用户全局作用域目录的项目目录，否则会被解析到全局根目录用于探测，
+ * 并加入全局候选组用于去重。用前导 `.` 转义该冲突，可使文件停留在自身
+ * 的项目作用域中。
+ * @param relativePath - 使用平台分隔符的、相对于项目根目录的路径。
+ * @returns 路径；当其首个分量发生冲突时，带有一个前导 `.` 分量。
  */
 export function escapeProjectDisplayPath(relativePath: string): string {
   const separatorIndex = relativePath.search(/[\\/]/)
@@ -179,33 +174,32 @@ export function escapeProjectDisplayPath(relativePath: string): string {
 const SCOPE_SEPARATOR = '\u0000'
 
 /**
- * Compose the reconciliation key for one instruction candidate file.
- * Each loaded candidate is tracked independently, so the key pairs the logical
- * directory with the exact candidate file name behind a NUL separator that no
- * directory path or file name can contain. Distinct candidates in one directory
- * (`AGENTS.md` vs `CLAUDE.md`, a base file vs its `.local` overlay) therefore
- * never collide in the scope-keyed state maps.
- * @param directory - `user-global`, `agents-global`, `.`, or a project-relative directory.
- * @param candidateName - instruction file name within that directory.
- * @returns the per-candidate logical scope key.
+ * 为单个指令候选文件组合出对账键。
+ * 每个被加载的候选都被独立追踪，因此该键将一个逻辑目录与确切的候选文件名
+ * 通过 NUL 分隔符配对，而任何目录路径或文件名都无法包含该分隔符。
+ * 于是同一目录下的不同候选（`AGENTS.md` 与 `CLAUDE.md`、基础文件与其
+ * `.local` 叠加层）在按作用域键索引的状态映射中永远不会冲突。
+ * @param directory - `user-global`、`agents-global`、`.`，或一个项目相对目录。
+ * @param candidateName - 该目录内的指令文件名。
+ * @returns 按候选的逻辑作用域键。
  */
 export function candidateScopeKey(directory: string, candidateName: string): string {
   return `${directory}${SCOPE_SEPARATOR}${candidateName}`
 }
 
 /**
- * Derive the per-candidate scope key for a loaded instruction file.
- * @param displayPath - project-relative or user-global instruction path.
- * @returns the scope key pairing the file's directory with its name.
+ * 为已加载的指令文件派生出按候选的作用域键。
+ * @param displayPath - 项目相对或用户全局的指令路径。
+ * @returns 将该文件目录与其名称配对的作用域键。
  */
 export function instructionScopeKey(displayPath: string): string {
   return candidateScopeKey(scopeForDisplayPath(displayPath), basename(displayPath))
 }
 
 /**
- * Recover the directory and candidate name that {@link candidateScopeKey} encoded.
- * @param scope - a per-candidate scope key.
- * @returns the directory scope and the candidate file name within it.
+ * 还原 {@link candidateScopeKey} 所编码的目录与候选名。
+ * @param scope - 一个按候选的作用域键。
+ * @returns 目录作用域及其内的候选文件名。
  */
 export function decodeScopeKey(scope: string): { directory: string; candidateName: string } {
   const separator = scope.indexOf(SCOPE_SEPARATOR)
@@ -219,8 +213,7 @@ const ADDITIONAL_INSTRUCTIONS_GUIDANCE = 'Use them as guidance when relevant; mo
 
 function additionalSectionText(file: LoadedInstructionFile): string {
   const scope = scopeForDisplayPath(file.displayPath)
-  // A user-global scope directory is an internal reconciliation key, so it must
-  // never reach this model-visible sentence.
+  // 用户全局作用域目录是一个内部对账键，因此它绝不可进入这句面向模型的句子。
   const applicability = isUserGlobalDirectory(scope)
     ? 'These user-global instructions apply to all work.'
     : `These instructions apply to work under \`${scope}\`.`
@@ -261,10 +254,10 @@ function changedSectionText(item: ChangeRenderItem): string {
 }
 
 /**
- * Render one reconciliation batch and retain only transitions that fit.
- * @param items - ordered state transitions and current file contents.
- * @param maxBytes - maximum UTF-8 bytes allowed in the rendered batch.
- * @returns bounded prompt text and the transitions actually represented by it.
+ * 渲染一批对账，并仅保留能够容纳的转场。
+ * @param items - 有序的状态转场与当前文件内容。
+ * @param maxBytes - 渲染批次所允许的最大 UTF-8 字节数。
+ * @returns 有界的提示文本，以及它实际所代表的转场。
  */
 export function renderInstructionChanges(
   items: ChangeRenderItem[],
@@ -310,8 +303,8 @@ function buildInstructionText(
 ): string {
   const marker = markerText(maxBytes, omitted, truncated)
   const body = [marker, style.intro, ...files.map(file => style.section(file))].filter(block => block.length > 0)
-  // This producer owns the complete <system-reminder> frame. Session adds no
-  // wrapper; see Derived history in packages/core/session/README.md.
+  // 此生产者拥有完整的 <system-reminder> 框架。Session 不添加任何
+  // 包装；参见 packages/core/session/README.md 中的派生历史。
   return [SYSTEM_REMINDER_OPEN, escapeInstructionFrameBody(body.join('\n\n')), SYSTEM_REMINDER_CLOSE].join('\n')
 }
 
@@ -405,10 +398,10 @@ function renderInstructionContext(
 }
 
 /**
- * Render a baseline together with the exact source files semantically represented in it.
- * @param files - loaded files ordered from broadest to most specific.
- * @param options - rendering byte budget and whether this baseline supersedes a visible predecessor.
- * @returns bounded public rendering plus files with surviving content, including genuinely empty files.
+ * 渲染一份基线，连同在其中被语义代表的确切源文件。
+ * @param files - 从最宽泛到最具体排序的已加载文件。
+ * @param options - 渲染字节预算，以及该基线是否取代某个可见的前驱。
+ * @returns 有界的公开渲染结果，以及保留内容的文件（包含真正为空的文件）。
  * @internal
  */
 export function renderAgentInstructionSet(
@@ -421,10 +414,10 @@ export function renderAgentInstructionSet(
 }
 
 /**
- * Render the baseline instruction chain with deterministic precedence budgeting.
- * @param files - loaded files ordered from broadest to most specific.
- * @param options - rendering byte budget and whether this baseline supersedes a visible predecessor.
- * @returns bounded baseline prompt text and budget diagnostics.
+ * 以确定性的优先级预算渲染基线指令链。
+ * @param files - 从最宽泛到最具体排序的已加载文件。
+ * @param options - 渲染字节预算，以及该基线是否取代某个可见的前驱。
+ * @returns 有界的基线提示文本与预算诊断信息。
  */
 export function renderAgentInstructions(
   files: LoadedInstructionFile[],

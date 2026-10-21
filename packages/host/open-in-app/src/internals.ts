@@ -1,6 +1,6 @@
-/** Test seams for host facts and process adapters; production keeps the empty defaults. */
+/** 宿主事实与进程适配器的测试接缝；生产环境保持空的默认值。 */
 
 import type { OpenInAppInternals } from './resolver.ts'
 
-/** Injectable catalog facts used by source-level tests before plugin activation. */
+/** 源码级测试在插件激活之前注入的目录事实。 */
 export const internals: { catalog: OpenInAppInternals } = { catalog: {} }

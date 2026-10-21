@@ -1,8 +1,7 @@
 /**
- * Advisory per-agent repeat-call detector. It enriches post-execute decisions
- * with logged model context without vetoing or rewriting calls. Configuration
- * and chain semantics live in the package README; rationale lives in the
- * repeat-tool-reminder Agent Note.
+ * 按 agent 统计重复调用的建议性检测器。它用已记录的模型上下文丰富
+ * post-execute 决策，但不否决也不改写调用。配置与链语义见包 README；
+ * 设计理由见 repeat-tool-reminder Agent Note。
  * @module @deepseek-ai/dsh-repeat-tool-reminder
  */
 
@@ -24,27 +23,25 @@ import type { PostToolDecision, ToolExecution } from '@deepseek-ai/dsh-tools'
 export const name = 'repeat-tool-reminder'
 
 /**
- * Plugin config, validated by the same-named schemastery schema plus the
- * load-time checks in `apply` (misconfiguration fails loud: an empty
- * `thresholds` list, a non-integer, a value below 2, or a duplicate throws at
- * plugin load, never a silent fall-back). `include`/`exclude` entries are
- * `*`-wildcard predicates over tool names at call time, not references to
- * registry entries — a pattern matching no currently registered tool is valid
- * (`exclude: [mcp_*]` must stay legal in a deployment that loads no MCP tools).
+ * 插件配置，由同名 schemastery schema 加上 `apply` 中的加载期检查共同校验
+ * （配置错误必须显式暴露：`thresholds` 为空列表、存在非整数、小于 2 或重复的
+ * 值，都会在插件加载时抛错，绝不静默回退）。`include`/`exclude` 项是在调用时
+ * 对工具名做 `*`-通配匹配的谓词，而不是对注册表项的引用 —— 匹配不到任何当前
+ * 已注册工具的模式依然合法（在不加载任何 MCP 工具的部署中，`exclude: [mcp_*]`
+ * 必须保持可用）。
  */
 export interface Config {
-  /** Consecutive-repeat counts that trigger a reminder (default `[3, 5, 8]`). */
+  /** 触发提醒的连续重复次数（默认 `[3, 5, 8]`）。 */
   thresholds?: number[]
-  /** Tool-name patterns to track; empty means every tool is tracked. */
+  /** 需要跟踪的工具名模式；为空表示跟踪所有工具。 */
   include?: string[]
-  /** Tool-name patterns transparent to the chain (neither count nor reset). */
+  /** 对链透明的工具名模式（既不计数也不重置）。 */
   exclude?: string[]
   /**
-   * Maximum characters of canonical arguments quoted in the DETAILED reminder
-   * (default 500). Large payloads (a `write` body, a long command) would
-   * otherwise ride into the next request unbounded — precisely in a loop
-   * scenario; the cap bounds the reminder, never the detection (the chain key
-   * always compares the FULL canonical string).
+   * DETAILED 提醒中引用的规范化参数的最大字符数（默认 500）。否则大载荷
+   * （`write` 的正文、一条长命令）会无上限地带入下一次请求 —— 而这恰恰发生在
+   * 循环场景中；该上限只约束提醒文本，从不约束检测（链的 key 始终比较完整的
+   * 规范化字符串）。
    */
   argumentsPreviewChars?: number
 }
@@ -57,15 +54,14 @@ export const Config: z<Config> = z.object({
 })
 
 /**
- * The `{kind:'repeat-tool-reminder'}` producer source stamped on every reminder
- * this guard injects — the label is load-bearing (an unlabeled context would
- * render as a user prompt in derived history).
+ * 本守卫注入的每条提醒都会带上 `{kind:'repeat-tool-reminder'}` 生产者来源 ——
+ * 这个标签是必需的（未标注来源的上下文在派生的历史记录中会被渲染成用户提问）。
  */
 const REMINDER_SOURCE: MessageSource = { kind: 'repeat-tool-reminder' }
 
 /**
- * The gentle first-threshold reminder. Keyed to `thresholds[0]`, not a literal
- * count, so a custom first threshold keeps the gentle-then-detailed escalation.
+ * 温和的首个阈值提醒。它绑定到 `thresholds[0]` 而非字面量次数，
+ * 因此自定义的首个阈值仍能保持「先温和、后详细」的递进。
  */
 const GENTLE_REMINDER =
   'You are repeating the exact same tool call with identical arguments. '
@@ -73,7 +69,7 @@ const GENTLE_REMINDER =
   + 'not complete, try a different approach or different arguments instead of '
   + 'repeating the call.'
 
-/** The detailed later-threshold reminder naming the tool, the run length, and the canonical arguments. */
+/** 详细的后续阈值提醒，会指出工具名、连续次数和规范化后的参数。 */
 function detailedReminder(toolName: string, count: number, canonicalArguments: string): string {
   return 'Repeated tool call detected:\n'
     + `- tool: ${toolName}\n`
@@ -86,12 +82,10 @@ function detailedReminder(toolName: string, count: number, canonicalArguments: s
 }
 
 /**
- * Deep key-sort of a parsed-JSON value so two argument objects that differ
- * only in property order canonicalize identically. Arguments reach the guard
- * as the loop's `JSON.parse` output (or its raw-string fallback for malformed
- * argument JSON), so JSON's value domain is the whole input domain — no
- * bigint, cycle, or `undefined` handling exists because no input path can
- * produce them.
+ * 对解析后的 JSON 值做深层 key 排序，使仅属性顺序不同的两个参数对象规范化出
+ * 相同的结果。参数以循环体 `JSON.parse` 的输出（或参数 JSON 畸形时的原始字符串
+ * 回退）进入守卫，因此 JSON 的值域就是全部输入域 —— 这里不处理 bigint、循环
+ * 引用或 `undefined`，因为没有输入路径能产生它们。
  */
 function sortJsonValue(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(sortJsonValue)
@@ -106,21 +100,20 @@ function sortJsonValue(value: unknown): unknown {
   return value
 }
 
-/** Canonical string form of a call's arguments: deep key-sort, then stringify. */
+/** 调用参数的规范化字符串形式：先深层排序 key，再序列化。 */
 function canonicalize(argumentsValue: unknown): string {
   return JSON.stringify(sortJsonValue(argumentsValue))
 }
 
-/** Compile one `*`-wildcard pattern to an anchored RegExp (every other regex metacharacter is matched literally). */
+/** 把单个 `*`-通配模式编译为锚定的 RegExp（其余正则元字符均按字面匹配）。 */
 function wildcardToRegExp(pattern: string): RegExp {
   const escaped = pattern.replace(/[|\\{}()[\]^$+?.]/g, String.raw`\$&`)
   return new RegExp(`^${escaped.replaceAll('*', '.*')}$`)
 }
 
 /**
- * Head-truncate the canonical arguments for quoting in the detailed reminder,
- * marking how much was omitted. Bounds only the model-visible text — the
- * chain key always uses the full canonical string.
+ * 从头部截断规范化参数以便在详细提醒中引用，并标注被省略的长度。
+ * 只限制模型可见的文本 —— 链的 key 始终使用完整的规范化字符串。
  */
 function previewArguments(canonical: string, cap: number): string {
   if (canonical.length <= cap) return canonical
@@ -128,9 +121,8 @@ function previewArguments(canonical: string, cap: number): string {
 }
 
 /**
- * Validate `thresholds` per the fail-loud contract and return them sorted
- * ascending (the escalation rule reads `thresholds[0]` as the gentle tier, so
- * order is normalized here, once).
+ * 按「错误显式暴露」契约校验 `thresholds`，并返回升序排序的结果
+ * （递进规则把 `thresholds[0]` 视为温和档，因此顺序在这里一次性归一化）。
  */
 function validateThresholds(values: number[]): number[] {
   if (values.length === 0) {
@@ -148,26 +140,25 @@ function validateThresholds(values: number[]): number[] {
 }
 
 /**
- * Prepend the guard's reminder while preserving every downstream context's
- * source and metadata.
+ * 把守卫的提醒前插到最前面，同时保留每个下游上下文的来源与元数据。
  */
 function prependContext(ours: UserMessage, theirs: UserMessage[] | undefined): UserMessage[] {
   return [ours, ...theirs ?? []]
 }
 
-/** One agent's consecutive-repeat chain: the last tracked call's identity key and its run length. */
+/** 单个 agent 的连续重复链：上一次被跟踪调用的身份 key 及其连续长度。 */
 interface Chain {
   key: string
   count: number
 }
 
 /**
- * Install the guard's listeners.
- * @param ctx - plugin context; listeners are scoped to it and disposed with it.
- * @param config - validated {@link Config}; `thresholds` is re-checked fail-loud here.
+ * 安装守卫的监听器。
+ * @param ctx - 插件上下文；监听器作用于它，并随它一起释放。
+ * @param config - 已校验的 {@link Config}；`thresholds` 在此再次按「错误显式暴露」方式检查。
  */
 export function apply(ctx: Context, config: Config): void {
-  // schemastery's .default() guarantees the fields are set after validation.
+  // schemastery 的 .default() 保证这些字段在校验后已被赋值。
   const thresholds = validateThresholds(config.thresholds as number[])
   const thresholdSet = new Set(thresholds)
   const includePatterns = (config.include as string[]).map(wildcardToRegExp)
@@ -179,23 +170,21 @@ export function apply(ctx: Context, config: Config): void {
 
   const chains = new WeakMap<Agent, Chain>()
 
-  /** Whether a tool participates in the chain (untracked calls are transparent: they neither count nor reset). */
+  /** 工具是否参与链路（未被跟踪的调用是透明的：既不计数也不重置）。 */
   function tracked(toolName: string): boolean {
     if (includePatterns.length > 0 && !includePatterns.some(pattern => pattern.test(toolName))) return false
     return !excludePatterns.some(pattern => pattern.test(toolName))
   }
 
   /**
-   * Advance the calling agent's chain for one attempt and return the reminder
-   * to deliver, if this attempt's run length hits a configured threshold.
-   * Counting happens here — in post-execute — because denied calls also flow
-   * through this waterfall (`ToolRuntime.execute` routes a deny through the
-   * same pipeline), and a model hammering a denied call is exactly the loop
-   * worth breaking.
+   * 为一次尝试推进调用方 agent 的链路，若本次尝试的连续长度命中配置的阈值，
+   * 则返回要投递的提醒。计数放在这里 —— 即 post-execute —— 是因为被拒绝的调用
+   * 同样流经这个 waterfall（`ToolRuntime.execute` 把拒绝也路由到同一条流水线），
+   * 而模型反复猛敲一个被拒绝的调用，正是值得打断的循环。
    */
   function observe(exec: ToolExecution): UserMessage | undefined {
-    // A direct `ctx.tools.execute()` caller has no model to remind and no id
-    // to key on; only agent-loop calls participate.
+    // 直接调用 `ctx.tools.execute()` 的调用方没有可提醒的模型，也没有可用于
+    // 建链的 id；只有 agent-loop 的调用参与其中。
     if (!exec.agent) return undefined
     if (!tracked(exec.name)) return undefined
     const canonical = canonicalize(exec.arguments)
@@ -213,10 +202,10 @@ export function apply(ctx: Context, config: Config): void {
     })
   }
 
-  // Observe-and-enrich, never veto: count first (state advances regardless of
-  // the downstream outcome), DELEGATE so a later listener can still block or
-  // replace, then fold the reminder onto whatever came back — additionalContexts
-  // rides both decision variants, so a blocked call still gets the nudge.
+  // 只观察与增强，绝不否决：先计数（无论下游结果如何，状态都会推进），
+  // 再 DELEGATE，让更靠后的监听器仍能拦截或替换，然后把提醒叠加到返回的
+  // 结果上 —— additionalContexts 存在于两种决策变体中，因此被拦截的调用
+  // 同样能收到这个提示。
   ctx.on('tools/post-execute', async (exec, _result, next): Promise<PostToolDecision> => {
     const reminder = observe(exec)
     const downstream = await next()
@@ -230,9 +219,8 @@ export function apply(ctx: Context, config: Config): void {
     }
   })
 
-  // A user interjection changes the context; repetition across it is not a
-  // loop. Pure reset hook: always delegates (attaching nothing, vetoing
-  // nothing).
+  // 用户插话改变了上下文；跨越它的重复不算循环。这是纯重置钩子：
+  // 始终向下委派（不附加任何内容，也不否决任何内容）。
   ctx.on('agent/pre-step', ({ agent, messages }, next): Promise<PreStepDecision> => {
     if (messages.some(message => message.source.kind === 'user')) chains.delete(agent)
     return next()

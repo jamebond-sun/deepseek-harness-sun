@@ -1,14 +1,14 @@
-/** Immutable application of the image occurrences recorded by image/offload. */
+/** 由 image/offload 所记录图像出现项的不可变应用。 */
 
 import type { ContentBlock, Message } from '@deepseek-ai/dsh-llm'
 import { deepFreeze } from '@deepseek-ai/dsh-util-values'
 
 /**
- * Project selected image occurrences to immutable offloaded blocks.
- * @param message - message projected before this decision.
- * @param indexes - nonempty, strictly increasing depth-first image indexes.
- * @returns an immutable message with the same identity and selected images marked.
- * @throws when a selected occurrence is missing or already offloaded.
+ * 将所选图像出现项投影为不可变的卸载块。
+ * @param message - 本次决策之前被投影的消息。
+ * @param indexes - 非空、严格递增的深度优先图像索引。
+ * @returns 具有相同标识、且所选图像被标记了的不可变消息。
+ * @throws 当某个所选出现项缺失或已被卸载时。
  */
 export function offloadMessageImages(message: Message, indexes: readonly number[]): Message {
   let imageIndex = 0

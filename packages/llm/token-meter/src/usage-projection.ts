@@ -1,5 +1,5 @@
 /**
- * Pure folds for durable provider-reported token usage and context occupancy.
+ * 供持久化、由提供方报告的令牌用量与上下文占用量使用的纯折叠。
  */
 
 import { z } from 'zod'
@@ -50,8 +50,8 @@ const projectionSchema = z.object({
 }).strict()
 
 /**
- * The token-usage unit's state schema — the one definition of the state
- * shape; the state type is inferred from it.
+ * 令牌用量单元的状态 schema —— 状态形状的唯一定义；
+ * 状态类型由它推断而来。
  */
 const tokenUsageStateSchema = z.object({
   totals: projectionSchema,
@@ -74,11 +74,11 @@ const pressureSchema: z.ZodType<ContextPressureProjection> = z.object({
   ...contextWindow === undefined ? {} : { contextWindow },
 }))
 
-/** Prompt-side pressure of one request: input plus cache traffic, no output. */
+/** 一次请求的提示侧压力：输入加上缓存流量，不含输出。 */
 const pressureFrom = (usage: TokenUsage): number =>
   usage.inputTokens + (usage.cacheReadTokens ?? 0) + (usage.cacheWriteTokens ?? 0)
 
-/** The usage one durable Assistant settlement reports for its attempt, if any. */
+/** 一次持久化的 Assistant 落定为其尝试所报告的用量，若有。 */
 function usageOf(event: SessionEvent): TokenUsage | undefined {
   if (event.type === 'assistant/message' && event.data.usage !== undefined) return event.data.usage
   if (event.type !== 'assistant/message' && event.type !== 'assistant/attempt') return undefined
@@ -92,7 +92,7 @@ declare module '@deepseek-ai/dsh-session-projection/types' {
   }
 }
 
-/** The context-pressure state schema and source of its inferred type. */
+/** 上下文压力的状态 schema，以及其推断类型的来源。 */
 const contextPressureStateSchema = z.object({
   contextWindow: z.number().int().positive().optional(),
   pressureTokens: z.number().int().nonnegative().optional(),
@@ -108,11 +108,10 @@ const contextPressureStateSchema = z.object({
 type ContextPressureState = z.infer<typeof contextPressureStateSchema>
 
 /**
- * Token-meter's session projection unit.
+ * token-meter 的会话投影单元。
  *
- * Each v2 Assistant settlement contributes the last usage sample embedded in
- * its stream. `llm/retry-started` closes the replacement slot so the retried
- * attempt adds to the total.
+ * 每次 v2 Assistant 落定都贡献其流中嵌入的最后一次用量采样。
+ * `llm/retry-started` 会关闭那个替换槽位，于是被重试的尝试会加到总计上。
  */
 export const tokenUsageProjectionDefinition = {
   key: 'tokenUsage',
@@ -150,25 +149,22 @@ export const tokenUsageProjectionDefinition = {
 } satisfies ProjectionDefinition<'tokenUsage', TokenUsageState>
 
 /**
- * Token-meter's context-occupancy projection unit.
+ * token-meter 的上下文占用量投影单元。
  *
- * Independent last-wins slots: the newest usage sample supplies the provider
- * numerator, the newest `request/context` record the denominator. Both are
- * whole values, so replay order alone decides the result and no cross-field
- * consistency is claimed — the pair is explicitly not one atomic request
- * observation (see {@link ContextPressureProjection}).
+ * 彼此独立的最后写入者槽位：最新的用量采样提供提供方分子，
+ * 最新的 `request/context` 记录提供分母。两者都是完整的值，
+ * 因此仅由回放顺序决定结果，并且不宣称任何跨字段的一致性——
+ * 这一对明确不是一次原子性的请求观测（见 {@link ContextPressureProjection}）。
  *
- * `pressureTokens` is prompt-side only, so it holds still while a turn streams
- * and steps forward once the next request reports its usage. Because nothing
- * but a request reports usage, it also cannot see a compaction: the fold
- * therefore carries a running surface total alongside it and publishes
- * `projectedTokens` — the sample plus the surface's signed movement since it
- * was taken — so occupancy answers for the next request rather than the last
- * one. The total rides {@link foldSurfaceProjection}, so the state stays O(1)
- * and a replacement shrinks it by its logged shadow price. A replacement
- * without a claim preserves the previous total. A usage sample is stamped
- * BEFORE the same event joins the surface, so an `assistant/message` anchors
- * against the surface its own request saw.
+ * `pressureTokens` 只计提示侧，因此在一个轮次流式输出期间它保持不变，
+ * 直到下一次请求报告用量时才前进一步。由于只有请求会报告用量，
+ * 它也看不到一次压缩：该折叠因此在它旁边携带一个滚动的表面总计，
+ * 并发布 `projectedTokens` —— 即采样值加上自采样以来表面的带符号变动，
+ * 于是占用量回答的是下一次请求而非上一次请求。该总计沿着
+ * {@link foldSurfaceProjection}，因此状态保持 O(1)，而一次替换会按其
+ * 已记录的影子价格缩小它。没有声明的替换会保留前一个总计。
+ * 一次用量采样在同一个事件加入表面之前被盖章，因此一条 `assistant/message`
+ * 锚定在它自己的请求所看到的那个表面上。
  */
 export const contextPressureProjectionDefinition = {
   key: 'contextPressure',
@@ -199,8 +195,8 @@ export const contextPressureProjectionDefinition = {
     if (fold.deltaTokens !== 0) {
       next = { ...next, surfaceTokens: next.surfaceTokens + fold.deltaTokens }
     }
-    // A defined fold.claim is always freshly built, so presence decides claim
-    // bookkeeping: no claim before or after this event leaves `next` as is.
+    // 一个已定义的 fold.claim 总是刚刚构建的，因此由存在性决定声明的记账：
+    // 本事件之前与之后都没有声明时，`next` 保持原样。
     if (state.claim === undefined && fold.claim === undefined) return next
     const { claim: _expired, ...withoutClaim } = next
     return fold.claim === undefined ? withoutClaim : { ...withoutClaim, claim: fold.claim }

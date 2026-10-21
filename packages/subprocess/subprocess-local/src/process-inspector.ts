@@ -1,11 +1,11 @@
-/** Platform process-table inspection for terminal readiness, signals, and teardown. */
+/** 用于终端就绪、信号与拆除的平台进程表检查。 */
 
 import { closeSync, openSync, readFileSync, readdirSync, readlinkSync, readSync, statSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import type { SubprocessTerminalSignal } from '@deepseek-ai/dsh-subprocess'
 import { createWindowsProcessInspector } from './windows-inspector.ts'
 
-/** PID plus start identity, preventing teardown escalation after PID reuse. */
+/** PID 加启动身份，用于防止 PID 复用后的拆除升级。 */
 export interface ProcessIdentity {
   pid: number
   started: string
@@ -17,88 +17,83 @@ interface FileStatus {
 }
 
 /**
- * One observation of the platform process table, shared by every question a
- * single readiness poll or teardown pass asks.
+ * 对平台进程表的一次观察，由一次就绪轮询或拆除过程所提出的每一个问题共享。
  *
- * The table is read at most once, on the first question that needs it — a
- * `/bin/ps` fork on macOS, a `/proc` walk on Linux, a Toolhelp32 enumeration on
- * Windows. Later questions never re-read it, which is what keeps a poll's cost
- * independent of how many descendants the running command spawned. Windows
- * liveness needs no table at all: wait state is a per-handle question there, so
- * a snapshot asked only for liveness never enumerates.
+ * 该表最多读取一次，即在第一个需要它的问题时——macOS 上 fork 一个 `/bin/ps`，
+ * Linux 上遍历 `/proc`，Windows 上做一次 Toolhelp32 枚举。后续问题绝不会重新读取它，
+ * 这正是让一次轮询的代价与运行中命令所生成的子孙数量无关的原因。Windows 的存活性
+ * 根本不需要进程表：那里的等待状态是一个逐句柄的问题，因此一个只问存活性的快照
+ * 从不枚举。
  *
- * A snapshot answers what the process table showed, which is what batch
- * filtering wants and what signalling must not use: {@link ProcessInspector.isAlive}
- * is the fence a signal takes, because it reads current state instead.
+ * 快照回答的是进程表所显示的内容，这正是批量过滤所需要的，也是信令所不可使用的：
+ * {@link ProcessInspector.isAlive} 是信号所跨越的栅栏，因为它读取的是当前状态。
  */
 export interface ProcessSnapshot {
-  /** Whether the process-table scan omitted no unreadable rows; absent means unverified. */
+  /** 进程表扫描是否没有遗漏任何不可读行；缺省表示未验证。 */
   readonly complete?: boolean
   /**
-   * Return the root and its transitive descendants as observed, children first.
-   * @param rootPid - tree root to descend from.
-   * @returns Observed root and descendants, children before parents.
+   * 返回按观察所得的根及其传递性后代，子节点在前。
+   * @param rootPid - 要下行遍历的树根。
+   * @returns 被观察的根与后代，子节点先于父节点。
    */
   tree(rootPid: number): ProcessIdentity[]
   /**
-   * Return observed members of one POSIX process session.
-   * @param sessionId - POSIX session identifier.
-   * @returns Observed session members, empty where the platform's table omits session ids.
+   * 返回对一个 POSIX 进程会话的被观察成员。
+   * @param sessionId - POSIX 会话标识符。
+   * @returns 被观察的会话成员；当平台进程表省略会话 id 时为空。
    */
   session(sessionId: number): ProcessIdentity[]
   /**
-   * Return whether the exact identity was a non-quiescent process.
-   * @param identity - PID plus start identity to match.
-   * @returns Whether that exact identity — not merely that PID — was running.
+   * 返回该精确身份是否为一个非静默的进程。
+   * @param identity - 需要匹配的 PID 加启动身份。
+   * @returns 那一个精确身份——而不只是该 PID——是否在运行。
    */
   alive(identity: ProcessIdentity): boolean
 }
 
-/** Injectable OS process operations used by one local PTY session. */
+/** 一个本地 PTY 会话所使用的、可注入的操作系统进程操作。 */
 export interface ProcessInspector {
   foregroundPgid(shellPid: number): number | undefined
   /**
-   * Report whether the foreground group waits on the terminal shell's stdin.
+   * 报告前台进程组是否在等待终端 shell 的 stdin。
    *
-   * @param pgid Foreground process-group identifier.
-   * @param shellPid Persistent terminal shell process identifier.
-   * @returns Whether a group member is blocked reading the shell's terminal input.
+   * @param pgid 前台进程组标识符。
+   * @param shellPid 持久终端 shell 进程标识符。
+   * @returns 是否有进程组成员因读取 shell 的终端输入而被阻塞。
    */
   isStdinWaiting(pgid: number, shellPid: number): boolean
   /**
-   * Read the process table once and answer tree, session, and liveness from it.
-   * @returns A process-table observation whose reads are shared.
-   * @throws when the platform process table cannot be enumerated.
+   * 读取一次进程表，并据此回答树、会话与存活性。
+   * @returns 一次读取被共享的进程表观察。
+   * @throws 当平台进程表无法被枚举时。
    */
   snapshot(): ProcessSnapshot
   /**
-   * Return whether the exact identity is a non-quiescent process right now.
+   * 返回该精确身份此刻是否为一个非静默的进程。
    *
-   * Reads the narrowest per-identity source the platform offers rather than a
-   * whole table, so a signalling round can re-check every target without
-   * paying for a scan. Callers filtering many members at once want
-   * {@link ProcessSnapshot.alive} instead.
+   * 读取的是平台所提供的、最窄的逐身份来源，而非整张表，因此一轮信令可以重新检查
+   * 每个目标而不必付出一次扫描的代价。一次性过滤大量成员的调用方应改用
+   * {@link ProcessSnapshot.alive}。
    *
-   * @param identity - PID plus start identity to match.
-   * @returns Whether that exact identity — not merely that PID — is running.
+   * @param identity - 需要匹配的 PID 加启动身份。
+   * @returns 那一个精确身份——而不只是该 PID——是否在运行。
    */
   isAlive(identity: ProcessIdentity): boolean
   signalGroup(pgid: number, signal: SubprocessTerminalSignal): void
   /**
-   * Signal one exact process identity, fenced against PID reuse.
+   * 向一个精确进程身份发信号，并设置针对 PID 复用的栅栏。
    *
-   * The fence reads current state immediately before the signal. An observation
-   * taken earlier in the same round cannot stand in for it: the observation
-   * preserves the original PID-to-start-time pairing, so a recycled PID would
-   * still match and take a signal meant for the process that exited.
+   * 栅栏在信号发出之前立即读取当前状态。同一轮中较早取得的观察无法替代它：该观察
+   * 保留了原始的 PID 到启动时间的配对，因此一个被回收的 PID 仍会匹配，并接下本应
+   * 发给已退出进程的信号。
    *
-   * @param identity - PID plus start identity to signal.
-   * @param signal - termination signal to deliver.
+   * @param identity - 需要发信号的 PID 加启动身份。
+   * @param signal - 要投递的终止信号。
    */
   signalProcess(identity: ProcessIdentity, signal: 'SIGTERM' | 'SIGKILL'): void
 }
 
-/** Testable boundary around filesystem, process-table, and signal syscalls. */
+/** 围绕文件系统、进程表与信号系统调用的、可测试化的边界。 */
 export interface ProcessInspectorInternals {
   readFile(path: string): string
   readDir(path: string): string[]
@@ -137,9 +132,9 @@ interface ProcStat {
 }
 
 /**
- * Parse fields used from Linux `/proc/<pid>/stat`, including parenthesized comm text.
- * @param text - complete stat line.
- * @returns Parsed identity/group fields, or undefined for malformed input.
+ * 解析 Linux `/proc/<pid>/stat` 中使用的字段，包括带括号的 comm 文本。
+ * @param text - 完整的 stat 行。
+ * @returns 解析出的身份/组字段，或当输入畸形时为 undefined。
  */
 export function parseProcStat(text: string): ProcStat | undefined {
   const open = text.indexOf('(')
@@ -167,14 +162,14 @@ function readLinuxStat(internals: ProcessInspectorInternals, pid: number): ProcS
   }
 }
 
-// `/proc/<pid>/stat` renders tty_nr as a signed 32-bit device number, while
-// Node exposes the same st_rdev bits as a nonnegative number.
+// `/proc/<pid>/stat` 将 tty_nr 以有符号 32 位设备号呈现，而 Node 把同样的 st_rdev
+// 位以非负数字暴露。
 function linuxDeviceNumber(value: number): number {
   return value >>> 0
 }
 
-// `/dev/tty` reports the alias device instead of the selected PTY through stat,
-// so its owning process's tty_nr is the only comparable terminal identity.
+// `/dev/tty` 通过 stat 报告的是别名设备而非所选 PTY，因此其拥有进程的 tty_nr
+// 是唯一可比较的终端身份。
 function readLinuxTerminalDevice(
   internals: ProcessInspectorInternals,
   pid: number,
@@ -197,12 +192,11 @@ function readLinuxTerminalDevice(
 }
 
 /**
- * Report whether a Linux process group has an executing member. `false`
- * means the group contains only zombie/dead entries; `undefined` means the
- * process table could not prove either outcome.
- * @param processGroupId - POSIX process-group id to inspect.
- * @param internals - injectable process-table operations.
- * @returns Live-member presence, or `undefined` when unavailable/absent.
+ * 报告一个 Linux 进程组是否有正在执行的成员。`false` 表示该组只包含僵尸/死进程条目；
+ * `undefined` 表示进程表无法证明任何一种结果。
+ * @param processGroupId - 要检查的 POSIX 进程组 id。
+ * @param internals - 可注入的进程表操作。
+ * @returns 存活成员的存在情况，或在不可用/缺失时为 `undefined`。
  */
 export function linuxProcessGroupHasLiveMembers(
   processGroupId: number,
@@ -317,8 +311,8 @@ const SYSCALLS: Partial<Record<NodeJS.Architecture, SyscallTable>> = {
 
 const SUPPORTED_SYSCALL_TABLES = Object.values(SYSCALLS)
 
-// `/proc/<pid>/task/<tid>/syscall` uses the kernel ABI's numbers. User-mode
-// emulation can therefore expose a supported table different from process.arch.
+// `/proc/<pid>/task/<tid>/syscall` 使用的是内核 ABI 的编号。因此用户态模拟可能暴露出
+// 一个与 process.arch 不同的受支持表。
 function linuxSyscallTables(arch: NodeJS.Architecture): readonly SyscallTable[] | undefined {
   const primary = SYSCALLS[arch]
   if (primary === undefined) return undefined
@@ -369,16 +363,16 @@ interface ProcessTreeEntry extends ProcessIdentity {
   parentPid: number
 }
 
-/** One process-table row, carrying the fields a platform's table exposes. */
+/** 进程表中的一行，携带该平台进程表所暴露的字段。 */
 interface ProcessRow extends ProcessTreeEntry {
-  /** POSIX session identifier, or undefined where the table omits it. */
+  /** POSIX 会话标识符，或在该表省略时的 undefined。 */
   session: number | undefined
-  /** Single-letter process state, or undefined where the table omits it. */
+  /** 单字母进程状态，或在该表省略时的 undefined。 */
   state: string | undefined
 }
 
-// Zombie and dead states answer "present in the table" but never "still
-// running"; a table without a state column can only report presence.
+// 僵尸态与死态会被判定为“存在于表中”，却永远不会是“仍在运行”；没有 state 列的表
+// 只能报告存在性。
 function quiescent(state: string | undefined): boolean {
   return state !== undefined && /^[ZXx]$/.test(state)
 }
@@ -485,8 +479,8 @@ class LinuxProcessInspector extends PosixProcessInspector {
 
 }
 
-// `ps` exposes neither the session id nor a state column in this format, so a
-// macOS row can answer presence and parentage but never session membership.
+// 此格式的 `ps` 既不暴露会话 id，也不暴露 state 列，因此 macOS 的一行只能回答存在性与
+// 父子关系，却无法回答会话归属。
 function macProcessTable(internals: ProcessInspectorInternals): { rows: ProcessRow[]; complete: boolean } {
   let complete = true
   const rows = internals.exec('/bin/ps', ['-axo', 'pid=,ppid=,lstart=']).split('\n').flatMap((line) => {
@@ -533,11 +527,11 @@ class MacProcessInspector extends PosixProcessInspector {
 }
 
 /**
- * Create the supported platform inspector or fail at plugin load.
- * @param platform - target Node platform.
- * @param arch - target CPU architecture for Linux syscall numbers.
- * @param internals - filesystem/process boundary, injectable for deterministic tests.
- * @returns Platform process inspector.
+ * 创建受支持的平台检查器，或在插件加载时失败。
+ * @param platform - 目标 Node 平台。
+ * @param arch - 用于 Linux 系统调用编号的目标 CPU 架构。
+ * @param internals - 文件系统/进程边界，可注入以进行确定性测试。
+ * @returns 平台进程检查器。
  */
 export function createProcessInspector(
   platform: NodeJS.Platform = process.platform,

@@ -1,31 +1,25 @@
 /**
- * The single file-extension to syntax-highlighting language table shared by every
- * code surface: the Client's document Code preview and diff review, and the Host
- * read tool's persisted `lang` hint. Language ids are the grammar ids the Client
- * highlighter's alias table resolves, so a language returned here reaches
- * `highlightLines`/`highlightToHtml` unchanged; a filename outside the table, or
- * one naming a language the highlighter does not register, renders as plain text.
- * The read tool persists a short `lang` id, so {@link readLangHintForPath}
- * projects short ids over this table: a suffix keeps the value a recorded session
- * already holds, and every other suffix persists the language's short name —
- * which for `kotlin`, `swift`, `yaml`, `json`, and similar equals that
- * language's grammar id.
+ * 每个代码呈现面共享的「文件扩展名 → 语法高亮语言」单表：Client 端的
+ * 文档 Code 预览与差异审阅，以及 Host 读工具的持久化 `lang` 提示。语言 id
+ * 是 Client 高亮器的别名表所解析的语法 id，因此这里返回的语言会原样到达
+ * `highlightLines`/`highlightToHtml`；表中之外的文件名，或指向高亮器未
+ * 注册语言者，会以纯文本渲染。读工具持久化一个简短的 `lang` id，因此
+ * {@link readLangHintForPath} 在本表之上投影简短 id：某一后缀会保持已记录
+ * 会话已持有的值，而其他后缀则持久化语言的短名——对 `kotlin`、`swift`、
+ * `yaml`、`json` 等而言，这等同于该语言的语法 id。
  * @module @deepseek-ai/dsh-util-code-language
  */
 
 /**
- * Recognized extensions per canonical language id. Values are lowercase
- * extensions without the dot; the id names the grammar rather than a display
- * label. The set covers common source, config, script, data, and markup
- * extensions a line-numbered code view or preview benefits from highlighting; it
- * is deliberately not an exhaustive linguist registry. Extensions whose Shiki
- * grammar does not exist map to the nearest available grammar
- * (`properties` to `ini`, whose registration carries the `properties` alias) or
- * stay unlisted. Certificate and lock extensions (`pem`, `crt`, `key`, `cer`,
- * `lock`) stay unlisted. Preview registries order specialized viewers before
- * Code so CSV can default to Spreadsheet while retaining syntax highlighting.
- * `makefile` covers only the suffix
- * (`foo.makefile`); the extensionless `Makefile` name stays unlisted.
+ * 每个规范语言 id 所识别的扩展名。值为不带点的小写扩展名；id 命名的是
+ * 语法而非显示标签。该集合涵盖了带行号代码视图或预览能从中获益的常见源
+ * 码、配置、脚本、数据与标记类扩展；它刻意不是一个穷尽的 linguist 注册
+ * 表。其 Shiki 语法不存在的扩展名，会映射到最近可用的语法（`properties`
+ * 映射到 `ini`，后者的注册带有 `properties` 别名），或保持不列入。证书与
+ * 锁类扩展名（`pem`、`crt`、`key`、`cer`、`lock`）保持不列入。预览注册表
+ * 会将专用查看器排在 Code 之前，以便 CSV 默认使用 Spreadsheet 同时保留
+ * 语法高亮。`makefile` 仅覆盖该后缀（`foo.makefile`）；无扩展名的 `Makefile`
+ * 名称保持不列入。
  */
 const LANGUAGE_EXTENSIONS: Readonly<Record<string, readonly string[]>> = {
   typescript: ['ts', 'tsx', 'mts', 'cts'],
@@ -92,41 +86,36 @@ const LANGUAGE_EXTENSIONS: Readonly<Record<string, readonly string[]>> = {
 }
 
 /**
- * Lowercase extension to canonical language id. A Map, not an object: a filename
- * whose extension is an `Object.prototype` key (`foo.constructor`,
- * `foo.__proto__`) must miss instead of resolving the inherited member, which
- * would otherwise reach callers as a non-string language value.
+ * 小写扩展名到规范语言 id 的映射。用 Map 而非对象：扩展名是
+ * `Object.prototype` 键（如 `foo.constructor`、`foo.__proto__`）的文件名
+ * 必须查找失败，而不是解析到继承成员，否则会以非字符串的语言值抵达调用方。
  */
 const LANGUAGES = new Map(Object.entries(LANGUAGE_EXTENSIONS)
   .flatMap(([language, extensions]) => extensions.map(extension => [extension, language] as const)))
 
-/** Every recognized filename suffix, one entry each; a document-preview registry uses it to claim Code-rendered bodies. */
+/** 每个被识别的文件名后缀各一条；文档预览注册表用它来认领 Code 渲染的正文。 */
 export const CODE_HIGHLIGHT_EXTENSIONS: readonly string[] = [...LANGUAGES.keys()]
 
 /**
- * Persisted `lang` values a language-level short id cannot express, keyed by the
- * suffix that produced them. Everything else falls back to
- * {@link SHORT_BY_LANGUAGE}, so only a suffix whose own name is the better label
- * appears here. Each value is the exact string recorded sessions already hold
- * and must not change; the byte-level expectation for every suffix lives in the
- * read consumer's test.
+ * 语言级短 id 无法表达、但被持久化的 `lang` 值，以产生它们的后缀为键。其余
+ * 情况回退到 {@link SHORT_BY_LANGUAGE}，因此只有某个后缀自身命名比其语言
+ * 更好的标签才出现在此处。每个值都是已记录会话确切持有的字符串，且不得
+ * 更改；每个后缀的字节级期望位于读消费方的测试中。
  */
 const READ_LANG_BY_EXTENSION = new Map<string, string>([
-  // The two JSX flavors keep their own suffix; every other persisted value is
-  // the language's short name, or an extension naming itself better than its
-  // language does (`tf` rather than `hcl`, `gradle` rather than `groovy`).
+  // 两种 JSX 风味保留各自的后缀；其他每个持久化值都是语言的短名，或比其
+  // 语言命名得更好的扩展名（`tf` 而非 `hcl`、`gradle` 而非 `groovy`）。
   ['tsx', 'tsx'], ['jsx', 'jsx'],
   ['tf', 'tf'], ['tfvars', 'tfvars'], ['gradle', 'gradle'],
 ])
 
 /**
- * The short `lang` id the read card persists, keyed by canonical language id.
- * Keys are exactly the languages in {@link LANGUAGE_EXTENSIONS}: where
- * {@link READ_LANG_BY_EXTENSION} does not already fix a suffix's value, this
- * table supplies the language's short name (`powershell` to `ps1`, `hcl` to
- * `tf`, `system-verilog` to `sv`) rather than the grammar id. Keys are canonical
- * ids, not untrusted extensions, so an object lookup cannot reach an
- * `Object.prototype` member the way the extension tables can.
+ * 读卡片持久化的短 `lang` id，以规范语言 id 为键。键恰好是
+ * {@link LANGUAGE_EXTENSIONS} 中的语言：在 {@link READ_LANG_BY_EXTENSION}
+ * 尚未固定某后缀的值之处，此表提供该语言的短名（`powershell` 到 `ps1`、
+ * `hcl` 到 `tf`、`system-verilog` 到 `sv`）而非语法 id。键是规范 id 而非
+ * 不可信的扩展名，因此对象查找不会像扩展名表那样抵达 `Object.prototype`
+ * 成员。
  */
 const SHORT_BY_LANGUAGE: Readonly<Record<string, string>> = {
   typescript: 'ts',
@@ -200,14 +189,12 @@ function extensionForPath(path: string): string | undefined {
 }
 
 /**
- * Derive the syntax-highlighting language from a filename or path, case
- * insensitively. The extension is the text after the last dot of the final path
- * segment; a leading dot is still the separator, so `.env` resolves to `dotenv`
- * while an unlisted dotfile (`.gitignore`) and an extensionless name return
- * `undefined`. Both path separators are recognized, so
- * `C:\\dir\\main.PS1` resolves like `dir/main.ps1`.
- * @param path - decoded filename or path.
- * @returns the canonical language id, or `undefined` for an unrecognized or absent suffix.
+ * 由文件名或路径推导语法高亮语言，大小写不敏感。扩展名是最终路径段中
+ * 最后一个点之后的文本；前导点仍是分隔符，因此 `.env` 解析为 `dotenv`，
+ * 而未列入的点文件（`.gitignore`）和无扩展名名称返回 `undefined`。两种
+ * 路径分隔符都被识别，因此 `C:\\dir\\main.PS1` 与 `dir/main.ps1` 解析一致。
+ * @param path - 已解码的文件名或路径。
+ * @returns 规范语言 id，或不可识别/缺失后缀时的 `undefined`。
  */
 export function languageForPath(path: string): string | undefined {
   const extension = extensionForPath(path)
@@ -215,15 +202,13 @@ export function languageForPath(path: string): string | undefined {
 }
 
 /**
- * Derive the Host read card's persisted `lang` hint from a read path's
- * extension. The value is the language's short name; for some languages that name
- * is also the grammar id (`kotlin`, `swift`, `java`, `yaml`, `json`), and
- * {@link READ_LANG_BY_EXTENSION} overrides it where the suffix names itself
- * better (`tsx`, `tf`, `gradle`). A suffix a recorded session already holds keeps
- * its persisted value. An unrecognized suffix stays `undefined`, so the card
- * renders as plain text.
- * @param path - the model-facing path the read reported.
- * @returns the persisted language hint, or `undefined` when the extension maps to none.
+ * 由读取路径的扩展名推导 Host 读卡片持久化的 `lang` 提示。该值是语言的
+ * 短名；对部分语言而言，该名称同时也是语法 id（`kotlin`、`swift`、`java`、
+ * `yaml`、`json`），而 {@link READ_LANG_BY_EXTENSION} 会在后缀自身命名
+ * 得更好的地方覆盖它（`tsx`、`tf`、`gradle`）。已记录会话持有的后缀会
+ * 保留其持久化值。不可识别的后缀保持 `undefined`，因此卡片以纯文本渲染。
+ * @param path - 读操作所报告的、面向模型的路径。
+ * @returns 持久化的语言提示，或扩展名映射不到任何语言时的 `undefined`。
  */
 export function readLangHintForPath(path: string): string | undefined {
   const extension = extensionForPath(path)

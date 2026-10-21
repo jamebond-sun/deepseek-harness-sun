@@ -1,29 +1,25 @@
-# The dsh-web-app bundle patch: the browser surface over the dsh-base layer.
-# Applied after dsh-base's insert; rows here override base rows by id, with
-# the profile's own cordis.patch.yml and any --patch overlays still to come.
+# dsh-web-app bundle 补丁：位于 dsh-base 层之上的浏览器界面。它在 dsh-base 的 insert
+# 之后应用；此处的行按 id 覆盖 base 的行，而 profile 自身的 cordis.patch.yml 与任何
+# --patch 覆盖层仍在它之后。
 #
-# A patch replaces the targeted row's whole `config`, so each row below
-# restates every key it owns.
+# 补丁会替换目标行的整个 `config`，因此下面的每一行都会重申它自己拥有的每个键。
 #
-# The web-startup plugin injects `cmdlineArgs` and provides `webStartup` as an
-# ordinary Cordis service. Rows configured from flags inject that service, so
-# Loader resolves their expressions only after it exists. The web-runtime row
-# validates the advertised public URL; Connection reads invocation authorities
-# directly from `webStartup`.
-# `dsh --profile web --help` provides no `webStartup`, so no server binds.
+# web-startup 插件注入 `cmdlineArgs`，并把 `webStartup` 作为一个普通的 Cordis 服务提供
+# 出来。由标志配置的行注入该服务，因此 Loader 只在它存在之后才解析它们的表达式。
+# web-runtime 行校验所宣告的公开 URL；Connection 直接从 `webStartup` 读取本次调用的
+# authority 列表。`dsh --profile web --help` 不提供 `webStartup`，因此不会绑定服务器。
 
-# ── surface-specific values the base deliberately omits ─────────────────────
+# ── base 有意省略的、界面特有的取值 ─────────────────────────────────────────
 
 - id: system-prompt
   config:
     personaPrefix: >-
       You are a coding agent powered by the {{model}} model.
 
-# Full-text session search is opt-in (the base row's `openAt: never`). This
-# restatement keeps the Web values on one ephemeral in-memory index; a
-# deployment enabling content search overrides `openAt` to `first-search` in a
-# later patch layer, which defers the node:sqlite import and in-memory handle
-# to the first search so Node 22 startup stays quiet.
+# 全文 session 搜索需要显式启用（base 行的 `openAt: never`）。这次重申让 Web 的取值
+# 落在一个临时的内存索引上；启用内容搜索的部署在更后面的补丁层把 `openAt` 改写为
+# `first-search`，从而把 node:sqlite 的导入与内存句柄推迟到第一次搜索，使 Node 22
+# 的启动保持安静。
 - id: session-query-sqlite
   config:
     path: ':memory:'
@@ -31,16 +27,15 @@
 
 - id: tools
   config:
-    # TEMPORARY workaround: DSH_TOOLS_MODE (native|ptc) opts a whole dsh
-    # process into PTC mode while per-session tool-presentation selection is being
-    # designed; unset keeps the schema default (native). Remove the env seam
-    # once the web UI owns the choice per session.
+    # 临时方案：在每个会话的工具呈现方式选择尚未设计完成之前，DSH_TOOLS_MODE
+    # （native|ptc）让整个 dsh 进程进入 PTC 模式；不设置则保留 schema 默认值（native）。
+    # 待 Web UI 按会话自主掌握该选择后，移除这个环境变量接缝。
     mode: !!js process.env.DSH_TOOLS_MODE
 
-# ── web-only host rows, the transport layer, and the browser roster ─────────
+# ── 仅 Web 需要的宿主行、传输层与浏览器清单 ────────────────────────────────
 
-# `dsh.client` rows are the browser roster the modules node half scans into
-# window.__DSH_BOOT__; the modules row is simultaneously a host row.
+# `dsh.client` 行是浏览器插件清单，由 modules 的 node 半部分扫描进
+# window.__DSH_BOOT__；modules 行同时也是一个宿主行。
 - insert:
     - id: desktop-product-telemetry
       name: '@deepseek-ai/dsh-host-product-telemetry-otel'
@@ -61,8 +56,8 @@
         enabled: true
         appVersion: !!js process.env.DSH_CLIENT_VERSION
 
-    # Host-owned opt-in sampled when a new Web session receives its preset
-    # delegation tools. The Plugins page edits this settings namespace.
+    # 由宿主持有的可选启用项，在新的 Web 会话获得其 preset 委派工具时被采样。
+    # Plugins 页面编辑这个设置命名空间。
     - id: subagent-model-selection-settings
       name: '@deepseek-ai/dsh-tool-subagent/model-selection-settings'
 
@@ -71,13 +66,12 @@
       config:
         maxNoteBytes: 8192
 
-    # Browser Session export: `/export` command plus the shared download dialog.
+    # 浏览器端的 Session 导出：`/export` 命令加上共享的下载对话框。
     - id: session-log-download
       name: '@deepseek-ai/dsh-session-log-export'
 
-    # Session-header "Open In..." split button over the host application
-    # resolution (macOS/Windows/Linux; a host with no resolved application
-    # renders no button). Two halves: the host routes and the browser surface.
+    # Session 头部的“用…打开”分体按钮，构建在宿主应用的解析之上（macOS/Windows/
+    # Linux；没有解析出应用的宿主不渲染该按钮）。它由两半组成：宿主路由与浏览器界面。
     - id: open-in-app
       name: '@deepseek-ai/dsh-host-open-in-app'
       config:
@@ -97,50 +91,48 @@
     - id: file-reference-local
       name: '@deepseek-ai/dsh-file-reference-local'
 
-    # Whole-log turn/step counts for the chat stats strip (the sessionStats
-    # projection key); the projection registry itself is a base-layer row.
+    # 整份日志的轮次/步骤计数，用于聊天统计条（sessionStats 投影键）；投影注册表本身
+    # 属于 base 层的行。
     - id: session-stats
       name: '@deepseek-ai/dsh-session-stats'
 
-    # Whole-log turn outline for the chat turn rail (the turnOutline
-    # projection key): every turn stays navigable before its events page in.
+    # 整份日志的轮次大纲，用于聊天的轮次导航栏（turnOutline 投影键）：每个轮次在其
+    # 事件分页加载之前都可导航。
     - id: session-turn-outline
       name: '@deepseek-ai/dsh-session-turn-outline'
 
-    # Resolve bind host, SSH launch, and display once at boot, then mount the
-    # matching dual-face directory picker. Mount -native or -browse directly in
-    # an overlay to pin the interaction.
+    # 在启动时一次性解析绑定主机、SSH 启动与显示环境，然后挂载匹配的双面目录选择器。
+    # 可在覆盖层中直接挂载 -native 或 -browse 以固定交互方式。
     - id: directory-picker
       name: '@deepseek-ai/dsh-host-directory-picker-auto'
 
-    # Read-only projection of current Loader entries for trusted client RPCs.
+    # 当前 Loader 条目的只读投影，供受信任的客户端 RPC 使用。
     - id: plugin-inventory
       name: '@deepseek-ai/dsh-host-plugin-inventory'
 
-    # Session commands, cold reads, and live control over Typert Remote.
+    # 通过 Typert Remote 提供的 Session 命令、冷读取与实时控制。
     - id: session-controller
       name: '@deepseek-ai/dsh-api-session-controller'
 
-    # One background job's observation record streamed over Typert Remote;
-    # the roster rides the session control stream above.
+    # 一条后台任务的观察记录，通过 Typert Remote 流式传输；任务清单搭载在上面的
+    # session 控制流上。
     - id: job-controller
       name: '@deepseek-ai/dsh-api-job-controller'
-    # Workspace file service: bounded read, directory listing, and the
-    # agent-write change feed inside the session workspace root.
+    # Workspace 文件服务：有界读取、目录列举，以及 session workspace 根目录内由 agent
+    # 写入产生的变更流。
     - id: terminal-controller
       name: '@deepseek-ai/dsh-api-terminal-controller'
     - id: workspace-files
       name: '@deepseek-ai/dsh-api-workspace-files'
 
-    # The Schedule service owns the task store and delivers each due occurrence
-    # as a follow-up in its original Session. The clock reading and the four
-    # reminder tools belong to the `standard`, `cordis`, and `ptc` presets,
-    # which declare them in their own scope.
+    # Schedule 服务持有任务存储，并把每个到期的发生次数作为 follow-up 投递到它原有的
+    # Session 中。时钟读取与四个提醒工具属于 `standard`、`cordis` 与 `ptc` 三个 preset，
+    # 它们在各自的作用域内声明。
     - id: schedule
       name: '@deepseek-ai/dsh-schedule'
 
-    # Configuration-surface reads and writes over Typert Remote. Each method
-    # reports an actionable error when its settings-domain provider is absent.
+    # 通过 Typert Remote 对配置界面进行读写。当对应的设置领域提供者缺失时，每个方法
+    # 都报告一个可操作的错误。
     - id: ui-settings-account
       name: '@deepseek-ai/dsh-client-ui-settings-account'
 
@@ -150,32 +142,29 @@
     - id: settings-controller
       name: '@deepseek-ai/dsh-api-settings-controller'
 
-    # Workspace commands and reconnect-safe projection over Typert Remote.
+    # 通过 Typert Remote 提供的 Workspace 命令与可安全重连的投影。
     - id: workspace-controller
       name: '@deepseek-ai/dsh-api-workspace-controller'
 
     - id: cordis-host-runner
       name: '@deepseek-ai/dsh-cordis-host-runner'
 
-    # The Host inspect providers are process-global: the registry rejects a
-    # duplicate id, so they register here once and every preset's `tool-cordis`
-    # row reads them.
+    # 宿主的 inspect 提供者是进程全局的：注册表会拒绝重复的 id，因此它们在这里注册
+    # 一次，各个 preset 的 `tool-cordis` 行读取它们。
     - id: cordis-inspect-providers
       name: '@deepseek-ai/dsh-tool-cordis/host'
 
-    # Ordinary provider for the parsed Web flags. Its plugin-level injection
-    # waits for cmdlineArgs; no launcher metadata or special row kind is needed.
+    # 解析 Web 标志的普通提供者。它插件级的注入等待 cmdlineArgs；不需要任何启动器
+    # 元数据或特殊的行类型。
     - id: web-startup
       name: '@deepseek-ai/dsh-web-app/startup'
 
-    # ── layer 2: transport/service ──────────────────────────────────────────────
+    # ── 第二层：传输/服务 ───────────────────────────────────────────────────────
 
-    # Plain route-registration carrier; host and port come from the app's
-    # webStartup provider, with these deployment fallbacks. The dist is served
-    # by the web-runtime row below through the fallback seat. Routing and
-    # browser-facing asset paths do not depend on the advertised URL, which the
-    # web-runtime row owns; Connection reads trust authorities from webStartup.
-    # This row rejects wildcard binds.
+    # 纯粹的路由注册载体；主机与端口来自应用的 webStartup 提供者，这里给出部署回退值。
+    # dist 由下面的 web-runtime 行通过兜底座位提供服务。路由与面向浏览器的资源路径
+    # 不依赖所宣告的 URL（那归 web-runtime 行所有）；Connection 从 webStartup 读取
+    # 信任的 authority 列表。本行拒绝通配绑定。
     - id: webserver
       name: '@deepseek-ai/dsh-host-webserver'
       inject: [webStartup]
@@ -187,13 +176,11 @@
         compressionLevel: 1
         compressionThresholdBytes: 1024
 
-    # Web glue owned by this bundle: resolves the built frontend dist (an
-    # assembly fact of dsh-web-app, never user config), mounts the
-    # frontend-static fallback owner, registers the bash runtime variable,
-    # prints the URL line, and opens the canonical URL after the full Loader
-    # tree settles and the required-entry audit passes. Invocation-only values
-    # come from the webStartup provider; the advertised application URL is
-    # this row's `publicUrl`, otherwise the bind-address URL.
+    # 本 bundle 所拥有的 Web 粘合层：解析已构建的前端 dist（这是 dsh-web-app 的装配
+    # 事实，绝不由用户配置），挂载 frontend-static 兜底所有者，注册 bash 运行时变量，
+    # 打印 URL 行，并在完整 Loader 树装配完成、必需条目审计通过之后打开规范的 URL。
+    # 仅与本次调用有关的取值来自 webStartup 提供者；所宣告的应用 URL 是本行的
+    # `publicUrl`，否则使用绑定地址的 URL。
     - id: web-runtime
       name: '@deepseek-ai/dsh-web-app'
       inject: [webStartup]
@@ -203,45 +190,39 @@
         publicUrl: !!js ctx.webStartup.publicUrl
         surfaceContext: true
 
-    # Model context for an agent that inspects or extends the harness serving
-    # this GUI: value-free prompt sections plus the current checkout and GUI
-    # URL as optional runtime context. A complete agent-preset persona replaces
-    # the sections, and a persona that suppresses optional runtime context
-    # also drops the two value lines.
+    # 为检查或扩展本 GUI 所属 harness 的 agent 提供的模型上下文：不带取值的提示词段落，
+    # 加上当前检出目录与 GUI URL 作为可选的运行时上下文。完整的 agent-preset 人格会
+    # 替换这些段落，而抑制可选运行时上下文的人格也会去掉这两行取值。
     - id: harness-dev-context
       name: '@deepseek-ai/dsh-harness-dev-context'
 
-    # The client-plugin reload chain, always mounted: it is idle until a
-    # rebuild watcher (pnpm run dev:web) actually rewrites client bundles. It
-    # is a row rather than a child of web-runtime because its node half is a
-    # client-side package, which a host-side bundle cannot import.
+    # 客户端插件重载链，始终挂载：在重建监视器（pnpm run dev:web）真正重写客户端包之前
+    # 它处于空闲状态。它是一个独立的行而不是 web-runtime 的子行，因为它的 node 半部分是
+    # 一个客户端侧的包，而宿主侧的 bundle 无法导入它。
     - id: client-hmr
       name: '@deepseek-ai/dsh-client-hmr'
 
-    # ── browser plugin roster (dsh.client rows; node halves are layer-2 hosts) ──
+    # ── 浏览器插件清单（dsh.client 行；其 node 半部分属于第二层宿主）────────────
 
-    # Dual-face: the node half scans this tree, composes window.__DSH_BOOT__,
-    # and serves /plugins/<id>/client.js; the browser half is the module table
-    # the shell kernel constructs before cordis exists (adopted as a plugin
-    # entry by the kernel, never fetched).
+    # 双面：node 半部分扫描这棵树、组装 window.__DSH_BOOT__，并服务
+    # /plugins/<id>/client.js；浏览器半部分是外壳内核在 cordis 存在之前构建的模块表
+    # （由内核作为插件条目收养，从不被拉取）。
     - id: modules
       name: '@deepseek-ai/dsh-client-modules'
 
-    # Owns both ends of the web transport: node half binds the gateway to the
-    # webserver under /api; browser half is the fetch/SSE client. Every API
-    # request and upgrade passes the loopback, listener-bind, or trustedHosts
-    # policy; an advertised public URL contributes nothing to it.
+    # 拥有 Web 传输的两端：node 半部分把 gateway 绑定到 webserver 的 /api 之下；
+    # 浏览器半部分是 fetch/SSE 客户端。每个 API 请求与协议升级都要通过回环、监听器绑定
+    # 或 trustedHosts 策略；所宣告的公开 URL 对此不产生任何作用。
     - id: connection
       name: '@deepseek-ai/dsh-client-connection'
       inject: [webStartup]
       config:
-        # Keep invocation authorities (each --trusted-host value) when adding
-        # deployment values, for example: ['app.internal', ...ctx.webStartup.trustedHosts].
-        # The listener's bind IP is accepted separately from this list.
+        # 在补充部署取值时要保留本次调用的 authority（每个 --trusted-host 值），
+        # 例如：['app.internal', ...ctx.webStartup.trustedHosts]。
+        # 监听器的绑定 IP 独立于该列表另行接受。
         trustedHosts: !!js ctx.webStartup.trustedHosts
 
-    # Raw Blob and ReadableStream uploads run independently of Connection's
-    # RPC and generation service.
+    # 原始 Blob 与 ReadableStream 上传独立于 Connection 的 RPC 与生成服务运行。
     - id: file-upload
       name: '@deepseek-ai/dsh-client-file-upload'
 
@@ -272,14 +253,14 @@
     - id: ui-session
       name: '@deepseek-ai/dsh-client-ui-session'
 
-    # Unified resource model: protocol providers behind the useResource hook.
+    # 统一的资源模型：位于 useResource hook 之后的各协议提供者。
     - id: resources
       name: '@deepseek-ai/dsh-client-resources'
 
     - id: ui-sidebar
       name: '@deepseek-ai/dsh-client-ui-sidebar'
 
-    # The right Sidebar: one docking surface per session over ui-dockkit.
+    # 右侧边栏：在每个 session 之上，基于 ui-dockkit 提供一个停靠界面。
     - id: ui-sidebar-right
       name: '@deepseek-ai/dsh-client-ui-sidebar-right'
 
@@ -287,19 +268,19 @@
     - id: office-to-pdf
       name: '@deepseek-ai/dsh-office-to-pdf'
 
-    # The right Sidebar's document tab: bounded file reads with selectable
-    # Markdown, code, HTML, PDF, Office, and plain-text renderers.
+    # 右侧边栏的文档标签页：有界的文件读取，并可选择 Markdown、代码、HTML、PDF、
+    # Office 与纯文本的渲染器。
     - id: ui-sidebar-documentpreview
       name: '@deepseek-ai/dsh-client-ui-sidebar-documentpreview'
 
-    # Web profiles opt in; Desktop retains sandboxed HTTP(S) Browser tabs.
+    # Web profile 选择启用；Desktop 仍保留沙箱化的 HTTP(S) 浏览器标签页。
     - id: ui-sidebar-browser
       name: '@deepseek-ai/dsh-client-ui-sidebar-browser'
       disabled: !!js "ctx.get('profileContext')?.name !== 'desktop'"
 
     - id: ui-sidebar-terminal
       name: '@deepseek-ai/dsh-client-ui-sidebar-terminal'
-    # The right Sidebar's workspace file tree tab type.
+    # 右侧边栏中的 workspace 文件树标签页类型。
     - id: ui-sidebar-files
       name: '@deepseek-ai/dsh-client-ui-sidebar-files'
 
@@ -312,14 +293,13 @@
     - id: ui-settings-models
       name: '@deepseek-ai/dsh-client-ui-settings-models'
 
-    # Plugin management: the sidebar Plugins page installs, enables, disables,
-    # and removes the profile's bundles through the `pluginManager` Remote.
-    # Without a profile-backed Host it reports itself unavailable.
+    # 插件管理：侧边栏的 Plugins 页面通过 `pluginManager` Remote 安装、启用、禁用与
+    # 移除该 profile 的各个 bundle。没有 profile 支撑的 Host 时，它报告自身不可用。
     - id: ui-plugin-manager
       name: '@deepseek-ai/dsh-client-ui-plugin-manager'
 
-    # Read-only Plugin list tab in the Settings Plugins section; the built-in
-    # bundles the sidebar page leaves out are inspected here.
+    # 设置中 Plugins 区块内的只读插件列表标签页；侧边栏页面未涵盖的内置 bundle 在这里
+    # 被查看。
     - id: ui-settings-plugin-inventory
       name: '@deepseek-ai/dsh-client-ui-settings-plugin-inventory'
 
@@ -332,28 +312,26 @@
     - id: ui-chat
       name: '@deepseek-ai/dsh-client-ui-chat'
 
-    # Official occupants for the generic sidebar and conversation brand slots.
+    # 通用侧边栏与会话品牌位的官方占用者。
     - id: ui-brand-official
       name: '@deepseek-ai/dsh-client-ui-brand-official'
 
     - id: ui-attachment
       name: '@deepseek-ai/dsh-client-ui-attachment'
 
-    # Tool call tree, generic fallback, and keyed business Tool views.
+    # 工具调用树、通用兜底渲染，以及按 key 区分的业务 Tool 视图。
     - id: ui-tool
       name: '@deepseek-ai/dsh-client-ui-tool'
 
     - id: ui-cordis
       name: '@deepseek-ai/dsh-client-ui-cordis'
 
-    # Turn tail: the changed-files card and delivery cards under each closing
-    # assistant message. Remove this entry to turn the surface off; the tail
-    # hole renders empty.
+    # 轮次尾部：每条收尾 assistant 消息之下的变更文件卡片与投递卡片。移除该条目即可
+    # 关闭该界面；尾部占位会渲染为空。
     - id: ui-deliverables
       name: '@deepseek-ai/dsh-client-ui-deliverables'
 
-    # Records each top-level turn's changed files from git working-tree
-    # snapshots; the changed-files card above renders its events.
+    # 依据 git 工作区快照记录每个顶层轮次变更的文件；上面的变更文件卡片渲染它的事件。
     - id: workspace-changes
       name: '@deepseek-ai/dsh-workspace-changes'
 
@@ -361,13 +339,12 @@
     - id: ui-workspace
       name: '@deepseek-ai/dsh-client-ui-workspace'
 
-    # Durable workflow lifecycle as an independent Chat node after the
-    # existing generic workflow tool row.
+    # 紧随既有的通用 workflow 工具行之后，作为独立 Chat 节点的持久化 workflow 生命周期。
     - id: ui-workflow-run
       name: '@deepseek-ai/dsh-client-ui-workflow-run'
 
-    # Input triggers: the '/' | '@' pipeline (ui-input-trigger), the command surface over
-    # it (ui-commands), and the reference sources (ui-skill / ui-reference).
+    # 输入触发器：'/' | '@' 的管线（ui-input-trigger）、构建在其上的命令界面
+    # （ui-commands），以及引用来源（ui-skill / ui-reference）。
     - id: ui-input-trigger
       name: '@deepseek-ai/dsh-client-ui-input-trigger'
 
@@ -383,32 +360,29 @@
     - id: ui-reference
       name: '@deepseek-ai/dsh-client-ui-reference'
 
-    # Display masking for recognized credentials in sent user text; remove
-    # this entry to draw credentials as written.
+    # 对已发送用户文本中已识别凭据的展示掩码；移除该条目即可让凭据按原文绘制。
     - id: ui-secret-mask
       name: '@deepseek-ai/dsh-client-ui-secret-mask'
 
-    # Background jobs: the session-header roster with on-demand streaming
-    # record panels over the session job-output service.
+    # 后台任务：session 头部的任务清单，加上面向任务的按需流式记录面板，运行于
+    # session job-output 服务之上。
     - id: ui-jobs
       name: '@deepseek-ai/dsh-client-ui-jobs'
 
-    # Task management and Session reminder catalog over the Host Schedule
-    # service mounted above.
+    # 任务管理与 Session 提醒目录，运行于上面挂载的 Host Schedule 服务之上。
     - id: ui-schedule
       name: '@deepseek-ai/dsh-client-ui-schedule'
 
-    # Goal surface: GoalBar in the input dock over the goal session projection.
+    # 目标界面：位于输入坞的 GoalBar，构建在 goal 会话投影之上。
     - id: ui-goal
       name: '@deepseek-ai/dsh-client-ui-goal'
 
-    # The feedback surface: Like/Dislike in the assistant-message action
-    # strip, the feedback dialog behind Dislike and /feedback with its
-    # acknowledgement toast, over the messageFeedback and sessionFeedback Remotes.
+    # 反馈界面：位于 assistant 消息操作条的 Like/Dislike，Dislike 与 /feedback 之下的反馈
+    # 对话框及其确认提示，运行于 messageFeedback 与 sessionFeedback Remotes 之上。
     - id: ui-message-feedback
       name: '@deepseek-ai/dsh-client-ui-message-feedback'
 
-    # Model selection: the /model popupSelect + composer seat over session.models.
+    # 模型选择：基于 session.models 的 /model popupSelect 与编辑器座位。
     - id: ui-model-selection
       name: '@deepseek-ai/dsh-client-ui-model-selection'
 
@@ -418,23 +392,21 @@
     - id: ui-permission
       name: '@deepseek-ai/dsh-client-ui-permission-presets'
 
-    # The agent-preset row in General settings: the default preset for
-    # sessions created later. Absent a roster it renders nothing.
+    # General 设置中的 agent-preset 行：稍后新建会话时使用的默认 preset。若没有
+    # preset 名单则不渲染任何内容。
     - id: ui-agent-preset
       name: '@deepseek-ai/dsh-client-ui-agent-preset'
 
     - id: ui-settings-session-log
       name: '@deepseek-ai/dsh-client-ui-settings-session-log'
 
-    # The Built-in plugins settings section: the navigation entry and the tab
-    # row the inventory tab registers into. The official configuration pages
-    # are the companion rows below.
+    # 内置插件设置区块：导航条目以及清单标签页要注册到的那一行。官方的配置页面在下方
+# 对应的各行中。
     - id: ui-settings-plugins
       name: '@deepseek-ai/dsh-client-ui-settings-plugins'
 
-    # The official settings pages: one companion package per host-plane
-    # namespace, each registering its page into the Plugins page while the
-    # Host serves the namespace.
+    # 官方的设置页面：每个宿主层命名空间对应一个 companion 包，它们在 Host 服务
+    # 该命名空间的同时把自己的页面注册到 Plugins 页面里。
     - id: ui-settings-shell
       name: '@deepseek-ai/dsh-client-ui-settings-shell'
 
@@ -447,7 +419,7 @@
     - id: ui-settings-web-search
       name: '@deepseek-ai/dsh-client-ui-settings-web-search'
 
-    # Plan control: the composer plan seat over the plan projection + /plan channel.
+    # 计划控制：覆盖 plan 投影与 /plan 通道的编辑器 plan 座位。
     - id: ui-plan
       name: '@deepseek-ai/dsh-client-ui-plan'
 
@@ -457,22 +429,19 @@
     - id: ui-trajectory
       name: '@deepseek-ai/dsh-client-ui-trajectory'
 
-# ── the agent plane moves behind agent presets ─────────────────────────────
+# ── agent 层迁移到 agent preset 之后 ────────────────────────────────────────
 #
-# Every row below composes what ONE agent contributes to the host registries:
-# its tools, its prompt sections, its delegation backends. The base keeps them
-# for the TUI, which is single-session and composes its agent process-wide; the
-# Web surface disables them here and lets each session mount a preset instead.
+# 下面每一行组装的是一个 agent 贡献给宿主注册表的内容：它的工具、提示词段落、委派后端。
+# base 仍为 TUI 保留它们——TUI 是单会话的，在进程范围内组装它的 agent；Web 界面在这里
+# 把它们停用，让每个 session 改为挂载一个 preset。
 #
-# Disabling rather than deleting is deliberate: the base is shared, and a row
-# absent from a surface overlay would silently reappear the day someone reorders
-# the composition.
+# 用停用而非删除是有意为之：base 是共享的，而一行若从某个界面覆盖层中缺席，将来一旦
+# 有人重新调整组装顺序，它就会悄悄回潮。
 
-# `shell-env` STAYS in the host plane: `apps/cli/src/web.ts` injects it to
-# publish `DSH_WEB_URL`/`DSH_WEB_MODE`, and a host row that injects a service is
-# the criterion for host-plane ownership — injection resolves before any session
-# exists, so there is no agent to key by. Behind a preset realm those variables
-# would never reach the model's shell at all.
+# `shell-env` 留在宿主层：`apps/cli/src/web.ts` 注入它以发布 `DSH_WEB_URL` /
+# `DSH_WEB_MODE`，而宿主行注入了某个服务就是它属于宿主层的判据——注入在任何 session
+# 存在之前就解析了，因此没有 agent 可以作为区分键。藏在 preset 后面之后，这些变量
+# 根本不会到达模型的外壳。
 
 - id: tool-plugin-manager
   disabled: true
@@ -483,15 +452,12 @@
 - id: tool-pwsh
   disabled: true
 
-# The background-job REGISTRY stays on the host plane; only the model-facing
-# `job_*` controls move. Its producers — `tool-bash` here and `tool-terminal`
-# elsewhere — are preset rows that resolve it
-# with `ctx.get`, and an entry-local realm around the registry is invisible to
-# every sibling row outside that realm, so `run_in_background` answered
-# "background jobs unavailable" while the controls sat in the catalog. That is
-# the `goals` criterion read from inside the preset: a Service a row outside its
-# realm READS belongs to the plane both can see. The registry is keyed by owning
-# agent, so one host instance serves every session exactly as before presets.
+# 后台任务的 REGISTRY 留在宿主层；只有面向模型的 `job_*` 控制项随之迁移。它的生产者
+# ——本处的 `tool-bash` 与他处的 `tool-terminal`——是 preset 中的各行，借助 `ctx.get`
+# 解析它，而在该注册表周围建立 entry-local realm 会让它对该 realm 之外的每条兄弟行不可见，
+# 因此 `run_in_background` 在控制项已经存在于目录中时仍会回答“后台任务不可用”。那正是
+# 从 preset 内部读到的 `goals` 判据：realm 外某行 READ 的某个 Service 属于两者都能看到的层。
+# 注册表按所属 agent 索引，因此一个宿主实例会和 preset 之前一样为每个 session 服务。
 
 - id: tool-jobs
   disabled: true
@@ -502,14 +468,12 @@
 - id: tool-fs-search
   disabled: true
 
-# The `skill` REGISTRY stays in the host plane. It is host+per-scope layered
-# (the tools-registry shape): deployment-level providers — repository plugins,
-# a host skill-filesystem row — register into its global layer, while a preset's
-# `skill-filesystem` registers into that preset's layer, and each agent reads the
-# merged catalog its scope chain selects. Only the per-agent rows move behind
-# presets: the base host `skill-filesystem` row is disabled here (presets own local
-# discovery), and `tool-skill` is what a preset mounts to give its agent the
-# catalog and loader at all.
+# `skill` 的 REGISTRY 留在宿主层。它是“宿主 + 每作用域”分层（与 tools-registry 同形）：
+# 部署级提供者——仓库插件、宿主 skill-filesystem 行——注册进它的全局层，而 preset 中的
+# `skill-filesystem` 注册进该 preset 的层，每个 agent 读取其作用域链所选中的合并后目录。
+# 只有 per-agent 的行迁移到 preset 之后：base 的宿主 `skill-filesystem` 行在此停用
+# （本地发现由 preset 负责），而 `tool-skill` 是 preset 挂载来给其 agent 提供目录与
+# 加载器的行。
 
 - id: skill-filesystem
   disabled: true
@@ -517,8 +481,8 @@
 - id: tool-skill
   disabled: true
 
-# The goal service and session driver stay on the host plane, where Gateway
-# remotes resolve them. Presets own the human command and model-facing tool.
+# goal 服务与会话驱动器留在宿主层，由 Gateway 远程来解析它们。preset 持有对应的人工
+# 命令与面向模型工具。
 
 - id: command-goal
   disabled: true
@@ -529,12 +493,11 @@
 - id: plan-mode
   disabled: true
 
-# The token METER stays on the host plane; only the compaction backend that
-# reads it moves. It owns the context-meter projection units, and that table is
-# process-wide, so preset ownership would make the meter a function of which
-# presets happen to be mounted rather than a per-session fact. Same criterion as
-# `tasks` and `goals`; the reasoning has one home in
-# `.agents/notes/implemented/architecture/2026-08-10-host-plane-ownership-after-presets.md`.
+# token METER 留在宿主层；只有读取它的压缩后端随之迁移。它持有 context-meter 的投影单元，
+# 而该表是进程范围的，因此如果交给 preset 拥有，meter 就会变成“恰好挂载了哪些 preset”
+# 的函数，而不再是每会话一个事实。与 `tasks`、`goals` 采用同一判据；其推理在
+# `.agents/notes/implemented/architecture/2026-08-10-host-plane-ownership-after-presets.md`
+# 中只有一处归宿。
 
 - id: compaction-basic
   disabled: true
@@ -545,12 +508,10 @@
 - id: tool-result-pruner
   disabled: true
 
-# The subagent registry and its backends STAY in the host plane. `subagents` is
-# a process singleton with a cross-session query surface (`listChildren`,
-# `followup`) that the host api-proxy serves to the browser, and a provider
-# registers under a globally unique name, so a per-session copy would both
-# starve that host row and collide on the second session. What a preset
-# chooses is which delegation TOOLS its agent sees, below.
+# subagent 注册表与它的各个后端都留在宿主层。`subagents` 是一个进程单例，并通过跨会话的
+# 查询面（`listChildren`、`followup`）由宿主 api-proxy 提供给浏览器，而 provider 以全局
+# 唯一的名字注册，因此做一个 per-session 副本既会让那个宿主行挨饿，又会在第二个 session
+# 上发生名字冲突。preset 选择的是下面这一组——其 agent 看到的具体委派 TOOLS。
 
 - id: tool-subagent-control
   disabled: true
@@ -579,9 +540,8 @@
 - id: tool-web
   disabled: true
 
-# The preset selection registry. The shipped preset declarations follow as
-# separate patch files under `presets/`, listed after this file in
-# `package.json` `dsh.bundle.patch`.
+# preset 选择注册表。已发布的 preset 声明紧随其后，单独以 `presets/` 目录下的各补丁
+# 文件形式出现，并在 `package.json` 的 `dsh.bundle.patch` 字段中按顺序列出。
 - insert:
     - id: agent-preset-registry
       name: '@deepseek-ai/dsh-agent-preset-registry'

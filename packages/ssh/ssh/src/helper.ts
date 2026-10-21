@@ -1,4 +1,4 @@
-/** Private POSIX SSH helper; filesystem and process effects use the installed local providers. */
+/** 私有 POSIX SSH helper；文件系统与进程的副作用均由已安装的本地 provider 产生。 */
 import { createHash, randomUUID } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { mkdtemp, rm } from 'node:fs/promises'
@@ -34,23 +34,23 @@ async function services() {
   return { ctx, close: async () => { for (const fiber of fibers.reverse()) await fiber.dispose() } }
 }
 
-/** The private helper's authenticated transport and process lifetime. */
+/** 私有 helper 已认证的传输通道与进程生命周期。 */
 export interface HelperTransport {
-  /** Authenticated request bytes from OpenSSH. */
+  /** 来自 OpenSSH 的已认证请求字节流。 */
   input: Readable
-  /** Responses carried only by OpenSSH exec stdout. */
+  /** 仅由 OpenSSH exec 的标准输出承载的响应。 */
   output: Writable
-  /** Installed entry whose digest is compared by the client. */
+  /** 已安装的入口文件，其摘要由客户端比对。 */
   entryPath: string
-  /** Whether the installed entry includes its own Node and worker runtime. */
+  /** 已安装的入口是否已自带 Node 与 worker 运行时。 */
   kind: 'node-script' | 'executable'
-  /** Process termination joins the same cleanup as transport loss. */
+  /** 进程终止与传输通道丢失共用同一套清理流程。 */
   signal: AbortSignal
 }
 
 /**
- * Run a helper until its channel closes or its client lease expires.
- * @param transport - private process streams, entry identity, and cancellation.
+ * 运行一个 helper，直到其通道关闭或客户端租约到期。
+ * @param transport - 私有进程流、入口身份与取消信号。
  */
 export async function runSshHelper(transport: HelperTransport): Promise<void> {
   if (process.platform !== 'linux' && process.platform !== 'darwin') throw new Error('SSH helper requires a POSIX host')

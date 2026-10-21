@@ -1,6 +1,6 @@
 /**
- * Perplexity-backed `WebSearchProvider` plugin. It contributes to the
- * `ctx.web` registry without owning the service.
+ * 由 Perplexity 支持的 `WebSearchProvider` 插件。它贡献于 `ctx.web` 注册表，
+ * 但不拥有该服务。
  *
  * @module @deepseek-ai/dsh-web-search-perplexity
  */
@@ -20,23 +20,23 @@ export {
 } from './provider.ts'
 export type { PerplexityRecency, PerplexitySearchProviderOptions } from './provider.ts'
 
-/** Cordis plugin name used by loader diagnostics. */
+/** 供加载器诊断使用的 Cordis 插件名。 */
 export const name = 'web-search-perplexity'
 
-/** The web seam this provider registers into. */
+/** 该提供方注册进入的 web seam。 */
 export const inject = ['web']
 
-/** Plugin config (all optional — `apply` fills env-var and constant defaults). */
+/** 插件配置（全部可选 —— `apply` 会填入环境变量与常量默认值）。 */
 export interface Config {
-  /** Perplexity API key. Falls back to `$PERPLEXITY_API_KEY`. Empty → unavailable. */
+  /** Perplexity API 密钥。回退到 `$PERPLEXITY_API_KEY`。为空 → 不可用。 */
   apiKey?: string
-  /** Endpoint base; `/chat/completions` is appended. Defaults to the public API. */
+  /** 端点基址；会追加 `/chat/completions`。默认为公共 API。 */
   baseURL?: string
-  /** Search model name. Defaults to `sonar`. */
+  /** 搜索模型名。默认为 `sonar`。 */
   model?: string
-  /** Upper bound on generated answer tokens. Defaults to 1024. */
+  /** 生成答案令牌的上限。默认为 1024。 */
   maxTokens?: number
-  /** Recency window sent as `search_recency_filter`. Omitted = no filter. */
+  /** 作为 `search_recency_filter` 发送的时效性窗口。省略 = 无过滤。 */
   searchRecency?: 'day' | 'week' | 'month' | 'year'
 }
 
@@ -48,11 +48,10 @@ export const Config: z<Config> = z.object({
   searchRecency: z.union(['day', 'week', 'month', 'year'] as const),
 })
 
-/** Register the Perplexity search provider with `ctx.web`. */
+/** 向 `ctx.web` 注册 Perplexity 搜索提供方。 */
 export function apply(ctx: Context, config: Config): void {
   ctx.web.registerSearchProvider(new PerplexitySearchProvider({
-    // Every environment layer may name this key: the product trusts the
-    // project it is launched in, and the managed store is not involved here.
+    // 每一层环境都可能命名此密钥：产品信任其被启动于其中的项目，托管存储不在此涉及。
     apiKey: config.apiKey ?? launchEnvironmentOf(ctx).get('PERPLEXITY_API_KEY')?.value ?? '',
     baseURL: config.baseURL ?? PERPLEXITY_DEFAULT_BASE_URL,
     model: config.model ?? PERPLEXITY_DEFAULT_MODEL,

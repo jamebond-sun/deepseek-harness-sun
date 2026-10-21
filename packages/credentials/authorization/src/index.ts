@@ -1,15 +1,12 @@
 /**
- * Service Definition for the authorization capability seam (`ctx.authorization`):
- * obtaining a credential nobody can supply from configuration alone, because
- * getting it requires a conversation with the human — open this page, paste
- * that code, pick an account.
+ * 授权能力 seam（`ctx.authorization`）的 Service Definition：获取一份任何人都
+ * 无法仅凭配置提供的凭证，因为得到它需要一场与人类的对话——打开此页、粘贴
+ * 那段代码、选择一个账户。
  *
- * The seam owns the conversation and the lifecycle; it never owns the protocol.
- * A plugin that knows how to obtain its own credential registers a flow keyed
- * by the `CredentialKey` that flow writes, and the flow talks to whatever
- * surface started it through one neutral vocabulary of notices and prompts. So
- * a second authorization protocol arrives as another flow rather than as
- * another seam, and a surface that renders one flow renders all of them.
+ * 该 seam 拥有对话与生命周期；它从不拥有协议。一个知道如何获取自身凭证的插件
+ * 注册一个以该流程所写入的 `CredentialKey` 为键的流程，而该流程通过一套中性的
+ * 通知与提示词汇，与启动它的任意界面对话。因此第二种授权协议以又一个流程的
+ * 形式到来，而非又一个 seam；而能渲染一个流程的界面也就能渲染它们全部。
  *
  * ```ts
  * const dispose = ctx.authorization.registerFlow({
@@ -47,18 +44,17 @@ declare module '@deepseek-ai/cordis' {
 
   interface Events {
     /**
-     * One authorization attempt has finished and released its key. Fires for
-     * every terminal outcome, failures included, so a surface watching a key it
-     * did not start (a second browser tab) learns the attempt is over.
+     * 一次授权尝试已结束并释放了其键。为每一个终态结果（含失败）触发，因此一个
+     * 正在观察它未发起的键的界面（第二个浏览器标签页）也能得知该尝试已结束。
      * @mode emit
-     * @param key - the credential record the finished attempt was authorizing.
-     * @param settlement - how it ended, including the `failed` case its caller sees as a thrown error.
+     * @param key - 已结束尝试所正在授权的凭证记录。
+     * @param settlement - 它如何结束，包括其调用方视为抛出错误的 `failed` 情况。
      */
     'authorization/settled'(key: CredentialKey, settlement: AuthorizationSettlement): void
   }
 }
 
-/** Stable error taxonomy for authorization failures. */
+/** 授权失败的、稳定的错误分类。 */
 export class AuthorizationError extends HarnessError {
   constructor(message: string, code: string, options?: ErrorOptions) {
     super(message, code, options)
@@ -67,14 +63,11 @@ export class AuthorizationError extends HarnessError {
 }
 
 /**
- * The rejection an {@link AuthorizationInteraction.prompt} uses to say the
- * human declined — dismissed the question, chose not to answer — rather than
- * that the surface broke. An attempt whose flow fails after a prompt was
- * declined settles as `cancelled`, the same outcome as a withdrawn signal,
- * because the human saying no is a refusal, not a breakage. Only a human's
- * "no" may reject with this class: a prompt withdrawn by its own `signal` (a
- * flow retiring the losing question of a race) must reject with something
- * else, or a later genuine failure would be misread as a decline.
+ * {@link AuthorizationInteraction.prompt} 用来表达“人类拒绝”的拒绝——驳回了
+ * 问题、选择不回答——而非界面崩溃。一个在提示被拒绝之后流程失败的尝试以
+ * `cancelled` 结算，与撤回的信号结果相同，因为人类说“不”是一种拒绝，而非故障。
+ * 只有人类的“不”才可用此类拒绝：一个被自身 `signal` 撤回的提示（流程弃用竞速中
+ * 落败的问题）必须以其他东西拒绝，否则稍后真正的失败会被误读为拒绝。
  */
 export class AuthorizationDeclinedError extends AuthorizationError {
   constructor(message = 'the authorization prompt was declined') {
@@ -84,110 +77,106 @@ export class AuthorizationDeclinedError extends AuthorizationError {
 }
 
 /**
- * What a running flow is given to talk to the human. Every member is scoped to
- * one attempt: the flow neither knows nor chooses which surface is listening.
+ * 一个运行中的流程被给予、用来与人类对话的东西。每个成员都限定于一次尝试：
+ * 流程既不知道也不选择哪个界面在倾听。
  */
 export interface AuthorizationSession {
-  /** The method id the caller picked, always one this flow declared. */
+  /** 调用方所选的方法 id，始终是该流程声明过的一个。 */
   readonly method: string
-  /** Aborted when the caller withdraws or `cancel()` is called for this key. */
+  /** 当调用方撤回或针对此键调用 `cancel()` 时中止。 */
   readonly signal: AbortSignal
   /**
-   * Commit a record while rejecting cancelled attempts. Once admitted, cancellation waits for completion.
-   * @param record - credential owned by this flow.
-   * @returns after the credential store commits the record.
+   * 提交一条记录，同时拒绝已被取消的尝试。一旦被接纳，取消会等待完成。
+   * @param record - 由本流程拥有的凭证。
+   * @returns 在凭证存储提交该记录之后。
    */
   commit(record: CredentialRecord): Promise<void>
   /**
-   * Report progress, or tell the human what to do next. Fire-and-forget: a
-   * surface that cannot render a notice must not stall the flow.
-   * @param notice - the message, and any page or code it refers to.
+   * 报告进度，或告诉人类接下来要做什么。即发即忘：一个无法渲染通知的界面
+   * 绝不能让流程停滞。
+   * @param notice - 消息，以及它所涉及的任何页面或代码。
    */
   notify(notice: AuthorizationNotice): void
   /**
-   * Ask the human a question the flow cannot answer for itself.
-   * @param prompt - what to ask, and how it should be presented.
-   * @returns what the human typed, or the chosen option's id.
-   * @throws when the human declines, or the prompt's own signal withdraws it.
+   * 向人类提出一个流程无法自行回答的问题。
+   * @param prompt - 要问什么，以及应如何呈现。
+   * @returns 人类键入的文本，或所选选项的 id。
+   * @throws 当人类拒绝，或提示自身的 signal 将其撤回时。
    */
   prompt(prompt: AuthorizationPrompt): Promise<string>
 }
 
 /**
- * A plugin's knowledge of how to obtain one credential. The flow owns the
- * write: `run()` resolving means the record for `key` is committed through
- * `ctx.credentials` during that run, which the seam confirms — a commit
- * observed within the attempt, still present after it — before reporting
- * success. Committing inside the flow is what lets a library that persists
- * through its own store adapter (pi-ai's `Models.login()`) stay the single
- * writer instead of being copied back out and written twice.
+ * 一个插件关于如何获取某份凭证的知识。流程拥有写入：`run()` 的解析意味着 `key`
+ * 对应的记录在此次运行期间通过 `ctx.credentials` 提交，这是该 seam 在报告成功前
+ * 所确认的事实——一次在尝试内观测到、且在尝试之后仍然存在的提交。在流程内部提交，
+ * 使得一个通过其自身存储适配器持久化的库（pi-ai 的 `Models.login()`）得以成为
+ * 唯一的写入方，而非被复制出来写两次。
  */
 export interface AuthorizationFlow {
-  /** The credential record this flow writes. Its scope names the owning plugin. */
+  /** 此流程所写入的凭证记录。其 scope 命名了拥有插件。 */
   readonly key: CredentialKey
-  /** User-facing name of what is being authorized. */
+  /** 正被授权内容的、面向用户的名称。 */
   readonly label: string
   /**
-   * The methods offered, most preferred first; a caller naming none gets the
-   * first. Typed non-empty because a flow with nothing to run is a flow that
-   * cannot be begun, and the type says so at the one place flows are written.
+   * 所提供的方法，按偏好程度从高到低；未指定方法者取第一个。以非空元组类型化，
+   * 因为一个无事可运行的流程是一个无法开始的流程，而类型在唯一书写流程之处
+   * 即说明了这一点。
    */
   readonly methods: readonly [AuthorizationMethod, ...AuthorizationMethod[]]
   /**
-   * Run one attempt to obtain and commit the credential.
-   * @param session - the chosen method, the cancellation signal, and the interaction callbacks.
-   * @returns once the record is committed.
-   * @throws when the attempt fails or the human declines.
+   * 运行一次尝试以获取并提交凭证。
+   * @param session - 所选方法、取消信号，以及交互回调。
+   * @returns 在记录被提交之后。
+   * @throws 当尝试失败或人类拒绝时。
    */
   run(session: AuthorizationSession): Promise<void>
 }
 
 /**
- * The surface half of one attempt. Supplied with the request rather than
- * registered, because the caller that starts an authorization is the one that
- * can talk to the human about it: prompts reach exactly the page that asked,
- * and a headless caller supplies an interaction that declines.
+ * 一次尝试的界面半边。随请求提供而非注册，因为发起授权的调用方正是那个能与
+ * 人类谈论它的一方：提示恰好抵达发起请求的页面，而无头调用方提供一个会拒绝的
+ * 交互。
  */
 export interface AuthorizationInteraction {
   /**
-   * Render a notice from the running flow.
-   * @param notice - the message, and any page or code it refers to.
+   * 渲染来自运行流程的通知。
+   * @param notice - 消息，以及它所涉及的任何页面或代码。
    */
   notify(notice: AuthorizationNotice): void
   /**
-   * Put a question to the human and wait.
-   * @param prompt - what to ask, and how it should be presented.
-   * @returns the typed text, or the chosen option's id.
-   * @throws {AuthorizationDeclinedError} when the human declines; any other
-   *   rejection reads as the surface failing, not as an answer.
+   * 向人类提出问题并等待。
+   * @param prompt - 要问什么，以及应如何呈现。
+   * @returns 键入的文本，或所选选项的 id。
+   * @throws {AuthorizationDeclinedError} 当人类拒绝时；任何其他拒绝都读作界面
+   *   失败，而非一个答案。
    */
   prompt(prompt: AuthorizationPrompt): Promise<string>
 }
 
-/** One request to authorize a key. */
+/** 一次授权某个键的请求。 */
 export interface AuthorizationRequest {
-  /** The credential record to authorize; a flow must be registered for it. */
+  /** 要授权的凭证记录；必须已为其注册一个流程。 */
   key: CredentialKey
-  /** Which of the flow's methods to run. Defaults to the flow's first. */
+  /** 要运行的流程方法之一。默认为流程的第一个。 */
   method?: string
-  /** The surface that will render this attempt's notices and prompts. */
+  /** 将渲染此次尝试的通知与提示的界面。 */
   interaction: AuthorizationInteraction
-  /** Withdraws the whole attempt. */
+  /** 撤回整个尝试。 */
   signal?: AbortSignal
 }
 
-/** One attempt in flight, with the handle that withdraws it. */
+/** 一次在途的尝试，以及撤回它的句柄。 */
 interface InFlight {
   readonly controller: AbortController
   committing: boolean
 }
 
 /**
- * `ctx.authorization`: a registry of credential-obtaining flows, one attempt at
- * a time per key.
+ * `ctx.authorization`：一个凭证获取流程的注册表，每个键同一时刻仅一次尝试。
  */
 export class AuthorizationService extends Service {
-  /** The commit this seam confirms is a credential-record write, so the store is required, not optional. */
+  /** 本 seam 所确认的那次提交是一次凭证记录的写入，因此存储是必需的，而非可选的。 */
   static inject = ['credentials']
 
   private readonly flows = new Map<CredentialKey, AuthorizationFlow>()
@@ -198,13 +187,12 @@ export class AuthorizationService extends Service {
   }
 
   /**
-   * Offer a way to obtain one credential. One flow per key: two plugins
-   * claiming the same key would each write a record in their own format, and
-   * whichever ran last would leave the other reading a payload it cannot parse.
+   * 提供一种获取某份凭证的方式。每个键仅一个流程：两个插件若声明同一键，会各自
+   * 以自己的格式写入一条记录，而最后运行的那个会让另一个读到它无法解析的载荷。
    *
-   * @param flow - the key it writes, its label, its methods, and its runner.
-   * @returns Disposer that withdraws this flow.
-   * @throws {AuthorizationError} code `DUPLICATE_FLOW` when the key is already claimed.
+   * @param flow - 它写入的键、其标签、其方法，以及其运行器。
+   * @returns 撤回此流程的释放器。
+   * @throws {AuthorizationError} 当该键已被声明时，错误码 `DUPLICATE_FLOW`。
    */
   registerFlow(flow: AuthorizationFlow): () => void {
     const dispose = this.ctx.effect(function* (this: AuthorizationService) {
@@ -215,9 +203,8 @@ export class AuthorizationService extends Service {
       this.flows.set(flow.key, flow)
       yield () => {
         this.flows.delete(flow.key)
-        // A flow leaving mid-attempt takes its attempt with it: the runner
-        // belongs to a plugin that is going away, so letting it keep prompting
-        // would outlive the fiber that can answer for it.
+        // 一个在尝试中途离场的流程会带上它的尝试一并离开：运行器属于一个正在
+        // 退出的插件，因此任由它继续提示会超越那个能够为其作答的 fiber 的寿命。
         this.cancel(flow.key)
       }
     }.bind(this), 'authorization.registerFlow()')
@@ -225,24 +212,24 @@ export class AuthorizationService extends Service {
   }
 
   /**
-   * Every registered flow, for a surface listing what can be authorized.
-   * @returns one entry per flow, in registration order.
+   * 每个已注册流程，供界面列出可被授权的内容。
+   * @returns 按注册顺序、每个流程一个条目。
    */
   list(): readonly AuthorizationEntry[] {
     return [...this.flows.values()].map(flow => this.entry(flow))
   }
 
   /**
-   * One registered flow.
-   * @param key - the credential record to ask about.
-   * @returns the entry, or undefined when no flow claims that key.
+   * 一个已注册流程。
+   * @param key - 要询问的凭证记录。
+   * @returns 该条目；当没有流程声明该键时为 undefined。
    */
   describe(key: CredentialKey): AuthorizationEntry | undefined {
     const flow = this.flows.get(key)
     return flow === undefined ? undefined : this.entry(flow)
   }
 
-  /** The public view of one registered flow. */
+  /** 一个已注册流程的公开视图。 */
   private entry(flow: AuthorizationFlow): AuthorizationEntry {
     return {
       key: flow.key,
@@ -253,10 +240,9 @@ export class AuthorizationService extends Service {
   }
 
   /**
-   * Withdraw the attempt running for a key, if any. Separate from the
-   * request's own signal because a request/response transport answers a Cancel
-   * button on a second call, with no handle on the first one's signal.
-   * @param key - the credential record whose attempt should stop.
+   * 撤回为某个键正在运行的尝试（若有）。与请求自身的 signal 分开，是因为
+   * 请求/响应传输会在第二次调用时响应“取消”按钮，而手上没有第一次调用 signal 的句柄。
+   * @param key - 其尝试应当停止的凭证记录。
    */
   cancel(key: CredentialKey): void {
     const running = this.running.get(key)
@@ -264,21 +250,18 @@ export class AuthorizationService extends Service {
   }
 
   /**
-   * Run one attempt to authorize a key, and report how it ended.
+   * 运行一次尝试以授权某个键，并报告其如何结束。
    *
-   * One attempt per key at a time. A second caller is refused rather than
-   * joined: the two would be prompting different humans through the same flow,
-   * and the second would answer questions the first was asked.
+   * 每个键同一时刻仅一次尝试。第二个调用方会被拒绝而非被合并：两者会通过同一个
+   * 流程提示不同的人类，而第二个会去回答第一个被问到的问题。
    *
-   * @param request - the key, the method, the surface, and the cancel signal.
-   * @returns `authorized` once the flow's record is committed during this
-   *   attempt and observed, or `cancelled` when the human declined or the
-   *   caller withdrew.
-   * @throws {AuthorizationError} code `NO_FLOW` when nothing claims the key,
-   *   `UNKNOWN_METHOD` when the named method is not one the flow offers,
-   *   `ALREADY_IN_FLIGHT` when an attempt is already running for the key, or
-   *   `NOT_COMMITTED` when the flow resolved without committing a record
-   *   during the attempt.
+   * @param request - 键、方法、界面，以及取消信号。
+   * @returns 当流程的记录在此次尝试期间被提交并被观测到时为 `authorized`，
+   *   当人类拒绝或调用方撤回时为 `cancelled`。
+   * @throws {AuthorizationError} 当没有流程声明该键时为 `NO_FLOW`；当所命名的
+   *   方法不是该流程提供的方法之一时为 `UNKNOWN_METHOD`；当已有针对该键的尝试
+   *   在运行时为 `ALREADY_IN_FLIGHT`；当流程在尝试期间未提交任何记录即解析时为
+   *   `NOT_COMMITTED`。
    */
   async begin(request: AuthorizationRequest): Promise<AuthorizationOutcome> {
     const { key } = request
@@ -295,11 +278,10 @@ export class AuthorizationService extends Service {
       throw new AuthorizationError(
         `an authorization attempt for "${key}" is already running`, 'ALREADY_IN_FLIGHT')
     }
-    // Withdrawn before it began: never claim the slot and never run the flow.
-    // Handing an aborted signal to `run()` would rely on every flow checking it
-    // before its first await, and one that does not would hang holding the key.
-    // Validation still runs first, so a caller naming a key or method that does
-    // not exist hears about it whether or not it also gave up.
+    // 在开始之前就撤回：绝不占用槽位，也绝不运行流程。把一个已中止的 signal 交给
+    // `run()` 会依赖于每个流程在它的第一个 await 之前都检查它，而一旦有流程不检查，
+    // 就会在持有该键的情况下挂起。校验仍先运行，因此无论调用方是否同时放弃，
+    // 只要它命名了一个不存在的键或方法，就会收到相应错误。
     if (request.signal?.aborted === true) return { status: 'cancelled' }
     const controller = new AbortController()
     const withdraw = (): void => {
@@ -322,17 +304,14 @@ export class AuthorizationService extends Service {
     }
   }
 
-  /* jscpd:ignore-start -- deliberate symmetry with the credentials seam's
-     commit fan-out (`CredentialProvider`): the contained-dispatch shape is the
-     reviewed listener-lifecycle contract, and extracting it would couple the
-     two seams' event semantics. */
+  /* jscpd:ignore-start -- 与 credentials seam 的提交扇出（`CredentialProvider`）
+     刻意为之的对称性：被包容派发的形态是经过审阅的监听器生命周期契约，抽取它会
+     把两个 seam 的事件语义耦合起来。 */
   /**
-   * Fan `authorization/settled` out with contained listener failures: every
-   * listener runs, and a sync throw or async rejection is logged without
-   * changing the finished attempt's own outcome. The attempt is already
-   * over and its key released when this fires, so a broken watcher (that
-   * second browser tab) can never turn the caller's settled result into a
-   * failure of its own.
+   * 将 `authorization/settled` 扇出，并包容监听器失败：每个监听器都会运行，
+   * 同步抛出或异步拒绝都会被记录，而不改变已结束尝试自身的结果。当此函数触发时，
+   * 该尝试已经结束且其键已被释放，因此一个损坏的观察者（那第二个浏览器标签页）
+   * 绝不可能把调用方已结算的结果变成它自己的失败。
    */
   private settle(key: CredentialKey, settlement: AuthorizationSettlement): void {
     const args = ['authorization/settled', key, settlement]
@@ -351,37 +330,33 @@ export class AuthorizationService extends Service {
   }
   /* jscpd:ignore-end */
 
-  /** Contained-listener diagnostic shared by the sync and async failure paths. */
+  /** 同步与异步失败路径所共用的、被包容监听器的诊断。 */
   private warnSettledListenerFailure(key: CredentialKey, error: unknown): void {
     this.ctx.logger.warn('authorization: an authorization/settled listener for "%s" failed', key)
     this.ctx.logger.warn(error)
   }
 
-  /** Run the flow, then hold it to its half of the commit contract. */
+  /** 运行流程，然后将其约束在它那一半提交契约之内。 */
   private async attempt(
     flow: AuthorizationFlow,
     method: string,
     signal: AbortSignal,
     interaction: AuthorizationInteraction,
   ): Promise<AuthorizationOutcome> {
-    // Withdrawal settles the attempt whether or not the flow reacts to it. A
-    // flow is supposed to stop when its signal fires, but one that does not
-    // would otherwise hold the key for the life of the process, and a wedged
-    // key is indistinguishable from a busy one from the outside. The orphaned
-    // run is left to finish on its own; nothing waits on it, and a record it
-    // still manages to commit is a record the human did authorize.
+    // 撤回会结算该尝试，无论流程是否对此作出反应。一个流程本应在其 signal 触发时
+    // 停止，但若不停止，它就会在进程的整个生命周期内持有该键，而从外部看，一个卡住的
+    // 键与一个忙碌的键无法区分。被遗弃的运行会被留待自行结束；没有任何东西等待它，
+    // 而它仍设法提交的一条记录，正是一条人类确实授权过的记录。
     const withdrawn = new Promise<'withdrawn'>((resolve) => {
-      // `begin()` returns before claiming the key when its caller has already
-      // withdrawn, so this signal cannot already be aborted here.
+      // 当其调用方已经撤回时，`begin()` 会在占用该键之前返回，因此此处的 signal
+      // 不可能已经被中止。
       signal.addEventListener('abort', () => { resolve('withdrawn') }, { once: true })
     })
-    // What the seam itself witnessed during the run, held as properties
-    // because closure writes do not narrow locals across awaits: the prompt
-    // wrapper sees a decline first-hand (a flow that rewraps the rejection on
-    // its way out cannot hide it), and confirming the commit means confirming
-    // it happened *now* — on a re-auth the record already exists, so presence
-    // alone would let a flow that wrote nothing report the stale credential
-    // as freshly authorized.
+    // 该 seam 在运行期间亲眼所见的事实，以属性形式持有，因为闭包写入不会跨 await
+    // 收窄局部变量：提示包装器会 firsthand 看到一个拒绝（一个在返回途中重新包装
+    // 该拒绝的流程无法隐藏它），而确认提交意味着确认它*此刻*发生——在重新认证时
+    // 该记录已然存在，因此仅凭存在性会让一个什么都没写的流程把陈旧的凭证报告为
+    // 刚被授权。
     const observed = { declined: false, committed: false }
     const unwatch = this.ctx.on('credentials/record-updated', (key: CredentialKey) => {
       if (key === flow.key) observed.committed = true
@@ -403,9 +378,8 @@ export class AuthorizationService extends Service {
           try {
             interaction.notify(notice)
           } catch (error) {
-            // Fire-and-forget is held at the seam: a surface that cannot
-            // render a notice (a page whose connection just closed) loses the
-            // notice, never the attempt.
+            // 即发即忘被保持在该 seam 处：一个无法渲染通知的界面（连接刚刚关闭的
+            // 页面）会丢失该通知，而绝不会丢失该尝试。
             this.ctx.logger.warn('authorization: the interaction surface failed to render a notice')
             this.ctx.logger.warn(error)
           }
@@ -417,15 +391,14 @@ export class AuthorizationService extends Service {
       })
       try {
         if (await Promise.race([running.then(() => 'ran' as const), withdrawn]) === 'withdrawn') {
-          // Nothing awaits the orphan any more, so its eventual failure has to be
-          // marked handled or it would take down the process.
+          // 已没有任何东西再等待这个孤儿，因此它最终的失败必须被标记为已处理，
+          // 否则会拖垮整个进程。
           void running.catch(() => { this.ctx.logger.debug('authorization: withdrawn flow failed after the fact') })
           return { status: 'cancelled' }
         }
       } catch (error) {
-        // A withdrawn attempt and a declined prompt are outcomes, not
-        // failures: the human said no, or closed the page. Anything else is
-        // the flow failing and belongs to the caller, cause chain intact.
+        // 被撤回的尝试与被拒绝的提示是结果，而非失败：人类说了不，或关闭了页面。
+        // 除此之外的一切都是流程失败，且归属调用方，原因链保持完整。
         if (signal.aborted || observed.declined) return { status: 'cancelled' }
         throw error
       }

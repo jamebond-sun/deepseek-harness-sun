@@ -1,4 +1,4 @@
-/** Closed private transports shared by the native subprocess runner. */
+/** 原生 subprocess runner 所共享的封闭私有传输。 */
 
 import {
   chmodSync,
@@ -13,14 +13,14 @@ import {
 import { tmpdir } from 'node:os'
 import { basename, dirname, isAbsolute, join } from 'node:path'
 
-/** Target state restored by the Linux bootstrap after systemd establishes the scope. */
+/** 由 Linux 引导程序在 systemd 建立 scope 之后恢复的目标状态。 */
 export interface LinuxLaunchRequest {
   cwd: string
   env: Record<string, string>
   control?: 'pipe'
 }
 
-/** Bounded Node-shaped error fields allowed across a private runner boundary. */
+/** 允许跨私有 runner 边界传递的、有界的 Node 形态错误字段。 */
 export interface SerializedRunnerError {
   name: string
   message: string
@@ -29,11 +29,11 @@ export interface SerializedRunnerError {
   path?: string
 }
 
-/** A Linux pre-exec failure published beside its consumed request. */
+/** 与已消费请求并列发布的、Linux 预执行失败。 */
 export type LinuxStartupError =
   { type: 'error'; error: SerializedRunnerError }
 
-/** The only parent-to-runner start message on Windows. */
+/** Windows 上唯一的“父进程到 runner”启动消息。 */
 export interface WindowsStartRequest {
   type: 'start'
   cwd: string
@@ -41,17 +41,17 @@ export interface WindowsStartRequest {
   control?: 'pipe'
 }
 
-/** The only parent-to-runner control message on Windows. */
+/** Windows 上唯一的“父进程到 runner”控制消息。 */
 export interface WindowsTerminateRequest {
   type: 'terminate'
 }
 
-/** Exactly one direct-result branch is sent by a connected Windows runner. */
+/** 一个已连接的 Windows runner 只发送其中一条直接结果分支。 */
 export type WindowsRunnerResult =
   | { type: 'target-exit'; exitCode: number }
   | { type: 'error'; error: SerializedRunnerError }
 
-/** Private paths owned by one Linux ordinary or PTY spawn. */
+/** 一次 Linux 普通或 PTY 启动所拥有的私有路径。 */
 export interface LinuxLaunchFiles {
   directory: string
   requestPath: string
@@ -96,9 +96,9 @@ function parseErrorResult(value: Record<string, unknown>): LinuxStartupError {
 }
 
 /**
- * Create a private 0700 directory and one complete 0600 launch request.
- * @param request - target cwd and complete environment for the bootstrap.
- * @returns private paths owned by this launch.
+ * 创建一个私有 0700 目录，以及一份完整的 0600 启动请求。
+ * @param request - 供引导程序使用的目标 cwd 与完整环境。
+ * @returns 本次启动所拥有的私有路径。
  */
 export function createLinuxLaunchFiles(request: LinuxLaunchRequest): LinuxLaunchFiles {
   const directory = mkdtempSync(join(tmpdir(), 'dsh-subprocess-launch-'))
@@ -118,9 +118,9 @@ export function createLinuxLaunchFiles(request: LinuxLaunchRequest): LinuxLaunch
 }
 
 /**
- * Derive the only permitted startup-error path from an absolute request locator.
- * @param requestPath - absolute path to the private launch-request file.
- * @returns validated sibling paths for this launch.
+ * 从绝对请求定位符推导出唯一允许的启动错误路径。
+ * @param requestPath - 私有启动请求文件的绝对路径。
+ * @returns 本次启动经过校验的同级路径。
  */
 export function linuxLaunchFilesFromLocator(requestPath: string): LinuxLaunchFiles {
   if (!isAbsolute(requestPath) || basename(requestPath) !== 'launch-request.json') {
@@ -131,9 +131,9 @@ export function linuxLaunchFilesFromLocator(requestPath: string): LinuxLaunchFil
 }
 
 /**
- * Strictly read and remove a one-shot Linux launch request.
- * @param requestPath - private launch-request path to consume.
- * @returns validated target cwd and environment.
+ * 严格读取并删除一份一次性的 Linux 启动请求。
+ * @param requestPath - 待消费的私有启动请求路径。
+ * @returns 经过校验的目标 cwd 与环境。
  */
 export function consumeLinuxLaunchRequest(requestPath: string): LinuxLaunchRequest {
   const text = readFileSync(requestPath, 'utf8')
@@ -148,18 +148,18 @@ export function consumeLinuxLaunchRequest(requestPath: string): LinuxLaunchReque
 }
 
 /**
- * Publish one strict 0600 Linux pre-exec error.
- * @param files - private paths for this launch.
- * @param error - bounded spawn or runner failure to publish.
+ * 发布一份严格的 0600 Linux 预执行错误。
+ * @param files - 本次启动的私有路径。
+ * @param error - 要发布的、有界的启动或 runner 失败。
  */
 export function writeLinuxStartupError(files: LinuxLaunchFiles, error: LinuxStartupError): void {
   writeFileSync(files.startupErrorPath, JSON.stringify(error), { flag: 'wx', mode: 0o600 })
 }
 
 /**
- * Read the Linux pre-exec error, if the bootstrap published one.
- * @param path - expected startup-error path.
- * @returns the validated failure, or undefined when none was published.
+ * 读取 Linux 预执行错误，前提是引导程序已发布过。
+ * @param path - 预期的启动错误路径。
+ * @returns 经过校验的失败；当未发布任何内容时为 undefined。
  */
 export function readLinuxStartupError(path: string): LinuxStartupError | undefined {
   if (!existsSync(path)) return undefined
@@ -169,9 +169,9 @@ export function readLinuxStartupError(path: string): LinuxStartupError | undefin
 }
 
 /**
- * Strictly parse the single Windows start message.
- * @param value - untrusted IPC payload.
- * @returns validated target start request.
+ * 严格解析唯一一条 Windows 启动消息。
+ * @param value - 不可信的 IPC 载荷。
+ * @returns 经过校验的目标启动请求。
  */
 export function parseWindowsStartRequest(value: unknown): WindowsStartRequest {
   if (!isRecord(value) || !hasExactKeys(value, ['type', 'cwd', 'env'], ['control'])
@@ -183,18 +183,18 @@ export function parseWindowsStartRequest(value: unknown): WindowsStartRequest {
 }
 
 /**
- * Return true only for the exact, payload-free Windows terminate control.
- * @param value - untrusted IPC payload.
- * @returns whether the payload is the exact terminate request.
+ * 仅对精确且不含载荷的 Windows 终止控制返回 true。
+ * @param value - 不可信的 IPC 载荷。
+ * @returns 该载荷是否就是精确的终止请求。
  */
 export function isWindowsTerminateRequest(value: unknown): value is WindowsTerminateRequest {
   return isRecord(value) && hasExactKeys(value, ['type']) && value.type === 'terminate'
 }
 
 /**
- * Strictly parse one of the two Windows direct-result branches.
- * @param value - untrusted IPC payload.
- * @returns validated direct-result message.
+ * 严格解析两条 Windows 直接结果分支中的一条。
+ * @param value - 不可信的 IPC 载荷。
+ * @returns 经过校验的直接结果消息。
  */
 export function parseWindowsRunnerResult(value: unknown): WindowsRunnerResult {
   if (!isRecord(value) || typeof value.type !== 'string') {
@@ -217,9 +217,9 @@ export function parseWindowsRunnerResult(value: unknown): WindowsRunnerResult {
 }
 
 /**
- * Convert an unknown failure into the bounded cross-process error record.
- * @param error - failure caught at the process boundary.
- * @returns bounded serializable error fields.
+ * 将一个未知失败转换为有界的跨进程错误记录。
+ * @param error - 在进程边界处捕获的失败。
+ * @returns 有界的可序列化错误字段。
  */
 export function serializeRunnerError(error: unknown): SerializedRunnerError {
   const source = error instanceof Error ? error : new Error(String(error))
@@ -234,9 +234,9 @@ export function serializeRunnerError(error: unknown): SerializedRunnerError {
 }
 
 /**
- * Rebuild a Node-shaped Error from a strict runner record.
- * @param serialized - validated bounded error fields.
- * @returns reconstructed Error with supported Node fields.
+ * 从一份严格的 runner 记录重建一个 Node 形态 Error。
+ * @param serialized - 经过校验的有界错误字段。
+ * @returns 带有受支持 Node 字段的、重建后的 Error。
  */
 export function deserializeRunnerError(serialized: SerializedRunnerError): Error {
   const error = new Error(serialized.message)
@@ -249,8 +249,8 @@ export function deserializeRunnerError(serialized: SerializedRunnerError): Error
 }
 
 /**
- * Best-effort removal of only the private paths created for this Linux spawn.
- * @param files - exact private paths owned by this launch.
+ * 尽最大努力、只移除为本次 Linux 启动创建的私有路径。
+ * @param files - 本次启动精确拥有的私有路径。
  */
 export function cleanupLinuxLaunchFiles(files: LinuxLaunchFiles): void {
   try {
@@ -268,6 +268,6 @@ export function cleanupLinuxLaunchFiles(files: LinuxLaunchFiles): void {
     }
     rmdirSync(files.directory)
   } catch {
-    // Crash residue remains private and no later spawn reuses this directory.
+    // 崩溃残留仍是私有的，且后续任何启动都不会复用这个目录。
   }
 }

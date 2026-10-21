@@ -1,10 +1,10 @@
-/** Private OpenSSH process entry; the helper module owns request and cleanup behavior. */
-/* v8 ignore file -- launched through plain Node in SSH acceptance; helper behavior is exercised through its explicit streams. */
+/** 私有 OpenSSH 进程入口；请求与清理行为由 helper 模块负责。 */
+/* v8 ignore file -- 在 SSH 验收中由纯 Node 启动；helper 行为通过其显式传入的流来测试。 */
 import { fileURLToPath } from 'node:url'
 import { isSea } from 'node:sea'
 import { runSshHelper } from './helper.ts'
 
-/** Serve one helper request; every failure is reported on stderr with exit code 127. */
+/** 处理一次 helper 请求；所有失败都会写入 stderr 并以退出码 127 结束。 */
 async function main(): Promise<void> {
   const controller = new AbortController()
   const stop = (): void => { controller.abort(new Error('SSH helper process terminated')) }

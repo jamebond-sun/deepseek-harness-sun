@@ -1,7 +1,6 @@
 /**
- * Host-workspace discovery for `@file` completion. The index contains paths
- * only: selected values remain ordinary prompt text and file contents stay
- * behind the model-facing `read` tool.
+ * 面向 `@file` 补全的、宿主工作区发现。索引仅包含路径：
+ * 所选值仍是普通提示文本，文件内容则留在面向模型的 `read` 工具之后。
  *
  * @module @deepseek-ai/dsh-file-reference-local/search
  */
@@ -12,21 +11,19 @@ import type { FileReferenceCandidate } from '@deepseek-ai/dsh-file-reference'
 
 export { activeAtToken, formatFileMention } from '@deepseek-ai/dsh-file-reference/grammar'
 
-/** Default maximum file and directory candidates rendered for one query. */
+/** 针对一次查询渲染的、默认的最大文件与目录候选数。 */
 export const DEFAULT_FILE_SEARCH_MAX_RESULTS = 20
-/** Default maximum entries retained in one workspace search index. */
+/** 单个工作区搜索索引中保留的默认最大条目数。 */
 export const DEFAULT_FILE_SEARCH_MAX_ENTRIES = 50_000
 /**
- * Directory basenames omitted from traversal unless the deployment overrides
- * them: version-control and dependency stores plus build-output names that no
- * ecosystem also uses for sources. Generated files carry the basenames of the
- * sources that produced them, so an unfiltered tree both spends the entry
- * budget twice and ranks `dist/x.js` beside `src/x.ts` for every query.
+ * 除非部署覆盖，否则遍历中省略的目录基名：版本控制与依赖存储，
+ * 以及没有任何生态也用于源代码的构建产物名。生成文件带着生成它们的
+ * 源代码基名，因此一棵未过滤的树既会双倍消耗条目预算，
+ * 又会让 `dist/x.js` 与 `src/x.ts` 在每个查询中并列排名。
  *
- * `lib` is deliberately absent: Ruby gems and many npm packages keep their
- * sources there, and excluding it would make `@` miss those sources entirely
- * and silently. A workspace that builds into `lib` adds it through
- * `excludedDirectories`.
+ * 此处刻意不含 `lib`：Ruby gems 与许多 npm 包将其源代码放在那里，
+ * 排除它会让 `@` 彻底且静默地错过那些源代码。构建到 `lib` 的工作区
+ * 可通过 `excludedDirectories` 自行加入它。
  */
 export const DEFAULT_FILE_SEARCH_EXCLUDED_DIRECTORIES = [
   '.git',
@@ -46,13 +43,13 @@ export const DEFAULT_FILE_SEARCH_EXCLUDED_DIRECTORIES = [
   '.gradle',
 ] as const
 
-/** Resolved limits and exclusions for one workspace index. */
+/** 单个工作区索引的已解析限制与排除项。 */
 export interface FileSearchConfig {
-  /** Maximum ranked candidates returned for one query. */
+  /** 针对一次查询返回的、排名后的最大候选数。 */
   maxResults: number
-  /** Maximum indexed files and directories. */
+  /** 被索引的最大文件与目录数。 */
   maxEntries: number
-  /** Directory basenames never traversed or offered. */
+  /** 永不被遍历或提供的目录基名。 */
   excludedDirectories: readonly string[]
 }
 
@@ -68,24 +65,23 @@ interface IndexGeneration {
   promise: Promise<IndexedPath[]>
 }
 
-/** A completed traversal and the invalidation counter it observed at its start. */
+/** 一次已完成的遍历，以及它在开始时观察到的失效计数器。 */
 interface SettledIndex {
   entries: IndexedPath[]
   startedAt: number
 }
 
 /**
- * Cancellable, reusable fuzzy index rooted at one agent working directory.
- * Directory-scoped queries list live state; bare fuzzy queries share one
- * bounded traversal. Only the first query of a workspace waits for that
- * traversal — an invalidated index keeps answering while its replacement
- * builds behind the caret.
+ * 以单个代理工作目录为根、可取消且可复用的模糊索引。
+ * 带目录作用域的查询列出实时状态；裸模糊查询共享同一次有界遍历。
+ * 只有工作区的第一次查询会等待那次遍历——失效的索引会继续应答，
+ * 而其替代索引则在光标之后于后台构建。
  */
 export class WorkspaceFileSearch {
   private readonly excludedDirectories: ReadonlySet<string>
   private settled: SettledIndex | undefined
   private generation: IndexGeneration | undefined
-  /** Monotonic invalidation counter; a settled index below it is stale. */
+  /** 单调递增的失效计数器；低于它的已结算索引即为陈旧。 */
   private invalidations = 0
   private disposed = false
 
@@ -106,10 +102,10 @@ export class WorkspaceFileSearch {
   }
 
   /**
-   * Return ranked path candidates for the current token.
-   * @param rawQuery - path text following `@` or `@"`.
-   * @param signal - cancels this caller's wait without killing an index shared by a newer query.
-   * @returns at most `maxResults` deterministic candidates.
+   * 为当前标记返回排名后的路径候选。
+   * @param rawQuery - `@` 或 `@"` 之后的路径文本。
+   * @param signal - 取消本次调用方的等待，但不会终止被更新查询共享的索引。
+   * @returns 至多 `maxResults` 个确定性的候选。
    */
   async list(rawQuery: string, signal: AbortSignal): Promise<FileReferenceCandidate[]> {
     signal.throwIfAborted()
@@ -130,17 +126,16 @@ export class WorkspaceFileSearch {
   }
 
   /**
-   * Mark the index stale so a later bare query observes a fresh tree.
+   * 将索引标记为陈旧，使后续的裸查询观察到一棵新的树。
    *
-   * The stale entries are kept and keep answering: a rebuild costs one
-   * traversal of the whole workspace, and putting that in front of the caret
-   * is what a caller invalidating on every tool result would otherwise pay.
+   * 陈旧的条目会被保留并继续应答：一次重建需要遍历整个工作区，
+   * 而将其置于光标之前，正是每个工具结果都触发失效的调用方原本要付出的代价。
    */
   invalidate(): void {
     this.invalidations += 1
   }
 
-  /** Abort traversal and make later queries return no candidates. */
+  /** 中止遍历并使后续查询返回空候选。 */
   dispose(): void {
     if (this.disposed) return
     this.disposed = true
@@ -150,20 +145,18 @@ export class WorkspaceFileSearch {
   }
 
   /**
-   * The entries a bare fuzzy query ranks. Only the first query of a workspace
-   * waits for a traversal; afterwards a stale index answers immediately and
-   * its replacement builds in the background.
-   * @param signal - cancels this caller's wait without killing a shared traversal.
-   * @returns indexed paths, at most one invalidation behind the tree.
+   * 一个裸模糊查询所排名的条目。只有工作区的第一次查询会等待一次遍历；
+   * 此后陈旧的索引会立即应答，而其替代索引在后台构建。
+   * @param signal - 取消本次调用方的等待，但不会终止共享的遍历。
+   * @returns 索引路径，最多落后树一次失效。
    */
   private async indexFor(signal: AbortSignal): Promise<readonly IndexedPath[]> {
     const settled = this.settled
     if (settled === undefined) return waitForPromise(this.ensureIndex(), signal)
     if (settled.startedAt < this.invalidations) {
       void this.ensureIndex().catch(() => {
-        // A background refresh failure is not this caller's error: the stale
-        // entries still answer and `settled.startedAt` stays behind, so the
-        // next bare query starts a fresh attempt.
+        // 后台刷新失败并非本次调用方的错误：陈旧的条目仍在应答，
+        // 且 `settled.startedAt` 仍落后，因此下一次裸查询会发起一次新的尝试。
       })
     }
     return settled.entries
@@ -179,17 +172,16 @@ export class WorkspaceFileSearch {
     } satisfies IndexGeneration
     generation.promise = this.scanWorkspace(controller.signal).then(
       (entries) => {
-        /* v8 ignore next -- disposal aborts this traversal, so it reaches the
-         * rejection handler instead; the guard only covers a scan that finished
-         * its last directory in the instant before the abort landed, and must
-         * not hand a disposed index its entries back. */
+        /* v8 ignore next -- 处置会中止本次遍历，因此它走的是拒绝处理器；
+         * 此守卫只覆盖在取消生效前一瞬完成最后一个目录的扫描，
+         * 且绝不能把已处置索引的条目交还回去。 */
         if (this.disposed) return entries
         this.generation = undefined
         this.settled = { entries, startedAt }
         return entries
       },
       (error: unknown) => {
-        /* v8 ignore next -- dispose clears `generation` synchronously; this only protects an unexpected scan failure */
+        /* v8 ignore next -- dispose 同步地清空 `generation`；此处仅防御一次意外的扫描失败 */
         if (this.generation === generation) this.generation = undefined
         throw error
       },
@@ -208,10 +200,9 @@ export class WorkspaceFileSearch {
       if (directory === undefined) {
         throw new Error('file search selected a missing directory')
       }
-      // The root is not a subtree: an unreadable branch costs its own
-      // candidates, but an unreadable root means the traversal learned
-      // nothing. Letting that settle would publish an empty index over
-      // entries that are still good and leave no invalidation to retry from.
+      // 根目录不是子树：一个不可读的支系只损失其自身的候选，
+      // 但一个不可读的根目录意味着这次遍历什么也没学到。让它结算，
+      // 会让一个空索引覆盖仍有效的条目，且没有失效可供重试。
       const entries = cursor === 0
         ? await readWorkspaceRoot(directory.absolute, signal)
         : await readDirectory(directory.absolute, signal)
@@ -263,7 +254,7 @@ async function resolveDisplayDirectory(
   const absolute = resolve(resolvedRoot, displayDirectory === '' ? '.' : displayDirectory)
   const fromRoot = relative(resolvedRoot, absolute)
   if (fromRoot === '..' || fromRoot.startsWith(`..${sep}`)) return undefined
-  /* v8 ignore next -- only Windows can produce a cross-volume absolute relative path */
+  /* v8 ignore next -- 只有 Windows 才会产生跨卷的绝对相对路径 */
   if (isAbsolute(fromRoot)) return undefined
   let current = resolvedRoot
   for (const segment of fromRoot.split(sep).filter(Boolean)) {
@@ -297,8 +288,8 @@ async function readDirectory(absolute: string, signal: AbortSignal) {
   } catch (_error: unknown) {
     /* v8 ignore start -- Windows chmod cannot make the unreadable-directory fixture fail readdir; POSIX behavior covers this fallback. */
     signal.throwIfAborted()
-    // An unreadable/missing subtree contributes no candidates; other readable
-    // branches remain useful and autocomplete is advisory.
+    // 一个不可读/缺失的子树不贡献任何候选；其他可读的支系仍有用，
+    // 且自动补全仅为建议性质。
     return []
     /* v8 ignore stop */
   }
@@ -358,13 +349,12 @@ function kindRank(kind: FileReferenceCandidate['kind']): number {
 }
 
 function compareText(left: string, right: string): number {
-  /* v8 ignore next -- entries and candidates are unique; host enumeration
-   * order determines which comparison direction sort requests. */
+  /* v8 ignore next -- 条目与候选是唯一的；具体比较方向由宿主枚举顺序决定。 */
   return left < right ? -1 : left > right ? 1 : 0
 }
 
 function waitForPromise<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
-  /* v8 ignore next -- `list()` checks this signal immediately before its synchronous call into this helper */
+  /* v8 ignore next -- `list()` 在同步调用本辅助函数之前立即检查了该信号 */
   if (signal.aborted) return Promise.reject(errorReason(signal.reason, 'file search aborted'))
   return new Promise<T>((resolvePromise, rejectPromise) => {
     const onAbort = (): void => { rejectPromise(errorReason(signal.reason, 'file search aborted')) }

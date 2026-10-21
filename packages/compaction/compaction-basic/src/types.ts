@@ -1,55 +1,55 @@
 /**
- * Configuration vocabulary for the replay-aware basic compaction backend.
+ * 具备重放感知能力的基础压缩后端的配置词汇。
  *
  * @module @deepseek-ai/dsh-compaction-basic/types
  */
 
 import type { LlmCallConfig } from '@deepseek-ai/dsh-llm'
 
-/** Policy fields shared by the default policy and exact model overrides. */
+/** 默认策略与精确模型覆盖所共享的策略字段。 */
 export interface CompactionPolicyConfig {
-  /** Window fraction for pressure; capped at context window minus reserved output and `headroomTokens`. Defaults to `0.8`. */
+  /** 压力对应的窗口比例；上限为上下文窗口减去预留输出与 `headroomTokens`。默认 `0.8`。 */
   thresholdRatio?: number
-  /** Additional pressure headroom beyond the routed output reservation. Non-negative integer; defaults to `65536`. */
+  /** 在路由输出预留之外追加的压力余量。非负整数；默认 `65536`。 */
   headroomTokens?: number
-  /** Recent context retained as a fraction of context window minus reserved output tokens. Defaults to `0.16`. */
+  /** 作为上下文窗口（减去预留输出 token）比例而保留的近期上下文。默认 `0.16`。 */
   retainRatio?: number
-  /** Absolute recent-context budget; mutually exclusive with `retainRatio`. */
+  /** 绝对的近期上下文预算；与 `retainRatio` 互斥。 */
   retainTokens?: number
-  /** Summary provider; set together with `summarizationModel`, or inherit the conversation target. */
+  /** 摘要提供方；与 `summarizationModel` 成对设置，或继承对话目标。 */
   summarizationProvider?: string
-  /** Summary model; set together with `summarizationProvider`, or inherit the conversation target. */
+  /** 摘要模型；与 `summarizationProvider` 成对设置，或继承对话目标。 */
   summarizationModel?: string
-  /** Provider generation cap for summarization. Defaults to the resolved `headroomTokens`; an explicit cap must be positive. */
+  /** 供方为摘要设定的生成上限。默认解析为 `headroomTokens`；显式上限必须为正数。 */
   maxTokens?: number
-  /** Extra attempts after the first compaction when pressure remains above threshold. Defaults to `1`. */
+  /** 首次压缩后、压力仍高于阈值时的额外尝试次数。默认 `1`。 */
   compactionRetries?: number
-  /** Maximum retries after canonical context overflow; `0` disables recovery. Defaults to `1`. */
+  /** 规范上下文溢出后的最大重试次数；`0` 表示关闭恢复。默认 `1`。 */
   maxOverflowRetries?: number
 }
 
-/** Exact provider/model override merged over the default compaction policy. */
+/** 合并到默认压缩策略之上的精确 provider/model 覆盖。 */
 export interface ModelCompactPolicyConfig extends CompactionPolicyConfig {
-  /** Registered provider route to match. */
+  /** 需匹配的已注册提供方路由。 */
   provider: string
-  /** Exact routed model id to match within `provider`. */
+  /** `provider` 内需匹配的精确路由模型 id。 */
   model: string
 }
 
-/** Basic compaction configuration with an optional exact-target policy table. */
+/** 带可选精确目标策略表的基础压缩配置。 */
 export interface BasicCompactionConfig extends CompactionPolicyConfig {
-  /** Exact provider/model overrides; duplicate targets fail plugin load. */
+  /** 精确的 provider/model 覆盖；重复目标会使插件加载失败。 */
   modelPolicies?: ModelCompactPolicyConfig[]
-  /** Enable automatic step-boundary pressure and overflow-recovery listeners. Defaults to `true`. */
+  /** 启用自动的步边界压力与溢出恢复监听器。默认 `true`。 */
   auto?: boolean
 }
 
-/** Exactly one validated retention form. */
+/** 唯一一种经过校验的保留形式。 */
 export type ResolvedRetention =
   | { readonly retainRatio: number; readonly retainTokens?: never }
   | { readonly retainRatio?: never; readonly retainTokens: number }
 
-/** Validated policy fields shared before and after exact-target matching. */
+/** 精确目标匹配前后所共享的已校验策略字段。 */
 interface ResolvedPolicyFields {
   readonly thresholdRatio: number
   readonly headroomTokens: number
@@ -60,20 +60,20 @@ interface ResolvedPolicyFields {
   readonly maxOverflowRetries: number
 }
 
-/** Validated immutable config whose target-specific defaults remain unresolved. */
+/** 已校验的不可变配置，其目标特定的默认值仍未被解析。 */
 export type ResolvedConfig = ResolvedPolicyFields & ResolvedRetention & {
   readonly modelPolicies: readonly Readonly<ModelCompactPolicyConfig>[]
   readonly auto: boolean
 }
 
-/** Fully merged policy for one routed conversation target, before capacity scaling. */
+/** 某个路由对话目标在容量缩放之前的、完全合并的策略。 */
 export type ResolvedTargetPolicy = ResolvedPolicyFields & ResolvedRetention & {
   readonly target: Pick<LlmCallConfig, 'provider' | 'model'>
 }
 
-/** One routed model's concrete pressure and retention budget. */
+/** 某个路由模型的具体压力与保留预算。 */
 export type ResolvedCompactSpec = Omit<ResolvedTargetPolicy, 'retainRatio' | 'retainTokens' | 'headroomTokens'> & {
-  /** Adapter-declared full window; token budgets below exclude reserved output tokens. */
+  /** 适配器声明的完整窗口；以下 token 预算不包含预留输出 token。 */
   readonly contextWindow: number
   readonly thresholdTokens: number
   readonly retainTokens: number

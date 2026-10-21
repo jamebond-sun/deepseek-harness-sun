@@ -1,8 +1,7 @@
 /**
- * `ExaSearchProvider`: a `WebSearchProvider` backed by the Exa search API (`POST /search` with
- * highlight contents). It maps the first non-blank highlight to `snippet`, maps
- * `publishedDate` to `publishedAt`, drops entries without a snippet, and omits `content`
- * because Exa returns no generated answer.
+ * `ExaSearchProvider`：一个由 Exa 搜索 API 支持的 `WebSearchProvider`（`POST /search`，
+ * 带突出内容）。它将第一个非空突出句映射为 `snippet`，将 `publishedDate` 映射为
+ * `publishedAt`，丢弃没有摘要的条目，并省略 `content`，因为 Exa 不返回生成的答案。
  * @module @deepseek-ai/dsh-web-search-exa/provider
  */
 
@@ -15,43 +14,41 @@ import type {
 } from '@deepseek-ai/dsh-web'
 import type { ExaError, ExaResult, ExaSearchResponse } from './types.ts'
 
-/** Stable id this provider registers under. */
+/** 本提供方注册的固定 id。 */
 export const EXA_PROVIDER_ID = 'exa'
 
-/** Default Exa search endpoint; `/search` is the operation. */
+/** 默认 Exa 搜索端点；`/search` 是操作。 */
 export const EXA_DEFAULT_BASE_URL = 'https://api.exa.ai'
 
-/** Default retrieval mode: let Exa pick between keyword and neural search. */
+/** 默认检索模式：让 Exa 在关键词与神经搜索之间选择。 */
 export const EXA_DEFAULT_SEARCH_TYPE = 'auto'
 
-/** Default number of highlight sentences requested per result. */
+/** 每个结果请求的默认突出句子数。 */
 export const EXA_DEFAULT_HIGHLIGHTS_PER_RESULT = 1
 
-/** Attribution header sent on every request. Bump with the package version. */
+/** 每次请求发送的归因头。随包版本递增。 */
 const USER_AGENT = 'deepseek-harness/0.0.1'
 
-/** Resolved provider options (the plugin's `apply` supplies env-var and constant defaults). */
+/** 已解析的提供方选项（插件的 `apply` 提供环境变量与常量默认值）。 */
 export interface ExaSearchProviderOptions {
-  /** Exa API key. Empty/absent makes the provider unavailable. */
+  /** Exa API 密钥。为空/缺失会使提供方不可用。 */
   apiKey: string
-  /** Endpoint base; `/search` is appended. */
+  /** 端点基址；会追加 `/search`。 */
   baseURL: string
-  /** Retrieval mode sent as Exa's `type`. */
+  /** 作为 Exa 的 `type` 发送的检索模式。 */
   searchType: 'auto' | 'keyword' | 'neural'
-  /** Default result count when a request carries no `maxResults`. */
+  /** 当请求不带 `maxResults` 时的默认结果数。 */
   numResults?: number
-  /** Highlight sentences requested per result (Exa's `highlightsPerUrl`). */
+  /** 每个结果请求的突出句子数（Exa 的 `highlightsPerUrl`）。 */
   highlightsPerResult: number
 }
 
 /**
- * Map one Exa result to a normalized source, or `undefined` when it carries no
- * portable snippet (an entry with no highlight is dropped — the seam has no
- * other field to derive a snippet from, and inventing one would lie).
+ * 将一个 Exa 结果映射为归一化的来源，当它没有可移植的摘要时返回 `undefined`
+ *（没有突出的条目会被丢弃 —— 该 seam 没有其他字段可派生摘要，编造一个会撒谎）。
  *
- * @param result - one entry of Exa's `results[]`.
- * @returns the normalized source, or `undefined` when the entry has no
- *   non-blank highlight.
+ * @param result - Exa 的 `results[]` 中的一个条目。
+ * @returns 归一化的来源，或当该条目没有非空突出句时为 `undefined`。
  */
 export function mapExaResult(result: ExaResult): WebSearchSource | undefined {
   const snippet = result.highlights?.find(highlight => highlight.trim().length > 0)
@@ -65,22 +62,21 @@ export function mapExaResult(result: ExaResult): WebSearchSource | undefined {
 }
 
 /**
- * Map an Exa response envelope to a normalized search result.
+ * 将 Exa 响应信封映射为归一化的搜索结果。
  *
- * @param response - the parsed `POST /search` response body.
- * @returns the normalized result; snippet-less entries are dropped
- *   ({@link mapExaResult}).
+ * @param response - 解析后的 `POST /search` 响应体。
+ * @returns 归一化的结果；无摘要的条目被丢弃（{@link mapExaResult}）。
  */
 export function mapExaResponse(response: ExaSearchResponse): WebSearchResult {
   const sources = (response.results ?? [])
     .map(mapExaResult)
     .filter((source): source is WebSearchSource => source !== undefined)
-  // Exa returns no generated answer, so `content` is omitted. The web service owns the
-  // final `maxResults` truncation, so this provider reports `truncated: false`.
+  // Exa 不返回生成的答案，因此省略 `content`。web 服务拥有最终的
+  // `maxResults` 截断，因此此提供方报告 `truncated: false`。
   return { sources, truncated: false }
 }
 
-/** The Exa-backed search provider; HTTP redirects fail as `WEB_PROVIDER_ERROR`. */
+/** 由 Exa 支持的搜索提供方；HTTP 重定向作为 `WEB_PROVIDER_ERROR` 失败。 */
 export class ExaSearchProvider implements WebSearchProvider {
   readonly id = EXA_PROVIDER_ID
 
@@ -94,7 +90,7 @@ export class ExaSearchProvider implements WebSearchProvider {
   }
 
   async search(request: WebSearchRequest, signal?: AbortSignal): Promise<WebSearchResult> {
-    // A per-request bound wins over the configured default; either may be absent.
+    // 每请求上限胜过配置的默认值；任一都可能缺失。
     const numResults = request.maxResults ?? this.options.numResults
     let response: Response
     try {
@@ -128,13 +124,11 @@ export class ExaSearchProvider implements WebSearchProvider {
         const detail = parsed.error ?? parsed.message
         if (detail !== undefined && detail.length > 0) message = detail
       } catch (error: unknown) {
-        // An abort fired mid-body must surface as WEB_ABORTED, not be swallowed
-        // into a generic HTTP-error message — cancellation is not a provider
-        // error (the seam's cancellation contract).
+        // 在正文读取中途触发的取消必须以 WEB_ABORTED 呈现，而不能被吞入一个
+        // 泛化的 HTTP 错误消息 —— 取消不是提供方错误（该 seam 的取消契约）。
         if (isAbortError(error)) throw new WebError('Exa search aborted', 'WEB_ABORTED', { cause: error })
-        // Otherwise: the HTTP status is already captured in `message` above; a
-        // malformed/non-JSON error body (normal for gateway 5xx/429s) can only
-        // cost a richer provider message, never the real error.
+        // 否则：HTTP 状态已在上方的 `message` 中捕获；一个畸形/非 JSON 的错误体
+        //（网关 5xx/429 的常见情况）最多损失一个更丰富的提供方消息，绝不会丢失真实错误。
       }
       throw new WebError(message, 'WEB_PROVIDER_ERROR')
     }
@@ -149,17 +143,17 @@ export class ExaSearchProvider implements WebSearchProvider {
   }
 }
 
-/** True when `baseURL` parses as an absolute URL (a cheap local config check). */
+/** 当 `baseURL` 解析为绝对 URL 时返回 true（廉价的本地配置检查）。 */
 function isValidBaseUrl(baseURL: string): boolean {
   return URL.canParse(baseURL)
 }
 
-/** True for a request limit that can be sent to Exa (a positive whole number). */
+/** 对于可以发往 Exa 的请求上限（正整数）返回 true。 */
 function isPositiveInteger(value: number): boolean {
   return Number.isInteger(value) && value > 0
 }
 
-/** True for a fetch/`AbortSignal` abort, surfaced as `WEB_ABORTED`. */
+/** 对于 fetch/`AbortSignal` 的取消返回 true，以 `WEB_ABORTED` 呈现。 */
 function isAbortError(error: unknown): boolean {
   return error instanceof DOMException && error.name === 'AbortError'
 }

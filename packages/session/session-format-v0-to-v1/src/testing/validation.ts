@@ -10,8 +10,8 @@ import {
 const RELEASED_V0_EVENT_TYPE_SET: ReadonlySet<string> = new Set(Object.keys(RELEASED_V0_EVENT_DISPOSITIONS))
 
 /**
- * Validate one decoded released-v0 source artifact in tests.
- * @param artifact - released-v0 source artifact.
+ * 在测试中校验一个已解码的 released-v0 源制品。
+ * @param artifact - released-v0 源制品。
  */
 export function assertReleasedV0SourceArtifact(artifact: SessionFormatArtifact): void {
   assertReleasedSessionFormatHeader(artifact.header, 0)
@@ -19,8 +19,8 @@ export function assertReleasedV0SourceArtifact(artifact: SessionFormatArtifact):
 }
 
 /**
- * Validate normalized v0 output before the identity header bump in tests.
- * @param artifact - normalized v0 artifact.
+ * 在测试中校验恒等头部提升之前的规范化 v0 输出。
+ * @param artifact - 规范化后的 v0 制品。
  */
 export function assertNormalizedReleasedV0Artifact(artifact: SessionFormatArtifact): void {
   assertReleasedSessionFormatHeader(artifact.header, 0)
@@ -30,8 +30,8 @@ export function assertNormalizedReleasedV0Artifact(artifact: SessionFormatArtifa
 }
 
 /**
- * Validate v1 input accepted by the v1-to-v2 migration in tests.
- * @param artifact - v1 migration source artifact.
+ * 在测试中校验 v1→v2 迁移所接受的 v1 输入。
+ * @param artifact - v1 迁移源制品。
  */
 export function assertReleasedV1MigrationSource(artifact: SessionFormatArtifact): void {
   assertReleasedSessionFormatHeader(artifact.header, 1)
@@ -43,8 +43,8 @@ export function assertReleasedV1MigrationSource(artifact: SessionFormatArtifact)
 }
 
 /**
- * Validate the exact released-v1 logical artifact in tests.
- * @param artifact - released-v1 logical artifact.
+ * 在测试中校验精确的 released-v1 逻辑制品。
+ * @param artifact - released-v1 逻辑制品。
  */
 export function assertReleasedV1Artifact(artifact: SessionFormatArtifact): void {
   assertReleasedSessionFormatHeader(artifact.header, 1)
@@ -56,8 +56,8 @@ export function assertReleasedV1Artifact(artifact: SessionFormatArtifact): void 
 }
 
 /**
- * Validate released-v1 physical decoding without interpreting event vocabulary in tests.
- * @param artifact - released-v1 physical artifact.
+ * 在测试中校验 released-v1 物理解码，不解释事件词表。
+ * @param artifact - released-v1 物理制品。
  */
 export function assertReleasedV1PhysicalArtifact(artifact: SessionFormatArtifact): void {
   assertReleasedSessionFormatHeader(artifact.header, 1)

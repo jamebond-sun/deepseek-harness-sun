@@ -1,16 +1,16 @@
-/** SQLite schema for the disposable session full-text read model. */
+/** 一次性会话全文读模型所用的 SQLite schema。 */
 
 import type { DatabaseSync } from 'node:sqlite'
 import { mkdir, open } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 
-/** Current derived-index schema version. Incompatible versions reset in place. */
+/** 当前派生索引的 schema 版本。版本不兼容时就地重置。 */
 export const SESSION_QUERY_SQLITE_SCHEMA_VERSION = 8
 
-/** SQLite application id protecting unrelated databases from derived resets. */
+/** 保护无关数据库不被派生索引重置的 SQLite application id。 */
 export const SESSION_QUERY_SQLITE_APPLICATION_ID = 0x44534851
 
-/** Supported SQLite journal modes. */
+/** 受支持的 SQLite journal 模式。 */
 export type JournalMode = 'wal' | 'delete' | 'truncate' | 'persist'
 
 const DERIVED_USER_TABLES = new Set([
@@ -25,8 +25,8 @@ const DERIVED_USER_TABLES = new Set([
 ])
 
 /**
- * Exclusively create a missing database file with owner-only permissions.
- * Existing files retain their modes, and errors other than `EEXIST` propagate.
+ * 以仅属主可访问的权限独占创建缺失的数据库文件。
+ * 已存在的文件保留其原有模式，除 `EEXIST` 之外的错误会向上传播。
  */
 async function createDatabaseFile(path: string): Promise<void> {
   try {
@@ -38,10 +38,10 @@ async function createDatabaseFile(path: string): Promise<void> {
 }
 
 /**
- * Open, validate, and initialize persistent and connection-local schemas.
- * @param path - dedicated derived-index path or `:memory:`; missing filesystem paths are created owner-only.
- * @param journalMode - validated SQLite journal mode.
- * @returns initialized database handle owned by the search service.
+ * 打开、校验并初始化持久化 schema 与连接局部 schema。
+ * @param path - 专用的派生索引路径或 `:memory:`；缺失的文件系统路径以仅属主可访问的方式创建。
+ * @param journalMode - 经过校验的 SQLite journal 模式。
+ * @returns 由搜索服务持有的、已初始化的数据库句柄。
  */
 export async function openSearchDatabase(path: string, journalMode: JournalMode): Promise<DatabaseSync> {
   const actual = path === ':memory:' ? path : resolve(path)
@@ -65,8 +65,8 @@ export async function openSearchDatabase(path: string, journalMode: JournalMode)
       assertDerivedUserTables(actual, userTables)
       if (version !== SESSION_QUERY_SQLITE_SCHEMA_VERSION) resetDerivedSchema(db, userTables)
     }
-    // Apply mutating pragmas only after refusing foreign or canonical files.
-    // journalMode is a validated closed union, not caller-controlled SQL.
+    // 只有在拒绝外来或权威文件之后才应用会修改状态的 pragma。
+    // journalMode 是经过校验的封闭联合类型，不是调用方可控的 SQL。
     db.exec(`PRAGMA journal_mode = ${journalMode.toUpperCase()}`)
     ensurePersistentSchema(db)
     ensureTemporarySchema(db)

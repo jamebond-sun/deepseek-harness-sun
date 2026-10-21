@@ -1,23 +1,19 @@
 /**
- * Host half of open-in-app: three routes on the composition's `webServer`
- * serving the resolved application catalog, per-application icons, and the
- * launch endpoint the browser split button
- * (`@deepseek-ai/dsh-client-ui-open-in-app`) posts to.
+ * open-in-app 的宿主部分：在组合的 `webServer` 上提供三条路由，分别服务已解析的应用程序
+ * 目录、各应用的图标，以及浏览器拆分按钮（`@deepseek-ai/dsh-client-ui-open-in-app`）所
+ * 提交到的启动端点。
  *
- * Security has one home, here. Every route asks the composition's
- * `connection` service for a rejection first (`requestRejection`): its
- * Host/Origin fence defeats DNS rebinding and cross-site calls, and its
- * browser authentication (the login-token cookie) gates every caller before
- * any resolution result, icon, or launch is reachable. On top of that fence
- * the open route validates its body at the wire: an `application/json` media
- * type, a 64 KiB ceiling, string `app`/`path` fields, a resolved-available
- * catalog id, and an absolute path naming an existing directory.
+ * 安全只在一处落地，就在这里。每条路由都先向组合的 `connection` 服务请求一次拒绝判定
+ * （`requestRejection`）：它的 Host/Origin 栅栏可抵御 DNS rebinding 与跨站调用，其浏览器
+ * 身份认证（登录令牌 cookie）在任何解析结果、图标或启动动作可被触达之前就把每个调用方
+ * 挡在门外。在这道栅栏之上，open 路由还在线上校验其请求体：`application/json` 媒体类型、
+ * 64 KiB 上限、字符串形式的 `app`/`path` 字段、一个已解析且可用的目录 id，以及一个指向
+ * 已存在目录的绝对路径。
  *
- * The catalog resolves lazily, once per plugin life, on the first request
- * that needs it, into one map of verified launchers: the apps route serves
- * its keys and the open route launches its values, so a click, menu open, or
- * page reload never re-runs detection. A launch that finds its executable
- * gone (`ENOENT`) invalidates that one entry and re-resolves it once.
+ * 目录解析是惰性的，每个插件生命周期内在首个需要它的请求上解析一次，结果是一张已校验
+ * 启动器的映射表：apps 路由提供其键，open 路由启动其值，因此一次点击、展开菜单或页面
+ * 重载都不会重跑检测。某次启动若发现其可执行文件已消失（`ENOENT`），则让该条目失效并
+ * 重新解析一次。
  */
 
 import type { IncomingMessage, ServerResponse } from 'node:http'
@@ -41,28 +37,25 @@ import {
 
 export type * from './shared.ts'
 
-/** Cordis function-plugin name. */
+/** Cordis 函数插件名。 */
 export const name = 'open-in-app'
-/** The route carrier, the trust fence guarding every route, and the PATH resolver. */
+/** 路由载体、守卫每条路由的信任栅栏，以及 PATH 解析器。 */
 export const inject = ['webServer', 'connection', 'subprocess']
 
-/** Open-in-app host configuration. */
+/** open-in-app 宿主配置。 */
 export interface Config {
   /**
-   * Per-command deadline in milliseconds for catalog-resolution host
-   * commands (`xcode-select`, the Windows registry reads).
+   * 目录解析用宿主命令（`xcode-select`、Windows 注册表读取）的单条命令时限，单位为毫秒。
    */
   readonly probeTimeoutMs: number
   /**
-   * Per-command deadline in milliseconds for icon-extraction host commands
-   * (`plutil`/`sips` on macOS, the PowerShell extraction on Windows).
+   * 图标提取用宿主命令（macOS 上的 `plutil`/`sips`，Windows 上的 PowerShell 提取）的单条
+   * 命令时限，单位为毫秒。
    */
   readonly iconTimeoutMs: number
   /**
-   * Early-failure watch window per launch, in milliseconds: a launcher still
-   * running when the window closes counts as launched and keeps running, so
-   * this bounds how long the open route holds a successful launch, not how
-   * long an application may live.
+   * 每次启动的早期失败观察窗口，单位为毫秒：窗口关闭时仍在运行的启动器算作已启动并继续
+   * 运行，因此它限定的是 open 路由持有一次成功启动多久，而不是一个应用程序可以存活多久。
    */
   readonly launchWatchMs: number
 }
@@ -75,20 +68,20 @@ export const Config: z<Config> = z.object({
   launchWatchMs: boundedMs(),
 })
 
-/** Trust surface consumed here; the browser-side connection package owns the full type. */
+/** 此处消费的信任接口；完整类型由浏览器侧的 connection 包拥有。 */
 interface OpenInAppConnection {
   requestRejection(request: { readonly headers: IncomingMessage['headers'] }): 401 | 403 | undefined
 }
 
-/** The composition's connection service (typed locally: its package is browser-side). */
+/** 组合中的 connection 服务（在本地给出类型：其包属于浏览器侧）。 */
 function connectionOf(ctx: Context): OpenInAppConnection {
   return Reflect.get(ctx, 'connection') as OpenInAppConnection
 }
 
-/** Open-route request bodies are tiny JSON objects; anything larger is hostile. */
+/** open 路由的请求体是极小的 JSON 对象；更大的一律视为恶意。 */
 const MAX_BODY_BYTES = 64 * 1024
 
-/** JSON response (no-store: availability and launch outcomes are live facts). */
+/** JSON 响应（no-store：可用性与启动结果都是实时事实）。 */
 function sendJson(res: ServerResponse, status: number, payload: unknown): void {
   res.statusCode = status
   res.setHeader('content-type', 'application/json; charset=utf-8')
@@ -96,22 +89,22 @@ function sendJson(res: ServerResponse, status: number, payload: unknown): void {
   res.end(JSON.stringify(payload))
 }
 
-/** 405 with the route's one supported method. */
+/** 405，并带上该路由唯一支持的方法。 */
 function sendMethodNotAllowed(res: ServerResponse, allow: 'GET' | 'POST'): void {
   res.statusCode = 405
   res.setHeader('allow', allow)
   res.end()
 }
 
-/** Collect a bounded request body as UTF-8 text; null past the ceiling (stream drained). */
+/** 把有界的请求体收集为 UTF-8 文本；超过上限时返回 null（流已被排空）。 */
 async function readBoundedBody(req: IncomingMessage): Promise<string | null> {
   const chunks: Buffer[] = []
   let size = 0
-  // http server streams without setEncoding always yield Buffer chunks.
+  // 未调用 setEncoding 的 http server 流总是给出 Buffer 分片。
   for await (const chunk of req as AsyncIterable<Buffer>) {
     size += chunk.byteLength
     if (size > MAX_BODY_BYTES) {
-      // Drain the remainder so the refusal is a readable response, not a socket cut.
+      // 排空剩余部分，使拒绝是一个可读的响应，而不是被切断的 socket。
       req.resume()
       return null
     }
@@ -120,13 +113,13 @@ async function readBoundedBody(req: IncomingMessage): Promise<string | null> {
   return Buffer.concat(chunks, size).toString('utf8')
 }
 
-/** Validate one open-route body at the wire: JSON object with string app/path. */
+/** 在线上校验一个 open 路由请求体：含字符串 app/path 的 JSON 对象。 */
 function parseOpenBody(text: string): { app: string; path: string } | null {
   let body: unknown
   try {
     body = JSON.parse(text)
   } catch {
-    // Swallows the parse error: a non-JSON body is exactly the null case.
+    // 吞掉解析错误：非 JSON 的请求体恰好就是 null 这一情况。
     return null
   }
   if (typeof body !== 'object' || body === null) return null
@@ -134,28 +127,27 @@ function parseOpenBody(text: string): { app: string; path: string } | null {
   return typeof app === 'string' && typeof path === 'string' ? { app, path } : null
 }
 
-/** Register the apps, icon, and open routes behind the connection trust fence. */
+/** 在 connection 信任栅栏之后注册 apps、icon 与 open 三条路由。 */
 export function apply(ctx: Context, config: Config): void {
   const ssh = launchedThroughSsh(launchEnvironmentOf(ctx))
-  /** Test-seam facts completed with the composition's PATH resolver. */
+  /** 由组合的 PATH 解析器补全后的测试接缝事实。 */
   const catalogInternals = (): OpenInAppInternals => ({
     ssh,
     resolveExecutable: async (name) => {
       try {
         return await ctx.subprocess.resolveExecutable(name)
       } catch {
-        // Swallows the provider's not-found rejection: for detection, a name
-        // that does not resolve has exactly one meaning — unavailable.
+        // 吞掉 provider 的未找到拒绝：对检测而言，一个解析不到的名字只有一种含义——不可用。
         return null
       }
     },
     ...internals.catalog,
   })
-  /** Lazy once-per-plugin-life resolution; the map is the mutable authority. */
+  /** 惰性的、每个插件生命周期一次的解析；该映射即是可变的权威。 */
   let resolutions: Promise<Map<string, OpenInAppResolvedLaunch>> | undefined
   const availability = (): Promise<Map<string, OpenInAppResolvedLaunch>> =>
     resolutions ??= resolveOpenInAppApps(config.probeTimeoutMs, catalogInternals())
-  /** Per-app icon promise cache (null = resolved as unavailable). */
+  /** 按应用缓存的图标 promise（null 表示解析为不可用）。 */
   const icons = new Map<string, Promise<OpenInAppIcon | null>>()
   const iconOf = (app: OpenInAppApp, resolved: OpenInAppResolvedLaunch): Promise<OpenInAppIcon | null> => {
     let cached = icons.get(app.id)
@@ -166,9 +158,8 @@ export function apply(ctx: Context, config: Config): void {
     return cached
   }
   /**
-   * Replace one stale resolution after a missing-executable launch: the
-   * entry (and its icon) re-resolves once; an entry that no longer resolves
-   * leaves the map and the next apps read no longer offers it.
+   * 在一次可执行文件缺失的启动之后替换掉那条过期的解析结果：该条目（及其图标）重新解析
+   * 一次；若某个条目已无法解析，则离开映射表，且下一次 apps 读取不再提供它。
    */
   const refreshResolution = async (app: OpenInAppApp): Promise<OpenInAppResolvedLaunch | undefined> => {
     const map = await availability()
@@ -181,7 +172,7 @@ export function apply(ctx: Context, config: Config): void {
     map.set(app.id, fresh)
     return fresh
   }
-  /** Answer an untrusted/unauthenticated request; true when it was rejected. */
+  /** 应答一个不受信任/未认证的请求；返回 true 表示它已被拒绝。 */
   const rejected = (req: IncomingMessage, res: ServerResponse): boolean => {
     const rejection = connectionOf(ctx).requestRejection(req)
     if (rejection === undefined) return false
@@ -212,7 +203,7 @@ export function apply(ctx: Context, config: Config): void {
         sendMethodNotAllowed(res, 'GET')
         return
       }
-      // Node always sets url on server requests; String keeps that fact local.
+      // Node 总是为服务端请求设置 url；String 把这一事实留在本地。
       const pathname = new URL(String(req.url), 'http://localhost').pathname
       const id = pathname.slice(OPEN_IN_APP_ICON_PREFIX_PATH.length).replace(/^\//, '')
       const noIcon = (): void => { sendJson(res, 404, { code: 'not-found', message: `no icon for ${id}` }) }
@@ -247,8 +238,8 @@ export function apply(ctx: Context, config: Config): void {
         sendMethodNotAllowed(res, 'POST')
         return
       }
-      // Body-format validation: the essence must be exactly application/json.
-      // String(undefined) is 'undefined', which never matches.
+      // 请求体格式校验：essence 必须恰好是 application/json。
+      // String(undefined) 是 'undefined'，永远不会匹配。
       const essence = String(req.headers['content-type']).split(';', 1)[0]?.trim().toLowerCase()
       if (essence !== 'application/json') {
         sendJson(res, 415, { code: 'unsupported-media-type', message: 'content-type must be application/json' })
@@ -258,7 +249,7 @@ export function apply(ctx: Context, config: Config): void {
       try {
         text = await readBoundedBody(req)
       } catch {
-        // Swallows connection errors mid-body: there is nothing left to answer precisely.
+        // 吞掉请求体中途的连接错误：已经没有可以精确回答的东西了。
         sendJson(res, 400, { code: 'bad-request', message: 'request body unreadable' })
         return
       }
@@ -285,7 +276,7 @@ export function apply(ctx: Context, config: Config): void {
       try {
         directory = (await stat(parsed.path)).isDirectory()
       } catch {
-        // Swallows ENOENT/EACCES: both mean there is no directory to open.
+        // 吞掉 ENOENT/EACCES：两者都意味着没有可打开的目录。
         directory = false
       }
       if (!directory) {
@@ -294,8 +285,7 @@ export function apply(ctx: Context, config: Config): void {
       }
       let outcome = await launchResolved(resolved, parsed.path, config.launchWatchMs, catalogInternals())
       if (outcome === 'missing') {
-        // The verified launcher is gone (uninstalled since resolution):
-        // refresh this one entry and retry once with the fresh launcher.
+        // 已校验的启动器消失了（解析之后被卸载）：刷新这一个条目，并用新的启动器重试一次。
         const fresh = await refreshResolution(app)
         outcome = fresh === undefined
           ? 'failed'

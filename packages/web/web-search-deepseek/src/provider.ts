@@ -1,8 +1,7 @@
 /**
- * DeepSeek search through an Anthropic-compatible Messages model call with the native
- * `web_search_20250305` server tool. Each search costs a model turn, but returns structured
- * result blocks; absence of those blocks is an error rather than a prose-scraping fallback.
- * The wire format and native `fetch` client are provider-private and do not use `ctx.llm`.
+ * 通过兼容 Anthropic 的 Messages 模型调用、使用原生的 `web_search_20250305` 服务端工具进行
+ * DeepSeek 搜索。每次搜索消耗一次模型轮次，但返回结构化的结果块；缺少这些块是一个错误，而非
+ * 退回散文抓取的兜底。线格式与原生 `fetch` 客户端都是提供方私有的，不使用 `ctx.llm`。
  * @module @deepseek-ai/dsh-web-search-deepseek/provider
  */
 
@@ -23,41 +22,39 @@ import type {
   WebSearchToolResultBlock,
 } from './types.ts'
 
-/** Stable id this provider registers under. */
+/** 本提供方注册的固定 id。 */
 export const DEEPSEEK_PROVIDER_ID = 'deepseek-official'
 
 /**
- * Default auxiliary-search endpoint, including `/v1`; `/messages` is appended.
- * `$DEEPSEEK_SEARCH_BASE_URL` overrides it independently of the conversation
- * adapter's endpoint. Both providers share the API key.
+ * 默认的辅助搜索端点，含 `/v1`；会追加 `/messages`。
+ * `$DEEPSEEK_SEARCH_BASE_URL` 独立于对话适配器的端点覆盖它。两个提供方共享 API 密钥。
  */
 export const DEEPSEEK_DEFAULT_BASE_URL = 'https://api.deepseek.com/anthropic/v1'
 
-/** Default Anthropic-format model name (aligned with the repo's DeepSeek model vocabulary). */
+/** 默认的 Anthropic 格式模型名（与仓库的 DeepSeek 模型词表对齐）。 */
 export const DEEPSEEK_DEFAULT_MODEL = 'deepseek-v4-flash'
 
-/** Default `anthropic-version` header value. */
+/** 默认的 `anthropic-version` 头值。 */
 export const DEEPSEEK_DEFAULT_API_VERSION = '2023-06-01'
 
-/** Default upper bound on generated tokens for the Messages request. */
+/** Messages 请求生成令牌的默认上限。 */
 export const DEEPSEEK_DEFAULT_MAX_TOKENS = 4096
 
-/** Default maximum `web_search` server-tool uses per request. */
+/** 每次请求 `web_search` 服务端工具的默认最大使用次数。 */
 export const DEEPSEEK_DEFAULT_MAX_USES = 5
 
-/** Attribution header sent on every request. Bump with the package version. */
+/** 每次请求发送的归因头。随包版本递增。 */
 const USER_AGENT = 'deepseek-harness/0.0.1'
 
 /**
- * Exact secret-free DeepSeek Messages request recorded immediately before one
- * auxiliary search dispatch.
+ * 恰好在辅助搜索分发之前记录的、无密钥的 DeepSeek Messages 请求。
  */
 export interface DeepSeekSearchLlmRequest {
-  /** Fully resolved Messages endpoint. */
+  /** 完全解析后的 Messages 端点。 */
   readonly endpoint: string
-  /** `anthropic-version` header value. */
+  /** `anthropic-version` 头值。 */
   readonly apiVersion: string
-  /** Exact JSON body sent to the provider. */
+  /** 发送给提供方的精确 JSON 体。 */
   readonly body: {
     readonly model: string
     readonly max_tokens: number
@@ -74,10 +71,8 @@ export interface DeepSeekSearchLlmRequest {
       readonly max_uses: number
     }]
     /**
-     * Thinking mode for the auxiliary turn. The provider always sends
-     * `disabled`: it discards the generated text, so reasoning tokens have no
-     * consumer. Absent means the request omitted the field and the provider
-     * applied its default.
+     * 辅助轮次的思考模式。提供方总是发送 `disabled`：它丢弃生成的文本，
+     * 因此推理令牌没有消费者。缺省表示该请求省略了字段，提供方应用其默认值。
      */
     readonly thinking?: { readonly type: 'disabled' }
   }
@@ -85,50 +80,48 @@ export interface DeepSeekSearchLlmRequest {
 
 declare module '@deepseek-ai/dsh-session/types' {
   interface SessionEventMap {
-    /** Secret-free auxiliary DeepSeek search request recorded before dispatch. */
+    /** 在分发之前记录的、无密钥的辅助 DeepSeek 搜索请求。 */
     'web/deepseek-search-llm-request': DeepSeekSearchLlmRequest
   }
 }
 
-/** Resolved provider options (the plugin's `apply` supplies credential and constant defaults). */
+/** 已解析的提供方选项（插件的 `apply` 提供凭据与常量默认值）。 */
 export interface DeepSeekSearchProviderOptions {
   /**
-   * Resolve the DeepSeek account token for one search endpoint. A token takes
-   * precedence over every API key and is sent only as `x-dsh-auth-token`;
-   * `undefined` selects API-key authentication.
+   * 为一次搜索端点解析 DeepSeek 账号令牌。令牌优先于任何 API 密钥，且仅作为
+   * `x-dsh-auth-token` 发送；`undefined` 表示选择 API 密钥认证。
    */
   resolveAccountToken?: (endpoint: string) => Promise<string | undefined>
-  /** Literal DeepSeek API key; when present it wins over {@link resolveApiKey}. */
+  /** 字面 DeepSeek API 密钥；存在时胜过 {@link resolveApiKey}。 */
   apiKey?: string
-  /** Resolve the current DeepSeek API key for one search operation. */
+  /** 为一次搜索操作解析当前的 DeepSeek API 密钥。 */
   resolveApiKey?: () => Promise<string | undefined>
-  /** Credential reference named by missing-credential diagnostics. */
+  /** 缺失凭据诊断所命名的凭据引用。 */
   apiKeyEnv?: CredentialRef
-  /** Endpoint base; `/messages` is appended. */
+  /** 端点基址；会追加 `/messages`。 */
   baseURL: string
-  /** Anthropic-format model name. */
+  /** Anthropic 格式的模型名。 */
   model: string
-  /** `anthropic-version` header value. */
+  /** `anthropic-version` 头值。 */
   apiVersion: string
-  /** Upper bound on generated tokens for the Messages request. */
+  /** Messages 请求生成令牌的上限。 */
   maxTokens: number
-  /** Maximum `web_search` server-tool uses per request. */
+  /** 每次请求 `web_search` 服务端工具的最大使用次数。 */
   maxUses: number
   /**
-   * Record the exact secret-free request immediately before dispatch. A throw
-   * prevents dispatch so model-visible auxiliary input cannot escape logging.
+   * 在分发之前记录精确的无密钥请求。抛出可阻止分发，从而面向模型的辅助输入
+   * 不会逃逸出日志。
    */
   recordRequest?: (request: DeepSeekSearchLlmRequest) => void
 }
 
 /**
- * Build a `url → cited_text` map from every `text` block's `citations[]`. This
- * is the snippet source: Anthropic `web_search_result` items carry
- * `url`/`title`/`page_age` but typically NO inline snippet — the excerpt lives
- * in a separate `text` block's citation, keyed by `url` (first occurrence wins).
+ * 从每个 `text` 块的 `citations[]` 构建 `url → cited_text` 映射。这是摘要来源：Anthropic 的
+ * `web_search_result` 项携带 `url`/`title`/`page_age`，但通常没有内联摘要 —— 摘录存在于一个独立的
+ * `text` 块的引用中，以 `url` 为键（首次出现胜出）。
  *
- * @param blocks - the response's content blocks; non-`text` blocks are skipped.
- * @returns the `url → cited_text` map (empty when no citations are present).
+ * @param blocks - 响应的内容块；非 `text` 块被跳过。
+ * @returns `url → cited_text` 映射（无引用时为空）。
  */
 export function citationSnippets(blocks: readonly ContentBlock[]): Map<string, string> {
   const map = new Map<string, string>()
@@ -144,15 +137,14 @@ export function citationSnippets(blocks: readonly ContentBlock[]): Map<string, s
 }
 
 /**
- * Map a DeepSeek Anthropic Messages response to a normalized search result. Walks
- * `web_search_tool_result` blocks for citeable `web_search_result` items, joins each to its
- * citation excerpt as `snippet`, and dedupes by `url` (a `max_uses > 1` request can surface
- * the same URL across searches). The web service owns the final `maxResults` truncation, so
- * `truncated` is always `false` here.
+ * 将 DeepSeek 的 Anthropic Messages 响应映射为归一化的搜索结果。遍历 `web_search_tool_result`
+ * 块以寻找可引用的 `web_search_result` 项，将每一项与它的引用摘录连接为 `snippet`，并按 `url`
+ * 去重（一个 `max_uses > 1` 的请求可能在多次搜索间暴露同一 URL）。web 服务拥有最终的
+ * `maxResults` 截断，因此此处的 `truncated` 始终为 `false`。
  *
- * @param response - the parsed Messages response body.
- * @returns the normalized result with deduped, snippet-joined sources.
- * @throws {@link WebError} when native search produced no result block.
+ * @param response - 解析后的 Messages 响应体。
+ * @returns 带去重、已连接摘要的来源的归一化结果。
+ * @throws 当原生搜索未产生任何结果块时抛出 {@link WebError}。
  */
 export function mapAnthropicResponse(response: AnthropicResponse): WebSearchResult {
   const blocks = response.content ?? []
@@ -185,27 +177,26 @@ export function mapAnthropicResponse(response: AnthropicResponse): WebSearchResu
   return { sources, truncated: false }
 }
 
-/** Authentication headers for one search, tagged by the credential that produced them. */
+/** 一次搜索的认证头，由产生它的凭据打上标记。 */
 interface SearchAuth {
-  /** `account` for a DeepSeek account token, `api-key` for an API key. */
+  /** `account` 表示 DeepSeek 账号令牌，`api-key` 表示 API 密钥。 */
   readonly kind: 'account' | 'api-key'
-  /** Headers carrying the credential. */
+  /** 携带凭据的头。 */
   readonly headers: Readonly<Record<string, string>>
 }
 
 /**
- * The DeepSeek-backed search provider. HTTP redirects fail as `WEB_PROVIDER_ERROR`;
- * failures after dispatch name the endpoint and tell the model how the user can configure it.
+ * DeepSeek 支持的搜索提供方。HTTP 重定向作为 `WEB_PROVIDER_ERROR` 失败；
+ * 分发之后的失败会指出端点，并告诉模型用户如何配置它。
  */
 export class DeepSeekSearchProvider implements WebSearchProvider {
   readonly id = DEEPSEEK_PROVIDER_ID
 
   /**
-   * @param resolveOptions - the options for the NEXT operation, snapshotted
-   * once at each operation's entry so one search never mixes two sections. A
-   * thunk rather than a value because the plugin's settings section can change
-   * between searches, and re-registering the provider to carry a new endpoint
-   * would make the seam's selection observable to the user as a flicker.
+   * @param resolveOptions - 供下一次操作使用的选项，在每次操作入口处一次性快照，
+   *   因此一次搜索绝不会混用两个节。选择 thunk 而非值，是因为插件的设置节可能在
+   *   两次搜索之间变化，而为携带新端点而重新注册提供方会让该 seam 的选择作为闪烁
+   *   对用户可见。
    */
   constructor(private readonly resolveOptions: () => DeepSeekSearchProviderOptions) {}
 
@@ -218,9 +209,8 @@ export class DeepSeekSearchProvider implements WebSearchProvider {
   }
 
   async search(request: WebSearchRequest, signal?: AbortSignal): Promise<WebSearchResult> {
-    // One snapshot for the whole operation: credential resolution awaits, and a
-    // settings write landing inside that await must not send the key resolved
-    // from the old section to the endpoint named by the new one.
+    // 整个操作使用一份快照：凭据解析会 await，而落在该 await 内的设置写入绝不能把从旧节
+    // 解析出的密钥发往新节命名的端点。
     const options = this.resolveOptions()
     const endpoint = `${options.baseURL}/messages`
     const auth = await this.authHeaders(options, endpoint, signal)
@@ -273,16 +263,13 @@ export class DeepSeekSearchProvider implements WebSearchProvider {
         const detail = typeof parsed.error === 'string' ? parsed.error : parsed.error?.message ?? parsed.message
         if (detail !== undefined && detail.length > 0) message += `: ${detail}`
       } catch (error: unknown) {
-        // An abort fired mid-body must surface as WEB_ABORTED, not be swallowed
-        // into a generic HTTP-error message — cancellation is not a provider
-        // error (the seam's cancellation contract).
+        // 在正文读取中途触发的取消必须以 WEB_ABORTED 呈现，而不能被吞入一个
+        // 泛化的 HTTP 错误消息 —— 取消不是提供方错误（该 seam 的取消契约）。
         if (signal?.aborted === true || isAbortError(error)) throw searchAborted(signal, error)
-        // Otherwise: the HTTP status is already captured in `message` above; a
-        // malformed/non-JSON error body (normal for gateway 5xx/429s) can only
-        // cost a richer provider message, never the real error.
+        // 否则：HTTP 状态已在上方的 `message` 中捕获；一个畸形/非 JSON 的错误体
+        //（网关 5xx/429 的常见情况）最多损失一个更丰富的提供方消息，绝不会丢失真实错误。
       }
-      // The account service released this token only for its inference
-      // origin, so the endpoint is not what the user must change.
+      // 账号服务仅为它的推理来源释放此令牌，因此端点不是用户需要修改的对象。
       if (status === 401 && auth.kind === 'account') throw accountRejectedError(message)
       throw searchEndpointError(endpoint, message)
     }
@@ -300,11 +287,11 @@ export class DeepSeekSearchProvider implements WebSearchProvider {
   }
 
   /**
-   * Resolve one operation's authentication headers without retaining a credential on the provider.
-   * @param options - the caller's snapshot, so the credential and the endpoint it is sent to come from one section.
-   * @param endpoint - the Messages endpoint this operation dispatches to.
-   * @param signal - abort signal for the surrounding search.
-   * @returns the account-token header when one resolves, otherwise the API-key headers, tagged by credential kind.
+   * 解析一次操作的认证头，且不长期在提供方上保留凭据。
+   * @param options - 调用方的快照，因此凭据与其发往的端点来自同一节。
+   * @param endpoint - 本次操作分发到的 Messages 端点。
+   * @param signal - 周边搜索的取消信号。
+   * @returns 当某个令牌解析成功时为账号令牌头，否则为 API 密钥头，并按凭据种类打上标记。
    */
   private async authHeaders(
     options: DeepSeekSearchProviderOptions, endpoint: string, signal?: AbortSignal,
@@ -315,16 +302,16 @@ export class DeepSeekSearchProvider implements WebSearchProvider {
       : await resolveCredential(() => resolveAccountToken(endpoint), signal)
     if (token !== undefined && token.length > 0) return { kind: 'account', headers: { 'x-dsh-auth-token': token } }
     const apiKey = await this.apiKey(options, signal)
-    // Official DeepSeek expects `x-api-key`; an Anthropic-compatible proxy
-    // may expect `Authorization: Bearer` — send both so either resolves.
+    // 官方 DeepSeek 期望 `x-api-key`；兼容 Anthropic 的代理可能期望
+    // `Authorization: Bearer` —— 两者都发送，以便任一方都能解析。
     return { kind: 'api-key', headers: { 'x-api-key': apiKey, 'authorization': `Bearer ${apiKey}` } }
   }
 
   /**
-   * Resolve one operation's API key without retaining it on the provider.
-   * @param options - the caller's snapshot, so the key and the endpoint it is sent to come from one section.
-   * @param signal - abort signal for the surrounding search.
-   * @returns the resolved key.
+   * 解析一次操作的 API 密钥，且不长期在提供方上保留它。
+   * @param options - 调用方的快照，因此密钥与其发往的端点来自同一节。
+   * @param signal - 周边搜索的取消信号。
+   * @returns 解析得到的密钥。
    */
   private async apiKey(options: DeepSeekSearchProviderOptions, signal?: AbortSignal): Promise<string> {
     throwIfSearchAborted(signal)
@@ -344,12 +331,11 @@ export class DeepSeekSearchProvider implements WebSearchProvider {
 }
 
 /**
- * Run one credential resolver under the search's cancellation signal. An
- * already-cancelled search never starts the resolver.
- * @param resolve - the resolver; a synchronous throw is mapped like a rejection.
- * @param signal - abort signal for the surrounding search.
- * @returns the resolved credential, or undefined when the resolver supplied none.
- * @throws {@link WebError} `WEB_ABORTED` on cancellation, `WEB_PROVIDER_ERROR` when the resolver fails.
+ * 在搜索的取消信号之下运行一个凭据解析器。一个已经取消的搜索绝不会启动解析器。
+ * @param resolve - 解析器；同步抛出会被像拒绝一样映射。
+ * @param signal - 周边搜索的取消信号。
+ * @returns 解析得到的凭据，或解析器未提供时为 undefined。
+ * @throws 取消时抛出 {@link WebError} `WEB_ABORTED`，解析器失败时抛出 `WEB_PROVIDER_ERROR`。
  */
 async function resolveCredential(
   resolve: () => Promise<string | undefined>, signal?: AbortSignal,
@@ -367,7 +353,7 @@ async function resolveCredential(
   }
 }
 
-/** Replace endpoint guidance with sign-in guidance when DeepSeek rejects the account token. */
+/** 当 DeepSeek 拒绝账号令牌时，将端点指导替换为登录指导。 */
 function accountRejectedError(message: string): WebError {
   return new WebError(
     `${message}\n\nDeepSeek rejected the account sign-in used for this web search. `
@@ -376,7 +362,7 @@ function accountRejectedError(message: string): WebError {
   )
 }
 
-/** Add endpoint recovery instructions to failures that occur after request dispatch begins. */
+/** 为请求分发开始之后发生的失败附加端点恢复指引。 */
 function searchEndpointError(endpoint: string, message: string, cause?: unknown): WebError {
   return new WebError(
     `${message}\n\nThe web request used endpoint ${JSON.stringify(endpoint)}. `
@@ -390,9 +376,8 @@ function searchEndpointError(endpoint: string, message: string, cause?: unknown)
 }
 
 /**
- * Race a same-process asynchronous preflight against caller cancellation. The
- * attached settlement handlers keep observing an uncooperative operation after
- * abort so a later rejection cannot become unhandled.
+ * 让同进程的异步预检与调用方取消竞争。附加的 settle 处理器在 abort 之后继续观察一个
+ * 不合作的操作，使得后续的拒绝不会变成未处理。
  */
 function abortable<T>(operation: Promise<T>, signal?: AbortSignal): Promise<T> {
   if (signal === undefined) return operation
@@ -413,24 +398,24 @@ function abortable<T>(operation: Promise<T>, signal?: AbortSignal): Promise<T> {
   })
 }
 
-/** Throw the provider's stable cancellation error when the caller already aborted. */
+/** 当调用方已经取消时，抛出提供方稳定的取消错误。 */
 function throwIfSearchAborted(signal?: AbortSignal): void {
   if (signal?.aborted === true) throw searchAborted(signal)
 }
 
-/** Build the provider's stable cancellation error while retaining the caller's reason. */
+/** 在保留调用方原因的同时，构建提供方稳定的取消错误。 */
 function searchAborted(signal?: AbortSignal, fallback?: unknown): WebError {
   return new WebError('DeepSeek search aborted', 'WEB_ABORTED', {
     cause: signal?.aborted === true ? signal.reason : fallback,
   })
 }
 
-/** True for a fetch/`AbortSignal` abort, surfaced as `WEB_ABORTED`. */
+/** 对于 fetch/`AbortSignal` 的取消返回 true，以 `WEB_ABORTED` 呈现。 */
 function isAbortError(error: unknown): boolean {
   return error instanceof DOMException && error.name === 'AbortError'
 }
 
-/** True for DeepSeek request limits that can be sent to the Messages API. */
+/** 对于可以发往 Messages API 的 DeepSeek 请求上限返回 true。 */
 function isPositiveInteger(value: number): boolean {
   return Number.isInteger(value) && value > 0
 }

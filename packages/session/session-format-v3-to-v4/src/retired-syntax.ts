@@ -1,4 +1,4 @@
-/** Retired native syntax remains a hard refusal even after a recoverable physical-row failure. */
+/** 即使在可恢复的物理行失败之后，已退役的原生语法仍然是硬性拒绝项。 */
 
 import { SessionFormatError, SessionFormatUnsupportedMigrationError, isSessionFormatJsonObject } from '@deepseek-ai/dsh-session-format'
 
@@ -17,9 +17,9 @@ function assertMessageContent(message: unknown, subject: string): void {
 }
 
 /**
- * Refuse retired headers, PTC tags, and tool-result blocks in interpreted content slots.
- * Tool arguments, replay state, schema parameters, and nested extension values remain opaque.
- * @param row - parsed physical row or complete native logical event.
+ * 在被解释的内容槽位中拒绝已退役的头部、PTC 标签与 tool-result 块。
+ * 工具参数、重放状态、schema 参数以及嵌套的扩展值保持不透明。
+ * @param row - 已解析的物理行，或完整的原生逻辑事件。
  */
 export function assertV4RetiredSyntax(row: unknown): void {
   if (!isSessionFormatJsonObject(row)) return

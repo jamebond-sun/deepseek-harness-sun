@@ -1,11 +1,11 @@
-/** ISO-shaped time-context timestamp formatting shared by production and replay validation. */
+/** 由生产环境与重放校验共享的、ISO 形态 time-context 时间戳格式化。 */
 
 type TimestampPart = 'day' | 'hour' | 'minute' | 'month' | 'second' | 'timeZoneName' | 'year'
 
 /**
- * Create the exact formatter used by durable time-context readings.
- * @param timeZone - Explicit display zone, or `undefined` for the process fallback.
- * @returns A formatter with stable numeric local fields and long numeric offset.
+ * 创建持久化 time-context 读数所使用的确切格式化器。
+ * @param timeZone - 显式的显示时区；为 `undefined` 时使用进程回退时区。
+ * @returns 一个具有稳定数字本地字段与长数字偏移量的格式化器。
  */
 export function createTimestampFormatter(timeZone?: string): Intl.DateTimeFormat {
   return new Intl.DateTimeFormat('en-US', {
@@ -22,11 +22,11 @@ export function createTimestampFormatter(timeZone?: string): Intl.DateTimeFormat
 }
 
 /**
- * Format an epoch millisecond value as an ISO-shaped timestamp with offset and IANA zone.
- * @param now - Epoch milliseconds to display.
- * @param formatter - Formatter created for `timeZone`.
- * @param timeZone - Canonical zone label carried in brackets.
- * @returns The durable timestamp text.
+ * 将一个纪元毫秒值格式化为带有偏移量与 IANA 时区的、ISO 形态时间戳。
+ * @param now - 待显示的纪元毫秒数。
+ * @param formatter - 为 `timeZone` 所创建的格式化器。
+ * @param timeZone - 括在方括号中的规范时区标签。
+ * @returns 持久化的时间戳文本。
  */
 export function formatTimestamp(now: number, formatter: Intl.DateTimeFormat, timeZone: string): string {
   const parts = Object.fromEntries(

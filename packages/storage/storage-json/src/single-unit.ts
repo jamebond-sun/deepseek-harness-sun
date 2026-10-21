@@ -1,11 +1,8 @@
 /**
- * One opened JSON unit in `single` layout: the whole unit is one document at
- * `<root>/<name>.json`. The in-memory state is authoritative; every write
- * primitive mutates it and republishes the whole file atomically. Writes are
- * NOT queued here — per the backend contract, write ordering belongs to the
- * caller (the domain layer's write chain); this unit only guarantees that
- * each single call publishes a complete, durable file. The `per-record`
- * layout is a separate unit class in `per-record-unit.ts`.
+ * `single` 布局下一个已打开的 JSON 单元：整个单元是 `<root>/<name>.json` 处的一个文档。
+ * 内存内状态是权威的；每个写入原语修改它并原子性地重新发布整个文件。写入在此处并不排队——
+ * 按后端契约，写入顺序属于调用方（领域层的写入链）；本单元仅保证每次单一调用发布一个完整、持久的文件。
+ * `per-record` 布局是 `per-record-unit.ts` 中独立的单元类。
  * @module @deepseek-ai/dsh-storage-json/src/single-unit
  */
 
@@ -18,12 +15,11 @@ import { parse, serialize } from './format.ts'
 import type { UnitState } from './format.ts'
 
 /**
- * Open (load or lazily create) one `single`-layout unit under `root`: the
- * unit file is `<root>/<name>.json`.
- * @param descriptor - Static identity and shape of the unit.
- * @param root - Absolute backend root directory.
- * @param onClose - Backend callback releasing the unit's open-slot.
- * @returns the opened unit.
+ * 打开（加载或惰性创建）`root` 下一个 `single` 布局单元：单元文件为 `<root>/<name>.json`。
+ * @param descriptor - 单元的静态身份与形态。
+ * @param root - 绝对后端根目录。
+ * @param onClose - 释放单元打开槽位的后端回调。
+ * @returns 已打开的单元。
  */
 export async function openSingleUnit(
   descriptor: KvUnitDescriptor,
@@ -36,7 +32,7 @@ export async function openSingleUnit(
     text = await readFile(path, 'utf8')
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
-    // Missing file = empty unit; materialization defers to the first write.
+    // 缺失文件 = 空单元；物化推迟到首次写入。
   }
   const state: UnitState =
     text === undefined
@@ -51,7 +47,7 @@ export async function openSingleUnit(
 
 class SingleJsonUnit implements KvUnit {
   private closed = false
-  /** In-flight publishes; close() drains them before releasing the unit. */
+  /** 在途发布；close() 在释放单元前将其排干。 */
   private readonly inFlight = new Set<Promise<void>>()
 
   constructor(
@@ -61,7 +57,7 @@ class SingleJsonUnit implements KvUnit {
     private readonly onClose: () => void,
   ) {}
 
-  // oxlint-disable-next-line typescript/require-await -- async keeps the closed guard a rejection, not a synchronous throw
+  // oxlint-disable-next-line typescript/require-await -- async 让 closed 守卫成为拒绝而非同步抛出
   async loadAll(): Promise<{ tables: Record<string, Record<string, unknown>>; global: unknown }> {
     this.assertOpen()
     const tables: Record<string, Record<string, unknown>> = {}
@@ -77,8 +73,7 @@ class SingleJsonUnit implements KvUnit {
     const hadKey = records.has(key)
     const previous = records.get(key)
     records.set(key, value)
-    // Roll back on a failed publish: memory is authoritative, so a rejected
-    // write must not survive in memory (or ride along with the next publish).
+    // 发布失败时回滚：内存是权威的，因此被拒绝的写入不得存活在内存中（或随下次发布顺带而出）。
     await this.publish().catch((error: unknown) => {
       if (hadKey) records.set(key, previous)
       else records.delete(key)
@@ -111,7 +106,7 @@ class SingleJsonUnit implements KvUnit {
     })
   }
 
-  /* jscpd:ignore-start -- the two unit classes are standalone; the drain/guard lifecycle mirrors the shared KvUnit contract */
+  /* jscpd:ignore-start -- 两个单元类相互独立；排干/守卫生命周期镜像共享的 KvUnit 契约 */
   async close(): Promise<void> {
     if (this.closed) {
       await Promise.allSettled(this.inFlight)
@@ -140,8 +135,7 @@ class SingleJsonUnit implements KvUnit {
   private publish(): Promise<void> {
     const write = writeAtomic(this.path, serialize(this.descriptor.name, this.state))
     this.inFlight.add(write)
-    // Swallow only on the tracking branch: the caller still awaits `write`
-    // itself, so rejections stay observed exactly once.
+    // 仅在跟踪分支上吞掉：调用方仍等待 `write` 本身，因此拒绝恰好被观察一次。
     write.catch(() => {}).finally(() => this.inFlight.delete(write))
     return write
   }

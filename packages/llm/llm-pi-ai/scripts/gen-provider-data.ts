@@ -1,4 +1,4 @@
-/** Generate display metadata through pi-ai's public catalog and auth context. */
+/** 通过 pi-ai 公开目录与认证上下文生成展示元数据。 */
 
 import { execFileSync } from 'node:child_process'
 import { readFileSync, writeFileSync } from 'node:fs'
@@ -18,15 +18,15 @@ const printer = ts.createPrinter()
 const sourceFile = ts.createSourceFile('provider-data.ts', '', ts.ScriptTarget.Latest)
 const quote = (value: string): string => printer.printNode(ts.EmitHint.Expression, ts.factory.createStringLiteral(value, true), sourceFile)
 
-// Endpoint variables read by API implementations, outside AuthContext and
-// uppercase catalog URL placeholders. Keep exceptions here, not in the UI.
+// 由各个 API 实现读取的那些端点变量，位于 AuthContext 与那些大写目录
+// URL 占位符之外。请把例外保留在这里，而不是保留在界面里。
 const SUPPLEMENTS: Readonly<Record<string, { baseURLEnv: readonly string[] }>> = {
   azure: { baseURLEnv: ['AZURE_OPENAI_BASE_URL', 'AZURE_OPENAI_RESOURCE_NAME'] },
   'amazon-bedrock': { baseURLEnv: ['AWS_REGION', 'AWS_DEFAULT_REGION'] },
   'google-vertex': { baseURLEnv: ['GOOGLE_CLOUD_PROJECT', 'GCLOUD_PROJECT', 'GOOGLE_CLOUD_LOCATION'] },
 }
 
-/** Insert newly discovered names after their predecessor in the resolver. */
+/** 把新发现的名字插入到它的前驱之后，插入进那个解析器。 */
 function merge(into: string[], sequence: readonly string[]): void {
   for (const [index, name] of sequence.entries()) {
     if (into.includes(name)) continue
@@ -35,9 +35,9 @@ function merge(into: string[], sequence: readonly string[]): void {
 }
 
 /**
- * Discover resolver reads using only synthetic environment and file answers.
- * @param provider - Installed provider; no credential or login flow is used.
- * @returns Names observed across empty, individual and suffix configurations.
+ * 仅使用合成的环境与文件应答来发现该解析器所读取的内容。
+ * @param provider - 已安装的提供方；不使用任何凭据或登录流程。
+ * @returns 在空配置、单项配置与后缀配置之下观测到的各个名字。
  */
 export async function resolverEnv(provider: Provider): Promise<string[]> {
   const names: string[] = []
@@ -85,9 +85,9 @@ export async function resolverEnv(provider: Provider): Promise<string[]> {
 }
 
 /**
- * Generate metadata without resolving real credentials or streaming a request.
- * @param providers - Public installed catalog, or isolated providers for verification.
- * @returns Display metadata keyed by provider id.
+ * 在不解析真实凭据、也不流式输出一次请求的前提下生成元数据。
+ * @param providers - 公开的已安装目录，或用于校验的各个隔离提供方。
+ * @returns 以提供方 id 为键的展示元数据。
  */
 export async function generateProviderData(providers: readonly Provider[] = builtinProviders()): Promise<Record<string, ProviderData>> {
   const data: Record<string, ProviderData> = {}
@@ -95,8 +95,8 @@ export async function generateProviderData(providers: readonly Provider[] = buil
     let env: readonly string[]
     try { env = await resolverEnv(provider) }
     catch (error) {
-      // compat is a temporary upstream surface. Import it only as a last
-      // resort, with a synthetic dictionary that never reads process.env.
+      // compat 是一个临时的上游表面。只在万不得已时导入它，
+      // 并使用一个从不读取 process.env 的合成字典。
       const fallback = (await import('@earendil-works/pi-ai/compat')).findEnvKeys(
         provider.id, new Proxy<Record<string, string>>({}, { get: () => 'probe-value' }),
       )
@@ -120,16 +120,16 @@ export async function generateProviderData(providers: readonly Provider[] = buil
 }
 
 /**
- * Write the deterministic catalog, or reject stale data without changing it.
- * @param check - Validate the working file instead of writing it.
- * @param cached - Validate the staged file instead; never write or stage files.
+ * 写出那份确定性的目录，或在不变动它的前提下拒绝陈旧数据。
+ * @param check - 改为校验那个工作区文件，而不是写入它。
+ * @param cached - 改为校验那个已暂存的文件；绝不写入或暂存文件。
  */
 export async function syncProviderData(check: boolean, cached = false): Promise<void> {
-  const source = '/** Generated from the installed pi-ai catalog. Run pnpm gen-provider-data; do not edit. */\n\n'
+  const source = '/** 由已安装的 pi-ai 目录生成。运行 pnpm gen-provider-data；请勿手工编辑。 */\n\n'
     + "import type { BuiltinProvider } from '@earendil-works/pi-ai/providers/all'\n"
     + "import type { LlmConfigurableProvider } from '@deepseek-ai/dsh-llm'\n\n"
     + "type ProviderData = Pick<LlmConfigurableProvider, 'defaultBaseURL' | 'baseURLEnv'> & { env: readonly string[] }\n\n"
-    + '/** Catalog endpoints and environment names; no credentials are evaluated at runtime. */\n'
+    + '/** 各个目录端点与环境名字；运行期不解析任何凭据。 */\n'
     + 'export const PROVIDER_DATA: Record<BuiltinProvider, ProviderData> & Partial<Record<string, ProviderData>> = {\n'
     + Object.entries(await generateProviderData()).map(([id, data]) => {
       const fields = [`env: [${data.env.map(quote).join(', ')}]`,

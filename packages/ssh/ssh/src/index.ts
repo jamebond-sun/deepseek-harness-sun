@@ -1,4 +1,4 @@
-/** OpenSSH connection owner for one version-matched POSIX helper and its independent forwarded streams. */
+/** 持有单个版本匹配的 POSIX helper 及其独立转发流的 OpenSSH 连接。 */
 
 import { spawn, execFile, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { mkdtemp, rm } from 'node:fs/promises'
@@ -14,40 +14,40 @@ import { authenticateStream } from './stream-security.ts'
 
 type Hello = z.infer<typeof helloSchema>
 
-/** Installed helper invocation; script deployments may also install a PTC bootstrap. */
+/** 已安装的 helper 调用方式；脚本部署还可以额外安装一份 PTC 引导脚本。 */
 export type HelperLaunch = {
-  /** Run the installed script with a separately installed Node executable. */
+  /** 使用单独安装的 Node 可执行文件运行已安装脚本。 */
   kind: 'node-script'
-  /** Absolute remote Node executable. */
+  /** 远端 Node 可执行文件的绝对路径。 */
   node: string
-  /** Absolute remote PTC bootstrap; requires bootstrapHash. */
+  /** 远端 PTC 引导脚本的绝对路径；必须与 bootstrapHash 同时给出。 */
   bootstrapPath?: string
-  /** Lowercase SHA-256 of bootstrapPath; requires that path. */
+  /** bootstrapPath 的小写 SHA-256 摘要；必须与该文件路径同时给出。 */
   bootstrapHash?: string
 } | {
-  /** Run the helper executable with its embedded Node and PTC worker. */
+  /** 运行内嵌 Node 与 PTC worker 的 helper 可执行文件。 */
   kind: 'executable'
 }
 
-/** Deployment-owned SSH identity and installed helper; no model argument selects these values. */
+/** 由部署方持有的 SSH 身份与已安装 helper；任何模型参数都不能选择这些取值。 */
 export interface Config {
-  /** OpenSSH host alias, including its existing user, key and known-host configuration. */
+  /** OpenSSH 主机别名，沿用其已有的 user、key 与 known-host 配置。 */
   host: string
-  /** Explicit script or self-contained executable invocation. */
+  /** 显式脚本调用或自包含可执行文件调用。 */
   launch: HelperLaunch
-  /** Absolute path to the installed, bundled helper entry. */
+  /** 已安装、已打包的 helper 入口的绝对路径。 */
   helper: string
-  /** SHA-256 of that bundled helper; mismatches refuse the connection. */
+  /** 该打包 helper 的 SHA-256 摘要；不一致时拒绝连接。 */
   helperHash: string
-  /** Absolute remote default workspace. */
+  /** 远端默认工作区的绝对路径。 */
   workspace: string
-  /** Connection and administrative-request deadline, at most 2,147,483,647 milliseconds. */
+  /** 连接与管理类请求的截止时间，最大为 2,147,483,647 毫秒。 */
   requestTimeoutMs?: number
-  /** Maximum JSON payload bytes per helper request or response. */
+  /** 单次 helper 请求或响应的最大 JSON 载荷字节数。 */
   maxFrameBytes?: number
-  /** Maximum ordinary requests; heartbeat and bounded resource cleanup have reserved capacity. */
+  /** 普通请求的最大数量；心跳与有界资源清理占用预留额度。 */
   maxPending?: number
-  /** Remote helper lease; loss of heartbeats starts remote managed cleanup. */
+  /** 远端 helper 租约；心跳丢失即启动远端托管清理。 */
   leaseMs?: number
 }
 
@@ -55,7 +55,7 @@ declare module '@deepseek-ai/cordis' {
   interface Context { ssh: SshConnection }
 }
 
-/** One non-reconnecting SSH session; loss invalidates all active operations. */
+/** 一个不会重连的 SSH 会话；连接失效后所有进行中的操作均作废。 */
 export class SshConnection extends Service {
   static Config: schema<Config> = schema.object({
     host: schema.string().required(), helper: schema.string().required(),
@@ -68,7 +68,7 @@ export class SshConnection extends Service {
     maxPending: schema.number().default(128), leaseMs: schema.number().default(30_000),
   })
 
-  /** Verified remote helper coordinates; callers must await this before launch. */
+  /** 已完成校验的远端 helper 信息；调用方在启动前必须先等待它就绪。 */
   readonly ready: Promise<Hello>
   private rpc: SshRpcPeer | undefined
   private child: ChildProcessWithoutNullStreams | undefined
@@ -102,15 +102,15 @@ export class SshConnection extends Service {
       leaseMs: z.number().int().min(3000).max(600_000),
     }).strict().parse(config) as Required<Config>
     this.ready = this.start()
-    // Startup uses Node I/O, local validation, and Error-valued RPC failures.
+    // 启动过程依赖 Node I/O、本地校验，以及以 Error 形式返回的 RPC 失败。
     void this.ready.catch((error: unknown) => { this.fail(error as Error) })
     ctx.effect(() => () => this.dispose())
   }
 
-  /** Hold plugin readiness until the remote identity and helper digest are verified. */
+  /** 在远端身份与 helper 摘要校验完成之前，插件保持未就绪状态。 */
   async [Service.init](): Promise<void> { await this.ready }
 
-  /** Verified remote PTC launch configuration; script deployments require a verified bootstrap. */
+  /** 已完成校验的远端 PTC 启动配置；脚本部署方式要求 bootstrap 也通过校验。 */
   get ptcLaunch(): { kind: 'embedded'; executable: string } | { kind: 'node-script'; executable: string; bootstrapPath: string } {
     if (this.remote === undefined) throw new Error('SSH helper is not ready')
     const launch = this.config.launch
@@ -119,19 +119,19 @@ export class SshConnection extends Service {
       case 'node-script':
         if (launch.bootstrapPath === undefined) throw new Error('SSH PTC requires a verified bootstrapPath and bootstrapHash')
         return { kind: 'node-script', executable: this.remote.executable, bootstrapPath: launch.bootstrapPath }
-      /* v8 ignore next -- Config parsing admits only these two launch kinds. */
+      /* v8 ignore next -- 配置解析只允许这两种启动方式。 */
       default: return assertNever(launch)
     }
   }
 
   /**
-   * Send a helper operation; cancellation never replays an ambiguous mutation.
-   * @param method - the private helper operation.
-   * @param params - JSON request fields validated by the helper.
-   * @param result - response validation before returning provider-visible data.
-   * @param signal - cancellation, which does not undo completed remote effects.
-   * @param wait - allow a process observation to outlast the administrative deadline.
-   * @returns the validated remote result.
+   * 发送一次 helper 操作；取消绝不会重放语义不明的远端变更。
+   * @param method - 私有 helper 操作名。
+   * @param params - 由 helper 校验的 JSON 请求字段。
+   * @param result - 返回给调用方可见数据之前的响应校验器。
+   * @param signal - 取消信号，它不会撤销已完成的远端副作用。
+   * @param wait - 允许一次进程观察超出管理类请求的截止时间。
+   * @returns 校验通过的远端结果。
    */
   async request<T>(method: string, params: unknown, result: z.ZodType<T>, signal?: AbortSignal, wait: boolean = false): Promise<T> {
     this.assertOpen()
@@ -144,10 +144,10 @@ export class SshConnection extends Service {
   }
 
   /**
-   * Forward one authenticated stream through an independent SSH channel.
-   * @param endpoint - private coordinates issued by this connection's helper.
-   * @param signal - cancellation of allocation and the resulting socket.
-   * @returns a paused socket; attach a consumer before resuming it.
+   * 通过一条独立的 SSH 通道转发一条已认证的流。
+   * @param endpoint - 本连接所属 helper 下发的私有坐标。
+   * @param signal - 用于取消通道分配以及由此得到的 socket。
+   * @returns 处于暂停状态的 socket；恢复读取前需先挂接消费方。
    */
   async connectStream(endpoint: SshStreamEndpoint, signal?: AbortSignal): Promise<Socket> {
     return this.track(this.establishStream(endpoint, signal))
@@ -163,7 +163,7 @@ export class SshConnection extends Service {
     const local = join(this.directory as string, `s${this.nextSocket++}`)
     const forward = `${local}:${remote}`
     const cancelForward = async (): Promise<void> => {
-      // An unavailable master already removed its forwarding listeners.
+      // 已失效的 master 已经移除了自己的转发监听器。
       if (!this.closed) await this.controlCommand(['-O', 'cancel', '-L', forward]).catch(() => {})
       await rm(local, { force: true })
     }
@@ -200,7 +200,7 @@ export class SshConnection extends Service {
     return authenticated
   }
 
-  /** Tear down the helper's remote managed ranges before releasing the SSH master when reachable. */
+  /** 在释放 SSH master（若仍可连通）之前，先拆除 helper 远端的托管进程组。 */
   dispose(): Promise<void> {
     this.disposal ??= this.disposeOnce()
     return this.disposal
@@ -215,7 +215,7 @@ export class SshConnection extends Service {
       if (this.failure === undefined) await this.rpc?.request('close', {}, z.null(), AbortSignal.timeout(this.config.requestTimeoutMs))
     } finally {
       this.rpc?.close()
-      // TLS wrappers release their reads before their underlying sockets close.
+      // TLS 封装层会在其底层 socket 关闭之前先释放读端。
       const socketClosures = [...this.sockets].reverse().map(socket => new Promise<void>((resolve) => {
         if (socket.closed) resolve()
         else { socket.once('close', () => { resolve() }); socket.destroy() }
@@ -293,7 +293,7 @@ export class SshConnection extends Service {
       case 'executable':
         command = `NODE_OPTIONS='--disable-sigusr1' ${quote(this.config.helper)}`
         break
-      /* v8 ignore next -- Config parsing admits only these two launch kinds. */
+      /* v8 ignore next -- 配置解析只允许这两种启动方式。 */
       default: return assertNever(launch)
     }
     const child = spawn('ssh', [
@@ -303,7 +303,7 @@ export class SshConnection extends Service {
     ], { stdio: ['pipe', 'pipe', 'pipe'] })
     this.child = child
     this.childClosed = new Promise((resolve) => { child.once('close', () => { resolve() }) })
-    child.stderr.resume() // SSH diagnostics can contain configured paths; operation errors remain structured.
+    child.stderr.resume() // SSH 诊断信息可能包含配置中的路径；操作错误仍保持结构化。
     child.once('error', (error) => { this.fail(error) })
     child.once('close', () => { this.fail(new Error('SSH helper disconnected; remote outcomes and cleanup are unknown')) })
     const rpc = new SshRpcPeer(child.stdout, child.stdin, this.config.maxFrameBytes, this.config.maxPending)

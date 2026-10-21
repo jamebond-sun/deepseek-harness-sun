@@ -1,7 +1,7 @@
-/** Declarative preset configuration and YAML validation. */
+/** 声明式预设配置与 YAML 校验。 */
 import type { EntryOptions, JsExpr } from '@deepseek-ai/cordis-plugin-loader'
 
-/** Identity, display fields and child Cordis plugins of one preset. */
+/** 一个预设的身份、展示字段与子 Cordis 插件。 */
 export interface PresetDefinition {
   readonly id: string
   readonly name?: string
@@ -10,10 +10,10 @@ export interface PresetDefinition {
   readonly plugins: readonly (Omit<EntryOptions, 'id' | 'disabled'> & { id?: string; disabled?: EntryOptions['disabled'] | JsExpr })[]
 }
 
-/** Validate a parsed Cordis entry list, including nested groups.
- * @param rows Parsed YAML value.
- * @param at Diagnostic prefix.
- * @returns The first invalid row, or undefined.
+/** 校验已解析的 Cordis 条目列表，包含嵌套组。
+ * @param rows 已解析的 YAML 值。
+ * @param at 诊断信息前缀。
+ * @returns 首个无效行，或 undefined。
  */
 export function entryListProblem(rows: unknown, at = ''): string | undefined {
   if (!Array.isArray(rows)) {

@@ -1,110 +1,110 @@
 /**
- * Validated plugin market index records.
+ * 已校验的插件市场索引记录。
  * @module @deepseek-ai/dsh-plugin-market-index/types
  */
 
 import type { LocalizedText } from '@deepseek-ai/dsh-package-manifest'
 
-/** A market-declared category or label: an opaque id's display title. */
+/** 一个市场声明的类别或标签：一个不透明 id 的展示标题。 */
 export interface MarketDeclaration {
   readonly title: LocalizedText
 }
 
-/** A market-declared sort key: its display title and initial direction. */
+/** 一个市场声明的排序键：其展示标题与初始方向。 */
 export interface MarketSortKeyDeclaration {
   readonly title: LocalizedText
   readonly order: 'asc' | 'desc'
 }
 
-/** Market-defined declarations; absent groups are empty records. */
+/** 市场定义的声明；缺席的组为空记录。 */
 export interface MarketIndexMetadata {
   readonly categories: Readonly<Record<string, MarketDeclaration>>
   readonly labels: Readonly<Record<string, MarketDeclaration>>
   readonly sortKeys: Readonly<Record<string, MarketSortKeyDeclaration>>
 }
 
-/** Market-defined values of one plugin; category, label, and sort-key ids require index declarations. */
+/** 一个插件的由市场定义的值；类别、标签与排序键 id 需要索引声明。 */
 export interface MarketPluginMetadata {
   readonly category?: string
-  /** Free-form strings, conventionally from package keywords; absent input becomes an empty array. */
+  /** 自由格式字符串，通常来自包关键词；缺席输入变为空数组。 */
   readonly keywords: readonly string[]
   readonly labels: readonly string[]
   readonly sortKeys: Readonly<Record<string, number>>
 }
 
-/** Where a plugin's source code is published; display only, never an install source. */
+/** 插件源代码的发布位置；仅用于展示，绝不作为安装来源。 */
 export interface MarketRepository {
-  /** Absolute http(s) URL of the repository's web page, without credentials, query, or fragment. */
+  /** 仓库网页的绝对 http(s) URL，不含凭据、查询或片段。 */
   readonly url: string
-  /** Relative POSIX directory of the package inside the repository; absent means the repository root. */
+  /** 包在仓库内的相对 POSIX 目录；缺席意为仓库根。 */
   readonly directory?: string
 }
 
-/** Where one exact version is installed from. */
+/** 一个精确版本的安装来源。 */
 export type MarketSource =
   | {
     readonly type: 'npm'
-    /** http(s) registry URL; absent means the installing client's configured registry. */
+    /** http(s) 注册表 URL；缺席意为安装客户端的已配置注册表。 */
     readonly registry?: string
   }
   | {
     readonly type: 'git'
-    /** Canonical https repository URL without credentials, query, or fragment. */
+    /** 规范的 https 仓库 URL，不含凭据、查询或片段。 */
     readonly url: string
-    /** Lowercase 40-hex-digit commit SHA. */
+    /** 小写 40 位十六进制提交 SHA。 */
     readonly commit: string
-    /** Relative POSIX package directory; absent means the repository root. */
+    /** 相对 POSIX 包目录；缺席意为仓库根。 */
     readonly path?: string
   }
 
-/** Runtime requirements of one version. */
+/** 一个版本的运行时要求。 */
 export interface MarketEngines {
-  /** SemVer range of DSH versions the version runs on; absent means any DSH version. */
+  /** 该版本运行的 DSH 版本的 SemVer 范围；缺席意为任意 DSH 版本。 */
   readonly dsh?: string
 }
 
-/** One installable version of a plugin. */
+/** 一个可安装的插件版本。 */
 export interface MarketVersion {
-  /** Exact SemVer version, unique within its plugin. */
+  /** 精确 SemVer 版本，在其插件内唯一。 */
   readonly version: string
-  /** Publish time of `version` in Unix seconds. */
+  /** `version` 的发布时间，以 Unix 秒计。 */
   readonly publishTimestamp: number
   readonly source: MarketSource
   readonly engines: MarketEngines
 }
 
-/** One installable bundle and its listed versions. */
+/** 一个可安装的包及其所列版本。 */
 export interface MarketPlugin {
-  /** npm package name, unique within its index. */
+  /** npm 包名，在其索引内唯一。 */
   readonly name: string
   readonly title?: LocalizedText
   readonly description?: LocalizedText
-  /** Base64 `data:` URL or absolute URL; a relative index reference is already resolved against the index URL. */
+  /** Base64 `data:` URL 或绝对 URL；相对索引引用已被解析为关于索引 URL 的形式。 */
   readonly icon?: string
   readonly author?: string
-  /** Absolute http(s) URL of a page about the plugin. */
+  /** 关于该插件的页面的绝对 http(s) URL。 */
   readonly homepage?: string
-  /** Web page of the plugin's source repository and its package directory; display only. */
+  /** 插件源仓库及其包目录的网页；仅展示用。 */
   readonly repository?: MarketRepository
   readonly metadata: MarketPluginMetadata
-  /** Non-empty, in descending SemVer precedence. */
+  /** 非空，按 SemVer 优先级降序。 */
   readonly versions: readonly MarketVersion[]
 }
 
-/** One validated format-1 index; members the format does not define are dropped. */
+/** 一个已校验的格式 1 索引；格式未定义的成员会被丢弃。 */
 export interface MarketIndex {
   readonly format: 1
   readonly title: LocalizedText
   readonly description?: LocalizedText
   readonly metadata: MarketIndexMetadata
-  /** Plugins in the index's default order. */
+  /** 按索引默认顺序的插件。 */
   readonly plugins: readonly MarketPlugin[]
 }
 
-/** The arguments that install one exact version. */
+/** 安装一个精确版本的参数。 */
 export interface MarketInstallTarget {
-  /** Install spec accepted by `pnpm add`. */
+  /** `pnpm add` 接受的安装说明。 */
   readonly spec: string
-  /** Registry to ask first; absent means the installing client's configured registry. */
+  /** 优先询问的注册表；缺席意为安装客户端的已配置注册表。 */
   readonly registry?: string
 }

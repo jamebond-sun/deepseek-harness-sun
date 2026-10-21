@@ -1,14 +1,11 @@
 /**
- * @deepseek-ai/dsh-web-app — the browser-surface bundle's runtime glue plugin
- * plus the bundle patch (`cordis.patch.yml`, declared by the `dsh.bundle.patch`
- * manifest field). The plugin owns the browser-surface glue: it resolves
- * the built frontend dist (workspace knowledge of this bundle, never user
- * config), mounts the `frontend-static` fallback owner over it, registers the
- * bash-visible web runtime variable, the process-token URL line, and the
- * default-browser handoff, and provides the `webApp` service. An advertised
- * `publicUrl` replaces the published bind-address URL. Non-loopback
- * HTTP binds trigger an exposure warning. App command-line values arrive
- * through the `webStartup` service expressions in the bundle patch.
+ * @deepseek-ai/dsh-web-app —— 浏览器界面 bundle 的运行时粘合插件，连同 bundle 补丁
+ * （`cordis.patch.yml`，由 `dsh.bundle.patch` 清单字段声明）。该插件负责浏览器界面的
+ * 粘合工作：它解析已构建的前端 dist（这是本 bundle 对 workspace 的了解，绝不由用户
+ * 配置），在其上挂载 `frontend-static` 兜底所有者，注册 bash 可见的 web 运行时变量、
+ * 进程 token URL 行与默认浏览器交接，并提供 `webApp` 服务。宣告的 `publicUrl` 会
+ * 取代所发布的绑定地址 URL。非回环地址的 HTTP 绑定会触发暴露告警。应用的命令行值
+ * 通过 bundle 补丁中的 `webStartup` 服务表达式送达。
  * @module @deepseek-ai/dsh-web-app
  */
 
@@ -27,47 +24,47 @@ import type {} from '@deepseek-ai/cordis-plugin-loader'
 import type {} from '@deepseek-ai/dsh-shell-env'
 import { parsePublicUrl } from './public-url.ts'
 
-/** The Web GUI this process serves, provided by the `web-runtime` row. */
+/** 本进程所服务的 Web GUI，由 `web-runtime` 行提供。 */
 export interface WebApp {
   /**
-   * The URL this GUI advertises, also used for `DSH_WEB_URL` and the startup URL line.
-   * @returns the configured `publicUrl`, otherwise the listener origin.
+   * 本 GUI 所宣告的 URL，同时用于 `DSH_WEB_URL` 与启动时的 URL 行。
+   * @returns 已配置的 `publicUrl`，否则是监听器的 origin。
    */
   getAdvertisedUrl(): string
 }
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
-    /** The Web GUI this process serves; absent when no Web runtime is mounted. */
+    /** 本进程所服务的 Web GUI；未挂载 Web runtime 时缺省。 */
     webApp: WebApp
   }
 }
 
-/** Stable Cordis plugin name. */
+/** 稳定的 Cordis 插件名。 */
 export const name = 'web-app'
 
 const ANNOUNCED_ROOTS = new WeakSet<Context>()
 
-/** Services required before the web runtime can mount. */
+/** Web runtime 挂载之前所需的服务。 */
 export const inject = ['webServer']
 
-/** Plugin config: composed deployment settings plus per-invocation command-line values. */
+/** 插件配置：编排好的部署设置，加上每次调用时的命令行值。 */
 export interface Config {
-  /** Permit default-browser handoff after the Loader tree settles; an SSH launch suppresses it. */
+  /** 在 Loader 树装配完成之后允许默认浏览器交接；通过 SSH 启动会抑制它。 */
   openBrowser: boolean
-  /** Print the URL line on activation; a non-interactive layer can turn it off. */
+  /** 激活时打印 URL 行；非交互式层可以关掉它。 */
   printUrl: boolean
   /**
-   * Register the `DSH_WEB_URL` bash variable naming this GUI. A one-shot
-   * non-interactive layer can turn it off when its user is not in the GUI.
+   * 注册指名本 GUI 的 `DSH_WEB_URL` bash 变量。一次性非交互层在其用户不在 GUI 中时
+   * 可以关掉它。
    */
   surfaceContext: boolean
   /**
-   * Canonical HTTP(S) root to advertise in the printed and opened URL,
-   * `DSH_WEB_URL`, and `webApp.getAdvertisedUrl()`, which supplies the Web GUI
-   * URL in agent runtime context, e.g. `https://app.example/ui/`, normalized to end in `/`. Configures no routing
-   * or authentication; see [public deployments](../README.md#public-deployments).
-   * Absent or YAML `null` advertises the bind-address URL.
+   * 在打印、打开的 URL、`DSH_WEB_URL` 与 `webApp.getAdvertisedUrl()` 中宣告的规范
+   * HTTP(S) 根路径，后者提供 agent 运行时上下文中的 Web GUI URL，例如
+   * `https://app.example/ui/`，并规范化为以 `/` 结尾。它不配置路由或鉴权，
+   * 参见[公开部署](../README.md#public-deployments)。
+   * 缺省或 YAML `null` 表示宣告绑定地址的 URL。
    */
   publicUrl?: string
 }
@@ -79,7 +76,7 @@ export const Config: z<Config> = z.object({
   publicUrl: z.transform(z.string(), value => parsePublicUrl(value).href),
 })
 
-/** Environment variable naming the advertised URL of this Web GUI. */
+/** 指名本 Web GUI 所宣告 URL 的环境变量。 */
 const DSH_WEB_URL = 'DSH_WEB_URL' as const
 
 const BROWSER_OPENER_MODULE = import.meta.resolve('open')
@@ -89,7 +86,8 @@ try {
   const { default: open } = await import(${JSON.stringify(BROWSER_OPENER_MODULE)})
   const launcher = await open(process.argv[1])
   if (process.platform === 'win32') {
-    // open resolves at PowerShell spawn; keep it referenced until that launcher hands the URL to Windows.
+    // open 在 PowerShell 生成进程时才完成解析；在该启动器把 URL 交给 Windows 之前，
+    // 保持对它的引用。
     const code = launcher.exitCode ?? await new Promise((resolve, reject) => {
       function onError(error) {
         launcher.off('close', onClose)
@@ -107,30 +105,28 @@ try {
   }
   process.exitCode = 0
 } catch (error) {
-  // The parent turns this exit into the manual-URL warning.
+  // 父进程会把这次退出转换为“手动打开 URL”的告警。
   console.error(error)
   process.exitCode = 1
 }
 `
 
 /**
- * Dist location is workspace knowledge of this bundle: anchored on the
- * frontend package manifest, not configured. Existence is a request-time
- * concern — the fallback owner reads files per request, so a composition
- * whose page never reaches the fallback seat (the static worker preview
- * ships its own page and carries no dist) boots without one.
+ * dist 位置属于本 bundle 对 workspace 的了解：锚定在前端包的清单上，而非可配置项。
+ * 它是否存在要等到请求时才成为问题——兜底所有者按请求读取文件，因此某个页面从未走到
+ * 兜底座位的组成（静态 worker 预览自带页面且不带 dist）在没有 dist 时也能启动。
  */
 function resolveDistIndex(): string {
   const require = createRequire(import.meta.url)
   try {
     return join(dirname(require.resolve('@deepseek-ai/dsh-web-frontend/package.json')), 'dist', 'index.html')
   } catch {
-    /* v8 ignore next 2 -- reachable only when the frontend package is absent from the checkout */
+    /* v8 ignore next 2 -- 仅当检出中缺少前端包时才可达 */
     throw new Error('web-app: @deepseek-ai/dsh-web-frontend is not resolvable from this composition')
   }
 }
 
-/** Start the maintained platform opener without forwarding Harness credentials. */
+/** 启动受维护的平台打开器，且不转发 Harness 凭据。 */
 function spawnBrowserLauncher(url: string): ChildProcess {
   return spawn(process.execPath, [
     '--input-type=module',
@@ -142,7 +138,7 @@ function spawnBrowserLauncher(url: string): ChildProcess {
   })
 }
 
-/** Hand one URL to the operating system's default browser. */
+/** 把一个 URL 交给操作系统的默认浏览器。 */
 async function openBrowser(url: string): Promise<void> {
   const launcher = spawnBrowserLauncher(url)
   let launcherStderr = ''
@@ -171,21 +167,20 @@ async function openBrowser(url: string): Promise<void> {
   })
 }
 
-/** Test hooks for the built dist and native browser handoff; production never mutates them. */
+/** 已构建 dist 与原生浏览器交接的测试钩子；生产环境从不修改它们。 */
 export const internals: {
   resolveDistIndex: () => string
   openBrowser: (url: string) => Promise<void>
 } = { resolveDistIndex, openBrowser }
 
 /**
- * Mount the Web runtime: dist serving, the bash runtime variable, the URL
- * line, and the default-browser handoff.
- * @param ctx - plugin context carrying the webServer service.
- * @param config - validated {@link Config}.
+ * 挂载 Web runtime：dist 服务、bash 运行时变量、URL 行与默认浏览器交接。
+ * @param ctx - 承载 webServer 服务的插件上下文。
+ * @param config - 已校验的 {@link Config}。
  */
 export function apply(ctx: Context, config: Config): void {
-  // The schema validates a present string; an explicit YAML `null` bypasses
-  // the string transform and reaches here, meaning unset.
+  // schema 只校验已出现的字符串；显式的 YAML `null` 会绕过字符串转换到达此处，
+  // 表示未设置。
   const publicUrl = config.publicUrl ?? undefined
   const boundHost = ctx.webServer.host
   if (publicUrl === undefined && bindUrlHost(boundHost) === undefined) {
@@ -197,10 +192,10 @@ export function apply(ctx: Context, config: Config): void {
   if (ctx.webServer.protocol === 'http:' && !isLoopbackHost(boundHost)) {
     console.warn(`dsh web: listening on ${boundHost} over plain HTTP; restrict this port to a trusted proxy or network`)
   }
-  // The bind URL belongs to this host. Under SSH, the operator reaches it
-  // through a local forwarding address that this process cannot derive.
+  // 绑定 URL 属于本机。在 SSH 下，操作者通过一个本进程无法推导出的本地转发地址
+  // 访问它。
   const handoffBrowser = config.openBrowser && !launchedThroughSsh(launchEnvironmentOf(ctx))
-  /** The advertised root: the canonical `publicUrl`, or the listener's own origin. */
+  /** 所宣告的根路径：规范的 `publicUrl`，或监听器自身的 origin。 */
   const appRootUrl = (): string => publicUrl ?? ctx.webServer.getOrigin()
   ctx.provide('webApp', { getAdvertisedUrl: appRootUrl } satisfies WebApp)
   ctx.plugin(FrontendStatic, { distIndex: internals.resolveDistIndex() })
@@ -217,11 +212,9 @@ export function apply(ctx: Context, config: Config): void {
   }
   if (config.printUrl || handoffBrowser) {
     ctx.inject(['connection'], (connectionCtx) => {
-      // The URL line and browser handoff are readiness signals: supervisors RPC
-      // as soon as they observe the line, while a browser requests the page as
-      // soon as it opens. Neither may run while sibling rows such as the /api
-      // route owner are still mounting. Await Loader settlement first; a
-      // hand-built tree without a Loader is already the complete tree.
+      // URL 行与浏览器交接都是就绪信号：监控方一观察到该行就发起 RPC，而浏览器一打开
+      // 就请求页面。二者都不能在诸如 /api 路由所有者等兄弟行仍在挂载时执行。先等待
+      // Loader 装配完成；不带 Loader 的手工构造树本身已经是完整的树。
       const announceReady = (): void => {
         if (ANNOUNCED_ROOTS.has(connectionCtx.root)) return
         const webUrl = appRootUrl()
@@ -238,22 +231,20 @@ export function apply(ctx: Context, config: Config): void {
           })
         }
       }
-      // This row's own activation can precede a sibling failure. The app owns
-      // readiness by waiting for its Loader tree, or announces at once in a
-      // hand-built tree without Loader.
+      // 本行自身的激活可能早于某个兄弟行的失败。应用通过等待其 Loader 树来掌握就绪
+      // 时机，在不带 Loader 的手工构造树中则立即宣告。
       const settled = connectionCtx.get('loader')?.await()
       if (settled === undefined) announceReady()
       else {
         void settled.then(async () => {
           await auditStartupEntries(connectionCtx.root, 'dsh web', () => {})
-          // The tree can be disposed while the boot was in flight (early
-          // SIGTERM); a URL line or browser tab for a dead server would only
-          // mislead, and reading torn-down services would turn a clean shutdown
-          // into a crash.
+          // 启动过程中树可能已被 dispose（过早收到 SIGTERM）；为一个已死服务打印
+          // URL 行或打开浏览器标签只会造成误导，而读取已拆解的服务会把一次干净的
+          // 关闭变成崩溃。
           if (connectionCtx.get('webServer') !== undefined
             && connectionCtx.get('connection') !== undefined) announceReady()
         }).catch(() => {
-          // Boot owns the failure diagnostic; readiness remains unpublished.
+          // 失败诊断由启动流程负责；就绪状态保持未发布。
         })
       }
     })

@@ -1,5 +1,5 @@
 /**
- * Exclusive named registration for the computer-use capability.
+ * 计算机使用能力的独占式命名注册。
  * @module @deepseek-ai/dsh-computer-use
  */
 
@@ -12,7 +12,7 @@ declare module '@deepseek-ai/cordis' {
   }
 }
 
-/** Owns one optional provider registration in the shared computer-use service. */
+/** 在共享的计算机使用服务中持有一次可选的提供方注册。 */
 export class ComputerUseRegistry extends Service {
   private registration: ComputerUseProviderName | undefined
 
@@ -20,17 +20,17 @@ export class ComputerUseRegistry extends Service {
     super(ctx, 'computerUse')
   }
 
-  /** Name of the registered provider, including while its resources are closing. */
+  /** 已注册提供方的名称，包括其资源正在关闭的期间。 */
   get providerName(): ComputerUseProviderName | undefined {
     return this.registration
   }
 
   /**
-   * Reserve the sole provider slot until the contribution is disposed.
-   * A second registration fails even when it repeats the current name. Providers
-   * must stop their tools and await owned work before releasing this registration.
-   * @param name - provider-owned name used in registration diagnostics.
-   * @returns the effect disposer for this exact registration.
+   * 保留唯一的提供方槽位，直到该贡献被释放为止。
+   * 即便是重复当前名称的第二次注册也会失败。提供方在释放此注册之前，
+   * 必须停止其工具并等待自有工作完成。
+   * @param name - 在注册诊断中使用的、由提供方拥有的名称。
+   * @returns 针对此次确切注册的副作用释放器。
    */
   register(name: ComputerUseProviderName): () => Promise<void> {
     if (this.registration !== undefined) {

@@ -1,54 +1,48 @@
 /**
- * The registry-owned pull pump: copies a job's {@link JobOutputSource}s into
- * its ring at a bounded cadence and drains them once more after the
- * producer settles, so the ring holds every byte before settlement trims and
- * closes it. A lossy source read lands as a gap chunk; the spill file a source
- * keeps is reported to the sink on every read, because that reference
- * outlives any chunk. Pure utility — no cordis, no timers retained past
- * settlement.
+ * 注册表自有的拉取泵：以有界节奏把一个任务的各个 {@link JobOutputSource} 复制到它的
+ * 环形缓冲区里，并在生产者结算之后再排空一次，这样在结算裁剪并关闭它之前，环形缓冲区
+ * 持有每一个字节。一次有损的源读取会作为断点块落地；源所保存的溢出文件在每次读取时都
+ * 上报给 sink，因为那份引用比任何块都活得久。纯工具——不涉及 cordis，结算之后不保留定时器。
  * @module @deepseek-ai/dsh-jobs-local/pump
  */
 
 import type { JobAppendOptions, JobOutputSource } from '@deepseek-ai/dsh-jobs'
 
-/** One pump run; `done` resolves after the final post-settlement drain. */
+/** 一次泵运行；`done` 在结算后的最终排空之后兑现。 */
 export interface PumpHandle {
   done: Promise<void>
 }
 
-/** Where a pump delivers what it reads. */
+/** 泵把它读到的东西投递到何处。 */
 export interface PumpSink {
   /**
-   * Append copied text to the ring.
-   * @param text - the chunk text, exactly as read.
-   * @param options - stream label and gap marker.
+   * 把复制来的文本追加到环形缓冲区。
+   * @param text - 与读取时完全一致的块文本。
+   * @param options - 流标签与断点标记。
    */
   append(text: string, options?: JobAppendOptions): void
   /**
-   * Record the spill file source `index` advertised on its latest read; called
-   * on every read, with `undefined` when the source keeps none or withdrew it.
-   * @param index - the source's position in the pump's source array.
-   * @param path - the host path the source reported, if any.
+   * 记录下标为 `index` 的源在其最近一次读取时通告的溢出文件；每次读取都会调用，
+   * 当该源没有保存文件或已撤回时传 `undefined`。
+   * @param index - 该源在泵的源数组中的位置。
+   * @param path - 该源上报的宿主路径，如果有。
    */
   spill(index: number, path: string | undefined): void
 }
 
 /**
- * Drain every source in array order, sleep `pollMs` or until `until`
- * settles, repeat, then drain one final time. A lossy source read appends
- * its surviving tail with `gapBefore`, so the discontinuity stays visible to
- * observers. Sources drain in array order each round, so bytes two sources
- * produced inside one poll window land in that order, not in the order they
- * were written: the ring is a best-effort live view whose cross-source
- * reordering is bounded by `pollMs`.
+ * 按数组顺序排空每个源，休眠 `pollMs` 或直到 `until` 结算，然后重复，最后再排空一次。
+ * 一次有损的源读取会把存活下来的尾部带上 `gapBefore` 追加，这样观察者仍能看到断点。
+ * 每轮都按数组顺序排空，因此两个源在同一个轮询窗口内产出的字节按该顺序落地，而不是按
+ * 它们被写入的顺序：环形缓冲区是一个尽力而为的实时视图，其跨源重排受 `pollMs` 约束。
  *
- * The wait holds constant resources however long the job runs: one
- * subscription on `until` for the whole run and one pending timer at a time.
- * @param sources - producer streams, each pumped at its own offset.
- * @param sink - receives each copied chunk and each source's current spill file.
- * @param pollMs - poll interval in milliseconds; a positive finite number.
- * @param until - settles (or rejects, which counts as settlement) when the producer finished; only its `then` is used.
- * @returns the handle whose `done` resolves after the final drain.
+ * 无论任务跑多久，这个等待都只占用恒定的资源：整轮运行只在 `until` 上有一个订阅，
+ * 且同一时刻只有一个待定定时器。
+ * @param sources - 生产者的流，各自按自己的偏移被泵送。
+ * @param sink - 接收每个复制来的块以及每个源当前的溢出文件。
+ * @param pollMs - 轮询间隔，单位毫秒；一个正的有限数。
+ * @param until - 生产者完成时结算（或拒绝，这也算结算）；只用到它的 `then`。
+ * @returns 那个句柄，其 `done` 在最终排空之后兑现。
  */
 export function startPump(
   sources: readonly JobOutputSource[],
@@ -83,10 +77,9 @@ export function startPump(
     let wake: (() => void) | undefined
     const finish = (): void => {
       settled = true
-      // Clear the pending poll so a finished pump holds no timer for up to one
-      // interval, and release the current wait so the final drain runs at once.
-      // `finish` always runs from a microtask, after the loop parked on its
-      // first timer, so the timer is never absent here.
+      // 清掉待定的轮询，这样已结束的泵不会在最多一个间隔内还持有定时器；同时释放当前的
+      // 等待，让最终排空立刻执行。`finish` 总是从微任务里运行，即在循环停驻到它的第一个
+      // 定时器之后，所以这里的定时器绝不会缺席。
       clearTimeout(timer)
       wake?.()
     }

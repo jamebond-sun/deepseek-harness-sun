@@ -1,10 +1,8 @@
 /**
- * Provider-side request-image pricing for DeepSeek routes: prices every
- * retained surface occurrence at its per-model request target with
- * the published vision-token accounting, and every occurrence the surface
- * marks offloaded as its placeholder text. Consumed synchronously by the
- * token meter through `LlmAdapter.imageRequestPricing`; provider usage
- * remains the authoritative anchor for completed requests.
+ * DeepSeek 路由的提供方侧请求图像定价：用公开的视觉令牌计量，
+ * 把每个被保留的表面出现按其按模型的请求目标计价，并把表面标记为已卸载的
+ * 每个出现计为其占位文本。token meter 通过 `LlmAdapter.imageRequestPricing`
+ * 同步消费它；对于已完成的请求，提供方用量仍然是权威锚点。
  *
  * @module dsh-llm-deepseek/request-pricing
  */
@@ -16,24 +14,24 @@ import type { ImageAttachmentRef, ImageRequestTarget } from '@deepseek-ai/dsh-at
 import { deepSeekImageTokens, deepSeekRequestImageDimensions } from './image-tokens.ts'
 import type { DeepSeekCatalogModel, DeepSeekConnectionOptions } from './types.ts'
 
-/** Default bound on accumulated file-referenced image bytes per request. */
+/** 每次请求中文件引用的图像字节累计量的默认上限。 */
 export const DEFAULT_MAX_REQUEST_FILES_BYTES = 128 * 1024 * 1024
-/** Provider request image-count limit. */
+/** 提供方的请求图像数量上限。 */
 export const DEFAULT_MAX_IMAGES_PER_REQUEST = 600
-/** Total-pixel budget matching provider low-detail image input. */
+/** 与提供方低细节图像输入相匹配的总像素预算。 */
 export const DEFAULT_LOW_DETAIL_IMAGE_PIXEL_BUDGET = 512 * 512
-/** Encoded-byte target for one deterministic model-request image; the smallest quality-ladder output is used when no quality fits. */
+/** 一张确定性模型请求图像的编码字节目标；当没有质量档位可用时使用最小的质量阶梯输出。 */
 export const DEFAULT_REQUEST_IMAGE_MAX_BYTES = 2 * 1024 * 1024
 /**
- * Provider per-side limit for a request carrying 15 or more images, applied
- * to every request image so the image count never changes a projection.
+ * 提供方对携带 15 张及以上图像的请求施加的每边上限，
+ * 它被施加到每张请求图像上，因此图像数量永远不会改变一次投影。
  */
 export const REQUEST_IMAGE_MAX_DIMENSION = 4096
 
 /**
- * Resolve the encoded-byte target one DeepSeek model route applies to every request image.
- * @param model - Advertised model route and its optional image overrides.
- * @returns the route's encoded-byte target.
+ * 解析一条 DeepSeek 模型路由施加到每张请求图像上的编码字节目标。
+ * @param model - 已宣告的模型路由及其可选的图像覆盖项。
+ * @returns 该路由的编码字节目标。
  * @internal
  */
 export function resolveRequestImageMaxBytes(model: DeepSeekCatalogModel): number {
@@ -41,13 +39,12 @@ export function resolveRequestImageMaxBytes(model: DeepSeekCatalogModel): number
 }
 
 /**
- * Resolve the deterministic request target one DeepSeek model route chooses
- * for one source image: the published token grid unless the model overrides
- * it with a pixel budget, then the provider per-side limit, then the route's
- * encoded-byte target. Small images are never enlarged.
- * @param model - Advertised model route and its optional image overrides.
- * @param source - intrinsic dimensions of the normalized attachment.
- * @returns Complete request dimensions and encoded-byte target.
+ * 解析一条 DeepSeek 模型路由为一张源图像所选择的确定性请求目标：
+ * 先取公开的令牌网格，除非模型用像素预算覆盖它，再施加提供方每边上限，
+ * 最后施加该路由的编码字节目标。小图像永远不会被放大。
+ * @param model - 已宣告的模型路由及其可选的图像覆盖项。
+ * @param source - 已规范化附件的内在尺寸。
+ * @returns 完整的请求尺寸与编码字节目标。
  * @internal
  */
 export function resolveRequestImageTarget(
@@ -65,27 +62,25 @@ export function resolveRequestImageTarget(
 }
 
 /**
- * Price one occurrence a text-only route substitutes with deterministic text,
- * reproducing the `projectImagesForTextModel` substitution `LlmRuntime`
- * applies before dispatching to a route without the `image` modality.
+ * 为一个纯文本路由用确定性文本替换掉的那次出现计价，
+ * 复现 `LlmRuntime` 在分发到不具备 `image` 模态的路由之前
+ * 所应用的 `projectImagesForTextModel` 替换。
  */
 function textOnlyPrice(block: ImageBlock): LlmImageRequestPrice {
   return { visualTokens: 0, text: textOnlyImageText(block.attachment) }
 }
 
 /**
- * Build the request-image pricing for one DeepSeek route from a validated
- * connection snapshot. Uncatalogued and text-only models price every
- * occurrence as its deterministic text substitution; image-capable models
- * price an offloaded occurrence as its placeholder text and a retained one by
- * its projected request dimensions, with each occurrence's handle or
- * placeholder text built through the same access resolution the serializer
- * uses. Access paths resolve at pricing time, so a path that changes before
- * the request only shifts the text price by its own length.
- * @param connection - validated connection facts of the pricing resolution.
- * @param model - exact model id named by the request header.
- * @param resolveAccess - current execution-world access resolution shared with request serialization.
- * @returns synchronous per-occurrence pricing for the route.
+ * 基于一份已校验的连接快照，构建一条 DeepSeek 路由的请求图像定价。
+ * 未编入目录的模型与纯文本模型把每次出现都计为其确定性文本替换；
+ * 具备图像能力的模型把已卸载的出现计为其占位文本，把被保留的出现
+ * 按其投影后的请求尺寸计价，而每次出现的句柄或占位文本都通过与
+ * 序列化器相同的访问解析来构建。访问路径在计价时解析，
+ * 因此在请求之前发生变化的路径只会让文本计价按其自身长度偏移。
+ * @param connection - 本次计价解析所依据的、已校验的连接事实。
+ * @param model - 请求头中指明的精确模型 id。
+ * @param resolveAccess - 与请求序列化共享的、当前执行世界的访问解析。
+ * @returns 该路由的按出现同步计价。
  */
 export function deepSeekImageRequestPricing(
   connection: DeepSeekConnectionOptions,

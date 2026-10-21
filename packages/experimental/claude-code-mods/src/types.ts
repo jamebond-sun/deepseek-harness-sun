@@ -1,80 +1,77 @@
 /**
- * Mods-facing types: the hooks-module contract (`register`, `on`, hooks,
- * `next`), the event inputs and results this bridge raises, and the `$` mods
- * API subset it serves. Field names follow Claude Code's declarations so an
- * unmodified mod type-checks against the same names; only the members this
- * bridge implements are declared.
+ * 面向 mod 的类型：钩子模块契约（`register`、`on`、钩子、`next`），本桥接触发的
+ * 事件输入与结果，以及它所提供的 `$` mods API 子集。字段名沿用 Claude Code 的
+ * 声明，使未经修改的 mod 能针对相同名称通过类型检查；只声明本桥接实现的成员。
  * @module
  */
 
 import type { UiElements, UiNode } from './elements.ts'
 
-/** Values a plugin manifest's `userConfig` fields and `register(on, options)` carry. */
+/** 插件清单的 `userConfig` 字段与 `register(on, options)` 所携带的值。 */
 export type PluginOptionValue = string | number | boolean | readonly string[]
 
-/** The `options` argument of `register`: manifest `userConfig` defaults overlaid by deployment values. */
+/** `register` 的 `options` 参数：由部署值叠加在清单 `userConfig` 默认值之上。 */
 export type PluginOptions = Readonly<Record<string, PluginOptionValue>>
 
-/** Tier a mod runs in; this bridge loads every mod as `user`, and its own engine behavior is `core`. */
+/** mod 运行的层级；本桥接以 `user` 加载每个 mod，其自身引擎行为为 `core`。 */
 export type ModTier = 'prepend' | 'user' | 'append' | 'builtin' | 'core'
 
-/** Who raised an event: the engine itself, or the mod whose `$` call became the event. */
+/** 事件的触发者：引擎自身，或那个 `$` 调用成为该事件的 mod。 */
 export interface HookOrigin {
   readonly plugin: string
   readonly tier: ModTier
 }
 
-/** The failing hook's error as a `.catch` handler sees it on `next.error`. */
+/** 失败钩子的错误，供 `.catch` 处理器在 `next.error` 上查看。 */
 export interface HookFailure {
   readonly kind: 'throw' | 'timeout'
   readonly message: string
 }
 
-/** The hook's own running-time limit: the whole limit and what is left now. */
+/** 钩子自身的运行时间上限：总上限与当前剩余。 */
 export interface HookBudget {
   readonly ms: number
   readonly remainingMs: number
 }
 
 /**
- * The `next` handler every hook receives: calling it runs the hooks beneath,
- * then the engine behavior, and resolves to the event's result. Time spent
- * awaiting it does not count against the hook's budget.
+ * 每个钩子都会收到的 `next` 处理器：调用它会运行其下方的钩子，再运行引擎行为，
+ * 并解析为该事件的结果。等待它时所花的时间不计入钩子的时间预算。
  */
 export interface HookNext<E, R> {
   (e: E): Promise<R>
-  /** Fires when the event is abandoned (the owning agent cancelled). */
+  /** 事件被放弃时（所属代理取消）触发。 */
   readonly signal: AbortSignal
-  /** Who raised the event. */
+  /** 事件的触发者。 */
   readonly origin: HookOrigin
-  /** The hook's running-time limit. */
+  /** 钩子的运行时间上限。 */
   readonly budget: HookBudget
-  /** Skipping tiers is a managed-settings feature this bridge does not implement; always throws. */
+  /** 跳过层级是受管设置特性，本桥接未实现；总是抛出。 */
   to(e: E, tier: ModTier): Promise<R>
-  /** In a `.catch` handler: how the hook failed. */
+  /** 在 `.catch` 处理器中：钩子如何失败。 */
   readonly error?: HookFailure
-  /** In a `.catch` handler: whether the failed hook had called `next`. */
+  /** 在 `.catch` 处理器中：失败的钩子是否已调用过 `next`。 */
   readonly called?: boolean
 }
 
-/** A hook on one event: the mods API, the frozen event input, and the next handler. */
+/** 单个事件的钩子：mods API、冻结的事件输入，以及 next 处理器。 */
 export type ModHook<E, R> = ($: ModsApi, e: E, next: HookNext<E, R>) => R | Promise<R>
 
-/** A hook whose event and result the registry does not narrow. */
+/** 事件与结果不被注册表收窄的钩子。 */
 export type AnyHook = ModHook<unknown, unknown>
 
-/** What `on` returns: `.catch` attaches the hook's error handler. */
+/** `on` 的返回值：`.catch` 用于挂载钩子的错误处理器。 */
 export interface HookRegistration {
   catch(handler: AnyHook): void
 }
 
-/** A matcher field: one value, a list of allowed values, or a regular expression. */
+/** 匹配字段：单个值、一组允许的值，或正则表达式。 */
 export type MatcherValue = string | number | boolean | null | RegExp | readonly (string | number | boolean | null)[]
 
-/** The optional second argument of `on`: top-level event fields the hook requires. */
+/** `on` 的可选第二个参数：钩子要求的最顶层事件字段。 */
 export type HookMatcher = Readonly<Record<string, MatcherValue>>
 
-/** The engine events this host raises, with their inputs and results, so a typed hook reads `e` without a cast. */
+/** 本宿主触发的引擎事件，含其输入与结果，使类型化钩子无需转型即可读取 `e`。 */
 export interface ModEvents {
   'session.start': { input: SessionStartInput; result: SessionStartResult }
   'session.end': { input: SessionEndInput; result: SessionEndResult }
@@ -86,7 +83,7 @@ export interface ModEvents {
   'ui.render': { input: UiRenderInput; result: UiRenderResult }
 }
 
-/** The `on` function `register` receives: typed for the events this host raises, open for every other Claude Code event. */
+/** `register` 收到的 `on` 函数：对本宿主触发的事件有类型，对其它任意 Claude Code 事件开放。 */
 export interface ModOn {
   <K extends keyof ModEvents>(event: K, hook: ModHook<ModEvents[K]['input'], ModEvents[K]['result']>): HookRegistration
   <K extends keyof ModEvents>(event: K, matcher: HookMatcher, hook: ModHook<ModEvents[K]['input'], ModEvents[K]['result']>): HookRegistration
@@ -94,123 +91,123 @@ export interface ModOn {
   (event: string, matcher: HookMatcher, hook: AnyHook): HookRegistration
 }
 
-/** The function a hooks module exports. */
+/** 一个钩子模块导出的函数。 */
 export type ModRegister = (on: ModOn, options: PluginOptions) => unknown
 
 /**
- * One mod as a DSH plugin hands it to the bridge: the plugin identity Claude
- * Code reads from `plugin.json`, the `register` its hooks module exports, and
- * the `options` that `register` receives (the mod's validated plugin config).
+ * 一个 mod 作为 DSH 插件交给桥接时的形态：Claude Code 从 `plugin.json` 读取的
+ * 插件标识、其钩子模块导出的 `register`，以及 `register` 收到的 `options`
+ * （即经过校验的 mod 插件配置）。
  */
 export interface ModDefinition {
-  /** Plugin name: letters, digits, `_` and `-`; the `plugin` of `$.state` refs and the `mcp__<plugin>__` tool prefix. */
+  /** 插件名：字母、数字、`_` 与 `-`；作为 `$.state` 引用的 `plugin`，以及 `mcp__<plugin>__` 工具前缀。 */
   readonly name: string
   readonly version?: string
-  /** Absolute directory the mod ships in, as `$.plugin.root` reports it; defaults to the process cwd. */
+  /** mod 所在的绝对目录，即 `$.plugin.root` 所报告的；默认为进程 cwd。 */
   readonly root?: string
   readonly options?: PluginOptions
   readonly register: ModRegister
 }
 
-// ---- Drawn surfaces, as a Client receives them ----
+// ---- 绘制出的表面，即 Client 收到的形态 ----
 
-/** A serialized element: callbacks replaced by the action id the host holds for them. */
+/** 序列化后的元素：回调被宿主所持有的 action id 替代。 */
 export interface SerializedElement {
   readonly type: 'Box' | 'Text' | 'Button'
   readonly props: Readonly<Record<string, string | number | boolean>>
   readonly children: readonly SerializedNode[]
-  /** Set on a `Button` whose `onPress` the host holds. */
+  /** 设置在 `Button` 上，其 `onPress` 由宿主持有。 */
   readonly actionId?: string
 }
 
-/** A serialized tree node: an element or a run of text. */
+/** 一个序列化的树节点：元素或一段连续文本。 */
 export type SerializedNode = SerializedElement | string
 
-/** One drawn generation of a session's band above the prompt. */
+/** 一次会话在提示词上方横幅的一代绘制。 */
 export interface SurfaceSnapshot {
-  /** Increases with every redraw; a press names the generation it saw. */
+  /** 每次重绘递增；一次按下会指明它所见到的代。 */
   readonly generation: number
-  /** The serialized tree, or null when no mod drew. */
+  /** 序列化树；当没有 mod 绘制时为 null。 */
   readonly tree: readonly SerializedNode[] | null
 }
 
-// ---- Event inputs and results ----
+// ---- 事件输入与结果 ----
 
-/** `ui.render`: the host asks the mods to draw one surface; the first hook that returns a tree draws it. */
+/** `ui.render`：宿主请求 mod 绘制一个表面；第一个返回树的钩子绘制它。 */
 export interface UiRenderInput {
-  /** The surface being drawn: the band above the prompt, or a pane a mod opened. */
+  /** 正在绘制的表面：提示词上方的横幅，或 mod 打开的窗格。 */
   component: 'AbovePrompt' | 'Pane'
-  /** Stable surface instance id: the pane id, or the component name for the band. */
+  /** 稳定的表面实例 id：窗格 id，或横幅所用的组件名。 */
   surface: string
-  /** The pane id the mod chose in `$.ui.open`, on a `Pane`. */
+  /** mod 在 `$.ui.open` 中选择的窗格 id，出现在 `Pane` 上。 */
   requestId?: string
-  /** Surface-owned props: `bodyColumns`, `hasSurvey`, `isWorking`, `maxRows` on the band. */
+  /** 表面自有的 props：横幅上的 `bodyColumns`、`hasSurvey`、`isWorking`、`maxRows`。 */
   props: Readonly<Record<string, unknown>>
-  /** Drawable size the host knows. */
+  /** 宿主所知的可用绘制尺寸。 */
   viewport: { readonly columns: number; readonly rows?: number }
 }
 
-/** `ui.render` result: the tree to draw; `next(e)` yields the surface to the next mod and finally to the host, which draws nothing. */
+/** `ui.render` 结果：要绘制的树；`next(e)` 把表面交给下一个 mod，最终交给不绘制任何内容的宿主。 */
 export type UiRenderResult = UiNode
 
-/** Where a prompt or command came from. */
+/** 提示词或命令的来源。 */
 export type PromptOrigin =
   | { kind: 'composer' }
   | { kind: 'plugin'; name: string }
 
-/** `session.start`: once per root agent before its first prompt; every loaded mod's hook sees the same event. */
+/** `session.start`：每个根代理在其首个提示词之前各触发一次；每个已加载 mod 的钩子都见到同一事件。 */
 export interface SessionStartInput {
   cwd: string
-  /** The drawing surface's name (Claude Code: `terminal`, `desktop`); this host reports `null` when no surface draws mods. */
+  /** 绘制表面的名称（Claude Code：`terminal`、`desktop`）；当没有表面绘制 mod 时本宿主报告 `null`。 */
   surface: string | null
-  /** Whether a human answerer is composed, so `$.ui.ask` can resolve. */
+  /** 是否组合了一个人类应答者，以便 `$.ui.ask` 能够解析。 */
   isInteractive: boolean
 }
 
-/** Result of `session.start`. */
+/** `session.start` 的结果。 */
 export interface SessionStartResult {
   cwd: string
 }
 
-/** `session.end`: the agent was disposed. */
+/** `session.end`：代理被释放。 */
 export interface SessionEndInput {
   reason: 'clear' | 'logout' | 'prompt_input_exit' | 'resume' | 'other'
   sessionId: string
 }
 
-/** Result of `session.end`. */
+/** `session.end` 的结果。 */
 export interface SessionEndResult {
   sessionId: string
 }
 
-/** `prompt.submit`: a prompt is about to enter a turn. */
+/** `prompt.submit`：一条提示词即将进入一轮。 */
 export interface PromptSubmitInput {
   text: string
-  /** Extra text only the model reads, appended after the prompt. */
+  /** 只有模型读取、追加在提示词之后的额外文本。 */
   context?: readonly string[]
   turnId?: string
   wait: boolean
   origin: PromptOrigin
 }
 
-/** Result of `prompt.submit`: the text that entered, or a drop with its reason. */
+/** `prompt.submit` 的结果：进入的文本，或带原因的丢弃。 */
 export type PromptSubmitResult =
   | { text: string; context?: readonly string[]; drop?: undefined }
   | { drop: string; text?: undefined; context?: undefined }
 
-/** `turn.start`: a turn begins with this prompt text. */
+/** `turn.start`：一轮以该提示词文本开始。 */
 export interface TurnStartInput {
   text: string
   turnId: string
   agentId?: string
 }
 
-/** Result of `turn.start`. */
+/** `turn.start` 的结果。 */
 export interface TurnStartResult {
   turnId: string
 }
 
-/** Token totals of one turn, in Claude Code's API vocabulary. */
+/** 一轮的 token 总量，使用 Claude Code 的 API 词汇。 */
 export interface TurnUsage {
   input_tokens: number
   output_tokens: number
@@ -219,7 +216,7 @@ export interface TurnUsage {
   model: string
 }
 
-/** `turn.complete`: a turn ended. */
+/** `turn.complete`：一轮已结束。 */
 export interface TurnCompleteInput {
   turnId: string
   answer: string
@@ -230,12 +227,12 @@ export interface TurnCompleteInput {
   usage?: TurnUsage
 }
 
-/** Result of `turn.complete`: `text` is shown as a line under the answer. */
+/** `turn.complete` 的结果：`text` 作为答案下方的一行显示。 */
 export interface TurnCompleteResult {
   text: string
 }
 
-/** `tool.call`: the tool's name and arguments as top-level fields. */
+/** `tool.call`：以顶层字段给出工具名与参数。 */
 export interface ToolCallInput {
   tool: string
   tool_use_id: string
@@ -243,30 +240,30 @@ export interface ToolCallInput {
   [argument: string]: unknown
 }
 
-/** Result of `tool.call`: a refusal, or the tool's result. */
+/** `tool.call` 的结果：拒绝，或工具的结果。 */
 export type ToolCallResult =
   | { deny: string; result?: undefined; isError?: undefined }
   | { result: unknown; isError?: true; deny?: undefined }
 
-/** `command.run`: a registered command was typed. */
+/** `command.run`：一个已注册的命令被键入。 */
 export interface CommandRunInput {
   command: string
-  /** Text typed after the command name, or an empty string. */
+  /** 命令名之后键入的文本，或空字符串。 */
   args: string
   origin: PromptOrigin
 }
 
-/** Result of `command.run`: `text` prints in the transcript; `{}` prints nothing. */
+/** `command.run` 的结果：`text` 打印进记录；`{}` 不打印任何内容。 */
 export interface CommandRunResult {
   text?: string
 }
 
-/** Result of a mods API call as an event: the value, or a refusal. */
+/** 一次 mods API 调用作为事件的结果：值，或拒绝。 */
 export type OpResult = { value: unknown; deny?: undefined } | { deny: string; value?: undefined }
 
-// ---- The mods API (`$`) ----
+// ---- mods API（`$`） ----
 
-/** A command a mod registers for the user. */
+/** 一个 mod 为用户注册的命令。 */
 export interface CommandSpec {
   name: string
   description: string
@@ -274,7 +271,7 @@ export interface CommandSpec {
   immediate?: true
 }
 
-/** A command in the effective list. */
+/** 生效列表中的一个命令。 */
 export interface CommandInfo {
   name: string
   description: string
@@ -282,64 +279,64 @@ export interface CommandInfo {
   plugin?: string
 }
 
-/** A tool a mod registers for the model. */
+/** 一个 mod 为模型注册的工具。 */
 export interface ToolSpec {
   name: string
   description: string
   inputSchema?: Record<string, unknown>
 }
 
-/** A tool in the effective list. */
+/** 生效列表中的一个工具。 */
 export interface ToolInfo {
   name: string
   description: string
 }
 
-/** One message of the transcript as `$.session.messages()` returns it. */
+/** 记录中的一条消息，即 `$.session.messages()` 返回的内容。 */
 export interface SessionMessage {
   role: 'user' | 'assistant'
   text: string
   toolUses: ToolUseSummary[]
 }
 
-/** One tool call inside an assistant message. */
+/** 助手消息内部的一次工具调用。 */
 export interface ToolUseSummary {
   tool_use_id: string
   tool: string
   input: Record<string, unknown>
 }
 
-/** Context-window occupancy and plan limits. */
+/** 上下文窗口占用与计划上限。 */
 export interface SessionUsage {
   startedAt: number
   context: { tokens?: number; window: number; percent?: number }
   rateLimits: never[]
 }
 
-/** The mods API version the bridge reports. */
+/** 桥接所报告的 mods API 版本。 */
 export interface SessionVersion {
   version: string
   engine: 'deepseek-harness'
 }
 
-/** `$.ui.ask` options. */
+/** `$.ui.ask` 选项。 */
 export interface AskOptions {
   options?: readonly string[]
   header?: string
   multiSelect?: true
 }
 
-/** Where `$.ui.log` writes. */
+/** `$.ui.log` 的写入位置。 */
 export interface UiLogOptions {
   to?: 'transcript' | 'debug'
 }
 
-/** `$.ui.toast` options. */
+/** `$.ui.toast` 选项。 */
 export interface ToastOptions {
   timeoutMs?: number
 }
 
-/** `$.ui.open` arguments. */
+/** `$.ui.open` 参数。 */
 export interface PaneOpenArgs {
   id: string
   title?: string
@@ -350,26 +347,26 @@ export interface PaneOpenArgs {
   columns?: number
 }
 
-/** `$.ui.open` result: this bridge places no panes. */
+/** `$.ui.open` 结果：本桥接不放置任何窗格。 */
 export interface PaneOpenResult {
-  /** The pane id the mod chose. */
+  /** mod 选择的窗格 id。 */
   id: string
   isPlaced: boolean
   reason?: string
 }
 
-/** A `$.state` value reference. */
+/** 一个 `$.state` 值引用。 */
 export interface StateRef {
   plugin: string
   key: string
 }
 
-/** A timer returned by `$.clock.after` and `$.clock.every`. */
+/** `$.clock.after` 与 `$.clock.every` 返回的定时器。 */
 export interface ModTimer {
   cancel(): void
 }
 
-/** A file entry from `$.fs.list`. */
+/** `$.fs.list` 返回的一个文件条目。 */
 export interface FsEntry {
   name: string
   kind: 'file' | 'dir' | 'other'
@@ -377,7 +374,7 @@ export interface FsEntry {
   isLink: boolean
 }
 
-/** `$.fs.stat` result. */
+/** `$.fs.stat` 结果。 */
 export interface FsStat {
   kind: 'file' | 'dir' | 'other'
   size: number
@@ -385,21 +382,21 @@ export interface FsStat {
   isLink: boolean
 }
 
-/** `$.process.run` options. */
+/** `$.process.run` 选项。 */
 export interface ProcessRunInit {
   cwd?: string
   env?: Record<string, string>
   timeoutMs?: number
 }
 
-/** `$.process.run` result, whatever the exit code. */
+/** `$.process.run` 结果，无论退出码如何。 */
 export interface ProcessRunResult {
   exitCode: number
   stdout: string
   stderr: string
 }
 
-/** `$.http.fetch` options. */
+/** `$.http.fetch` 选项。 */
 export interface HttpInit {
   method?: string
   headers?: Record<string, string>
@@ -407,7 +404,7 @@ export interface HttpInit {
   timeoutMs?: number
 }
 
-/** `$.http.fetch` result once the body is read. */
+/** `$.http.fetch` 结果，在读取完响应体之后。 */
 export interface HttpResponse {
   status: number
   ok: boolean
@@ -415,17 +412,16 @@ export interface HttpResponse {
   text: string
 }
 
-/** `$.prompt.submit` arguments. */
+/** `$.prompt.submit` 参数。 */
 export interface PromptSubmitArgs {
   text: string
-  /** Send the text as the user's own words, without the sentence naming the mod. */
+  /** 把文本作为用户自己的话发送，不带指明 mod 的句子。 */
   asUser?: boolean
 }
 
 /**
- * The mods API a hook receives as `$`. Every method except `$.plugin` and
- * `$.ui.resolve` is also an event named `<namespace>.<method>` that mods
- * earlier in the chain may observe, rewrite, or refuse.
+ * 钩子作为 `$` 收到的 mods API。除 `$.plugin` 与 `$.ui.resolve` 外，每个方法
+ * 同时也是名为 `<namespace>.<method>` 的事件，链中更早的 mod 可以观察、改写或拒绝它。
  */
 export interface ModsApi {
   readonly plugin: { readonly name: string; readonly root: string }
@@ -438,7 +434,7 @@ export interface ModsApi {
     close(pane: { id: string }): Promise<void>
     panes(): Promise<never[]>
     ask(question: string, options?: readonly string[] | AskOptions): Promise<string>
-    /** The element constructors for the surface a `ui.render` event draws; not an event itself. */
+    /** `ui.render` 事件所绘制表面的元素构造器；其本身不是事件。 */
     resolve(e: UiRenderInput): UiElements
   }
   readonly command: {

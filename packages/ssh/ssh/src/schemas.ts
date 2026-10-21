@@ -1,44 +1,44 @@
-/** Strict JSON validation for SSH helper requests and remote observations. */
+/** SSH helper 请求与远端观察结果的严格 JSON 校验。 */
 import { z } from 'zod'
 import type { Branded } from '@deepseek-ai/dsh-brand'
 import { SSH_PROTOCOL_VERSION } from './protocol.ts'
 
-/** Identity of one prepared or running process in its owning SSH helper. */
+/** 由其所属 SSH helper 分配的、单个已准备或运行中进程的标识。 */
 export type SshProcessId = Branded<'SshProcessId'>
-/** Identity of one open text iterator in its owning SSH helper. */
+/** 由其所属 SSH helper 分配的、单个已打开文本迭代器的标识。 */
 export type SshTextStreamId = Branded<'SshTextStreamId'>
-/** Admit a process identity from the private helper protocol. */
+/** 从私有 helper 协议接收一个进程标识。 */
 export const processIdSchema = z.uuid().transform((value): SshProcessId => value as SshProcessId)
-/** Admit a text iterator identity from the private helper protocol. */
+/** 从私有 helper 协议接收一个文本迭代器标识。 */
 export const textStreamIdSchema = z.uuid().transform((value): SshTextStreamId => value as SshTextStreamId)
 
-/** A remote POSIX absolute path; spelling is preserved until remote canonicalization. */
+/** 远端 POSIX 绝对路径；在远端做规范化之前保持原样书写。 */
 export const remotePath = z.string().min(1).refine(value => value.startsWith('/') && !value.includes('\0'), 'expected an absolute POSIX path')
-/** Filesystem identity returned by the remote filesystem provider. */
+/** 远端文件系统 provider 返回的文件标识。 */
 export const targetSchema = z.object({ targetKey: remotePath, displayPath: z.string() }).strict()
-/** Remote metadata observation. */
+/** 远端的元数据观察结果。 */
 export const infoSchema = z.object({ version: z.string(), type: z.enum(['file', 'directory', 'other']), size: z.number().nonnegative().optional() }).strict()
-/** Metadata that preserves a final symlink. */
+/** 保留最终符号链接的元数据。 */
 export const pathInfoSchema = infoSchema.extend({ type: z.enum(['file', 'directory', 'symlink', 'other']) })
-/** A resolved file-effect policy; the remote helper owns path canonicalization. */
+/** 已解析的文件副作用策略；路径规范化由远端 helper 负责。 */
 export const policySchema = z.object({ mode: z.enum(['read-only', 'workspace-write', 'danger-full-access']), workspaceRoot: remotePath, sessionId: z.string().optional() }).strict()
-/** Complete directory entries. */
+/** 完整的目录项。 */
 export const entriesSchema = z.array(z.object({ name: z.string(), type: z.enum(['file', 'directory', 'other']), target: targetSchema, version: z.string().optional(), size: z.number().nonnegative().optional() }).strict())
-/** Guarded write intent. */
+/** 受保护的写入意图。 */
 export const intentSchema = z.discriminatedUnion('kind', [z.object({ kind: z.literal('createIfAbsent') }).strict(), z.object({ kind: z.literal('replaceIfVersion'), version: z.string() }).strict()])
-/** Literal text edit. */
+/** 字面文本编辑。 */
 export const editSchema = z.object({ oldString: z.string(), newString: z.string(), replaceAll: z.boolean() }).strict()
-/** Atomic write observation. */
+/** 原子写入的观察结果。 */
 export const writeResultSchema = z.object({ operation: z.enum(['create', 'update']), version: z.string(), before: z.string().nullable(), after: z.string() }).strict()
-/** Atomic edit observation. */
+/** 原子编辑的观察结果。 */
 export const editResultSchema = z.object({ version: z.string(), before: z.string(), after: z.string() }).strict()
-/** Explicit child environment; null encodes an environment tombstone. */
+/** 显式的子进程环境；null 表示一个环境删除标记。 */
 export const environmentSchema = z.record(z.string(), z.string().nullable())
 const collection = z.object({
   maxBytes: z.number().int().positive(),
   spill: z.object({ maxBytes: z.number().int().positive() }).strict().optional(),
 }).strict()
-/** Ordinary or terminal process requested by a trusted SSH client. */
+/** 受信任的 SSH 客户端所请求的普通进程或终端进程。 */
 export const spawnSchema = z.object({
   argv: z.array(z.string().refine(value => !value.includes('\0'))).min(1),
   cwd: remotePath,
@@ -54,32 +54,32 @@ export const spawnSchema = z.object({
     shellActivity: z.boolean().optional(),
   }).strict().optional(),
 }).strict().refine(value => (value.stdio === undefined) !== (value.terminal === undefined), 'select ordinary or terminal execution')
-/** Connection handshake binds sockets and workspace to one helper process. */
+/** 连接握手把 socket 与工作区绑定到同一个 helper 进程。 */
 export const helloSchema = z.object({
   protocol: z.literal(SSH_PROTOCOL_VERSION), hash: z.string().regex(/^[0-9a-f]{64}$/),
   kind: z.enum(['node-script', 'executable']), platform: z.enum(['linux', 'darwin']),
   nodeVersion: z.string(), executable: remotePath, root: remotePath, workspace: remotePath,
   bootstrapHash: z.string().regex(/^[0-9a-f]{64}$/).optional(),
 }).strict()
-/** A prepared process publishes its sockets before target code may execute. */
+/** 一个已准备的进程会在目标代码执行之前公布其 socket。 */
 export const streamEndpointSchema = z.object({ path: remotePath, capability: z.string().regex(/^[0-9a-f]{64}$/) }).strict()
-/** A stream capability reaches only the authenticated SSH client and its helper. */
+/** 流的密钥只会被已认证的 SSH 客户端与它的 helper 知晓。 */
 export type SshStreamEndpoint = z.infer<typeof streamEndpointSchema>
-/** Prepared process and its independently authenticated stream endpoints. */
+/** 已准备的进程及其各自独立认证的流端点。 */
 export const preparedSchema = z.object({ id: processIdSchema, streams: z.partialRecord(z.enum(['stdin', 'stdout', 'stderr', 'control', 'terminal']), streamEndpointSchema) }).strict()
-/** Direct process exit facts. */
+/** 进程退出的直接事实。 */
 export const outcomeSchema = z.object({ exitCode: z.number().int().nullable(), signal: z.string().nullable() }).strict()
-/** A bounded raw tail positioned in whole-stream byte coordinates. */
+/** 一段有界的原始尾部数据，其位置以整条流的字节坐标表示。 */
 export const outputSnapshotSchema = z.object({ tail: z.base64(), totalBytes: z.number().int().nonnegative() }).strict()
 /**
- * Bound one encoded tail and its RPC envelope by the declared collection budget.
- * @param maxBytes - the collector's retained raw-byte limit.
- * @returns the private snapshot frame limit, capped by the helper protocol ceiling.
+ * 按声明的采集预算限制单帧已编码尾部数据及其 RPC 信封的大小。
+ * @param maxBytes - 采集器保留的原始字节上限。
+ * @returns 私有快照帧的上限，并受 helper 协议天花板约束。
  */
 export function outputSnapshotFrameLimit(maxBytes: number): number {
   return Math.min(64 * 1024 * 1024, maxBytes * 2 + 1024)
 }
-/** Direct exit, retained output snapshots, and optional complete spill locations. */
+/** 直接退出结果、保留的输出快照，以及可选的完整溢出位置。 */
 export const doneSchema = z.object({
   outcome: outcomeSchema,
   spills: z.object({ stdout: remotePath.optional(), stderr: remotePath.optional() }).strict(),
@@ -88,7 +88,7 @@ export const doneSchema = z.object({
     stderr: outputSnapshotSchema.optional(),
   }).strict(),
 }).strict()
-/** Remote terminal foreground observation. */
+/** 远端终端的前台观察结果。 */
 export const foregroundSchema = z.object({ processGroupId: z.number().int().positive(), inputWaiting: z.boolean() }).strict().nullable()
-/** Conservative shell lifecycle and process observation returned by the execution provider. */
+/** 由执行 provider 返回的、保守的 shell 生命周期与进程观察结果。 */
 export const terminalActivitySchema = z.object({ state: z.enum(['idle', 'busy', 'unknown']), revision: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER) }).strict()

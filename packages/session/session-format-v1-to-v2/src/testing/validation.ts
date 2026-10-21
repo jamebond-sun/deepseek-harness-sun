@@ -27,8 +27,8 @@ const RELEASED_V2_EVENT_TYPE_SET = new Set(RELEASED_V2_EVENT_TYPES)
 const SURFACE_TYPES = new Set(['user/message', 'assistant/message', 'tool/result'])
 
 /**
- * Validate the frozen released-v2 writer image in tests.
- * @param artifact - released-v2 logical artifact.
+ * 在测试中校验已冻结的 released-v2 写入器镜像。
+ * @param artifact - released-v2 逻辑制品。
  */
 export function assertReleasedV2Artifact(artifact: SessionFormatArtifact): void {
   assertReleasedV2PhysicalArtifact(artifact)

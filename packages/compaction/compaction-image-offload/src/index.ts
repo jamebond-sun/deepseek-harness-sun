@@ -1,9 +1,8 @@
 /**
- * Image offload executor for the compaction seam. When an image-capable route
- * fails a request with `IMAGE_OFFLOAD_REQUIRED`, the plugin records one
- * `image/offload` decision selecting the oldest retained input occurrences
- * and retries through the agent or compaction summary error waterfall. Every route
- * sends placeholder text for those occurrences in subsequent requests.
+ * 压缩接缝的图像卸载执行器。当一条支持图像的路由以
+ * `IMAGE_OFFLOAD_REQUIRED` 使某次请求失败时，该插件会记录一个
+ * `image/offload` 决策，选择最旧的保留输入出现项，并经由代理或压缩摘要错误
+ * 瀑布流进行重试。每条路由在后续请求中都会为这些出现项发送占位文本。
  *
  * @module @deepseek-ai/dsh-compaction-image-offload
  */
@@ -19,14 +18,14 @@ export const name = 'compaction-image-offload'
 export const inject = ['agents', 'sessions']
 
 /**
- * Mount agent and summary recovery listeners without configuration.
- * @param ctx - the plugin context.
+ * 在无需配置的情况下挂载代理与摘要恢复监听器。
+ * @param ctx - 插件上下文。
  */
 export function apply(ctx: Context): void {
   ctx.sessions.registerMessageProjection(imageOffloadProjection)
   ctx.on('agent/request-error', ({ agent, failure, signal }, next): Promise<RequestErrorAction> => {
     if (failure.code !== IMAGE_OFFLOAD_REQUIRED_CODE || failure.offloadImages === undefined || signal.aborted) return next()
-    // A durable surface repair, not a provider retry: it spends no retry budget and logs no retry event.
+    // 这是一次持久化的表层修复，而非提供方重试：它不消耗重试预算，也不记录重试事件。
     if (!offloadOldestImages(agent.session, agent.session.surface.nodes, failure.offloadImages)) return next()
     return Promise.resolve<RequestErrorAction>({ kind: 'retry' })
   })

@@ -1,72 +1,72 @@
-/** Browser implementation of the Cordis timer Service. */
+/** Cordis timer Service 的浏览器侧实现。 */
 
 import { Service } from '@deepseek-ai/cordis'
 import type { Context } from '@deepseek-ai/cordis'
 
 /*
- * The browser Service preserves the vendored Host TimerService's erased callback tuples and arbitrary
- * async-iterator return and rejection values, so narrowing these positions would change the public API.
+ * 浏览器侧 Service 保留了被 vendored 的 Host TimerService 中被擦除的回调元组，
+ * 以及任意的 async-iterator 返回值与拒绝值，因此收窄这些位置会改变公开 API。
  */
-/* oxlint-disable typescript/no-explicit-any -- Exact Host TimerService API compatibility; see above. */
-/* oxlint-disable typescript/no-unsafe-argument -- The erased callback tuples pass through unchanged. */
-/* oxlint-disable typescript/no-unsafe-assignment -- The erased callback tuples pass through unchanged. */
-/* oxlint-disable typescript/no-unsafe-member-access -- The returned wrapper retains its dispose property. */
-/* oxlint-disable typescript/no-unsafe-return -- The erased generic return values pass through unchanged. */
-/* oxlint-disable typescript/prefer-promise-reject-errors -- Async iterators preserve arbitrary throw reasons. */
+/* oxlint-disable typescript/no-explicit-any -- 与 Host TimerService API 的精确兼容；见上文。 */
+/* oxlint-disable typescript/no-unsafe-argument -- 被擦除的回调元组原样透传。 */
+/* oxlint-disable typescript/no-unsafe-assignment -- 被擦除的回调元组原样透传。 */
+/* oxlint-disable typescript/no-unsafe-member-access -- 返回的封装保留了其 dispose 属性。 */
+/* oxlint-disable typescript/no-unsafe-return -- 被擦除的泛型返回值原样透传。 */
+/* oxlint-disable typescript/prefer-promise-reject-errors -- Async iterator 保留任意的 throw 原因。 */
 
 declare module '@deepseek-ai/cordis' {
   interface Context extends Pick<ClientTimerService, 'interval' | 'timeout' | 'throttle' | 'debounce' | 'setTimeout' | 'setInterval'> {
-    /** Browser timer Service used by the mixed-in Context helpers. */
+    /** 被混入的 Context 辅助方法所使用的浏览器侧 timer Service。 */
     timer: ClientTimerService
   }
 }
 
 type WithDispose<T> = T & { dispose: () => void }
 
-// These `any` positions mirror the Host TimerService's overload erasure: generic callback tuples and async-iterator
-// return/rejection values must pass through without narrowing them to one caller's invocation.
+// 这些 `any` 位置镜像了 Host TimerService 的重载擦除：泛型回调元组与 async-iterator
+// 的返回/拒绝值必须原样透传，而不能收窄到某一次调用的形态。
 
-/** Browser timer Service with the same public API as the Host Cordis TimerService. */
+/** 与 Host Cordis TimerService 公开 API 相同的浏览器侧 timer Service。 */
 export class ClientTimerService extends Service {
-  /** Register the Service and mix its lifecycle-safe helpers onto Context. */
+  /** 注册该 Service 并将其生命周期安全的辅助方法混入 Context。 */
   constructor(ctx: Context) {
     super(ctx, 'timer')
     ctx.mixin('timer', ['timeout', 'interval', 'throttle', 'debounce', 'setTimeout', 'setInterval'])
   }
 
   /**
-   * Run a callback once through {@link timeout}.
-   * @param callback - Work to run after the delay.
-   * @param delay - Delay in milliseconds.
-   * @returns Disposer that cancels the pending callback early.
-   * @deprecated Use `ctx.timeout()` instead.
+   * 经由 {@link timeout} 运行一次回调。
+   * @param callback - 延迟后要执行的工作。
+   * @param delay - 延迟，以毫秒计。
+   * @returns 提前取消挂起回调的释放器。
+   * @deprecated 请改用 `ctx.timeout()`。
    */
   setTimeout(callback: () => void, delay: number): () => void {
     return this.timeout(callback, delay)
   }
 
   /**
-   * Run a callback repeatedly through {@link interval}.
-   * @param callback - Work to run on each tick.
-   * @param delay - Interval in milliseconds.
-   * @returns Disposer that stops the interval early.
-   * @deprecated Use `ctx.interval()` instead.
+   * 经由 {@link interval} 反复运行回调。
+   * @param callback - 每次触发时执行的工作。
+   * @param delay - 间隔，以毫秒计。
+   * @returns 提前停止该间隔的释放器。
+   * @deprecated 请改用 `ctx.interval()`。
    */
   setInterval(callback: () => void, delay: number): () => void {
     return this.interval(callback, delay)
   }
 
   /**
-   * Run a callback once after a delay.
-   * @param callback - work to run.
-   * @param delay - delay in milliseconds.
-   * @returns disposer that cancels the callback.
+   * 在延迟后运行一次回调。
+   * @param callback - 要运行的工作。
+   * @param delay - 延迟，以毫秒计。
+   * @returns 取消该回调的释放器。
    */
   timeout(callback: () => void, delay: number): () => void
   /**
-   * Wait for a delay.
-   * @param delay - delay in milliseconds.
-   * @returns promise resolved after the delay.
+   * 等待一段延迟。
+   * @param delay - 延迟，以毫秒计。
+   * @returns 延迟后被解析的 promise。
    */
   timeout(delay: number): Promise<void>
   timeout(...args: any[]): any {
@@ -95,16 +95,16 @@ export class ClientTimerService extends Service {
   }
 
   /**
-   * Run a callback repeatedly.
-   * @param callback - work to run on each tick.
-   * @param delay - interval in milliseconds.
-   * @returns disposer that stops the interval.
+   * 反复运行回调。
+   * @param callback - 每次触发时执行的工作。
+   * @param delay - 间隔，以毫秒计。
+   * @returns 停止该间隔的释放器。
    */
   interval(callback: () => void, delay: number): () => void
   /**
-   * Iterate over timer ticks.
-   * @param delay - interval in milliseconds.
-   * @returns async iterator of ticks.
+   * 遍历定时器触发。
+   * @param delay - 间隔，以毫秒计。
+   * @returns 触发的 async iterator。
    */
   interval<R = any>(delay: number): AsyncIterableIterator<void, R, void>
   interval(...args: any[]): any {
@@ -154,7 +154,7 @@ export class ClientTimerService extends Service {
     } satisfies AsyncIterableIterator<void>
   }
 
-  /** Build a delayed wrapper whose pending callback belongs to the calling Fiber. */
+  /** 构建一个延迟封装，其挂起的回调归属于调用方的 Fiber。 */
   private schedule(label: string, trigger: (args: any[], disposed: boolean) => number | undefined, disposed = false): any {
     let timer: number | undefined
     const dispose = this.ctx.effect(() => () => {
@@ -170,11 +170,11 @@ export class ClientTimerService extends Service {
   }
 
   /**
-   * Return a throttled function whose timer is disposed with the calling Fiber.
-   * @param callback - Function to throttle.
-   * @param delay - Minimum interval between calls in milliseconds.
-   * @param noTrailing - Whether to suppress a delayed trailing call.
-   * @returns Throttled function with an early disposer.
+   * 返回一个被节流的函数，其定时器随调用方 Fiber 一并释放。
+   * @param callback - 要节流的函数。
+   * @param delay - 调用之间的最小间隔，以毫秒计。
+   * @param noTrailing - 是否抑制一次延迟的尾部调用。
+   * @returns 带有提前释放器的节流函数。
    */
   throttle<F extends (...args: any[]) => void>(callback: F, delay: number, noTrailing?: boolean): WithDispose<F> {
     let lastCall = -Infinity
@@ -193,10 +193,10 @@ export class ClientTimerService extends Service {
   }
 
   /**
-   * Return a debounced function whose timer is disposed with the calling Fiber.
-   * @param callback - Function to debounce.
-   * @param delay - Quiet period in milliseconds.
-   * @returns Debounced function with an early disposer.
+   * 返回一个被防抖的函数，其定时器随调用方 Fiber 一并释放。
+   * @param callback - 要防抖的函数。
+   * @param delay - 静默期，以毫秒计。
+   * @returns 带有提前释放器的防抖函数。
    */
   debounce<F extends (...args: any[]) => void>(callback: F, delay: number): WithDispose<F> {
     return this.schedule('ctx.debounce()', (args, disposed) => {
@@ -207,9 +207,9 @@ export class ClientTimerService extends Service {
 }
 
 /**
- * Install the browser timer Service on one Client composition.
- * @param ctx - Client context that owns the Service and mixed-in helpers.
- * @returns Nothing after registering the Service.
+ * 在一个 Client 组合上安装浏览器侧 timer Service。
+ * @param ctx - 拥有该 Service 与被混入辅助方法的 Client 上下文。
+ * @returns 注册 Service 之后无返回值。
  */
 export function provideClientTimer(ctx: Context): void {
   new ClientTimerService(ctx)

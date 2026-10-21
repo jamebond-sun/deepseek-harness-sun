@@ -1,13 +1,10 @@
 /**
- * Atomic whole-file replacement for the JSON backend.
+ * JSON 后端的原子整文件替换。
  *
- * Publish protocol: write a same-directory temp file, fsync it, then
- * `rename()` over the target. Rename is an atomic replace on POSIX and on
- * Windows (libuv maps it to `MoveFileExW(..., MOVEFILE_REPLACE_EXISTING)`),
- * and replacement is the intended semantic here — unlike the session-log
- * backend's link()+unlink() no-clobber protocol, a unit file has exactly one
- * writer per process and last-write-wins is correct. After the rename the
- * parent directory is fsynced on POSIX so the new entry is crash-durable.
+ * 发布协议：写入同目录的临时文件、对其 fsync，然后用 `rename()` 覆盖目标。Rename 在 POSIX 与
+ * Windows 上都是原子替换（libuv 将其映射为 `MoveFileExW(..., MOVEFILE_REPLACE_EXISTING)`），
+ * 且替换正是此处期望的语义——与会话日志后端的 link()+unlink() 不覆盖协议不同，一个单元文件每个进程恰好一个写入者，
+ * 后写获胜是正确的。rename 之后父目录在 POSIX 上被 fsync，使新条目具备崩溃持久性。
  * @module @deepseek-ai/dsh-storage-json/src/atomic
  */
 
@@ -16,10 +13,10 @@ import { dirname, join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 
 /**
- * Durably replace `path` with `data`.
- * @param path - Absolute target file path.
- * @param data - Full new file content.
- * @returns resolution after the replacement is crash-durable.
+ * 持久化地以 `data` 替换 `path`。
+ * @param path - 绝对目标文件路径。
+ * @param data - 完整的新文件内容。
+ * @returns 替换具备崩溃持久性之后的结算。
  */
 export async function writeAtomic(path: string, data: string): Promise<void> {
   const tmp = join(dirname(path), `.${randomUUID()}.tmp`)
@@ -39,8 +36,8 @@ export async function writeAtomic(path: string, data: string): Promise<void> {
   }
 }
 
-/** fsync a POSIX directory so a just-renamed entry is crash-durable. */
-/* v8 ignore start -- Windows rejects O_RDONLY directory opens; POSIX coverage exercises this. */
+/** fsync 一个 POSIX 目录，使刚 rename 的条目具备崩溃持久性。 */
+/* v8 ignore start -- Windows 拒绝 O_RDONLY 的目录打开；POSIX 覆盖会执行此分支。 */
 async function fsyncDirectory(path: string): Promise<void> {
   if (process.platform === 'win32') return
   const handle = await open(path, 'r')

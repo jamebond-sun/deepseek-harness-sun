@@ -1,4 +1,4 @@
-/** In-memory profile package routing for Node's default ESM and CommonJS loaders. */
+/** 面向 Node 默认 ESM 与 CommonJS 加载器的、内存中的 profile 包路由。 */
 
 import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs'
 import { createRequire, isBuiltin } from 'node:module'
@@ -48,11 +48,10 @@ type EsmResolve = (
 ) => ResolveResult | Promise<ResolveResult>
 
 /**
- * Where Node continues a scoped bare request. `native` keeps the importer's own lookup: the chain is
- * answered below the interception layer. `interception` answers at the interception layer from the
- * entry's declaring manifest; `after` anchors Node's chain above the layer for a CommonJS subpath the
- * entry lacks. `native-after-interception` resumes Node's chain from `parent`: the interception layer for a
- * name without an entry, or the layer above it after an `interception` subpath miss.
+ * Node 在一个带作用域的裸请求上继续解析的位置。`native` 保留导入者自身的查找：该链在
+ * 拦截层之下得到应答。`interception` 在拦截层、从条目的声明清单作答；`after` 在 entry 缺少的
+ * 一个 CommonJS 子路径上，把 Node 的链锚定到拦截层之上。`native-after-interception` 从 `parent`
+ * 恢复 Node 的链：对于没有条目的一个名称为拦截层，或在一次 `interception` 子路径未命中之后为其上层。
  */
 type ResolutionRoute =
   | { readonly kind: 'interception'; readonly entry: RuntimeResolutionEntry; readonly after: string }
@@ -72,20 +71,19 @@ interface CommonJsLookup {
   resolveEntry(entry: RuntimeResolutionEntry, after: string): string
 }
 
-/** The lookup positions that one interception layer fixes on an importer's ancestor chain. */
+/** 一个拦截层在其导入者祖先链上固定的查找位置。 */
 interface LayerPositions {
-  /** Search paths with this prefix lie below the layer and are answered by their physical content. */
+  /** 带有此前缀的查找路径位于该层之下，并由其物理内容应答。 */
   readonly localPrefix: string
-  /** Manifest anchoring Node's lookup at the layer's physical directory. */
+  /** 在层的物理目录处锚定 Node 查找的清单。 */
   readonly nativeAfter: string
-  /** Manifest anchoring Node's lookup above the layer after a CommonJS subpath miss. */
+  /** 在一次 CommonJS 子路径未命中之后，于层之上锚定 Node 查找的清单。 */
   readonly after: string
 }
 
 /**
- * The interception layer of one importer. A profile's layer is its parent's node_modules and answers every entry
- * for the active profile. Linked importers apply current peer declarations at each ancestor node_modules
- * position without memoizing the selected route.
+ * 一个导入者的拦截层。profile 的层是其父级的 node_modules，并应答活动 profile 的每一个条目。
+ * 链接式导入者会在每个祖先 node_modules 位置应用当前的 peer 声明，而不记忆所选的路由。
  */
 type InterceptionLayer =
   | LayerPositions & { readonly kind: 'profile'; readonly active: boolean }
@@ -100,7 +98,7 @@ interface ParentRoutes {
 
 type ResolutionRoutes = Map<string, ParentRoutes | false>
 
-/** A published entry with the real directory its modules load from. */
+/** 一个带有其模块所加载真实目录的、已发布的条目。 */
 interface CompiledEntry extends RuntimeResolutionEntry {
   readonly realDir: string
 }
@@ -118,47 +116,44 @@ interface CompiledResolution {
   readonly cjsRoutes: ResolutionRoutes
 }
 
-/** A successor resolution the running process cannot adopt, such as a retained mapping in another directory; it waits for a restart. */
+/** 运行中的进程无法采纳的一个后继解析，例如位于另一个目录中的、被保留的映射；它要等待重启。 */
 export class ResolutionRestartRequired extends Error {
-  /** @param message Diagnostic naming the rejected changes. */
+  /** @param message 点名被拒绝变更的诊断。 */
   constructor(message: string) {
     super(message)
     this.name = 'ResolutionRestartRequired'
   }
 }
 
-/** Active interception in one Node isolate. */
+/** 一个 Node 隔离体中的活跃拦截。 */
 export interface RuntimeInterception {
   /**
-   * Locate a bare package without requiring one of its exports.
-   * A package subpath selects its package directory without resolving or validating the requested file.
-   * @param specifier - bare package or package-subpath specifier.
-   * @param parentURL - file URL whose lookup order applies.
-   * @returns selected package directory, or undefined when it is absent.
+   * 在不要求其一处导出物的前提下定位一个裸包。
+   * 一个包子路径会选中其包目录，而不解析或校验所请求的文件。
+   * @param specifier - 裸包或包子路径指示符。
+   * @param parentURL - 适用其查找顺序的文件 URL。
+   * @returns 选中的包目录；当不存在时为 undefined。
    */
   packageDir(specifier: string, parentURL: string): string | undefined
   /**
-   * Atomically publish a complete successor and fresh caches. Profile-scoped mappings, local names, and linked
-   * roots may be removed; removed roots stop intercepting uncovered directories. A retained profile mapping may
-   * change its version and declarer when its normalized directory and scope stay unchanged, as when a package is
-   * upgraded in place. Existing modules and Node caches remain intact: callers remove a package only after its
-   * plugins stop, and replace the loaded modules of a package upgraded in place separately.
-   * A previously published link name may point to another real directory; callers stop the plugins of its previous
-   * target first, as removing and installing the package again does.
-   * @param successor - fully constructed generation retaining the installation mappings.
-   * @throws when the profile scope changes; and `ResolutionRestartRequired` when a retained profile mapping's real
-   * directory or scope, or an installation version or declarer changes; an installation mapping is removed; or a new
-   * local name overrides an existing mapping.
+   * 以原子方式发布一个完整的后继代与全新的缓存。profile 作用域映射、本地名称与链接根可以被移除；
+   * 被移除的根停止拦截未被覆盖的目录。一个被保留的 profile 映射可在其归一化目录与作用域保持不变时
+   * 改变其版本与声明者，正如一个包就地升级时那样。既有的模块与 Node 缓存保持完好：调用方只在某包
+   * 的插件停止之后才移除它，并另行替换就地升级包的已加载模块。一个先前发布的链接名可能指向另一个真实
+   * 目录；调用方要先停止其先前目标的插件，正如移除并重新安装该包时所做的那样。
+   * @param successor - 完全构造好、保留了安装映射的那一代。
+   * @throws 当 profile 作用域改变时抛出；而当被保留的 profile 映射的真实目录或作用域、或安装的版本或
+   * 声明者改变时，或一条安装映射被移除时，或一个新的本地名称覆盖了一条既有映射时，抛出 `ResolutionRestartRequired`。
    */
   replace(successor: RuntimeResolution): void
-  /** Restore the native resolver methods. Interceptions dispose in reverse order. */
+  /** 恢复原生的解析器方法。拦截按逆序释放。 */
   dispose(): void
 }
 
 /**
- * Split a bare request into its package name without allocating path segments.
- * @param request - module specifier to classify.
- * @returns the bare package name, or undefined for non-package requests.
+ * 在不分配路径段的前提下，将一个裸请求拆分为其包名。
+ * @param request - 待分类的模块指示符。
+ * @returns 裸包名；对于非包请求为 undefined。
  */
 export function barePackageName(request: string): string | undefined {
   if (!request || request[0] === '.' || request[0] === '/' || request[0] === '\\'
@@ -170,14 +165,14 @@ export function barePackageName(request: string): string | undefined {
   return second < 0 ? request : request.slice(0, second)
 }
 
-/** The JavaScript and native real paths of an existing directory; none for a directory that no longer exists. */
+/** 一个现存目录的 JavaScript 与原生真实路径；对不再存在的目录则为空。 */
 function realSpellings(path: string): string[] {
   try {
-    // A packed worker's file system has no native realpath.
+    // 打包后的 worker 的文件系统没有原生 realpath。
     const native: unknown = Reflect.get(realpathSync, 'native')
     return [realpathSync(path), ...typeof native === 'function' ? [String(Reflect.apply(native, realpathSync, [path]))] : []]
   } catch (_error) {
-    // A removed previous directory keeps only its recorded spelling.
+    // 一个已移除的前置目录只保留其被记录的拼写。
     return []
   }
 }
@@ -186,7 +181,7 @@ function canonicalPath(path: string): string {
   try {
     return realpathSync(path)
   } catch {
-    // A runtime resolution may name a profile scope before that directory is materialized.
+    // 运行时解析可能在该目录被落实之前就点名一个 profile 作用域。
     return resolve(path)
   }
 }
@@ -215,8 +210,8 @@ function compileResolution(resolution: RuntimeResolution): CompiledResolution {
 }
 
 /**
- * The interception layer of a profile is `<profileParent>/node_modules`: an entry occupies its name there, so its
- * subpath misses continue above it, and a name without an entry continues at it.
+ * 一个 profile 的拦截层是 `<profileParent>/node_modules`：一个条目在其中占用自己的名称，因此它的
+ * 子路径未命中会在其上方继续，而一个没有条目的名称会在它那里继续。
  */
 function computeProfileLayer(dir: string, active: boolean): InterceptionLayer {
   const profileParent = dirname(dir)
@@ -228,7 +223,7 @@ function computeProfileLayer(dir: string, active: boolean): InterceptionLayer {
   }
 }
 
-/** The interception layer of a module path: from its profile directory inside a profiles tree, or its linked root. */
+/** 一个模块路径的拦截层：来自其在 profiles 树内的 profile 目录，或它的链接根。 */
 function findInterceptionLayer(path: string, resolution: CompiledResolution): InterceptionLayer | undefined {
   const treeRoot = resolution.profilePaths.find(prefix => path.startsWith(prefix))
   const activeProfile = resolution.profile.find(prefix => path.startsWith(prefix))
@@ -239,7 +234,7 @@ function findInterceptionLayer(path: string, resolution: CompiledResolution): In
   return { kind: 'linked' }
 }
 
-/** Package names a directory's current manifest lists as peers; an unreadable manifest lists none. */
+/** 一个目录当前清单列为 peer 的包名；一个不可读的清单不列出任何名称。 */
 function readPeerNames(directory: string): ReadonlySet<string> {
   try {
     const manifest = JSON.parse(readFileSync(join(directory, 'package.json'), 'utf8')) as {
@@ -248,7 +243,7 @@ function readPeerNames(directory: string): ReadonlySet<string> {
     const peers = manifest.peerDependencies
     return new Set(peers !== null && typeof peers === 'object' ? Object.keys(peers) : [])
   } catch (_error) {
-    // Node reports the unreadable or invalid manifest itself when it resolves the package's own imports.
+    // Node 在解析该包自身的导入时会自行报告不可读或无效的清单。
     return new Set()
   }
 }
@@ -261,10 +256,10 @@ function startsWithin(path: string, roots: readonly string[]): boolean {
 }
 
 /**
- * The profile directory owning a module inside the profiles tree: the first path segment below the tree root.
- * @param path - module path below `treePrefix`.
- * @param treePrefix - profiles directory with a trailing separator.
- * @returns the profile directory without a trailing separator.
+ * 拥有 profiles 树内某个模块的 profile 目录：树根之下的第一个路径段。
+ * @param path - `treePrefix` 之下的模块路径。
+ * @param treePrefix - 带有尾部分隔符的 profiles 目录。
+ * @returns 不带尾部分隔符的 profile 目录。
  */
 function profileChild(path: string, treePrefix: string): string {
   const rest = path.slice(treePrefix.length)
@@ -299,14 +294,14 @@ function selfReferenceName(parent: string): string | false | null {
       try {
         manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as Record<string, unknown>
       } catch (_error) {
-        // Only Node decides whether this request consumes an invalid package manifest.
+        // 只有 Node 决定该请求是否消费一个无效的包清单。
         return null
       }
       return typeof manifest.name === 'string' && manifest.exports != null
         ? manifest.name
         : false
     }
-    /* v8 ignore next -- scoped module requests normally find an owning manifest before node_modules. */
+    /* v8 ignore next -- 带作用域的模块请求通常会在 node_modules 之前找到其拥有者清单。 */
     if (basename(current) === 'node_modules') return false
     const next = dirname(current)
     if (next === current) return false
@@ -325,8 +320,8 @@ function packageImportsTarget(
       try {
         manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as ResolvePackageManifest
       } catch (_error) {
-        // The native resolver retains invalid package-target and manifest diagnostics.
-        /* v8 ignore next -- native resolution cannot report MODULE_NOT_FOUND after an invalid scope manifest */
+        // 原生解析器保留无效的包目标与清单诊断。
+        /* v8 ignore next -- 原生解析在无效作用域清单之后不可能报告 MODULE_NOT_FOUND */
         return undefined
       }
       try {
@@ -338,14 +333,14 @@ function packageImportsTarget(
           ? { specifier: target, parentURL: pathToFileURL(manifestPath).href }
           : undefined
       } catch (_error) {
-        // The native resolver retains missing mappings and unmatched-condition diagnostics.
-        /* v8 ignore next -- native resolution cannot report MODULE_NOT_FOUND before selecting a valid mapping */
+        // 原生解析器保留缺失的映射与不匹配条件的诊断。
+        /* v8 ignore next -- 原生解析在选择有效映射之前不可能报告 MODULE_NOT_FOUND */
         return undefined
       }
     }
     if (basename(current) === 'node_modules') return undefined
     const next = dirname(current)
-    /* v8 ignore next -- a MODULE_NOT_FOUND package-import target always has an owning package scope */
+    /* v8 ignore next -- MODULE_NOT_FOUND 的包导入目标始终拥有其所属包作用域 */
     if (next === current) return undefined
     current = next
   }
@@ -355,7 +350,7 @@ function packageSearchPaths(
   entry: RuntimeResolutionEntry, request: string, cjs: CommonJsModule,
 ): string[] {
   const name = barePackageName(request)
-  /* v8 ignore next -- interception routes are created only for bare package requests */
+  /* v8 ignore next -- 拦截路由只为裸包请求而创建 */
   if (name === undefined) return cjs._nodeModulePaths(dirname(entry.declarer))
   const suffix = sep + name.split('/').join(sep)
   return entry.packageDir.endsWith(suffix)
@@ -367,17 +362,17 @@ function localCandidateOwnsResolution(candidate: string, resolved: string, reque
   if (startsWithin(resolved, prefixes(candidate))) return true
   if (sameResolution(candidate, resolved)) return true
   if (['.js', '.json', '.node'].some(extension => sameResolution(candidate + extension, resolved))) return true
-  /* v8 ignore next -- a bounded native lookup can escape a candidate only through its root legacy main */
+  /* v8 ignore next -- 有界的原生查找只能经由其根目录的遗留 main 逃出候选 */
   if (request !== name) return false
   try {
     const manifest = JSON.parse(readFileSync(join(candidate, 'package.json'), 'utf8')) as Record<string, unknown>
-    /* v8 ignore next -- a bounded native lookup outside the package directory requires a legacy main */
+    /* v8 ignore next -- 包目录之外的有界原生查找需要遗留 main */
     if (typeof manifest.main !== 'string') return false
     const main = createRequire(join(candidate, 'package.json')).resolve(resolve(candidate, manifest.main))
     return sameResolution(main, resolved)
   } catch (_error) {
-    // Native resolution already owns malformed manifests and missing legacy entries.
-    /* v8 ignore next -- this helper runs only after the same native resolution succeeded */
+    // 原生解析已经负责畸形清单与缺失的遗留条目。
+    /* v8 ignore next -- 此辅助函数只在相同的原生解析成功之后运行 */
     return false
   }
 }
@@ -392,7 +387,7 @@ function sameResolution(left: string, right: string): boolean {
   return canonicalPath(left) === canonicalPath(right)
 }
 
-/** A directory as given and in its JavaScript and native real paths, each with a trailing separator. */
+/** 一个目录在给定形式、以及其 JavaScript 与原生真实路径下的形式，每种都带尾部分隔符。 */
 function spellings(dir: string): string[] {
   const result = new Set([dir + sep])
   for (const real of realSpellings(dir)) result.add(real + sep)
@@ -400,21 +395,19 @@ function spellings(dir: string): string[] {
 }
 
 /**
- * The previous real directories of packages that moved, each mapped to the current one. Node keeps the real path of
- * every link it resolved through and never refreshes it, so a lookup through a link that now points elsewhere still
- * selects a file below the target Node saw first; {@link MovedDirectories.relocate} selects the same file below the
- * current target instead.
+ * 已移动包的先前真实目录，每一个都映射到当前的那个。Node 会保留它解析所经过的每个链接的
+ * 真实路径且从不刷新它，因此一次经过某个现已指向他处的链接的查找，仍会选中 Node 最初所见
+ * 目标之下的一个文件；而 {@link MovedDirectories.relocate} 会改为选中当前目标之下的同一文件。
  */
 class MovedDirectories {
-  /** Previous directory to current directory, both with a trailing separator. */
+  /** 先前目录到当前目录，两者都带尾部分隔符。 */
   private readonly targets = new Map<string, string>()
 
   /**
-   * Record that a package moved from one directory to another. Every spelling of the previous directory leads to the
-   * current one. A directory that an earlier move led to the previous one now leads to the current one as well, since
-   * Node still selects files below the earliest target.
-   * @param from Previous real directory.
-   * @param to Current real directory.
+   * 记录一个包从一个目录移动到另一个目录。先前目录的每一种拼写都通向当前的那个。一个被更早的
+   * 移动带向先前目录的目录，现在也带向当前的那个，因为 Node 仍会选中最早目标之下的文件。
+   * @param from 先前的真实目录。
+   * @param to 当前的真实目录。
    */
   record(from: string, to: string): void {
     const previous = spellings(from)
@@ -426,8 +419,8 @@ class MovedDirectories {
   }
 
   /**
-   * Forget the previous directories that are current again, in any spelling, and records that lead to themselves.
-   * @param current The real directories the published resolution maps.
+   * 遗忘那些再次成为当前的先前目录（以任意拼写），以及通向自身的记录。
+   * @param current 已发布解析所映射的真实目录。
    */
   forget(current: readonly string[]): void {
     const active = new Set<string>()
@@ -438,12 +431,11 @@ class MovedDirectories {
   }
 
   /**
-   * The same file below the current directory when it exists, for a file below a previous directory that an importer
-   * outside that directory selected. An importer inside the previous directory keeps its own package's files. The
-   * innermost previous directory decides.
-   * @param filename Selected file.
-   * @param parent Importer path.
-   * @returns The file to load.
+   * 当一个文件位于某先前目录之下、且被该目录之外的一个导入者选中时，返回其在当前目录之下
+   * 存在的同一文件。位于先前目录之内的导入者保留其自身包的文件。最内层的先前目录说了算。
+   * @param filename 被选中的文件。
+   * @param parent 导入者路径。
+   * @returns 要加载的文件。
    */
   relocate(filename: string, parent: string | undefined): string {
     let from = ''
@@ -456,7 +448,7 @@ class MovedDirectories {
   }
 }
 
-/** One mutable pointer to the immutable runtime resolution. */
+/** 指向不可变运行时解析的一个可变指针。 */
 class ResolutionRouter {
   private current: CompiledResolution
   private linkedTargets: Map<string, string>
@@ -479,7 +471,7 @@ class ResolutionRouter {
       const next = entries.get(name)
       if (next === undefined && current.scope === 'profile') continue
       if (next !== undefined && current.scope === 'profile' && next.scope === 'profile') {
-        // Real directories are compared: a link keeps its path when its target changes.
+        // 比较的是真实目录：当目标改变时，一个链接仍保持自己的路径。
         if (current.realDir === canonicalPath(next.packageDir)) continue
         rejected.push(`profile resolution: replacing ${JSON.stringify(name)} requires a process restart`)
         continue
@@ -498,8 +490,8 @@ class ResolutionRouter {
         rejected.push(`profile resolution: overriding ${JSON.stringify(name)} locally requires a process restart`)
       }
     }
-    // A link name pointing elsewhere, or installed again as a directory, moves its package. Names whose link and mapping
-    // are gone stay recorded, so the package that returns under the name is compared with its last target.
+    // 指向他处、或被作为目录再次安装的链接名，会移动其包。链接与映射都已消失的名称仍被记录，
+    // 因此重新以该名称出现的包会与它的上一个目标比较。
     const targets = new Map(this.linkedTargets)
     for (const [name, previous] of this.linkedTargets) {
       const root = successor.linkedRoots.find(candidate => candidate.name === name)
@@ -522,21 +514,21 @@ class ResolutionRouter {
   }
 
   /**
-   * The file to load instead of one Node selected through a link that has moved since; see {@link MovedDirectories}.
-   * @param filename Selected file.
-   * @param parent Importer path.
-   * @returns The file to load.
+   * 应加载的文件，而非 Node 自那以后经过一个已移动链接所选择的那个；参见 {@link MovedDirectories}。
+   * @param filename 被选中的文件。
+   * @param parent 导入者路径。
+   * @returns 要加载的文件。
    */
   relocate(filename: string, parent: string | undefined): string {
     return this.moved.relocate(filename, parent)
   }
 
-  /** Whether a module path has an interception layer: it lies in the profiles tree, the active profile, or a linked root. */
+  /** 一个模块路径是否拥有一个拦截层：它位于 profiles 树、活动 profile，或某个链接根之中。 */
   hasInterceptionLayerForPath(path: string): boolean {
     return findInterceptionLayer(path, this.current) !== undefined
   }
 
-  /** Whether an importer URL is scoped; the answer is memoized with the importer's routes. */
+  /** 一个导入者 URL 是否带作用域；结果会与该导入者的路由一起被记忆。 */
   hasInterceptionLayerForUrl(parentURL: string): boolean {
     return this.getOrCreateParentRoutesForUrl(parentURL) !== false
   }
@@ -554,7 +546,7 @@ class ResolutionRouter {
     try {
       parent = fileURLToPath(parentURL)
     } catch {
-      // Only file URLs can lie inside a profile tree or linked root.
+      // 只有文件 URL 才可能在 profile 树或链接根目录内部。
       parent = undefined
     }
     parentRoutes = parent === undefined ? false : this.createParentRoutes(parent, resolution) ?? false
@@ -655,7 +647,7 @@ class ResolutionRouter {
         } catch (error) {
           if (!isUnselectedPackageMiss(error)) throw error
         }
-        // This position is occupied even when a legacy CommonJS subpath is absent from the supplied package.
+        // 即使所提供的包中缺少遗留的 CommonJS 子路径，该位置仍被占用。
         continue
       }
       const candidate = localPackageCandidate(searchPath, name, flavor)
@@ -670,7 +662,7 @@ class ResolutionRouter {
         if (!isUnselectedPackageMiss(error)) throw error
       }
     }
-    // An exhausted CommonJS lookup must not retry the physical copies at occupied peer positions.
+    // 一次已穷尽的 CommonJS 查找不得在被占用的同级位置上重试物理副本。
     return cjs === undefined ? { route: { kind: 'native' } } : { route: { kind: 'native' }, cjs: cjs.resolveNative([]) }
   }
 
@@ -751,7 +743,7 @@ function internalModules(): InternalModules {
   }
   const esm = esmModule.getOrInitializeCascadedLoader()
   const modern = 'getOrCreateModuleJob' in esm
-  /* v8 ignore start -- the supported Node 22/24/26 matrix validates each available Internal interface */
+  /* v8 ignore start -- 受支持的 Node 22/24/26 矩阵会校验每个可用的 Internal 接口 */
   if (typeof esm.resolveSync !== 'function'
     || typeof Reflect.get(esm, modern ? 'getOrCreateModuleJob' : 'getModuleJobForImport') !== 'function'
     || (!modern && typeof Reflect.get(esm, 'resolve') !== 'function')
@@ -773,16 +765,16 @@ function internalModules(): InternalModules {
 }
 
 /**
- * Replace a resolver error's message and the same text in its stack.
- * Node's module-hooks thread serializes errors and returns the stack accessor as a read-only configurable
- * data property, so a rejected stack assignment redefines the property value.
- * @param error - resolver error to update in place.
- * @param message - replacement message.
+ * 替换解析器错误消息及其在堆栈中的相同文本。
+ * Node 的模块钩子线程会序列化错误，并将堆栈访问器作为只读可配置的数据属性返回，
+ * 因此被拒绝的堆栈赋值会重新定义该属性的值。
+ * @param error - 要就地更新的解析器错误。
+ * @param message - 替换后的消息。
  */
 function replaceErrorMessage(error: Error, message: string): void {
   const { message: originalMessage, stack } = error
   error.message = message
-  /* v8 ignore next -- Node's resolver errors always carry a stack */
+  /* v8 ignore next -- Node 的解析器错误始终带有堆栈 */
   if (stack === undefined) return
   const replaced = stack.replace(originalMessage, message)
   if (!Reflect.set(error, 'stack', replaced)) Object.defineProperty(error, 'stack', { value: replaced })
@@ -808,23 +800,23 @@ function throwWithoutCjsAnchor(error: unknown, anchor: string): never {
     const originalMessage = error.message
     const originalBlock = `\nRequire stack:\n${requireStack.map(path => `- ${path}`).join('\n')}`
     const remaining = requireStack.slice(1)
-    /* v8 ignore next -- routed calls always retain the original importing module */
+    /* v8 ignore next -- 路由调用始终保留原始导入模块 */
     const replacement = remaining.length === 0
       ? ''
       : `\nRequire stack:\n${remaining.map(path => `- ${path}`).join('\n')}`
     error.message = originalMessage.replace(originalBlock, replacement)
     resolved.requireStack = remaining
     const stack = error.stack
-    /* v8 ignore next -- Node's resolver errors always carry a stack */
+    /* v8 ignore next -- Node 的解析器错误始终带有堆栈 */
     if (stack !== undefined) error.stack = stack.replace(originalMessage, error.message)
   }
   throw error
 }
 
 /**
- * Install one runtime resolution as the interception on Node's default ESM and CommonJS resolvers.
- * @param resolution - complete package table and profile scope.
- * @returns an interception that publishes a successor or restores the native methods.
+ * 将一份运行时解析安装为 Node 默认 ESM 与 CommonJS 解析器上的拦截层。
+ * @param resolution - 完整的包表与 profile 作用域。
+ * @returns 一个发布后继或恢复原生方法的拦截层。
  */
 export function installRuntimeInterception(
   resolution: RuntimeResolution,
@@ -836,7 +828,7 @@ export function installRuntimeInterception(
   const adaptEsm = (native: EsmResolve): EsmResolve => {
     const adapted: EsmResolve = (request, parent, attributes) => {
       const delegated = delegatedEsm
-      /* v8 ignore next -- reentry requires a separate synchronous Node hook; supported launches install none */
+      /* v8 ignore next -- 重入需要一个独立的同步 Node 钩子；受支持的启动不安装任何钩子 */
       if (delegated !== undefined && delegated.parent === parent && delegated.request === request) {
         return native(request, parent, attributes)
       }
@@ -851,7 +843,7 @@ export function installRuntimeInterception(
         let expected: ResolveResult | Promise<ResolveResult>
         try {
           expected = adapted(target.specifier, target.parentURL, attributes)
-          /* v8 ignore next -- Node 24+ resolves synchronously; the Node 22 matrix covers its Promise result */
+          /* v8 ignore next -- Node 24+ 同步解析；Node 22 矩阵覆盖了其 Promise 结果 */
           if (expected instanceof Promise) expected = expected.catch(restoreImporter)
         } catch (error) {
           return restoreImporter(error)
@@ -877,7 +869,7 @@ export function installRuntimeInterception(
         } catch (error) {
           return restoreImporter(error)
         }
-        /* v8 ignore next -- Node 24+ resolves synchronously; the Node 22 matrix covers its Promise result */
+        /* v8 ignore next -- Node 24+ 同步解析；Node 22 矩阵覆盖了其 Promise 结果 */
         if (result instanceof Promise) return result.catch(restoreImporter)
         if (cacheable) state.esm = result
         return result
@@ -885,7 +877,7 @@ export function installRuntimeInterception(
         delegatedEsm = previous
       }
     }
-    // Node's last real-path step, for routed and native requests alike, may follow a link it resolved earlier.
+    // Node 在真实路径上的最后一步（无论是路由请求还是原生请求）可能会跟随它先前解析出的一个链接。
     const relocate = (result: ResolveResult, parent: string | undefined): ResolveResult => {
       if (!result.url.startsWith('file:')) return result
       const url = new URL(result.url)
@@ -897,21 +889,21 @@ export function installRuntimeInterception(
     }
     return (request, parent, attributes) => {
       const result = adapted(request, parent, attributes)
-      /* v8 ignore next -- Node 24+ resolves synchronously; the Node 22 matrix covers its Promise result */
+      /* v8 ignore next -- Node 24+ 同步解析；Node 22 矩阵覆盖了其 Promise 结果 */
       return result instanceof Promise ? result.then(resolved => relocate(resolved, parent)) : relocate(result, parent)
     }
   }
 
   let restoreEsm: () => void
-  /* v8 ignore else -- CI coverage runs Node 24 v2; the Node 22 matrix exercises the v1 adapter */
+  /* v8 ignore else -- CI 覆盖率运行 Node 24 v2；Node 22 矩阵覆盖了 v1 适配器 */
   if (modern) {
     const loader = esm as ModuleLoaderV2
     const original = Reflect.get(loader, 'resolveSync')
     const resolveRequest = adaptEsm((request, parent, attributes) => original.call(
       loader, parent as string, { specifier: request, attributes },
     ))
-    // Node 24.12+ adds skipSyncHooks after request. Its presence marks hook
-    // delegation whose outer call already selected a route.
+    // Node 24.12+ 会在 request 之后添加 skipSyncHooks。它的存在标志着
+    // 外层调用已选定路由的钩子委派。
     const wrapped = (parent: string, request: { specifier: string; attributes?: ImportAttributes }, ...rest: unknown[]): ResolveResult => (
       rest.length
         ? Reflect.apply(original, loader, [parent, request, ...rest]) as ResolveResult
@@ -919,7 +911,7 @@ export function installRuntimeInterception(
     )
     loader.resolveSync = wrapped
     restoreEsm = () => {
-      /* v8 ignore else -- interceptions are disposed in reverse installation order */
+      /* v8 ignore else -- 拦截层以与安装相反的顺序释放 */
       if (loader.resolveSync === wrapped) loader.resolveSync = original
     }
   } else {
@@ -950,7 +942,7 @@ export function installRuntimeInterception(
   ): string => {
     const anchor = routed.kind === 'interception' ? routed.entry.declarer : routed.parent
     const synthetic = new cjs(anchor)
-    // Late parent assignment preserves Node's require stack without publishing this routing anchor in parent.children.
+    // 延迟的父级赋值保留了 Node 的 require 堆栈，而不会将这个路由锚点发布到 parent.children 中。
     synthetic.parent = parent
     synthetic.filename = anchor
     synthetic.paths = routed.kind === 'interception'
@@ -980,7 +972,7 @@ export function installRuntimeInterception(
     const resolveFrom = (parentURL: string): string => fileURLToPath(esmDefaultResolve(
       target.specifier, { parentURL, conditions: [...conditions] },
     ).url)
-    /* v8 ignore next -- the target manifest was found inside the established profile scope */
+    /* v8 ignore next -- 目标清单已在已建立的 profile 作用域内找到 */
     if (state === undefined) return resolveFrom(target.parentURL)
     if (state.route.kind === 'native') return resolveFrom(target.parentURL)
     const route = state.route
@@ -1051,7 +1043,7 @@ export function installRuntimeInterception(
     },
     replace(next) { router.replace(next) },
     dispose() {
-      /* v8 ignore else -- interceptions are disposed in reverse installation order */
+      /* v8 ignore else -- 拦截层以与安装相反的顺序释放 */
       if (cjs._resolveFilename === relocatedFilename) cjs._resolveFilename = originalFilename
       restoreEsm()
     },
@@ -1059,9 +1051,9 @@ export function installRuntimeInterception(
 }
 
 /**
- * Publish one runtime resolution for Harness-owned Workers.
- * @param resolution - complete package table and profile scope.
- * @returns a disposer restoring the previous thread environment data.
+ * 为 Harness 拥有的 Worker 发布一份运行时解析。
+ * @param resolution - 完整的包表与 profile 作用域。
+ * @returns 一个恢复先前线程环境数据的释放器。
  */
 export function registerWorkerResolution(
   resolution: RuntimeResolution,

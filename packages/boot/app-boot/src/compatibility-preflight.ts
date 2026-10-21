@@ -1,4 +1,4 @@
-/** Compatibility checks at the composition entry points DSH owns; no Loader instrumentation. */
+/** 位于 DSH 拥有的组合入口处的兼容性检查；无需 Loader 插桩。 */
 import { existsSync, readFileSync, realpathSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, extname, isAbsolute, join } from 'node:path'
@@ -18,7 +18,7 @@ function readManifest(filename: string): object {
   return JSON.parse(readFileSync(filename, 'utf8')) as object
 }
 
-/** Render the patch wording an Include would report, through the profile's logger. */
+/** 通过 profile 的日志记录器，渲染一个 Include 本会报告的补丁措辞。 */
 function patchWarning(ctx: Context): (message: string, ...args: unknown[]) => void {
   return (message, ...args) => {
     let index = 0
@@ -34,7 +34,7 @@ function manifestOf(ctx: Context, name: string, parentURL: string): object | und
   if (pkg !== undefined) return readManifest(pkg.manifestPath)
   const bare = barePackageName(specifier)
   if (bare !== undefined && packages === undefined) {
-    // An embedder without the package service falls back to Node's own lookup, as `packageDirFromParent` does.
+    // 没有包服务的嵌入器会像 `packageDirFromParent` 那样回退到 Node 自身的查找。
     for (const path of createRequire(parentURL).resolve.paths(bare) as string[]) {
       const filename = join(path, bare, 'package.json')
       if (existsSync(filename)) return readManifest(filename)
@@ -45,7 +45,7 @@ function manifestOf(ctx: Context, name: string, parentURL: string): object | und
   let dir: string
   try { dir = dirname(realpathSync(fileURLToPath(url))) }
   catch (error) {
-    // A row this profile cannot resolve is the Loader's import failure to report, not a compatibility decision.
+    // 本 profile 无法解析的一行是 Loader 要报告的导入失败，而非一个兼容性判定。
     if (['ENOENT', 'ENOTDIR', 'EISDIR'].includes(String((error as NodeJS.ErrnoException).code))) return undefined
     throw error
   }
@@ -60,30 +60,30 @@ function manifestOf(ctx: Context, name: string, parentURL: string): object | und
   }
 }
 
-/** Prepare profile or preset rows before the owning DSH caller passes them to Loader.
- * Only a compatibility conflict denies a row: an entry whose manifest cannot be resolved keeps
- * the Loader's own import failure. A denied ordinary row gains `disabled`; a native Include that
- * reaches a denied plugin is denied as a whole, because its file is never rewritten.
- * @param ctx Context carrying launcher-owned profile facts; non-profile contexts retain their rows.
- * @param entries Complete effective entry list, after patch composition.
- * @param parentURL Resolution base of the tree that will import these rows.
- * @param binName Diagnostic prefix for a denied row; defaults to `dsh`.
- * @returns Detached rows with incompatible entries denied; reads the profile compatibility file once.
- * @throws For malformed compatibility permissions or a profile composition without a resolution base.
+/** 在所属的 DSH 调用方将这些行传给 Loader 之前，准备 profile 或预设行。
+ * 只有兼容性冲突才会拒绝一行：清单无法被解析的条目保留 Loader 自身的导入失败。一条被拒绝的
+ * 普通行获得 `disabled`；一个触及被拒绝插件的原生 Include 会作为一个整体被拒绝，因为它的文件
+ * 永远不会被重写。
+ * @param ctx 携带启动器拥有的 profile 事实的上下文；非 profile 上下文保留它们的行。
+ * @param entries 补丁组合之后的完整有效条目列表。
+ * @param parentURL 将要导入这些行的树的解析基址。
+ * @param binName 针对被拒绝行的诊断前缀；默认为 `dsh`。
+ * @returns 不兼容条目被拒绝的分离行；只读取一次 profile 兼容性文件。
+ * @throws 当兼容性权限畸形，或 profile 组合缺少解析基址时抛出。
  */
 export function prepareProfileEntries(
   ctx: Context, entries: readonly EntryOptions[], parentURL: string | undefined, binName = 'dsh',
 ): EntryOptions[] {
-  // Admission runs before the composed tree mounts, so no plugin-owned logger exporter exists yet;
-  // composition-stage diagnostics go to stderr like the profile launcher's skipped-bundle report.
+  // 准入在组合树挂载之前运行，因此尚不存在插件拥有的日志记录导出器；组合阶段的诊断像
+  // profile 启动器的跳过 bundle 报告那样被输出到 stderr。
   return preflight(ctx, entries, parentURL, (row, reason) => {
-    // Preset rows may omit ids, and a bundle row's name is its resolved module URL.
+    // 预设行可省略 id，而 bundle 行的名称是其已解析的模块 URL。
     const label = typeof row.id === 'string' ? `row ${JSON.stringify(row.id)}` : row.name
     process.stderr.write(`${binName}: disabling profile plugin ${label}: ${reason}\n`)
   }).rows
 }
 
-/** Denial reporter invoked once per denied row. */
+/** 每个被拒绝行被调用一次的拒绝报告器。 */
 type DenialReporter = (row: EntryOptions, reason: string) => void
 
 function preflight(
@@ -93,11 +93,11 @@ function preflight(
   const profile = ctx.get('profileContext')
   if (profile === undefined) return { rows, blocked: false }
   if (parentURL === undefined) throw new Error('Profile compatibility preflight requires a resolution base')
-  // A damaged permission file authorizes nothing, but it must not stop the profile from starting.
+  // 一份受损的权限文件不授权任何内容，但它不得阻止 profile 启动。
   const { exemptions, warnings } = readProfileCompatibility(profile.dir)
   for (const warning of warnings) process.stderr.write(`${warning}\n`)
   const includes = new Set<string>()
-  /** Only a compatibility conflict denies a row; every other failure keeps the Loader's own diagnosis. */
+  /** 只有兼容性冲突才会拒绝一行；任何其它失败都保留 Loader 自身的诊断。 */
   const denial = (row: EntryOptions, base: string): string | undefined => {
     try {
       const manifest = manifestOf(ctx, row.name, base)
@@ -105,8 +105,8 @@ function preflight(
       const issue = evaluatePluginCompatibility(manifest, exemptions)
       return issue === undefined || issue.exempted ? undefined : pluginCompatibilityWarning(issue)
     } catch (error) {
-      // Requirement metadata that cannot be read or validated is refused rather than silently admitted.
-      /* v8 ignore next -- every reader and parser used here rejects with an Error. */
+      // 无法被读取或校验的要求元数据会被拒绝，而非被悄悄接纳。
+      /* v8 ignore next -- 这里使用的每个读取器与解析器都以 Error 拒绝。 */
       const detail = error instanceof Error ? error.message : String(error)
       return `its declared dsh requirements cannot be validated: ${detail}`
     }
@@ -126,7 +126,7 @@ function preflight(
         blocked = true
         continue
       }
-      // The `group` marker, not the module name, is what makes a row another tree carrier.
+      // 使一行成为另一棵树载体的，是 `group` 标记而非模块名。
       if ((row.group === true || row.name === 'cordis:group' || row.name === '@deepseek-ai/cordis-plugin-group')
         && Array.isArray(row.config) && check(row.config as EntryOptions[], base)) blocked = true
       if (row.name !== 'cordis:include' && row.name !== '@deepseek-ai/cordis-plugin-include') continue
@@ -138,11 +138,11 @@ function preflight(
     }
     return blocked
   }
-  /** Whether a native Include reaches a denied plugin; an unreadable one has no compatibility opinion. */
+  /** 一个原生 Include 是否触及一个被拒绝的插件；不可读者没有兼容性意见。 */
   const includedConflicts = (row: EntryOptions, base: string): string | undefined => {
     const config = row.config as { path?: unknown; patches?: PatchOptions[]; initial?: EntryOptions[] } | undefined
     if (typeof config?.path !== 'string' || !['.yml', '.yaml', '.json'].includes(extname(config.path))) {
-      // A dynamic Include is resolved by the Include plugin itself; this walk cannot judge its rows.
+      // 一个动态的 Include 由 Include 插件自身解析；本次遍历无法判定它的行。
       return undefined
     }
     const requested = isAbsolute(config.path) ? config.path : fileURLToPath(new URL(config.path, base))
@@ -168,14 +168,14 @@ function preflight(
   return { rows, blocked: check(rows, parentURL) }
 }
 
-/** Apply compatibility policy to the complete patch composition over a profile's empty root.
- * The caller passes every patch layer of the profile, because this returns one insertion patch for
- * that empty root: a non-empty root config would lose the caller's override patches by id.
- * @param ctx Profile context prepared by the launcher.
- * @param patches Original ordered profile patches; these remain unchanged.
- * @param parentURL Root Include's resolution base.
- * @param binName Diagnostic prefix for a denied row; defaults to `dsh`.
- * @returns One prepared insertion patch for profiles, or the original patches for non-profile callers.
+/** 将兼容性策略应用到 profile 空根之上的完整补丁组合。
+ * 调用方传入 profile 的每一层补丁，因为本函数针对那个空根返回一条插入补丁：一个非空的
+ * 根配置会按 id 丢失调用方的覆盖补丁。
+ * @param ctx 由启动器准备好的 profile 上下文。
+ * @param patches 原始的、有序的 profile 补丁；它们保持不变。
+ * @param parentURL 根 Include 的解析基址。
+ * @param binName 针对被拒绝行的诊断前缀；默认为 `dsh`。
+ * @returns 针对 profile 的一条已准备好的插入补丁，或针对非 profile 调用方的原始补丁。
  */
 export function prepareProfilePatches(
   ctx: Context, patches: PatchOptions[], parentURL: string, binName = 'dsh',

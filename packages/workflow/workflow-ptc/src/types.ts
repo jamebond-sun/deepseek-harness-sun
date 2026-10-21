@@ -1,6 +1,6 @@
 /**
- * Workflow guest inputs and the child callbacks consumed by its VM helpers.
- * PTC transfers initialization data, requests and results as lossless JSON.
+ * workflow guest 的初始化输入，及其 VM 辅助函数所消费的子项回调。
+ * PTC 以无损 JSON 形式传输初始化数据、请求与结果。
  * @module @deepseek-ai/dsh-workflow-ptc/types
  */
 
@@ -9,82 +9,81 @@ import type { ObjectJsonSchema } from '@deepseek-ai/dsh-tools'
 import type { WorkflowMeta } from '@deepseek-ai/dsh-workflow'
 
 /**
- * Ordinary script limits enforced by the guest helpers.
+ * guest 辅助函数强制执行的普通脚本限额。
  */
 export interface WorkerLimits {
-  /** Concurrent `agent()` ceiling (already auto-resolved; ≥ 1). */
+  /** `agent()` 的并发上限（已自动解析；≥ 1）。 */
   maxConcurrentAgents: number
-  /** Total `agent()` calls per run (the runaway-loop backstop). */
+  /** 每次运行 `agent()` 调用总数（失控循环的兜底上限）。 */
   maxTotalAgents: number
-  /** Items accepted by one `parallel()`/`pipeline()` call. */
+  /** 一次 `parallel()`/`pipeline()` 调用所能接受的条目数。 */
   maxItemsPerCall: number
-  /** VM timeout for the script's initial synchronous slice. */
+  /** 脚本初始同步片段的 VM 超时。 */
   syncTimeoutMs: number
 }
 
-/** The initialization data returned by the host before the script runs. */
+/** 脚本运行前由宿主返回的初始化数据。 */
 export interface WorkerInit {
-  /** The validated meta block (plain data off the start request, validated host-side). */
+  /** 已校验的 meta 块（来自 start 请求的原始数据，在宿主侧校验）。 */
   meta: WorkflowMeta
-  /** The plain-JS script body, exactly as the start request carried it. */
+  /** 纯 JS 脚本正文，与 start 请求携带的完全一致。 */
   body: string
-  /** The run's `args` value, copied through the PTC JSON channel. */
+  /** 该运行的 `args` 值，经由 PTC JSON 通道复制而来。 */
   args?: unknown
-  /** The guest helper limits. */
+  /** guest 辅助函数的各项限额。 */
   limits: WorkerLimits
 }
 
-/** One `agent()` child request after the guest validates script options. */
+/** 在 guest 校验完脚本选项之后的一个 `agent()` 子项请求。 */
 export interface ChildStartRequest {
-  /** The child's prompt text. */
+  /** 子项的提示文本。 */
   prompt: string
-  /** The structured-output schema, if the call passed one (already subset-checked). */
+  /** 结构化输出 schema，若调用传入（已通过子集检查）。 */
   schema?: ObjectJsonSchema
-  /** The per-child provider override, if the call passed one. */
+  /** 逐子项的 provider 覆盖，若调用传入。 */
   provider?: string
-  /** The per-child model override, if the call passed one. */
+  /** 逐子项的 model 覆盖，若调用传入。 */
   model?: string
 }
 
 /**
- * The JSON projection of a child's `SubagentResult`. The
- * seam's `stopReason` union is merge-extensible, so it degrades to `string`
- * on the wire — the runtime only ever branches on `'completed'`.
+ * 子项 `SubagentResult` 的 JSON 投影。seam 的 `stopReason` 联合是
+ * 可合并扩展的，因此在线上退化为 `string` —— 运行时只对 `'completed'`
+ * 进行分支判断。
  */
 export interface ChildResult {
-  /** The child's final assistant output blocks. */
+  /** 子项最终的助手输出块。 */
   output: ContentBlock[]
-  /** The structured value, present iff the request carried a schema AND the provider honored it. */
+  /** 结构化值，当且仅当请求携带了 schema 且 provider 兑现了它时存在。 */
   structured?: unknown
-  /** Why the child run ended (`'completed'` is the only value the runtime branches on). */
+  /** 子项运行为何结束（`'completed'` 是运行时唯一会分支判断的值）。 */
   stopReason: string
 }
 
 /**
- * The guest handle for one published child, reduced to what the VM helpers consume.
+ * 一个已发布子项的 guest 句柄，简化为 VM 辅助函数所消费的形态。
  */
 export interface ChildHandle {
-  /** The child agent's id (minted host-side by the subagent seam). */
+  /** 子代理的 id（由子代理 seam 在宿主侧生成）。 */
   readonly id: string
   /**
-   * Resolves with the child's terminal {@link ChildResult}; REJECTS only when
-   * the host reports an infrastructure fault; a child that
-   * failed for its own reasons resolves with a non-`completed` stop reason.
+   * 解析为该子项的终结 {@link ChildResult}；仅当宿主报告
+   * 基础设施故障时才 REJECT；一个因自身原因失败的子项会以非
+   * `completed` 的结束原因解析。
    */
   readonly result: Promise<ChildResult>
-  /** Ask the host to dispose the child; resolves on the host's ack. */
+  /** 请求宿主释放该子项；在宿主确认后解析。 */
   dispose(): Promise<void>
 }
 
 /**
- * Child callbacks independent of the PTC transport.
+ * 与 PTC 传输无关的的子项回调。
  */
 export interface ChildPort {
   /**
-   * Start one child agent on the host (the `agent()` hook's start half).
-   * @param request - the prompt and validated options.
-   * @returns the published child handle; rejects when synchronous start or the
-   *   provider's asynchronous start fails.
+   * 在宿主上启动一个子代理（即 `agent()` 钩子的“启动”半程）。
+   * @param request - 提示与已校验的选项。
+   * @returns 已发布的子项句柄；当同步启动或 provider 的异步启动失败时 reject。
    */
   startAgent(request: ChildStartRequest): Promise<ChildHandle>
 }

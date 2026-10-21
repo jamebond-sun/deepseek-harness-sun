@@ -1,19 +1,17 @@
 /**
- * Heuristic composition of the current retained surface, independent of route
- * image pricing and provider usage. The state keeps the surviving system
- * prompts in surface order and one running surface total; every other node is
- * priced only as a delta, so state size follows the system prompts, not the
- * message count.
+ * 当前保留表面的启发式构成，与路由图像定价和提供方用量无关。
+ * 该状态按表面顺序保存存活的系统提示，外加一个滚动的表面总计；
+ * 其余每个节点只按增量计价，因此状态规模随系统提示而非消息数量增长。
  */
 
 import { z } from 'zod'
 import { canonicalHeader, deriveEventMessage, isSurfaceEvent, SessionSeq } from '@deepseek-ai/dsh-session'
 import type { SurfaceEvent } from '@deepseek-ai/dsh-session'
 import type { ProjectionDefinition } from '@deepseek-ai/dsh-session-projection'
-// Type-only: the `compaction/*` SessionEventMap merges (shadow-price events).
+// 仅类型：那些 `compaction/*` SessionEventMap 合并（影子价格事件）。
 import type {} from '@deepseek-ai/dsh-compaction'
 import { estimateMessage, estimateToolsTokens } from './estimate.ts'
-// Import for the `contextBreakdown` SessionProjectionStateMap key merge.
+// 为 `contextBreakdown` SessionProjectionStateMap 键合并而导入。
 import type {} from './projection.ts'
 
 declare module '@deepseek-ai/dsh-session-projection/types' {
@@ -31,16 +29,16 @@ const breakdownSchema = z.object({
   messageTokens: tokenCount,
 }).strict()
 
-/** One surviving `system/message` node and its heuristic price. */
+/** 一个存活的 `system/message` 节点及其启发式价格。 */
 const systemNodeSchema = z.object({
   seq: sessionSeq,
   tokens: tokenCount,
 }).strict()
 
 /**
- * Shadow price armed by the `compaction/summary` or `compaction/prune` event
- * immediately before a replacement: the replaced range, its heuristic price,
- * and the surviving system prompts inside it.
+ * 紧邻一次替换之前由 `compaction/summary` 或 `compaction/prune`
+ * 事件装备的影子价格：被替换的区间、它的启发式价格，
+ * 以及该区间内存活的系统提示。
  */
 const claimSchema = z.object({
   start: sessionSeq,
@@ -49,7 +47,7 @@ const claimSchema = z.object({
   systemSeqs: z.array(sessionSeq),
 }).strict()
 
-/** Plain-JSON checkpoint: surviving system prompts in surface order, the surface total, and an armed claim. */
+/** 纯 JSON 检查点：按表面顺序排列的存活系统提示、表面总计，以及一个已装备的声明。 */
 const contextBreakdownStateSchema = z.object({
   systems: z.array(systemNodeSchema),
   surfaceTokens: tokenCount,
@@ -60,21 +58,21 @@ type ContextBreakdownState = z.infer<typeof contextBreakdownStateSchema>
 type SystemNode = ContextBreakdownState['systems'][number]
 type BreakdownClaim = z.infer<typeof claimSchema>
 
-/** The system prompts and surface total after one surface event. */
+/** 一个表面事件之后的系统提示与表面总计。 */
 interface SurfaceTotals {
   readonly systems: SystemNode[]
   readonly surfaceTokens: number
 }
 
 /**
- * Place one surface event's priced node.
- * @param state - state before the event, without its armed claim.
- * @param claim - shadow price armed by the immediately preceding event, if any.
- * @param event - the surface event.
- * @param tokens - the event message's heuristic price.
- * @returns the system prompts and surface total after the event.
- * @throws when a metered replacement names another range than its claim, or
- *   puts a system message in place of a metered range.
+ * 放置一个表面事件的已计价节点。
+ * @param state - 该事件之前的状态，不含其已装备的声明。
+ * @param claim - 由紧邻的上一个事件装备的影子价格，若有。
+ * @param event - 该表面事件。
+ * @param tokens - 该事件消息的启发式价格。
+ * @returns 该事件之后的系统提示与表面总计。
+ * @throws 当一次已计量的替换指名了与其声明不同的区间，
+ *   或把一个系统消息放在一个已计量区间的位置上时。
  */
 function placeSurfaceEvent(
   state: ContextBreakdownState,
@@ -110,8 +108,8 @@ function placeSurfaceEvent(
   const index = op.startSeq === op.endSeq ? state.systems.findIndex(system => system.seq === op.startSeq) : -1
   const replaced = state.systems[index]
   if (replaced === undefined) {
-    // Bounded state cannot price an unmetered non-system range, so it folds at
-    // zero delta; current producers meter every such replacement.
+    // 有界状态无法为一个未计量的非系统区间定价，因此它以零增量折叠；
+    // 当前的生产者会为每一个这样的替换计量。
     return { systems: state.systems, surfaceTokens: state.surfaceTokens }
   }
   return {
@@ -120,7 +118,7 @@ function placeSurfaceEvent(
   }
 }
 
-/** Publish totals, keeping the previous breakdown object when its figures are unchanged. */
+/** 发布各项总计；当各个数值未发生变化时保留前一个分解对象。 */
 function withTotals(state: ContextBreakdownState, totals: SurfaceTotals): ContextBreakdownState {
   const surfaceTokens = Math.max(0, totals.surfaceTokens)
   const systemTokens = totals.systems.findLast(system => system.tokens > 0)?.tokens ?? 0
@@ -131,7 +129,7 @@ function withTotals(state: ContextBreakdownState, totals: SurfaceTotals): Contex
   return { ...state, systems: totals.systems, surfaceTokens, breakdown }
 }
 
-/** Drop an armed claim; the state is returned unchanged when none is armed. */
+/** 丢弃一个已装备的声明；当没有装备任何声明时，状态原样返回。 */
 function withoutClaim(state: ContextBreakdownState): ContextBreakdownState {
   if (state.claim === undefined) return state
   const { claim: _expired, ...unclaimed } = state
@@ -139,13 +137,12 @@ function withoutClaim(state: ContextBreakdownState): ContextBreakdownState {
 }
 
 /**
- * Context composition with the last nonempty surviving system in surface
- * order classified as system tokens; all other visible prices are messages.
- * Appends add their price; a replacement subtracts the shadow price of the
- * adjacent `compaction/summary` or `compaction/prune` event, whose
- * `shadowedSeqs` also name the system prompts it removes, and a system-prompt
- * rewrite subtracts the retained price of the system node it replaces. Tools
- * are priced from the latest request header. No route pricing applies.
+ * 上下文构成：表面顺序上最后一个非空且存活的系统被分类为系统令牌；
+ * 其余所有可见价格都是消息。追加会加上它自己的价格；一次替换会减去
+ * 相邻的 `compaction/summary` 或 `compaction/prune` 事件的影子价格，
+ * 该事件的 `shadowedSeqs` 还指名了它所移除的系统提示；而一次系统提示
+ * 重写会减去它所替换的那个系统节点保留下来的价格。工具按最新的请求头计价。
+ * 没有任何路由定价参与。
  */
 export const contextBreakdownProjectionDefinition = {
   key: 'contextBreakdown',
@@ -169,7 +166,7 @@ export const contextBreakdownProjectionDefinition = {
         },
       }
     }
-    // A claim prices only the event immediately after its metering event.
+    // 一个声明只为其计量事件之后的那个紧邻事件计价。
     const unclaimed = withoutClaim(state)
     if (event.type === 'request/header') {
       const toolsTokens = estimateToolsTokens(canonicalHeader(event.data.header))

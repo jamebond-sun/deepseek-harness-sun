@@ -1,15 +1,15 @@
-/** Evaluate plugin dsh requirements (`engines.dsh`, else dsh peers) without importing plugin code. */
+/** 在不导入插件代码的前提下，评估插件的 dsh 要求（`engines.dsh`，否则 dsh peer）。 */
 
 import fs from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import semver from 'semver'
 
-/** Unmet dsh requirements and the exact plugin/runtime exemption decision. */
+/** 未满足的 dsh 要求，以及确切的插件/运行时豁免判定。 */
 export interface PluginCompatibility {
   name: string
   version: string
   runtimeVersion: string
-  /** Only requirements the running dsh version does not satisfy: `engines.dsh`, or dsh peer package names. */
+  /** 只有运行中 dsh 版本不满足的要求：`engines.dsh`，或 dsh peer 包名。 */
   requirements: Record<string, string>
   exempted: boolean
 }
@@ -37,12 +37,12 @@ function identityField(manifest: Record<string, unknown>, field: 'name' | 'versi
 }
 
 /**
- * Read this app-boot package's version in both source and bundled installations.
- * @returns the validated runtime semantic version, preserving its exact spelling.
- * @throws if package.json cannot be read or its version is missing or invalid.
+ * 在源码安装与打包安装两种情况下读取本 app-boot 包的版本。
+ * @returns 经过校验的运行时语义版本，保留其确切拼写。
+ * @throws 当 package.json 无法读取，或其版本缺失或无效时。
  */
 export function getDshRuntimeVersion(): string {
-  // The executable's virtual filesystem intercepts string paths, not URL arguments.
+  // 可执行文件的虚拟文件系统拦截字符串路径，而非 URL 参数。
   const filename = fileURLToPath(new URL('../package.json', import.meta.url))
   const manifest = objectOf(JSON.parse(fs.readFileSync(filename, 'utf8')), 'app-boot package.json')
   return runtimeVersionOf(Object.hasOwn(manifest, 'version') ? manifest.version : undefined)
@@ -74,15 +74,15 @@ function unmetRequirements(fields: Record<string, unknown>, runtimeVersion: stri
 }
 
 /**
- * Check the plugin's dsh requirements against the runtime. An own `engines.dsh` range decides alone and
- * peerDependencies are ignored; otherwise every @deepseek-ai/dsh or @deepseek-ai/dsh-* peer must match.
- * Prereleases participate in ranges. For peers only, workspace:^, workspace:~, and workspace:* refer to
- * the current runtime; other empty or invalid ranges, including any workspace: `engines.dsh`, are unmet.
- * @param manifest - parsed plugin package.json; inherited fields are ignored.
- * @param exemptions - exact plugin name@version keys mapped to exact runtime versions.
- * @param runtimeVersion - running dsh version, defaulting to this app-boot package.
- * @returns unmet requirements and exemption status, or undefined when every requirement is met.
- * @throws for malformed manifest engines or peer fields, invalid runtime versions, or missing identity on a mismatch.
+ * 检查插件的 dsh 要求是否满足运行时。自身的 `engines.dsh` 范围单独决定，并忽略 peerDependencies；
+ * 否则每一个 @deepseek-ai/dsh 或 @deepseek-ai/dsh-* peer 都必须匹配。预发布版本参与范围匹配。
+ * 仅就 peer 而言，workspace:^、workspace:~ 与 workspace:* 指代当前运行时；其它空的或无效的范围，
+ * 包括任何 workspace: `engines.dsh`，都视为未满足。
+ * @param manifest - 已解析的插件 package.json；被继承的字段会被忽略。
+ * @param exemptions - 映射到确切运行时版本的、确切的插件 name@version 键。
+ * @param runtimeVersion - 运行中的 dsh 版本，默认取本 app-boot 包。
+ * @returns 未满足的要求与豁免状态；当每条要求都满足时为 undefined。
+ * @throws 当清单的 engines 或 peer 字段畸形、运行时版本无效，或在失配时缺失身份时抛出。
  */
 export function evaluatePluginCompatibility(
   manifest: object,
@@ -102,10 +102,10 @@ export function evaluatePluginCompatibility(
 }
 
 /**
- * Describe unmet requirements, their risk, and the exact-version remedy.
- * Surfaces with their own grant mechanism or locale render the structured result themselves.
- * @param issue - incompatible plugin/runtime result, including exempted mismatches.
- * @returns an English diagnostic for logs and stderr.
+ * 描述未满足的要求、其风险，以及确切版本的补救办法。
+ * 拥有自身授予机制或区域设置的界面会自行渲染结构化结果。
+ * @param issue - 不兼容的插件/运行时结果，包括被豁免的不匹配。
+ * @returns 一条用于日志与 stderr 的英文诊断。
  */
 export function pluginCompatibilityWarning(issue: PluginCompatibility): string {
   const key = `${issue.name}@${issue.version}`

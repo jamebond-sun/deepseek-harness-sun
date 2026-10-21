@@ -1,18 +1,18 @@
-/** Minimal native thinking metadata; durable Harness blocks own all response text. */
+/** 最小化的原生 thinking 元数据；持久化的 Harness 块持有全部响应文本。 */
 
 import { LlmError } from '@deepseek-ai/dsh-llm'
 import type { Message, ReplayEnvelope } from '@deepseek-ai/dsh-llm'
 
-/** Index-aligned metadata retained alongside each emitted Harness block. */
+/** 与每个已发出的 Harness 块一起保留的、按索引对齐的元数据。 */
 export interface ReplayBlock {
   type: 'text' | 'reasoning' | 'tool-call'
   signature?: string
 }
 
-/** Reject malformed JSON objects at provider and durable-data reads.
- * @param value - untrusted decoded JSON.
- * @param code - owning failure category.
- * @returns the validated object.
+/** 在读取提供方数据与持久化数据时拒绝格式错误的 JSON 对象。
+ * @param value - 不可信的已解码 JSON。
+ * @param code - 所属的失败类别。
+ * @returns 已校验的对象。
  */
 export function object(value: unknown, code = 'MALFORMED_RESPONSE'): Record<string, unknown> {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
@@ -21,24 +21,24 @@ export function object(value: unknown, code = 'MALFORMED_RESPONSE'): Record<stri
   return value as Record<string, unknown>
 }
 
-/** Construct response metadata without duplicating the assistant text.
- * @param model - requested model identity.
- * @param blocks - metadata in emitted block order.
- * @returns the versioned envelope persisted by the existing assembler.
+/** 构造响应元数据，且不重复助手文本。
+ * @param model - 被请求的模型身份。
+ * @param blocks - 按已发出块顺序排列的元数据。
+ * @returns 由现有组装器持久化的、带版本号的信封。
  */
 export function replayState(model: string, blocks: ReplayBlock[]): ReplayEnvelope {
   return { response: { kind: 'deepseek-messages', version: 1, model }, blocks }
 }
 
-/** Validate native replay, discarding unusable metadata before serializing durable content.
- * @param message - durable assistant content and source metadata.
- * @param model - target model; cross-model signatures are not portable.
- * @param onDegrade - diagnostic for unusable metadata; receives no message content or signatures.
- * @returns index-aligned metadata, absent for foreign, cross-model or degraded history.
+/** 校验原生回放，在序列化持久化内容之前丢弃不可用的元数据。
+ * @param message - 持久化的助手内容与来源元数据。
+ * @param model - 目标模型；跨模型的签名不可移植。
+ * @param onDegrade - 针对不可用元数据的诊断；不会收到消息内容或签名。
+ * @returns 按索引对齐的元数据；对于外来的、跨模型的或已降级的历史则为缺失。
  */
 export function readReplay(message: Message, model: string, onDegrade?: (reason: string) => void): ReplayBlock[] | undefined {
   try { return validateReplay(message, model) } catch (error) {
-    /* v8 ignore next -- the validator only throws INVALID_REPLAY_STATE; preserve future non-replay failures. */
+    /* v8 ignore next -- 校验器只会抛出 INVALID_REPLAY_STATE；保留未来的非回放失败。 */
     if (!(error instanceof LlmError) || error.code !== 'INVALID_REPLAY_STATE') throw error
     onDegrade?.(error.message)
     return undefined

@@ -1,8 +1,8 @@
 /**
- * Model-facing `schedule_create`, `schedule_list`, `schedule_update`, and
- * `schedule_delete` tools over the Host `ctx.schedule` service. Mounting the
- * plugin registers them in the mounting scope, so a preset decides which
- * agents receive them; every call acts on the calling Agent's Session.
+ * 位于 Host `ctx.schedule` 服务之上、面向模型的 `schedule_create`、
+ * `schedule_list`、`schedule_update` 与 `schedule_delete` 工具。
+ * 挂载该插件会在挂载作用域中注册它们，因此由 preset 决定哪些 agent
+ * 获得它们；每次调用都作用于发起调用的 Agent 的 Session。
  * @module @deepseek-ai/dsh-tool-schedule
  */
 
@@ -20,12 +20,11 @@ import type {
   ScheduleListValue, ScheduleTimingChange, ScheduleToolError, ScheduleUpdateValue,
 } from '@deepseek-ai/dsh-schedule'
 
-/** Plugin name registered with the Loader. */
+/** 注册到 Loader 的插件名。 */
 export const name = 'tool-schedule'
 
-/** Host services this plugin consumes. The Schedule service is resolved per
- * scope, so a preset that declares this plugin stays inert while the shipped
- * composition keeps that service off. */
+/** 本插件消费的 Host 服务。Schedule 服务按作用域解析，因此当交付的组合
+ * 关闭该服务时，一个声明了本插件的 preset 会保持不起作用。 */
 export const inject = ['tools']
 
 const SHARED_VIEW_PROPERTIES = {
@@ -106,7 +105,7 @@ const VIEW_SCHEMA = {
   ],
 } as const
 
-/** Build one exact two-field error schema while preserving its literal code. */
+/** 构造一个精确的双字段错误 schema，同时保留其字面量 code。 */
 function basicErrorSchema<const C extends string>(code: C) {
   return {
     type: 'object',
@@ -203,41 +202,40 @@ const CREATE_TITLE_DESCRIPTION =
   + 'Do not append parenthetical notes. '
   + 'Put scheduling information in the timing parameters and execution instructions in prompt.'
 
-/** Deterministic model content for every canonical Schedule value. */
+/** 为每个规范 Schedule 值生成确定性的模型内容。 */
 function renderValue(_args: unknown, value: unknown): ContentBlock[] {
-  // The ToolRuntime has already validated the value against the lossless-JSON output schema.
+  // ToolRuntime 已经针对无损 JSON 输出 schema 校验过该值。
   const text = JSON.stringify(value)
   return [{ type: 'text', text }]
 }
 
-/** Pure generic pending card. */
+/** 纯的通用待处理卡片。 */
 function present(title: string, kind: 'read' | 'other', rawInput?: unknown): GenericCallView {
   return { card: 'generic', title, kind, ...rawInput === undefined ? {} : { rawInput } }
 }
 
-/** Stable error for failures not safe to expose. */
+/** 针对不宜暴露的失败所返回的稳定错误。 */
 function internalError(): InternalScheduleError {
   return { code: 'internal_error', message: 'The schedule operation failed.' }
 }
 
-/** Translate invalid input while withholding internal storage failures. */
+/** 转译非法输入，同时隐瞒内部存储失败。 */
 function operationError(error: unknown): ScheduleToolError {
   return error instanceof ScheduleInputError ? { code: error.code, message: error.message } : internalError()
 }
 
 /**
- * Refuse a caller that is a delegated child. A subagent cannot use reminders at
- * all, so every tool rejects before dispatch instead of relying on the mounting
- * preset's tool filter alone.
- * @param agent - the calling agent, when the outer call has one.
- * @returns the stable refusal, or undefined for a top-level caller.
+ * 拒绝一个作为被委派子级的调用方。subagent 根本不能使用提醒，
+ * 因此每个工具都在派发之前拒绝，而不是只依赖挂载 preset 的工具过滤。
+ * @param agent - 外层调用存在时的发起调用 agent。
+ * @returns 稳定的拒绝，或对顶层调用方返回 undefined。
  */
 function subagentCallerRefusal(agent: Agent | undefined): ScheduleToolError | undefined {
   if (agent === undefined || delegationDepthOf(agent) === 0) return undefined
   return { code: 'subagent_session', message: 'A delegated subagent cannot use reminders.' }
 }
 
-/** One supplied fixed-rate interval: a safe integer at or above the Host floor, or undefined. */
+/** 校验所提供的固定频率间隔：不低于 Host 下限的安全整数，或 undefined。 */
 function invalidInterval(everySeconds: number | undefined): ScheduleToolError | undefined {
   if (everySeconds === undefined) return undefined
   if (!Number.isSafeInteger(everySeconds)) {
@@ -252,7 +250,7 @@ function invalidInterval(everySeconds: number | undefined): ScheduleToolError | 
   return undefined
 }
 
-/** Validate selector constraints that the open parameter root cannot express. */
+/** 校验开放参数根无法表达的选择器约束。 */
 function validateCreateArgs(args: {
   prompt: string
   title: string
@@ -299,7 +297,7 @@ function validateCreateArgs(args: {
   return invalidInterval(args.every_seconds)
 }
 
-/** Validate the in-place update's selector count, id, and any supplied name, instruction, or interval. */
+/** 校验原地更新的选择器数量、id，以及任何提供的名称、指令或间隔。 */
 function validateUpdateArgs(args: {
   id: string
   title?: string
@@ -352,7 +350,7 @@ function validateUpdateArgs(args: {
   return invalidInterval(args.every_seconds)
 }
 
-/** The one timing replacement the update carries, or undefined when the request keeps the committed target. */
+/** 本次更新所携带的那一个定时替换；当请求保留已提交目标时为 undefined。 */
 function timingChangeFrom(args: {
   at?: AtInput
   every_seconds?: number
@@ -369,8 +367,8 @@ function timingChangeFrom(args: {
 }
 
 /**
- * Selector parameters shared by `schedule_create` and `schedule_update`, in the order the
- * generated tool catalog states them.
+ * `schedule_create` 与 `schedule_update` 共享的选择器参数，
+ * 按生成的工具目录所声明的顺序排列。
  */
 const SELECTOR_PARAMETERS = {
   every_seconds: {
@@ -433,21 +431,19 @@ const SELECTOR_PARAMETERS = {
 } as const
 
 /**
- * Register the four Schedule tools in the mounting scope.
+ * 在挂载作用域中注册四个 Schedule 工具。
  *
- * Each call mutates the Session of the Agent that dispatched it, so a mount
- * outside an agent scope still registers the tools but every call without a
- * caller Agent is refused as an internal failure.
- * @param ctx - Context owning the `tools` registry and the Host `schedule` service.
+ * 每次调用都会改动派发它的 Agent 的 Session，因此在 agent 作用域之外挂载
+ * 仍然会注册这些工具，但每次没有调用方 Agent 的调用都会作为内部失败被拒绝。
+ * @param ctx - 持有 `tools` 注册表与 Host `schedule` 服务的 Context。
  */
 export function apply(ctx: Context): void {
   ctx.inject(['schedule'], (scheduleCtx) => { registerScheduleTools(scheduleCtx) })
 }
 
 /**
- * Register the four reminder tools in the scope that resolved the Schedule
- * service.
- * @param ctx - Scope whose `schedule` service the tools act through.
+ * 在解析出 Schedule 服务的那个作用域中注册四个提醒工具。
+ * @param ctx - 工具通过它来操作 `schedule` 服务的作用域。
  */
 function registerScheduleTools(ctx: Context): void {
   ctx.tools.register(defineTool({
@@ -565,8 +561,8 @@ function registerScheduleTools(ctx: Context): void {
         const expected = (await ctx.schedule.list({ sessionId }))
           .find(record => record.id === id)
         if (expected === undefined) {
-          // The catalog also holds inactive reminders, which is the one not-found
-          // case the model can act on: it has to create a new reminder instead.
+          // 目录里也包含已停用的提醒，这正是模型可以采取行动的那一种
+          // 未找到情况：它必须改为创建一个新的提醒。
           const ended = (await ctx.schedule.catalog())
             .some(entry => entry.sessionId === sessionId && entry.id === id)
           return { id, updated: false, code: ended ? 'schedule_ended' : 'schedule_not_found' }

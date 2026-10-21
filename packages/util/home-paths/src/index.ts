@@ -1,5 +1,5 @@
 /**
- * Shared filesystem path helpers for DeepSeek Harness user data.
+ * DeepSeek Harness 用户数据的共享文件系统路径辅助工具。
  *
  * @module @deepseek-ai/dsh-home-paths
  */
@@ -8,36 +8,33 @@ import { opendir, realpath } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { basename, dirname, join, resolve } from 'node:path'
 
-/** Directory name for the default DeepSeek Harness home under the OS home. */
+/** 操作系统主目录下默认 DeepSeek Harness home 的目录名。 */
 export const DSH_HOME_DIR_NAME = '.dsh'
 
-/** Stable user-facing display form for the default DeepSeek Harness home. */
+/** 默认 DeepSeek Harness home 的稳定、面向用户的显示形式。 */
 export const DEFAULT_DSH_HOME_DISPLAY = `~/${DSH_HOME_DIR_NAME}`
 
-/** Environment variable that overrides the default DeepSeek Harness home. */
+/** 覆盖默认 DeepSeek Harness home 的环境变量。 */
 export const DSH_HOME_ENV = 'DSH_HOME'
 
-/** Directory name for the default shared agent configuration root under the OS home. */
+/** 操作系统主目录下默认共享 agent 配置根的目录名。 */
 export const AGENTS_HOME_DIR_NAME = '.agents'
 
-/** Stable user-facing display form for the default shared agent configuration root. */
+/** 默认共享 agent 配置根的稳定、面向用户的显示形式。 */
 export const DEFAULT_AGENTS_HOME_DISPLAY = `~/${AGENTS_HOME_DIR_NAME}`
 
-/** Environment variable that overrides the default shared agent configuration root. */
+/** 覆盖默认共享 agent 配置根的环境变量。 */
 export const AGENTS_HOME_ENV = 'DSH_AGENTS_HOME'
 
 /**
- * Give a native filesystem watcher one canonical spelling of a path, even
- * when its final components do not exist yet. The deepest existing ancestor
- * is resolved through {@link realpath}; when a suffix is missing, that
- * ancestor is also proved to be an enumerable directory before the suffix is
- * restored. This prevents Windows from treating a regular-file ancestor as
- * ordinary absence, and prevents short-name aliases from being mixed with
- * long paths emitted by the native watcher backend.
- * @param path - Watch target or root, resolved against the current directory.
- * @returns the target with its existing ancestor canonicalized.
- * @throws when ancestor traversal encounters an error other than absence, or
- * the existing ancestor of a missing suffix is not an enumerable directory.
+ * 为原生文件系统监视器提供一个路径的唯一规范拼写，即使其最终组成部分
+ * 尚不存在。最深层的已存在祖先通过 {@link realpath} 解析；当某个后缀缺失
+ * 时，在恢复该后缀之前，也会先证明该祖先是一个可枚举目录。这能防止
+ * Windows 将作为父目录的普通文件当作普通的缺失，并防止短名称别名与原生
+ * 监视器后端发出的长路径混在一起。
+ * @param path - 监视目标或根，相对于当前目录解析。
+ * @returns 现有祖先被规范化后的目标。
+ * @throws 当祖先遍历遇到除缺失以外的错误，或缺失后缀的现有祖先不是可枚举目录时。
  */
 export async function canonicalizeWatchPath(path: string): Promise<string> {
   let current = resolve(path)
@@ -46,8 +43,8 @@ export async function canonicalizeWatchPath(path: string): Promise<string> {
     try {
       const canonical = await realpath(current)
       if (missing.length > 0) {
-        // A Windows file-as-parent probe reports ENOENT. Opening the resolved
-        // ancestor preserves the cross-platform directory requirement.
+        // Windows 以文件作为父目录的探测会报告 ENOENT。打开已解析的祖先
+        // 可保留跨平台的目录要求。
         const directory = await opendir(canonical)
         await directory.close()
       }
@@ -55,7 +52,7 @@ export async function canonicalizeWatchPath(path: string): Promise<string> {
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
       const parent = dirname(current)
-      /* v8 ignore next -- a filesystem root exists, so traversal resolves before this guard */
+      /* v8 ignore next -- 文件系统根必然存在，因此遍历会在该守卫前就解析完成 */
       if (parent === current) throw error
       missing.push(basename(current))
       current = parent
@@ -64,25 +61,25 @@ export async function canonicalizeWatchPath(path: string): Promise<string> {
 }
 
 /**
- * Resolve the default DeepSeek Harness home using Node's platform path rules.
- * @returns the absolute default harness home path.
+ * 使用 Node 的平台路径规则解析默认的 DeepSeek Harness home。
+ * @returns 绝对路径形式的默认 harness home。
  */
 export function defaultDshHome(): string {
   return join(homedir(), DSH_HOME_DIR_NAME)
 }
 
 /**
- * Resolve the default shared agent configuration root using Node's platform path rules.
- * @returns the absolute default shared agent configuration root.
+ * 使用 Node 的平台路径规则解析默认的共享 agent 配置根。
+ * @returns 绝对路径形式的默认共享 agent 配置根。
  */
 export function defaultAgentsHome(): string {
   return join(homedir(), AGENTS_HOME_DIR_NAME)
 }
 
 /**
- * Expand supported tilde prefixes against the operating-system home.
- * @param path - configured path that may begin with `~`, `~/`, or `~\`.
- * @returns the expanded path, or the original value when no supported prefix is present.
+ * 根据操作系统主目录展开受支持的波浪号前缀。
+ * @param path - 可能以 `~`、`~/`、`~\` 开头的配置路径。
+ * @returns 展开后的路径，或当不存在受支持前缀时的原值。
  */
 export function expandHomePath(path: string): string {
   if (path === '~') return homedir()
@@ -91,12 +88,12 @@ export function expandHomePath(path: string): string {
 }
 
 /**
- * Resolve one user-data root from an explicit path, an environment override, and a default.
- * @param configured - explicit path, which has highest precedence.
- * @param env - environment mapping to read.
- * @param envName - environment variable that overrides the default.
- * @param fallback - default root, used when neither the explicit path nor the environment provides one.
- * @returns the normalized absolute root.
+ * 由显式路径、环境覆盖和默认值三者中解析一个用户数据根。
+ * @param configured - 显式路径，优先级最高。
+ * @param env - 待读取的环境映射。
+ * @param envName - 覆盖默认值的环境变量。
+ * @param fallback - 默认根，当显式路径与环境均未提供时使用。
+ * @returns 规范化后的绝对根。
  */
 function resolveRoot(
   configured: string | undefined,
@@ -110,62 +107,60 @@ function resolveRoot(
 }
 
 /**
- * Label one resolved user-data root symbolically for user-facing display.
- * @param resolvedRoot - absolute path returned by the matching resolver.
- * @param defaultRoot - absolute default root whose symbolic label applies to a match.
- * @param defaultLabel - symbolic label for the default root.
- * @param envName - environment variable name that labels any other root.
- * @returns the symbolic label.
+ * 以符号形式标注一个已解析的用户数据根，用于面向用户的显示。
+ * @param resolvedRoot - 匹配解析器返回的绝対路径。
+ * @param defaultRoot - 其符号标签适用于匹配的默认绝对根。
+ * @param defaultLabel - 默认根的符号标签。
+ * @param envName - 用于标注任何其他根的环境变量名。
+ * @returns 符号标签。
  */
 function rootDisplay(resolvedRoot: string, defaultRoot: string, defaultLabel: string, envName: string): string {
   return resolvedRoot === resolve(defaultRoot) ? defaultLabel : `$${envName}`
 }
 
 /**
- * Resolve the single-root DeepSeek Harness home.
+ * 解析单根的 DeepSeek Harness home。
  *
- * Precedence, highest first: an explicit configured path, `$DSH_HOME`, then
- * `~/.dsh`. The harness keeps all user data under one root. An empty or
- * whitespace-only `$DSH_HOME` is treated as unset, so a blank override never
- * resolves the home to the current working directory.
- * @param configured - explicit harness-home override, which has highest precedence.
- * @param env - environment mapping used to read `DSH_HOME`.
- * @returns the normalized absolute harness home path.
+ * 优先级由高到低：显式配置路径、`$DSH_HOME`，然后 `~/.dsh`。harness 将所有
+ * 用户数据置于一个根之下。为空或仅含空白的 `$DSH_HOME` 视为未设置，因此
+ * 一个空白覆盖永远不会将 home 解析为当前工作目录。
+ * @param configured - 显式 harness home 覆盖，优先级最高。
+ * @param env - 用于读取 `DSH_HOME` 的环境映射。
+ * @returns 规范化后的绝对 harness home 路径。
  */
 export function resolveDshHome(configured?: string, env: Record<string, string | undefined> = process.env): string {
   return resolveRoot(configured, env, DSH_HOME_ENV, defaultDshHome)
 }
 
 /**
- * Resolve the shared agent configuration root.
+ * 解析共享 agent 配置根。
  *
- * Precedence, highest first: an explicit configured path, `$DSH_AGENTS_HOME`,
- * then `~/.agents`. The root holds configuration shared with other agent tools,
- * so it stays independent of the DeepSeek Harness home. An empty or
- * whitespace-only `$DSH_AGENTS_HOME` is treated as unset, so a blank override
- * never resolves the root to the current working directory.
- * @param configured - explicit shared-root override, which has highest precedence.
- * @param env - environment mapping used to read `DSH_AGENTS_HOME`.
- * @returns the normalized absolute shared agent configuration root.
+ * 优先级由高到低：显式配置路径、`$DSH_AGENTS_HOME`，然后 `~/.agents`。该
+ * 根持有与其他 agent 工具共享的配置，因此它独立于 DeepSeek Harness home。
+ * 为空或仅含空白的 `$DSH_AGENTS_HOME` 视为未设置，因此一个空白覆盖永远
+ * 不会将该根解析为当前工作目录。
+ * @param configured - 显式共享根覆盖，优先级最高。
+ * @param env - 用于读取 `DSH_AGENTS_HOME` 的环境映射。
+ * @returns 规范化后的绝对共享 agent 配置根。
  */
 export function resolveAgentsHome(configured?: string, env: Record<string, string | undefined> = process.env): string {
   return resolveRoot(configured, env, AGENTS_HOME_ENV, defaultAgentsHome)
 }
 
 /**
- * Join path segments onto the resolved DeepSeek Harness home.
- * @param segments - path segments appended to the Harness home; an empty list returns the home itself.
- * @returns the normalized absolute joined path.
+ * 将路径段拼接至已解析的 DeepSeek Harness home。
+ * @param segments - 追加到 Harness home 之后的路径段；空列表返回 home 本身。
+ * @returns 规范化后的绝对拼接路径。
  */
 export function dshHomePath(...segments: string[]): string {
   return join(resolveDshHome(), ...segments)
 }
 
 /**
- * Join path segments onto the resolved Harness home's `cache` directory without creating it; no arguments returns the directory itself.
- * @param optionsOrSegment - explicit home override, or the first path segment; omission uses the default home resolution.
- * @param segments - additional path segments after the first child, if any.
- * @returns the normalized absolute cache path.
+ * 将路径段拼接至已解析 Harness home 的 `cache` 目录（不创建它）；无参数时返回该目录本身。
+ * @param optionsOrSegment - 显式 home 覆盖，或第一个路径段；省略时使用默认 home 解析。
+ * @param segments - 首个子项之后的额外路径段（若有）。
+ * @returns 规范化后的绝对缓存路径。
  */
 export function dshCachePath(optionsOrSegment: { dshHome?: string } | string = {}, ...segments: string[]): string {
   if (typeof optionsOrSegment === 'string') return dshHomePath('cache', optionsOrSegment, ...segments)
@@ -173,24 +168,24 @@ export function dshCachePath(optionsOrSegment: { dshHome?: string } | string = {
 }
 
 /**
- * Describe a resolved harness home symbolically for user-facing display.
+ * 以符号形式描述一个已解析的 harness home，用于面向用户的显示。
  *
- * It never returns an absolute machine path: the default home is labelled
- * `~/.dsh`, and any configured home is labelled `$DSH_HOME`.
- * @param resolvedHome - the absolute path returned by {@link resolveDshHome}.
- * @returns `~/.dsh` for the default home, otherwise `$DSH_HOME`.
+ * 它从不返回绝对机器路径：默认 home 标注为 `~/.dsh`，任何已配置的 home
+ * 标注为 `$DSH_HOME`。
+ * @param resolvedHome - {@link resolveDshHome} 返回的绝対路径。
+ * @returns 默认 home 为 `~/.dsh`，否则为 `$DSH_HOME`。
  */
 export function dshHomeDisplay(resolvedHome: string): string {
   return rootDisplay(resolvedHome, defaultDshHome(), DEFAULT_DSH_HOME_DISPLAY, DSH_HOME_ENV)
 }
 
 /**
- * Describe a resolved shared agent configuration root symbolically for user-facing display.
+ * 以符号形式描述一个已解析的共享 agent 配置根，用于面向用户的显示。
  *
- * It never returns an absolute machine path: the default root is labelled
- * `~/.agents`, and any configured root is labelled `$DSH_AGENTS_HOME`.
- * @param resolvedHome - the absolute path returned by {@link resolveAgentsHome}.
- * @returns `~/.agents` for the default root, otherwise `$DSH_AGENTS_HOME`.
+ * 它从不返回绝对机器路径：默认根标注为 `~/.agents`，任何已配置的根标注为
+ * `$DSH_AGENTS_HOME`。
+ * @param resolvedHome - {@link resolveAgentsHome} 返回的绝対路径。
+ * @returns 默认根为 `~/.agents`，否则为 `$DSH_AGENTS_HOME`。
  */
 export function agentsHomeDisplay(resolvedHome: string): string {
   return rootDisplay(resolvedHome, defaultAgentsHome(), DEFAULT_AGENTS_HOME_DISPLAY, AGENTS_HOME_ENV)

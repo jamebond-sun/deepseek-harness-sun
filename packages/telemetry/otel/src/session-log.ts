@@ -1,4 +1,4 @@
-/** Session-log records in an independent byte-bounded OTLP queue. */
+/** 处于独立、受字节上限约束的 OTLP 队列中的会话日志记录。 */
 import type { SessionEvent, SessionId } from '@deepseek-ai/dsh-session'
 import type { Attributes } from '@opentelemetry/api'
 import { SeverityNumber } from '@opentelemetry/api-logs'
@@ -8,48 +8,48 @@ import { resourceFromAttributes } from '@opentelemetry/resources'
 import { LoggerProvider, type BatchLogRecordProcessorOptions, type LogRecordExporter, type ReadableLogRecord, type LogRecordProcessor } from '@opentelemetry/sdk-logs'
 import { createLogExporter, type LogExporterOptions } from './transport.ts'
 
-/** Collector request ceiling in uncompressed UTF-8 bytes, including the OTLP envelope. */
+/** 收集器请求上限（未压缩的 UTF-8 字节数），包含 OTLP 信封。 */
 export const SESSION_LOG_MAX_REQUEST_BYTES = 4_000_000
 
-/** One canonical event with its separately owned Session identity and redacted payload. */
+/** 一条规范事件，其会话身份与脱敏后的负载分别独立拥有。 */
 export interface SessionLogRecord {
   sessionId: SessionId
-  /** Complete event envelope; data is the capture policy's exported copy. */
+  /** 完整的事件信封；data 为捕获策略导出的副本。 */
   event: Omit<SessionEvent, 'data'> & { data: unknown }
-  /** Additional capture metadata; sessionId and content are always assigned by the reporter. */
+  /** 额外的捕获元数据；sessionId 与 content 始终由上报方赋值。 */
   attributes?: Attributes
-  /** Omitted values use INFO. */
+  /** 省略时使用 INFO。 */
   severityNumber?: SeverityNumber
 }
 
 /**
- * Byte and count batching fields implemented by {@link SessionLogProcessor}.
+ * 由 {@link SessionLogProcessor} 实现的字节与计数批处理字段。
  *
- * `exporter` belongs to the owning channel, and `selfObsMeterProvider` is
- * excluded because this processor implements no self-observability metering.
+ * `exporter` 属于所属通道，而 `selfObsMeterProvider` 被排除，
+ * 因为该处理器未实现自观测计量。
  */
 export type SessionLogProcessorOptions = Omit<BatchLogRecordProcessorOptions, 'exporter' | 'selfObsMeterProvider'>
 
-/** Session-log transport and byte/count queue settings. */
+/** 会话日志的传输与字节/计数队列设置。 */
 export interface SessionLogOptions {
-  /** Explicit destination and SDK transport settings; exporter self-observability metering is not supported. */
+  /** 显式目标与 SDK 传输设置；导出器不支持自观测计量。 */
   exporter: LogExporterOptions
-  /** Session-only queue settings, independent of product-event aggregation. */
+  /** 仅会话的队列设置，独立于产品事件聚合。 */
   processor?: SessionLogProcessorOptions
-  /** May lower, but never exceed, the collector's 4,000,000-byte limit. */
+  /** 可以降低，但绝不能超过收集器的 4,000,000 字节上限。 */
   maxRequestBytes?: number
-  /** Instrumentation scope supplied by the business owner. */
+  /** 由业务方提供的埋点作用域。 */
   scope: { name: string; version?: string }
-  /** Application and anonymous identity carried on the OTLP resource. */
+  /** 承载于 OTLP 资源上的应用与匿名身份。 */
   resourceAttributes: Attributes
-  /** Report rejected single records and network failures without recording their content. */
+  /** 上报被拒绝的单条记录与网络失败，但不记录其内容。 */
   onFailure: (message: string, error?: Error) => void
 }
 
 /**
- * Validate byte and queue settings before constructing an SDK pipeline.
- * @param options - Session-specific limits supplied by the owning composition.
- * @returns the resolved collector request limit.
+ * 在构建 SDK 流水线之前校验字节与队列设置。
+ * @param options - 由所属组合提供的会话专属限制。
+ * @returns 解析后的收集器请求上限。
  */
 export function resolveSessionLogLimits(options: Pick<SessionLogOptions, 'maxRequestBytes' | 'processor'>): number {
   const limit = options.maxRequestBytes ?? SESSION_LOG_MAX_REQUEST_BYTES
@@ -68,7 +68,7 @@ export function resolveSessionLogLimits(options: Pick<SessionLogOptions, 'maxReq
   return limit
 }
 
-/** Byte/count batching with one transport request in flight, including after a watchdog warning. */
+/** 字节/计数批处理，仅允许一个传输请求在途，包括看门狗告警之后。 */
 class SessionLogProcessor implements LogRecordProcessor {
   private readonly queue: { record: ReadableLogRecord; bytes: number }[] = []
   private bytes = 0
@@ -133,12 +133,12 @@ class SessionLogProcessor implements LogRecordProcessor {
           bytes += entry.bytes
           count++
         }
-        // Each measured record includes its resource/scope envelope. The shared
-        // envelope in this provider's multi-record request cannot exceed their sum.
+        // 每个被计量的记录都包含其资源/作用域信封。该 provider 多记录请求中
+        // 共享的信封不会超过它们之和。
         const records = this.queue.splice(0, count).map(entry => entry.record)
         this.bytes -= bytes
         await this.send(records)
-        // The export callback precedes removal from the SDK concurrency queue.
+        // 导出回调先于从 SDK 并发队列中移除。
         await this.exporter.forceFlush()
       }
     } finally { this.active = undefined }
@@ -180,13 +180,13 @@ class SessionLogProcessor implements LogRecordProcessor {
   }
 }
 
-/** Owns feedback-authorized Session logs; no product-event provider or queue is mounted. */
+/** 拥有经反馈授权的会话日志；不挂载任何产品事件提供方或队列。 */
 export class SessionLogReporter {
   private readonly provider: LoggerProvider
   private readonly processor: SessionLogProcessor
   private readonly logger: ReturnType<LoggerProvider['getLogger']>
 
-  /** @param options - explicit transport, resource identity, queue limits, and diagnostics. */
+  /** @param options - 显式的传输、资源身份、队列上限与诊断设置。 */
   constructor(options: SessionLogOptions) {
     const limit = resolveSessionLogLimits(options)
     this.processor = new SessionLogProcessor(createLogExporter(options.exporter), limit, {
@@ -204,8 +204,8 @@ export class SessionLogReporter {
   }
 
   /**
-   * Enqueue one complete event without acknowledging network delivery.
-   * @param record - event with redacted data and its original Session id.
+   * 入队一条完整事件，但不确认网络投递。
+   * @param record - 已脱敏数据及其原始会话 id 的事件。
    */
   reportSessionLog(record: SessionLogRecord): void {
     const severityNumber = record.severityNumber ?? SeverityNumber.INFO
@@ -217,12 +217,12 @@ export class SessionLogReporter {
     })
   }
 
-  /** Stop queued requests after the owning backend's shutdown deadline; an active transport may still settle. */
+  /** 在所属后端的关闭截止时间后停止排队的请求；在途传输仍可能完成结算。 */
   stopPending(): void { this.processor.stopPending() }
 
   /**
-   * Drain queued requests and release the SDK transport.
-   * @returns completion after queued requests settle and the SDK transport shuts down.
+   * 排空排队的请求并释放 SDK 传输。
+   * @returns 排队请求结算完成且 SDK 传输关闭后的结果。
    */
   shutdown(): Promise<void> { return this.provider.shutdown() }
 }

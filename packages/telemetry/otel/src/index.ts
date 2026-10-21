@@ -1,4 +1,4 @@
-/** Cordis entry for independent ordinary-event and Session-log OTLP channels. */
+/** 独立普通事件与会话日志 OTLP 通道的 Cordis 入口。 */
 import { Context, Service } from '@deepseek-ai/cordis'
 import { EventLogReporter, type EventLogOptions } from './event-log.ts'
 import { SessionLogReporter, type SessionLogOptions } from './session-log.ts'
@@ -9,23 +9,23 @@ declare module '@deepseek-ai/cordis' {
   }
 }
 
-/** Shared transport provider. Mounting creates no queue, identity, or network connection. */
+/** 共享传输提供方。挂载时不创建队列、身份或网络连接。 */
 export default class OTel extends Service {
   constructor(ctx: Context) { super(ctx, 'otel') }
 
   /**
-   * Create an independent ordinary-event channel with count-based batching.
-   * The injected consumer must drain it during its fiber disposal.
-   * @param options - transport, scope, resource, queue, and diagnostic settings selected by the consumer.
-   * @returns the caller-owned channel; no state is shared with other channels.
+   * 创建一个基于计数的批处理的独立普通事件通道。
+   * 注入的消费方必须在其纤程处置期间将其排空。
+   * @param options - 由消费方选择的传输、作用域、资源、队列与诊断设置。
+   * @returns 由调用方拥有的通道；不与其他通道共享任何状态。
    */
   createEventReporter(options: EventLogOptions): EventLogReporter { return new EventLogReporter(options) }
 
   /**
-   * Create an independent byte-bounded Session-log channel.
-   * Authorization and redaction precede reporting; the consumer owns shutdown and its outer deadline.
-   * @param options - transport, scope, resource, queue, and diagnostic settings selected by the consumer.
-   * @returns the caller-owned channel, preserving complete accepted events within the request byte ceiling.
+   * 创建一个独立的、受字节上限约束的会话日志通道。
+   * 上报前需先完成授权与脱敏；消费方拥有关闭行为及其外部截止时间。
+   * @param options - 由消费方选择的传输、作用域、资源、队列与诊断设置。
+   * @returns 由调用方拥有的通道，在请求字节上限内保留完整的已接受事件。
    */
   createSessionLogReporter(options: SessionLogOptions): SessionLogReporter { return new SessionLogReporter(options) }
 }

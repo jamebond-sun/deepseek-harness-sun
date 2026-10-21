@@ -1,9 +1,8 @@
 import { defineConfig } from 'tsdown'
 
 /**
- * Node-only backend. The Win32 dialog worker builds as its own CJS entry,
- * path-loaded by the driver,
- * inlining the dialog logic while koffi stays an external native require.
+ * 仅 Node 的后端。Win32 对话框 worker 构建为自己的 CJS 入口，由驱动按路径加载，
+ * 内联对话框逻辑，而 koffi 保持为外部的原生 require。
  */
 export default defineConfig([
   {
@@ -17,8 +16,8 @@ export default defineConfig([
     clean: false,
   },
   {
-    // The artifact is lib/worker.cjs (the ./worker export the workspace
-    // constraint keys on), bundled from the descriptive source entry.
+    // 产物是 lib/worker.cjs（workspace 约束所依据的 ./worker 导出），
+    // 由描述性的源码入口打包而来。
     entry: { worker: 'lib/types/win32-dialog-worker.js' },
     outDir: 'lib',
     format: ['cjs'],

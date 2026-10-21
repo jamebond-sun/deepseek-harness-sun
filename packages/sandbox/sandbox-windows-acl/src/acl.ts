@@ -1,23 +1,19 @@
 /**
- * ACL editing helpers: grant/revoke a capability SID on a directory via
- * SetEntriesInAclW + SetNamedSecurityInfoW (the same calls the POC uses, with
- * the failure handling the POC lacks). Every API call is checked and every
- * failure is reported with the API name, the exact Win32 code, the formatted
- * system text, and the affected path.
+ * ACL 编辑辅助：通过 SetEntriesInAclW + SetNamedSecurityInfoW 在一个目录上
+ * 授予/撤销某个能力 SID（与 POC 所用的调用相同，但补上了 POC 缺失的失败
+ * 处理）。每个 API 调用都会被检查，每一次失败都会连同 API 名称、精确的
+ * Win32 错误码、格式化后的系统文本以及受影响的路径一起上报。
  *
- * Each grant applies three edits in ONE SetNamedSecurityInfoW call: the
- * capability-SID allow ACE, a Deny ACE that removes the ambient
- * `FILE_DELETE_CHILD` right from the world SID, and a Low no-write-up
- * mandatory label ({@link buildLowLabelAcl}). The deny is what keeps one
- * granted root out of another's reach: Windows also authorizes a delete from
- * the parent directory's `FILE_DELETE_CHILD` right, which the token's
- * write-restricted intersection does not reach, and every granted root carries
- * the Low label that clears the integrity check.
+ * 每次授予都在一次 SetNamedSecurityInfoW 调用中应用三项编辑：能力 SID 的
+ * 允许 ACE、一条从 world SID 手上剥夺环境 `FILE_DELETE_CHILD` 权限的拒绝
+ * ACE，以及一个 Low 禁止向上写入的强制标签（{@link buildLowLabelAcl}）。
+ * 正是这条拒绝让一个已授予的根无法触及另一个根：Windows 还会依据父目录的
+ * `FILE_DELETE_CHILD` 权限授权一次删除，而令牌的写入受限交集触达不到它，
+ * 同时每个已授予的根都带有能通过完整性检查的 Low 标签。
  *
- * Concurrency: grants are read-merge-write against the directory's CURRENT
- * DACL, and the whole get-merge-set sequence runs under a per-path exclusive
- * LockFileEx lock (see {@link withPathLock}) so concurrent sandbox instances
- * cannot clobber each other's ACEs.
+ * 并发：授予是针对该目录当前 DACL 的读-合并-写，并且整个"取-合并-设"序列
+ * 都在一个按路径划分的独占 LockFileEx 锁之下运行（见 {@link withPathLock}），
+ * 因此并发的沙箱实例无法互相踩踏彼此的 ACE。
  * @module @deepseek-ai/dsh-sandbox-windows-acl/acl
  */
 
@@ -30,19 +26,18 @@ import type { NativePtr, Win32Bindings } from './ffi.ts'
 import * as abi from './win32-abi.ts'
 
 /**
- * Pack one EXPLICIT_ACCESS_W (48 bytes, layout verified by abi-probe.cpp):
- * perms@0, mode@4, inheritance@8, Trustee@16 { pMultipleTrustee@16,
- * MultipleTrusteeOperation@24, TrusteeForm@28, TrusteeType@32, ptstrName@40 }.
- * `permissions` is the access mask; the POC passes 0 for REVOKE_ACCESS, which
- * removes every ACE for the trustee. `inheritance` defaults to children of
- * both kinds; the ambient-delete deny narrows it to containers because
- * FILE_DELETE_CHILD is meaningless on a file and its bit would otherwise
- * spread through the file's inherited mask.
- * @param sidPtr - the trustee SID the entry names.
- * @param mode - the access mode (GRANT_ACCESS, DENY_ACCESS, or REVOKE_ACCESS).
- * @param permissions - the access mask to grant or deny (0 for REVOKE_ACCESS).
- * @param inheritance - the ACE inheritance flags.
- * @returns the packed entry buffer.
+ * 打包一个 EXPLICIT_ACCESS_W（48 字节，布局由 abi-probe.cpp 验证）：
+ * perms@0、mode@4、inheritance@8、Trustee@16 { pMultipleTrustee@16、
+ * MultipleTrusteeOperation@24、TrusteeForm@28、TrusteeType@32、ptstrName@40 }。
+ * `permissions` 即访问掩码；POC 在 REVOKE_ACCESS 时传入 0，这会移除该受托者
+ * 的每一条 ACE。`inheritance` 默认为两类子项；环境删除那条拒绝把它收窄到
+ * 容器，因为 FILE_DELETE_CHILD 对文件没有意义，而它的那个位若不加限制就会
+ * 通过文件的继承掩码扩散出去。
+ * @param sidPtr - 该条目所点名的受托者 SID。
+ * @param mode - 访问模式（GRANT_ACCESS、DENY_ACCESS 或 REVOKE_ACCESS）。
+ * @param permissions - 要授予或拒绝的访问掩码（REVOKE_ACCESS 时为 0）。
+ * @param inheritance - ACE 的继承标志。
+ * @returns 打包好的条目缓冲区。
  */
 export function buildExplicitAccess(
   sidPtr: NativePtr,
@@ -62,13 +57,13 @@ export function buildExplicitAccess(
 }
 
 /**
- * One lock file per protected path: `<GetTempPathW()>\dsh-acl-locks\<first 16
- * hex of sha256(lowercased path)>.lock`. The lock root derives from
- * GetTempPathW (never from runner argv or DSH_HOME), and the lowercasing
- * maps Windows's case-insensitive path spellings onto one lock.
- * @param api - the binding table.
- * @param path - the protected directory (absolute).
- * @returns the lock file path for that directory.
+ * 每个受保护路径对应一个锁文件：`<GetTempPathW()>\dsh-acl-locks\<sha256(
+ * 小写化路径) 的前 16 个十六进制字符>.lock`。锁根目录来自 GetTempPathW
+ * （绝不来自运行器 argv 或 DSH_HOME），而小写化把 Windows 大小写不敏感的
+ * 各种路径拼写映射到同一把锁上。
+ * @param api - 绑定表。
+ * @param path - 受保护的目录（绝对路径）。
+ * @returns 该目录对应的锁文件路径。
  */
 export function lockFilePath(api: Win32Bindings, path: string): string {
   const digest = createHash('sha256').update(path.toLowerCase()).digest('hex').slice(0, 16)
@@ -76,19 +71,18 @@ export function lockFilePath(api: Win32Bindings, path: string): string {
 }
 
 /**
- * Run `action` holding the per-path exclusive lock: CreateFileW
- * (OPEN_ALWAYS, shared read/write but NOT delete — a deletable lock file
- * could be removed and recreated under the holder, letting two processes
- * hold "the same" lock), then a one-byte LockFileEx
- * (LOCKFILE_EXCLUSIVE_LOCK, zeroed OVERLAPPED = lock from offset 0 on the
- * synchronous handle — see allocOverlapped for why not NULL), then
- * UnlockFileEx + CloseHandle. Fail-closed: open/lock/unlock/close failures
- * throw like every other Win32 call in this package; an `action` failure
- * still unlocks (best-effort) and rethrows the original error.
- * @param api - the binding table.
- * @param path - the protected directory (absolute).
- * @param action - the get-merge-set sequence to serialize.
- * @returns the action's result.
+ * 在持有该路径独占锁的前提下运行 `action`：先是 CreateFileW
+ * （OPEN_ALWAYS，共享读/写但不共享删除——一个可删除的锁文件会被持锁者之外
+ * 的人删除并重建，从而让两个进程持有"同一把"锁），接着是一次一字节的
+ * LockFileEx（LOCKFILE_EXCLUSIVE_LOCK，清零的 OVERLAPPED 表示在同步句柄上
+ * 从偏移 0 处加锁——为何不用 NULL 见 allocOverlapped），然后是
+ * UnlockFileEx + CloseHandle。失败即关闭：打开/加锁/解锁/关闭的失败都像本包
+ * 中其他 Win32 调用一样抛出；`action` 自身的失败仍会（尽最大努力）解锁并
+ * 重新抛出原来的错误。
+ * @param api - 绑定表。
+ * @param path - 受保护的目录（绝对路径）。
+ * @param action - 需要串行化的"取-合并-设"序列。
+ * @returns action 的结果。
  */
 export function withPathLock<T>(api: Win32Bindings, path: string, action: () => T): T {
   const lockPath = lockFilePath(api, path)
@@ -111,8 +105,7 @@ export function withPathLock<T>(api: Win32Bindings, path: string, action: () => 
   try {
     result = action()
   } catch (error) {
-    // Best-effort release on the action-failure path: cleanup failures must
-    // not mask the action's error.
+    // 在 action 失败路径上尽最大努力释放：清理失败不得掩盖 action 的错误。
     api.unlockFileEx(handle, 0, 1, 0, overlapped)
     api.closeHandle(handle)
     throw error
@@ -127,16 +120,14 @@ export function withPathLock<T>(api: Win32Bindings, path: string, action: () => 
 }
 
 /**
- * Read the directory's current explicit DACL and mandatory label via
- * GetNamedSecurityInfoW.
- * Allocation contract (the POC's RevokeAccess, minus its missing checks): the
- * returned ACL pointer sits INSIDE the security descriptor allocation — only
- * the descriptor may be LocalFree'd, and it must not be freed before
- * SetEntriesInAclW has consumed the ACL. Freeing the ACL pointer itself
- * corrupts the heap (verified the hard way).
- * @param api - the binding table.
- * @param path - the directory whose DACL and label are read.
- * @returns the current explicit DACL and label ACL (null when the directory carries none) plus their owning descriptor.
+ * 通过 GetNamedSecurityInfoW 读取该目录当前的显式 DACL 与强制标签。
+ * 分配契约（即 POC 的 RevokeAccess，去掉了它缺失的那些检查）：返回的 ACL
+ * 指针位于安全描述符分配块之内——只有该描述符可以被 LocalFree，而且它在
+ * SetEntriesInAclW 消费完那份 ACL 之前不得被释放。直接释放 ACL 指针本身会
+ * 破坏堆（这一点是吃过苦头才验证的）。
+ * @param api - 绑定表。
+ * @param path - 其 DACL 与标签被读取的目录。
+ * @returns 当前的显式 DACL 与标签 ACL（该目录未携带时为 null）以及持有它们的描述符。
  */
 function readCurrentSecurity(
   api: Win32Bindings,
@@ -156,15 +147,14 @@ function readCurrentSecurity(
 }
 
 /**
- * Build the Low mandatory label applied with every write grant: one
- * SYSTEM_MANDATORY_LABEL_ACE naming `lowLabelSidPtr` with the no-write-up
- * policy, inheriting to subcontainers and objects so later children carry the
- * same label. The caller frees the returned ACL with LocalFree
- * (SetNamedSecurityInfoW copies it); every Win32 call is checked and a
- * half-built ACL is released before the error is thrown.
- * @param api - the binding table.
- * @param lowLabelSidPtr - the Low integrity SID (S-1-16-4096) the label names.
- * @returns the ACL carrying the single inheritable label ACE.
+ * 构建随每次写入授予一起应用的 Low 强制标签：一条 SYSTEM_MANDATORY_LABEL_ACE
+ * 点名 `lowLabelSidPtr` 并采用禁止向上写入策略，且继承到子容器与子对象，
+ * 使后续的子项带上同样的标签。调用方用 LocalFree 释放返回的 ACL
+ * （SetNamedSecurityInfoW 会复制它）；每个 Win32 调用都会被检查，一个只建了
+ * 一半的 ACL 会在错误抛出之前被释放。
+ * @param api - 绑定表。
+ * @param lowLabelSidPtr - 该标签所点名的 Low 完整性 SID（S-1-16-4096）。
+ * @returns 承载着那一条可继承标签 ACE 的 ACL。
  */
 export function buildLowLabelAcl(api: Win32Bindings, lowLabelSidPtr: NativePtr): NativePtr {
   const sidLength = api.getLengthSid(lowLabelSidPtr)
@@ -188,12 +178,12 @@ export function buildLowLabelAcl(api: Win32Bindings, lowLabelSidPtr: NativePtr):
 }
 
 /**
- * True when the label ACL already carries the EXACT label this module would
- * add (mandatory-label ACE, OI|CI inheritance, no-write-up policy, the Low
- * SID), so a re-grant can skip the eager full-tree propagation.
- * @param labelAcl - the current label ACL pointer (from {@link readCurrentSecurity}).
- * @param lowLabelSidPtr - the Low integrity SID to match.
- * @returns whether the exact label ACE is already present.
+ * 当标签 ACL 已经携带了本模块将会添加的那个完全相同的标签（强制标签 ACE、
+ * OI|CI 继承、禁止向上写入策略、Low SID）时返回 true，这样一次重新授予就能
+ * 跳过那次急切的整树传播。
+ * @param labelAcl - 当前的标签 ACL 指针（来自 {@link readCurrentSecurity}）。
+ * @param lowLabelSidPtr - 要匹配的 Low 完整性 SID。
+ * @returns 该精确标签 ACE 是否已经存在。
  */
 function hasExactLabel(labelAcl: NativePtr, lowLabelSidPtr: NativePtr): boolean {
   return hasExactEntry(
@@ -203,28 +193,26 @@ function hasExactLabel(labelAcl: NativePtr, lowLabelSidPtr: NativePtr): boolean 
 }
 
 /**
- * The mandatory-label half of an apply: set the given label ACL, clear the
- * label, or leave it untouched. `clear` is what a revoke does when the
- * directory carries no other capability grant; `keep` is what it does while
- * another grant still relies on the shared Low level.
+ * 一次应用中涉及强制标签的那一半：设置给定的标签 ACL、清除该标签，或让它
+ * 保持原样。当该目录上没有其他能力授予时，撤销执行的是 `clear`；当另一份
+ * 授予仍然依赖这个共享的 Low 级别时，执行的是 `keep`。
  */
 type LabelEdit = { kind: 'apply'; acl: NativePtr } | { kind: 'clear' } | { kind: 'keep' }
 
 /**
- * Shared tail of grantWrite and revokeWrite: merge `entries` into `oldAcl`
- * (null = no explicit DACL yet; SetEntriesInAclW builds one from scratch),
- * free the descriptor before applying the merged ACL, apply the merged DACL
- * together with the label edit in one SetNamedSecurityInfoW call, then free
- * every ACL this call owns — checking each call and reporting with the
- * caller's label. The entry count derives from the buffer, so a grant can
- * carry its capability ACE and its ambient-delete deny in one merge.
- * @param api - the binding table.
- * @param path - the directory the DACL and label edits apply to.
- * @param entries - packed EXPLICIT_ACCESS_W records to merge (grant, deny, or revoke).
- * @param oldAcl - the current explicit DACL (from {@link readCurrentSecurity}).
- * @param labelEdit - the label change to apply alongside the DACL.
- * @param descriptor - the descriptor allocation owning `oldAcl`.
- * @param label - the caller's name for error details.
+ * grantWrite 与 revokeWrite 共用的尾部：把 `entries` 合并进 `oldAcl`
+ * （null 表示还没有显式 DACL；SetEntriesInAclW 会从零构建一份），在应用合并
+ * 后的 ACL 之前先释放描述符，在一次 SetNamedSecurityInfoW 调用中同时应用合并
+ * 后的 DACL 与标签编辑，然后释放本次调用所持有的每一个 ACL——逐步检查每个
+ * 调用，并以调用方的 label 上报。条目数由缓冲区推导，因此一次授予可以在
+ * 一次合并中同时带上它的能力 ACE 与环境删除拒绝。
+ * @param api - 绑定表。
+ * @param path - DACL 与标签编辑所作用的目录。
+ * @param entries - 待合并的已打包 EXPLICIT_ACCESS_W 记录（授予、拒绝或撤销）。
+ * @param oldAcl - 当前的显式 DACL（来自 {@link readCurrentSecurity}）。
+ * @param labelEdit - 与 DACL 一并应用的标签变更。
+ * @param descriptor - 持有 `oldAcl` 的那个描述符分配块。
+ * @param label - 调用方用于错误详情的名称。
  */
 function mergeAndApply(
   api: Win32Bindings,
@@ -249,8 +237,8 @@ function mergeAndApply(
     throwWin32(api, 'SetEntriesInAclW', api.getLastError(), `${label}(${path}): null new ACL`)
   }
 
-  // The descriptor block (oldAcl included) is dead after the merge — free it
-  // before applying, exactly like the POC.
+  // 合并之后，描述符块（含 oldAcl）即已失效——在应用之前释放它，
+  // 与 POC 的做法完全一致。
   const freedDescriptor = descriptor !== null ? api.localFree(descriptor) : null
   const applyResult = api.setNamedSecurityInfoW(
     path, abi.SE_FILE_OBJECT,
@@ -266,32 +254,30 @@ function mergeAndApply(
 }
 
 /**
- * True when the explicit DACL already carries the EXACT entry
- * `(aceType, inheritance, mask, trustee SID)`. Every field is read through
- * koffi.decode at pointer offsets — no memcpy, no pointer arithmetic. The
- * ACE's SID is INLINE (embedded in the ACE after the 4-byte mask — there is
- * no pointer to read; reading one yields garbage addresses and crashed
- * EqualSid, verified by gdb), so it is compared field-by-field against the
- * trustee SID through bounded offset reads ({@link sameSidAt}). Allowed and
- * denied ACEs share the Mask@4/SID@8 layout. A malformed header reads as "no
- * exact entry" so the caller falls back to the merge-apply path, which owns
- * the robust failure handling.
- * @param acl - the current explicit DACL pointer (from {@link readCurrentSecurity}).
- * @param aceType - the ACE type to match.
- * @param inheritance - the ACE inheritance flags to match.
- * @param mask - the access mask to match.
- * @param sidPtr - the trustee SID to match.
- * @returns whether the exact entry is already present.
+ * 当显式 DACL 已经携带了完全相同的条目
+ * `(aceType, inheritance, mask, 受托者 SID)` 时返回 true。每个字段都是通过
+ * koffi.decode 在指针偏移处读取的——不做 memcpy，也不做指针算术。ACE 的 SID
+ * 是内联的（嵌在该 ACE 中 4 字节掩码之后——并没有指针可读；读出一个会得到
+ * 垃圾地址并让 EqualSid 崩溃，这一点由 gdb 验证），因此它通过有界偏移读取
+ * 与受托者 SID 逐字段比较（{@link sameSidAt}）。允许型与拒绝型 ACE 共用
+ * Mask@4/SID@8 的布局。一个畸形的头部会被读作"没有精确条目"，于是调用方
+ * 回退到合并-应用路径，而那条路径才拥有健壮的失败处理。
+ * @param acl - 当前的显式 DACL 指针（来自 {@link readCurrentSecurity}）。
+ * @param aceType - 要匹配的 ACE 类型。
+ * @param inheritance - 要匹配的 ACE 继承标志。
+ * @param mask - 要匹配的访问掩码。
+ * @param sidPtr - 要匹配的受托者 SID。
+ * @returns 该精确条目是否已经存在。
  */
 function hasExactEntry(acl: NativePtr, aceType: number, inheritance: number, mask: number, sidPtr: NativePtr): boolean {
   const aclSize = decodeUint16At(acl, 2)
   const aceCount = decodeUint16At(acl, 4)
   if (aclSize < 8 || aclSize > 1_048_576) return false // implausible: fall back to the merge path
-  let offset = 8 // the first ACE follows the 8-byte ACL header
+  let offset = 8 // 第一个 ACE 紧跟在 8 字节的 ACL 头之后
   for (let index = 0; index < aceCount; index++) {
-    // ACE_HEADER: AceType@0, AceFlags@1, AceSize@2 (WORD); Mask@4, inline SID@8.
+    // ACE_HEADER：AceType@0、AceFlags@1、AceSize@2（WORD）；Mask@4、内联 SID@8。
     const aceSize = decodeUint16At(acl, offset + 2)
-    if (aceSize < 8 || offset + aceSize > aclSize) return false // implausible: fall back to the merge path
+    if (aceSize < 8 || offset + aceSize > aclSize) return false // 不合理：回退到合并路径
     const exact = decodeUint8At(acl, offset) === aceType
       && decodeUint8At(acl, offset + 1) === inheritance
       && decodeUint32At(acl, offset + 4) === mask
@@ -302,37 +288,36 @@ function hasExactEntry(acl: NativePtr, aceType: number, inheritance: number, mas
 }
 
 /**
- * True when the explicit DACL already carries the EXACT write grant this
- * module would add: the Allow ACE for {@link abi.GRANT_MASK} naming the
- * capability SID.
- * @param oldAcl - the current explicit DACL pointer (from {@link readCurrentSecurity}).
- * @param sidPtr - the capability SID to match.
- * @returns whether the exact grant ACE is already present.
+ * 当显式 DACL 已经携带了本模块将会添加的那个完全相同的写入授予时返回 true：
+ * 即针对 {@link abi.GRANT_MASK}、点名该能力 SID 的允许 ACE。
+ * @param oldAcl - 当前的显式 DACL 指针（来自 {@link readCurrentSecurity}）。
+ * @param sidPtr - 要匹配的能力 SID。
+ * @returns 该精确授予 ACE 是否已经存在。
  */
 function hasExactGrant(oldAcl: NativePtr, sidPtr: NativePtr): boolean {
   return hasExactEntry(oldAcl, abi.ACCESS_ALLOWED_ACE_TYPE, abi.SUB_CONTAINERS_AND_OBJECTS_INHERIT, abi.GRANT_MASK, sidPtr)
 }
 
 /**
- * True when the explicit DACL already carries the EXACT ambient-delete deny:
- * the container-inherited Deny ACE for {@link abi.FILE_DELETE_CHILD} naming
- * the world SID. It is part of the idempotent skip, so a root granted by an
- * earlier build receives the deny on its next provision.
- * @param oldAcl - the current explicit DACL pointer (from {@link readCurrentSecurity}).
- * @param worldSidPtr - the Everyone SID the deny names.
- * @returns whether the exact deny ACE is already present.
+ * 当显式 DACL 已经携带了完全相同的环境删除拒绝时返回 true：即针对
+ * {@link abi.FILE_DELETE_CHILD}、点名 world SID 的容器继承拒绝 ACE。它是
+ * 幂等跳过的一部分，因此一个由更早版本授予过的根会在下一次供应时收到这条
+ * 拒绝。
+ * @param oldAcl - 当前的显式 DACL 指针（来自 {@link readCurrentSecurity}）。
+ * @param worldSidPtr - 该拒绝所点名的 Everyone SID。
+ * @returns 该精确拒绝 ACE 是否已经存在。
  */
 function hasExactDeny(oldAcl: NativePtr, worldSidPtr: NativePtr): boolean {
   return hasExactEntry(oldAcl, abi.ACCESS_DENIED_ACE_TYPE, abi.CONTAINER_INHERIT_ACE, abi.FILE_DELETE_CHILD, worldSidPtr)
 }
 
 /**
- * True when a capability grant for a SID OTHER than `sidPtr` stands on this
- * DACL — the condition under which a revoke must leave the shared Low label in
- * place, or the remaining grant's child would lose its write authority.
- * @param oldAcl - the current explicit DACL pointer (from {@link readCurrentSecurity}).
- * @param sidPtr - the capability SID being revoked.
- * @returns whether another capability grant remains.
+ * 当该 DACL 上存在一个针对 `sidPtr` 之外的其他 SID 的能力授予时返回 true——
+ * 这正是撤销必须保留共享 Low 标签的条件，否则剩下那份授予的子项会失去其
+ * 写权限。
+ * @param oldAcl - 当前的显式 DACL 指针（来自 {@link readCurrentSecurity}）。
+ * @param sidPtr - 正被撤销的那个能力 SID。
+ * @returns 是否还残留着另一个能力授予。
  */
 function hasForeignGrant(oldAcl: NativePtr, sidPtr: NativePtr): boolean {
   const aclSize = decodeUint16At(oldAcl, 2)
@@ -351,28 +336,24 @@ function hasForeignGrant(oldAcl: NativePtr, sidPtr: NativePtr): boolean {
 }
 
 /**
- * Grant `GRANT_MASK` (Write+Delete, displays as "Modify") to the capability SID
- * on `path`, deny the world SID the ambient `FILE_DELETE_CHILD` right, and
- * apply the Low mandatory label — one merge. The deny inherits to containers
- * only: the right is evaluated on directories, and inheriting its bit onto
- * files would deny every `FILE_ALL_ACCESS`/`GENERIC_ALL` open inside the root
- * (0x40 is a member of that mask). The capability ACE's DELETE bit is then the
- * only delete authority inside the root, so a file whose own DACL grants no
- * DELETE is no longer deletable through its parent's rights.
+ * 在 `path` 上把 `GRANT_MASK`（写入+删除，显示为"修改"）授予该能力 SID，
+ * 拒绝 world SID 的环境 `FILE_DELETE_CHILD` 权限，并应用 Low 强制标签——
+ * 一次合并完成。该拒绝只继承到容器：这一权限是在目录上判定的，而把它的位
+ * 继承到文件上会拒绝对该根内每一次 `FILE_ALL_ACCESS`/`GENERIC_ALL` 的打开
+ * （0x40 属于那个掩码）。于是能力 ACE 的 DELETE 位成为该根内部唯一的删除
+ * 授权，一个自身 DACL 未授予 DELETE 的文件便无法再借助其父目录的权限被删除。
  *
- * Idempotent: the exact ACE, deny, and label together SKIP the
- * SetNamedSecurityInfoW apply, which would otherwise re-propagate the
- * identical descriptor across the whole tree (eager inheritance; minutes on
- * large workspaces). Otherwise read-merge-write, so pre-existing explicit ACEs
- * survive (same shape as {@link revokeWrite}). Runs under the per-path lock.
- * The directory must be owned by the caller AND grant WRITE_OWNER (the label
- * lives in the SACL; owner-implicit rights cover only READ_CONTROL and
- * WRITE_DAC) — a Full-control workspace satisfies both.
- * @param api - the binding table.
- * @param path - the directory whose DACL and label gain the grant (the workspace or temp root).
- * @param sidPtr - the capability SID the ACE names.
- * @param lowLabelSidPtr - the Low integrity SID the mandatory label names.
- * @param worldSidPtr - the Everyone SID the ambient-delete deny names.
+ * 幂等：精确的 ACE、拒绝与标签三者齐备时会跳过 SetNamedSecurityInfoW 的
+ * 应用，否则那会把同一份描述符重新传播到整棵树上（急切继承；在大型工作区
+ * 上耗时数分钟）。其余情形则是读-合并-写，因此既有的显式 ACE 得以保留
+ * （与 {@link revokeWrite} 形状相同）。在按路径的锁之下运行。该目录必须由
+ * 调用方拥有且授予 WRITE_OWNER（标签位于 SACL；所有者隐式权限只覆盖
+ * READ_CONTROL 与 WRITE_DAC）——一个完全控制的工作区同时满足两者。
+ * @param api - 绑定表。
+ * @param path - 其 DACL 与标签将获得该授予的目录（工作区根或临时根）。
+ * @param sidPtr - 该 ACE 所点名的能力 SID。
+ * @param lowLabelSidPtr - 强制标签所点名的 Low 完整性 SID。
+ * @param worldSidPtr - 环境删除拒绝所点名的 Everyone SID。
  */
 export function grantWrite(
   api: Win32Bindings,
@@ -386,7 +367,7 @@ export function grantWrite(
     if (oldAcl !== null && labelAcl !== null
       && hasExactGrant(oldAcl, sidPtr) && hasExactDeny(oldAcl, worldSidPtr)
       && hasExactLabel(labelAcl, lowLabelSidPtr)) {
-      // The exact ACE, deny, and label stand: releasing the descriptor is the whole operation.
+      // 精确的 ACE、拒绝与标签已然齐备：释放描述符就是全部操作。
       if (descriptor !== null) {
         const freed = api.localFree(descriptor)
         if (!isNullPtr(freed)) throwLastError(api, 'LocalFree', `grantWrite(${path}) descriptor`)
@@ -397,8 +378,7 @@ export function grantWrite(
     try {
       label = buildLowLabelAcl(api, lowLabelSidPtr)
     } catch (error) {
-      // The read already owns a descriptor allocation; release it before the
-      // label failure propagates.
+      // 那次读取已经持有一个描述符分配块；在标签失败向外传播之前先释放它。
       if (descriptor !== null) api.localFree(descriptor)
       throw error
     }
@@ -414,19 +394,18 @@ export function grantWrite(
 }
 
 /**
- * Remove every ACE for the capability SID from the directory DACL (REVOKE_ACCESS
- * merge — other entries are preserved). The shared Low label is cleared only
- * when no other capability grant remains on the directory: two grants may
- * target one directory, and the surviving one still needs the label for its
- * child's writes. Returns whether an ACE removal was attempted (false when the
- * directory carries no DACL at all).
+ * 从该目录 DACL 中移除该能力 SID 的每一条 ACE（REVOKE_ACCESS 合并——其他
+ * 条目予以保留）。共享的 Low 标签仅当该目录上不再残留任何其他能力授予时
+ * 才被清除：两份授予可能指向同一个目录，而幸存的那一份仍需要该标签来完成
+ * 其子项的写入。返回是否尝试过一次 ACE 移除（当该目录根本不携带 DACL 时
+ * 返回 false）。
  *
- * Runs under the per-path lock (the whole get-merge-set sequence); the
- * descriptor/ACL allocation contract lives on {@link readCurrentSecurity}.
- * @param api - the binding table.
- * @param path - the directory whose DACL loses the capability-SID ACEs.
- * @param sidPtr - the capability SID whose ACEs are removed.
- * @returns whether an ACE removal was attempted (false when the directory carries no DACL at all).
+ * 在按路径的锁之下运行（整个"取-合并-设"序列）；描述符/ACL 的分配契约
+ * 见 {@link readCurrentSecurity}。
+ * @param api - 绑定表。
+ * @param path - 其 DACL 将失去这些能力 SID ACE 的目录。
+ * @param sidPtr - 其 ACE 被移除的那个能力 SID。
+ * @returns 是否尝试过一次 ACE 移除（当该目录根本不携带 DACL 时返回 false）。
  */
 export function revokeWrite(api: Win32Bindings, path: string, sidPtr: NativePtr): boolean {
   return withPathLock(api, path, () => {
